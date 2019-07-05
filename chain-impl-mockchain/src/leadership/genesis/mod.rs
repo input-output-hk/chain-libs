@@ -232,7 +232,7 @@ mod tests {
     #[quickcheck]
     pub fn test_leader_election_is_consistent_with_stake_distribution(
         leader_election_parameters: LeaderElectionParameters,
-    ) {
+    ) -> TestResult {
         let config_params = ledger_mock::ConfigBuilder::new()
             .with_slots_per_epoch(leader_election_parameters.slots_per_epoch)
             .with_active_slots_coeff(leader_election_parameters.active_slots_coeff_as_milli())
@@ -266,8 +266,10 @@ mod tests {
             );
         }
 
+        let mut empty_slots = 0;
         let mut date = ledger.date();
         for _i in 0..leader_election_parameters.slots_per_epoch {
+            let mut any_found = false;
             for (pool_id, (pool_vrf_private_key, times_selected, _)) in pools.iter_mut() {
                 match selection
                     .leader(&pool_id, &pool_vrf_private_key, date)
@@ -275,29 +277,53 @@ mod tests {
                 {
                     None => {}
                     Some(_) => {
+                        any_found = true;
                         *times_selected += 1;
                     }
                 }
             }
+            if !any_found {
+                empty_slots += 1;
+            }
             date = date.next(&ledger.era());
         }
 
-        println!("Calculating percentage of election per pool:");
-        println!("{:?}", leader_election_parameters);
-        println!("---------------------------------");
+        println!("Calculating percentage of election per pool....");
+        println!("parameters = {:?}", leader_election_parameters);
+        println!("empty slots = {}", empty_slots);
         let total_election_count: u64 = pools.iter().map(|(_, y)| y.1).sum();
+        let ideal_election_count_per_pool: f32 =
+            total_election_count as f32 / leader_election_parameters.pools_count as f32;
+        let ideal_election_percentage =
+            ideal_election_count_per_pool as f32 / total_election_count as f32;
+        let grace_percentage: f32 = 0.04;
+        println!(
+            "ideal percentage: {:.2}, grace_percentage: {:.2}",
+            ideal_election_percentage, grace_percentage
+        );
+
         for (pool_id, (_pool_vrf_private_key, times_selected, stake)) in pools.iter_mut() {
+            let pool_election_percentage = (*times_selected as f32) / (total_election_count as f32);
             println!(
-                "pool id={} stake={} slots % ={}",
-                pool_id,
-                stake.0,
-                (*times_selected as f32 / total_election_count as f32)
+                "pool id={}, stake={}, slots %={}",
+                pool_id, stake.0, pool_election_percentage
             );
+            if (pool_election_percentage - ideal_election_percentage).abs() - grace_percentage
+                > 0.01
+            {
+                TestResult::error(format!(
+                    "Incorrect percentage {:.2} is out of correct range [{:.2} {:.2} ]",
+                    pool_election_percentage,
+                    ideal_election_percentage - grace_percentage,
+                    ideal_election_percentage + grace_percentage
+                ));
+            }
         }
-        println!("---------------------------------");
+        TestResult::passed()
     }
 
     #[test]
+    #[ignore]
     pub fn test_phi() {
         let slots_per_epoch = 200000;
         let active_slots_coeff = 0.1;
