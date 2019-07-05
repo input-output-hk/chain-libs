@@ -90,6 +90,7 @@ impl GenesisLeaderSelection {
                     stake: stake,
                     total: total_stake,
                 };
+
                 let evaluator = VrfEvaluator {
                     stake: percent_stake,
                     nonce: &self.epoch_nonce,
@@ -172,6 +173,9 @@ mod tests {
     use crate::testing::ledger as ledger_mock;
     use crate::value::*;
     use chain_crypto::*;
+    use quickcheck::TestResult;
+    use quickcheck::{Arbitrary, Gen};
+    use quickcheck_macros::quickcheck;
     use std::collections::HashMap;
 
     fn make_pool(ledger: &mut Ledger) -> (StakePoolId, SecretKey<Curve25519_2HashDH>) {
@@ -197,15 +201,110 @@ mod tests {
         (pool_id, pool_vrf_private_key)
     }
 
+    #[derive(Clone, Debug)]
+    pub struct LeaderElectionParameters {
+        slots_per_epoch: u32,
+        active_slots_coeff: f32,
+        pools_count: usize,
+        value: Value,
+    }
+
+    impl Arbitrary for LeaderElectionParameters {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let pools_count = usize::arbitrary(g) % 5 + 5;
+            let active_slots_coeff = (0.1 * pools_count as f32) - 0.02;
+
+            LeaderElectionParameters {
+                slots_per_epoch: u32::arbitrary(g) % 200 + 100,
+                active_slots_coeff: active_slots_coeff,
+                pools_count: pools_count,
+                value: Value(100),
+            }
+        }
+    }
+
+    impl LeaderElectionParameters {
+        pub fn active_slots_coeff_as_milli(&self) -> Milli {
+            Milli::from_millis((self.active_slots_coeff * 1000.0) as u64)
+        }
+    }
+
+    #[quickcheck]
+    pub fn test_leader_election_is_consistent_with_stake_distribution(
+        leader_election_parameters: LeaderElectionParameters,
+    ) {
+        let config_params = ledger_mock::ConfigBuilder::new()
+            .with_slots_per_epoch(leader_election_parameters.slots_per_epoch)
+            .with_active_slots_coeff(leader_election_parameters.active_slots_coeff_as_milli())
+            .build();
+
+        let (_genesis_hash, mut ledger) =
+            ledger_mock::create_initial_fake_ledger(&vec![], config_params).unwrap();
+
+        let mut pools = HashMap::<StakePoolId, (SecretKey<Curve25519_2HashDH>, u64, Value)>::new();
+
+        for _i in 0..leader_election_parameters.pools_count {
+            let (pool_id, pool_vrf_private_key) = make_pool(&mut ledger);
+            pools.insert(
+                pool_id.clone(),
+                (
+                    pool_vrf_private_key,
+                    0,
+                    leader_election_parameters.value.clone(),
+                ),
+            );
+        }
+
+        let mut selection = GenesisLeaderSelection::new(0, &ledger);
+
+        for (pool_id, (_, _, value)) in &pools {
+            selection.distribution.to_pools.insert(
+                pool_id.clone(),
+                PoolStakeDistribution {
+                    total_stake: *value,
+                },
+            );
+        }
+
+        let mut date = ledger.date();
+        for _i in 0..leader_election_parameters.slots_per_epoch {
+            for (pool_id, (pool_vrf_private_key, times_selected, _)) in pools.iter_mut() {
+                match selection
+                    .leader(&pool_id, &pool_vrf_private_key, date)
+                    .unwrap()
+                {
+                    None => {}
+                    Some(_) => {
+                        *times_selected += 1;
+                    }
+                }
+            }
+            date = date.next(&ledger.era());
+        }
+
+        println!("Calculating percentage of election per pool:");
+        println!("{:?}", leader_election_parameters);
+        println!("---------------------------------");
+        let total_election_count: u64 = pools.iter().map(|(_, y)| y.1).sum();
+        for (pool_id, (_pool_vrf_private_key, times_selected, stake)) in pools.iter_mut() {
+            println!(
+                "pool id={} stake={} slots % ={}",
+                pool_id,
+                stake.0,
+                (*times_selected as f32 / total_election_count as f32)
+            );
+        }
+        println!("---------------------------------");
+    }
+
     #[test]
-    #[ignore]
     pub fn test_phi() {
         let slots_per_epoch = 200000;
         let active_slots_coeff = 0.1;
-
+        let active_slots_coeff_as_milli = Milli::from_millis((active_slots_coeff * 1000.0) as u64);
         let config_params = ledger_mock::ConfigBuilder::new()
-            .with_slots_per_epoch(200000)
-            .with_active_slots_coeff(Milli::from_millis(100))
+            .with_slots_per_epoch(slots_per_epoch)
+            .with_active_slots_coeff(active_slots_coeff_as_milli)
             .build();
 
         let (_genesis_hash, mut ledger) =
