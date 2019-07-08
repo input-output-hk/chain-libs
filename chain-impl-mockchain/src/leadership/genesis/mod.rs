@@ -173,9 +173,6 @@ mod tests {
     use crate::testing::ledger as ledger_mock;
     use crate::value::*;
     use chain_crypto::*;
-    use quickcheck::TestResult;
-    use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
     use std::collections::HashMap;
 
     fn make_pool(ledger: &mut Ledger) -> (StakePoolId, SecretKey<Curve25519_2HashDH>) {
@@ -209,30 +206,28 @@ mod tests {
         value: Value,
     }
 
-    impl Arbitrary for LeaderElectionParameters {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let pools_count = usize::arbitrary(g) % 5 + 5;
-            let active_slots_coeff = (0.1 * pools_count as f32) - 0.02;
+    impl LeaderElectionParameters {
+        pub fn new() -> Self {
+            let pools_count = 5;
+            let active_slots_coeff = 0.18;
 
             LeaderElectionParameters {
-                slots_per_epoch: u32::arbitrary(g) % 200 + 100,
+                slots_per_epoch: 1000,
                 active_slots_coeff: active_slots_coeff,
                 pools_count: pools_count,
                 value: Value(100),
             }
         }
-    }
 
-    impl LeaderElectionParameters {
         pub fn active_slots_coeff_as_milli(&self) -> Milli {
             Milli::from_millis((self.active_slots_coeff * 1000.0) as u64)
         }
     }
 
-    #[quickcheck]
-    pub fn test_leader_election_is_consistent_with_stake_distribution(
-        leader_election_parameters: LeaderElectionParameters,
-    ) -> TestResult {
+    #[test]
+    pub fn test_leader_election_is_consistent_with_stake_distribution() {
+        let leader_election_parameters = LeaderElectionParameters::new();
+
         let config_params = ledger_mock::ConfigBuilder::new()
             .with_slots_per_epoch(leader_election_parameters.slots_per_epoch)
             .with_active_slots_coeff(leader_election_parameters.active_slots_coeff_as_milli())
@@ -308,18 +303,16 @@ mod tests {
                 "pool id={}, stake={}, slots %={}",
                 pool_id, stake.0, pool_election_percentage
             );
-            if (pool_election_percentage - ideal_election_percentage).abs() - grace_percentage
-                > 0.01
-            {
-                TestResult::error(format!(
-                    "Incorrect percentage {:.2} is out of correct range [{:.2} {:.2} ]",
-                    pool_election_percentage,
-                    ideal_election_percentage - grace_percentage,
-                    ideal_election_percentage + grace_percentage
-                ));
-            }
+
+            assert!(
+                (pool_election_percentage - ideal_election_percentage).abs() - grace_percentage
+                    < 0.01,
+                "Incorrect percentage {:.2} is out of correct range [{:.2} {:.2} ]",
+                pool_election_percentage,
+                ideal_election_percentage - grace_percentage,
+                ideal_election_percentage + grace_percentage
+            );
         }
-        TestResult::passed()
     }
 
     #[test]
