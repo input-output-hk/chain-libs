@@ -6,7 +6,9 @@ use crate::{
     value::Value,
 };
 use chain_addr::{Address, Discrimination, Kind, KindType};
+use chain_crypto::{Ed25519, PublicKey};
 use std::fmt::{self, Debug};
+use std::cmp::{Ordering};
 
 ///
 /// Struct is responsible for adding some code which makes converting into transaction input/output easily.
@@ -27,6 +29,18 @@ impl Debug for AddressData {
             .field("spending_counter", &self.spending_counter)
             .field("address", &self.address)
             .finish()
+    }
+}
+
+impl PartialEq for AddressData {
+    fn eq(&self, other: &Self) -> bool {
+        self.address == other.address
+    }
+}
+
+impl PartialOrd for AddressData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.address.partial_cmp(&other.address)
     }
 }
 
@@ -57,6 +71,19 @@ impl AddressData {
                 )))
             }
         }
+    }
+
+    pub fn public_key(&self) -> PublicKey<Ed25519> {
+        match self.kind() {
+            Kind::Account(key) => key,
+            Kind::Group(key,_) => key,
+            Kind::Single(key) => key,
+            Kind::Multisig(_) => panic!("not yet implemented"),
+        }
+    }
+
+    pub fn kind(&self) -> Kind {
+        self.address.kind().clone()
     }
 
     pub fn make_output(&self, value: Value) -> Output<Address> {
@@ -108,7 +135,7 @@ impl AddressData {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct AddressDataValue {
     pub address_data: AddressData,
     pub value: Value,
