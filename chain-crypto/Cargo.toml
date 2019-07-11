@@ -9,7 +9,6 @@ keywords = [ "Crypto", "VRF", "Ed25519", "MMM" ]
 [dependencies]
 bech32 = "0.6"
 cryptoxide = "0.1"
-curve25519-dalek = "1"
 ed25519-dalek = "1.0.0-pre.1"
 sha2 = "^0.8"
 digest = "^0.8"
@@ -19,6 +18,10 @@ rand_chacha = { version = "0.1", optional = true }
 ed25519-bip32 = "0.1"
 quickcheck = { version = "0.8", optional = true }
 cfg-if = "0.1"
+
+[dependencies.curve25519-dalek]
+version = "1"
+features = ["nightly"]
 
 [dev-dependencies]
 quickcheck = "0.8"
