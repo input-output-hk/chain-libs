@@ -115,7 +115,7 @@ impl KindType {
 
 /// An unstructured address including the
 /// discrimination and the kind of address
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Address(pub Discrimination, pub Kind);
 
 impl Address {
