@@ -118,7 +118,7 @@ impl UpdateState {
                     settings = settings.apply(&proposal_state.proposal.changes)?;
                     expired_ids.push(proposal_id.clone());
                 } else if proposal_state.proposal_date.epoch + settings.proposal_expiration
-                    > new_date.epoch
+                    < new_date.epoch
                 {
                     expired_ids.push(proposal_id.clone());
                 }
