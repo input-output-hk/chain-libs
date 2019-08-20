@@ -415,7 +415,7 @@ mod tests {
     }
 
     #[test]
-    pub fn remove_single_outputs_from_ledger() {
+    pub fn remove_outputs_from_ledger() {
         let mut ledger = Ledger::new();
         let first_fragment_id = TestGen::hash();
         let second_fragment_id = TestGen::hash();
@@ -451,7 +451,7 @@ mod tests {
         assert_eq!(output_address, first_address_data.clone());
         assert!(ledger.get(&first_fragment_id, &first_index).is_none());
         assert!(ledger.get(&first_fragment_id, &second_index).is_some());
-        assert_eq!(ledger.iter().count(), 2);
+        assert_eq!(ledger.iter().count(), 3);
 
         //remove single output, which is last output in fragment. This should lead to removal of fragment
         let (ledger, output_address) = ledger
@@ -460,7 +460,7 @@ mod tests {
         assert_eq!(output_address, second_address_data.clone());
         assert!(ledger.get(&first_fragment_id, &second_index).is_none());
 
-        assert_eq!(ledger.iter().count(), 1);
+        assert_eq!(ledger.iter().count(), 2);
 
         // remove multiple outputs
         let (ledger, output_addresses) = ledger
