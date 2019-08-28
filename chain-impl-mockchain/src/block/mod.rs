@@ -226,10 +226,6 @@ mod test {
         fn block_serialization_bijection(b: Block) -> TestResult {
             property::testing::serialization_bijection(b)
         }
-
-        fn block_is_consient(block: Block) -> TestResult {
-            TestResult::from_bool(block.is_consistent())
-        }
     }
 
     impl Arbitrary for HeaderRaw {
