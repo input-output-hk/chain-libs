@@ -95,8 +95,6 @@ impl<Extra> From<tx::Transaction<Address, Extra>> for TransactionBuilder<Extra> 
 }
 
 impl<Extra: Clone> TransactionBuilder<Extra> {
-    /// Create new transaction builder.
-
     /// Add additional input.
     ///
     /// Each input may extend the size of the required fee.
@@ -352,7 +350,7 @@ mod tests {
     use super::*;
     use crate::certificate::Certificate;
     use crate::fee::LinearFee;
-    use crate::transaction::{Input, NoExtra, INPUT_PTR_SIZE};
+    use crate::transaction::{Input, INPUT_PTR_SIZE};
     use chain_addr::Address;
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
@@ -543,11 +541,10 @@ mod tests {
         fee: LinearFee,
         certificate: Certificate,
     ) -> TestResult {
-        let mut builder = TransactionBuilder::new();
+        let mut builder = TransactionBuilder::new_payload(certificate);
         builder.add_input(&input);
-        let builder = builder.set_certificate(certificate);
         let fee_value = fee.calculate(&builder.tx).unwrap();
-        let result = builder.finalize(fee, OutputPolicy::Forget);
+        let result = builder.seal_with_output_policy(fee, OutputPolicy::Forget);
         let expected_balance_res = input.value - fee_value;
         match (expected_balance_res, result) {
             (Ok(expected_balance), Ok((builder_balance, tx))) => {
