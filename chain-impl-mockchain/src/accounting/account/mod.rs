@@ -185,7 +185,7 @@ mod tests {
     use std::collections::HashSet;
     use std::iter;
 
-   impl Arbitrary for Ledger {
+    impl Arbitrary for Ledger {
         fn arbitrary<G: Gen>(gen: &mut G) -> Self {
             let account_size = std::cmp::max(usize::arbitrary(gen), 1);
             let stake_pool_size =
@@ -252,8 +252,16 @@ mod tests {
                 account_id
             ));
         }
-        assert!(ledger.exists(&account_id),"Account with id {} should exist", account_id);
-        assert!(ledger.iter().any(|(x, _)| *x == account_id),"Account with id {} should be listed amongst other",account_id);
+        assert!(
+            ledger.exists(&account_id),
+            "Account with id {} should exist",
+            account_id
+        );
+        assert!(
+            ledger.iter().any(|(x, _)| *x == account_id),
+            "Account with id {} should be listed amongst other",
+            account_id
+        );
 
         // verify total value was increased
         let test_result = test_total_value(
@@ -280,8 +288,9 @@ mod tests {
         assert!(!test_total_value(
             (initial_total_value + value).unwrap(),
             ledger.get_total_value().unwrap(),
-        ).is_failure());
-        
+        )
+        .is_failure());
+
         // add value to account
         ledger = match ledger.add_value(&account_id, value.clone()) {
             Ok(ledger) => ledger,
@@ -380,9 +389,17 @@ mod tests {
             }
         };
 
-        assert!(!ledger.exists(&account_id),"account should not exist");
-        assert!(!ledger.iter().any(|(x, _)| *x == account_id),"Account with id {:?} should not be listed amongst accounts",account_id);
-        assert_eq!(initial_total_value, ledger.get_total_value().unwrap(),"total funds is not equal to initial total_value");
+        assert!(!ledger.exists(&account_id), "account should not exist");
+        assert!(
+            !ledger.iter().any(|(x, _)| *x == account_id),
+            "Account with id {:?} should not be listed amongst accounts",
+            account_id
+        );
+        assert_eq!(
+            initial_total_value,
+            ledger.get_total_value().unwrap(),
+            "total funds is not equal to initial total_value"
+        );
 
         //Account state is should be none
         TestResult::from_bool(ledger.get_state(&account_id).is_err())
@@ -397,7 +414,6 @@ mod tests {
             )),
         }
     }
-
 
     #[quickcheck]
     pub fn ledger_total_value_is_correct_after_remove_value(
@@ -462,5 +478,5 @@ mod tests {
             false => TestResult::passed(),
         }
     }
-  
+
 }
