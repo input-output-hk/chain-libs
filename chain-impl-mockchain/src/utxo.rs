@@ -276,8 +276,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        key::Hash, testing::arbitrary::utils as arbitrary_utils, testing::arbitrary::AverageValue,
-        testing::data::AddressData, testing::TestGen, value::Value,
+        key::Hash, testing::arbitrary::AverageValue, testing::data::AddressData, testing::TestGen,
+        value::Value,
     };
     use chain_addr::{Address, Discrimination};
     use quickcheck::{Arbitrary, Gen, TestResult};
