@@ -102,9 +102,6 @@ impl Verify {
     }
 
     pub fn get_result(&self) -> TestResult {
-        match self.0.iter().cloned().find(|x| x.is_failure()) {
-            Some(test_result) => test_result,
-            None => TestResult::passed(),
-        }
+        self.0.iter().cloned().find(TestResult::is_failure).unwrap_or_else(TestResult::passed)
     }
 }
