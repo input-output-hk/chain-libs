@@ -100,7 +100,7 @@ impl fmt::Debug for Ledger<Address> {
 
 /// structure used by the iterator or the getter of the UTxO `Ledger`
 ///
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Entry<'a, OutputAddress> {
     pub fragment_id: FragmentId,
     pub output_index: u8,
