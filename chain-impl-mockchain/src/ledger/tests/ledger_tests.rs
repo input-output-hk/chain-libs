@@ -220,7 +220,7 @@ pub fn transaction_with_more_than_253_outputs() {
             }
         },
         ledger.apply_transaction(&fragment_id, &signed_tx, &fees)
-    )
+    );
 }
 
 #[test]
