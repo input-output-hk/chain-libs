@@ -225,6 +225,9 @@ impl AddressDataValue {
         self.address_data.to_id()
     }
 
+    pub fn private_key(&self) -> EitherEd25519SecretKey {
+        self.address_data.private_key.clone()
+    }
     pub fn make_input(&self, utxo: Option<Entry<Address>>) -> Input {
         self.address_data.make_input(self.value, utxo)
     }

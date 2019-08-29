@@ -4,7 +4,7 @@ use crate::{
     fragment::Fragment,
     ledger::OutputAddress,
     testing::{data::AddressData, witness_builder},
-    transaction::{AuthenticatedTransaction, Input, NoExtra, Output, Transaction, Witness},
+    transaction::{AuthenticatedTransaction, Input, NoExtra, Output, Transaction, Witness,TransactionSignDataHash},
     txbuilder::{OutputPolicy, TransactionBuilder as Builder},
 };
 use chain_addr::Address;
@@ -103,6 +103,10 @@ impl TransactionAuthenticator {
         }
     }
 
+    pub fn transaction_hash(&self) -> TransactionSignDataHash {
+        self.transaction.hash()
+    }
+
     pub fn with_witnesses(
         &mut self,
         block0: &HeaderHash,
@@ -118,8 +122,13 @@ impl TransactionAuthenticator {
         self.witnesses.push(witness_builder::make_witness(
             &block0,
             &address_data,
-            self.transaction.hash(),
+            self.transaction_hash(),
         ));
+        self
+    }
+
+    pub fn with_witness_from(&mut self, witness: Witness) -> &mut Self {
+        self.witnesses.push(witness);
         self
     }
 
