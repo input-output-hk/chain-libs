@@ -1335,19 +1335,23 @@ mod tests {
         }
     }
 
-    pub struct InternalApplyTransactionVerifier {
+    pub struct LedgerStateVerifier {
         multisig_ledger: multisig::Ledger,
         utxos: utxo::Ledger<Address>,
         accounts: account::Ledger,
     }
 
-    impl InternalApplyTransactionVerifier {
+    impl LedgerStateVerifier {
+        pub fn from_ledger(ledger: Ledger) -> Self {
+            LedgerStateVerifier::new(ledger.multisig, ledger.utxos, ledger.accounts)
+        }
+
         pub fn new(
             multisig_ledger: multisig::Ledger,
             utxos: utxo::Ledger<Address>,
             accounts: account::Ledger,
         ) -> Self {
-            InternalApplyTransactionVerifier {
+            LedgerStateVerifier {
                 multisig_ledger,
                 utxos,
                 accounts,
@@ -1454,18 +1458,6 @@ mod tests {
         }
     }
 
-    fn verify_that(
-        multisig_ledger: multisig::Ledger,
-        utxos: utxo::Ledger<Address>,
-        accounts: account::Ledger,
-    ) -> InternalApplyTransactionVerifier {
-        InternalApplyTransactionVerifier::new(multisig_ledger, utxos, accounts)
-    }
-
-    fn verify_that_in_ledger(ledger: Ledger) -> InternalApplyTransactionVerifier {
-        verify_that(ledger.multisig, ledger.utxos, ledger.accounts)
-    }
-
     #[test]
     pub fn test_internal_apply_transaction_output_delegation_for_existing_account() {
         let params = InternalApplyTransactionTestParams::new();
@@ -1493,7 +1485,7 @@ mod tests {
         )
         .expect("Unexpected error while applying transaction output");
 
-        verify_that(multisig_ledger, utxos, accounts)
+        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
             .utxos_count_is(1)
             .and()
             .accounts_count_is(1)
@@ -1530,7 +1522,7 @@ mod tests {
         )
         .expect("Unexpected error while applying transaction output");
 
-        verify_that(multisig_ledger, utxos, accounts)
+        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
             .utxos_count_is(1)
             .and()
             .accounts_count_is(1)
@@ -1569,7 +1561,7 @@ mod tests {
         )
         .expect("Unexpected error while applying transaction output");
 
-        verify_that(multisig_ledger, utxos, accounts)
+        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
             .utxos_count_is(0)
             .and()
             .accounts_count_is(1)
@@ -1602,7 +1594,7 @@ mod tests {
         )
         .expect("Unexpected error while applying transaction output");
 
-        verify_that(multisig_ledger, utxos, accounts)
+        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
             .utxos_count_is(0)
             .and()
             .accounts_count_is(1)
@@ -1634,7 +1626,7 @@ mod tests {
         )
         .expect("Unexpected error while applying transaction output");
 
-        verify_that(multisig_ledger, utxos, accounts)
+        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
             .utxos_count_is(0)
             .and()
             .accounts_count_is(0)
@@ -1975,7 +1967,7 @@ mod tests {
         assert!(result.is_ok());
         let ledger = result.unwrap();
 
-        verify_that_in_ledger(ledger)
+        LedgerStateVerifier::from_ledger(ledger)
             .address_has_expected_balance(reciever.into(), Value(1))
             .and()
             .address_has_expected_balance(faucet.into(), Value(0))
