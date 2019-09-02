@@ -6,7 +6,7 @@ use crate::{
     ledger::{Error, Ledger},
     milli::Milli,
 };
-use chain_addr::{Address, Discrimination};
+use chain_addr::Discrimination;
 use chain_crypto::*;
 use std::vec::Vec;
 

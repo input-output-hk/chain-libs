@@ -7,7 +7,6 @@ use crate::{
     testing::address::AddressData,
     transaction::AccountIdentifier,
 };
-use chain_time::timeline::TimeOffsetSeconds;
 use chain_time::units::DurationSeconds;
 use typed_bytes::ByteBuilder;
 
