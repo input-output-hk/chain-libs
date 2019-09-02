@@ -10,12 +10,6 @@ pub struct LeaderPair {
     leader_key: SecretKey<Ed25519Extended>,
 }
 
-impl PartialEq<LeaderPair> for LeaderPair {
-    fn eq(&self, other: &LeaderPair) -> bool {
-        self.id() == other.id()
-    }
-}
-
 impl Debug for LeaderPair {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("LeaderPair")

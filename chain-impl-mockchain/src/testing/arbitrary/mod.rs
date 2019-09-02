@@ -5,9 +5,7 @@ pub mod transaction;
 pub mod update_proposal;
 pub mod utils;
 
-use crate::{
-    transaction::Output,
-    value::Value};
+use crate::{transaction::Output, value::Value};
 
 use chain_addr::Address;
 use quickcheck::{Arbitrary, Gen};
@@ -18,7 +16,6 @@ pub use output::*;
 use std::cmp;
 pub use transaction::*;
 pub use update_proposal::*;
-
 
 impl Arbitrary for Value {
     fn arbitrary<G: Gen>(gen: &mut G) -> Self {

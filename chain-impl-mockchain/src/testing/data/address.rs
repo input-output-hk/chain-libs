@@ -121,7 +121,7 @@ impl AddressData {
                     &self.address
                 )))
             }
-            Kind::Multisig { .. } => panic!("unimplemented"),
+            Kind::Multisig { .. } => unimplemented!(),
         }
     }
 
