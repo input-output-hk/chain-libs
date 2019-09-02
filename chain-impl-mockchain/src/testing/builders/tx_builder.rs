@@ -4,7 +4,10 @@ use crate::{
     fragment::Fragment,
     ledger::OutputAddress,
     testing::{data::AddressData, witness_builder},
-    transaction::{AuthenticatedTransaction, Input, NoExtra, Output, Transaction, Witness,TransactionSignDataHash},
+    transaction::{
+        AuthenticatedTransaction, Input, NoExtra, Output, Transaction, TransactionSignDataHash,
+        Witness,
+    },
     txbuilder::{OutputPolicy, TransactionBuilder as Builder},
 };
 use chain_addr::Address;
