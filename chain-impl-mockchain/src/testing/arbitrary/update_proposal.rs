@@ -5,6 +5,7 @@ use crate::{
     fee::LinearFee,
     fragment::config::ConfigParams,
     leadership::bft::LeaderId,
+    testing::builders::SignedProposalBuilder,
     testing::{arbitrary::utils as arbitrary_utils, builders::update_builder::ProposalBuilder},
     update::{SignedUpdateProposal, SignedUpdateVote, UpdateVote},
 };
@@ -72,25 +73,17 @@ impl Arbitrary for UpdateProposalData {
             ConfigParam::ProposalExpiration(u32::arbitrary(gen)),
         ];
 
-        let signed_update_proposal = ProposalBuilder::new()
+        let update_proposal = ProposalBuilder::new()
             .with_proposal_changes(arbitrary_utils::choose_random_vec_subset(
                 &unique_arbitrary_settings,
                 gen,
             ))
-            .with_proposer_id(proposer_id)
-            .with_signature_key(proposer_key.clone())
             .build();
 
-        //add proposer
-        let update_proposal_with_proposer = UpdateProposalWithProposer {
-            proposal: update_proposal,
-            proposer_id: proposer_id.clone(),
-        };
-
-        //sign proposal
-        let signed_update_proposal = SignedUpdateProposal {
-            proposal: update_proposal_with_proposer,
-        };
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_id(proposer_id.clone())
+            .build();
 
         //generate proposal header
         let proposal_id = Hash::arbitrary(gen);

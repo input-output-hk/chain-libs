@@ -378,7 +378,7 @@ mod test {
         config::ConfigParam,
         fragment::config::ConfigParams,
         testing::{
-            builders::update_builder::{ProposalBuilder, UpdateVoteBuilder},
+            builders::update_builder::{ProposalBuilder, SignedProposalBuilder, UpdateVoteBuilder},
             data::LeaderPair,
             TestGen,
             arbitrary::update_proposal::UpdateProposalData,
@@ -451,12 +451,15 @@ mod test {
         settings: &Settings,
         block_date: BlockDate,
     ) -> Result<UpdateState, Error> {
-        let signed_update_proposal = ProposalBuilder::new()
+        let update_proposal = ProposalBuilder::new()
             .with_proposal_change(config_param.clone())
-            .with_proposer_id(proposer.id())
-            .with_signature_key(proposer.key())
             .build();
-    
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_id(proposer.leader_id.clone())
+            .build();
+
         update_state.apply_proposal(proposal_id, &signed_update_proposal, &settings, block_date)
     }
 
@@ -469,7 +472,6 @@ mod test {
         let signed_update_vote = UpdateVoteBuilder::new()
             .with_proposal_id(proposal_id)
             .with_voter_id(proposer.id())
-            .with_signature_key(proposer.key())
             .build();
 
         update_state.apply_vote(&signed_update_vote, &settings)
