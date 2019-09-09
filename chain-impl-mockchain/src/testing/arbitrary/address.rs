@@ -1,7 +1,7 @@
 use crate::testing::{
-    address::{AddressData, AddressDataValue},
     arbitrary::kind_type::KindTypeWithoutMultisig,
     arbitrary::AverageValue,
+    data::{AddressData, AddressDataValue},
 };
 use chain_addr::{Discrimination, Kind};
 use quickcheck::{Arbitrary, Gen};

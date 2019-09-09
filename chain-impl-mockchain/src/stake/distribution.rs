@@ -137,12 +137,12 @@ mod tests {
     use crate::stake::delegation::DelegationState;
     use crate::{
         account::{AccountAlg, Identifier},
+        certificate::PoolRegistration,
         fragment::FragmentId,
-        stake::StakePoolInfo,
         testing::{
-            address::{AddressData, AddressDataValue},
             arbitrary::utils as arbitrary_utils,
             arbitrary::ArbitraryAddressDataValueVec,
+            data::{AddressData, AddressDataValue},
         },
         transaction::{Output, TransactionIndex},
         utxo,
@@ -163,8 +163,8 @@ mod tests {
         groups: Vec<(FragmentId, TransactionIndex, Output<Address>)>,
         groups_single_account: Vec<(FragmentId, TransactionIndex, Output<Address>)>,
         single_account: (Identifier, Value),
-        active_stake_pool: StakePoolInfo,
-        retired_stake_pool: StakePoolInfo,
+        active_stake_pool: PoolRegistration,
+        retired_stake_pool: PoolRegistration,
     }
 
     impl Arbitrary for StakeDistributionArbitraryData {
@@ -247,8 +247,8 @@ mod tests {
                 })
                 .collect();
 
-            let active_stake_pool = StakePoolInfo::arbitrary(gen);
-            let retired_stake_pool = StakePoolInfo::arbitrary(gen);
+            let active_stake_pool = PoolRegistration::arbitrary(gen);
+            let retired_stake_pool = PoolRegistration::arbitrary(gen);
 
             StakeDistributionArbitraryData {
                 utxos,
