@@ -953,8 +953,10 @@ mod tests {
     use crate::{
         account::{Identifier, SpendingCounter},
         accounting::account::account_state::AccountState,
+        fee::LinearFee,
         key::Hash,
         multisig,
+        setting::Settings,
         testing::{
             address::ArbitraryAddressDataValueVec,
             builders::{witness_builder, TransactionBuilder},
@@ -1169,7 +1171,7 @@ mod tests {
         let (_, ledger) =
             ledger_mock::create_initial_fake_ledger(&[message], ConfigBuilder::new().build())
                 .unwrap();
-        let result = super::input_utxo_verify(ledger, &sign_data_hash, &utxo_pointer, &witness);
+        let result = ledger.apply_input_to_utxo(&sign_data_hash, &utxo_pointer, &witness);
         match (witness, result) {
             (Witness::OldUtxo(_, _), Ok(_)) => {
                 TestResult::error("expecting error, but got success")
@@ -1201,8 +1203,7 @@ mod tests {
         );
         let signed_tx = create_empty_transaction(&block0_hash, &faucet);
         let sign_data_hash = signed_tx.transaction.hash();
-        let result = super::input_utxo_verify(
-            ledger,
+        let result = ledger.apply_input_to_utxo(
             &sign_data_hash,
             &utxo_pointer,
             &signed_tx.witnesses.iter().next().unwrap(),
@@ -1224,8 +1225,7 @@ mod tests {
         let utxo_pointer = UtxoPointer::new(utxo.fragment_id, utxo.output_index, Value(10));
         let signed_tx = create_empty_transaction(&block0_hash, &faucet);
         let sign_data_hash = signed_tx.transaction.hash();
-        let result = super::input_utxo_verify(
-            ledger,
+        let result = ledger.apply_input_to_utxo(
             &sign_data_hash,
             &utxo_pointer,
             &signed_tx.witnesses.iter().next().unwrap(),
@@ -1238,7 +1238,6 @@ mod tests {
         utxos: utxo::Ledger<Address>,
         accounts: account::Ledger,
         static_params: LedgerStaticParameters,
-        dyn_params: LedgerParameters,
         transaction_id: FragmentId,
         arbitrary_outputs: ArbitraryAddressDataValueVec,
     ) -> TestResult {
@@ -1248,25 +1247,49 @@ mod tests {
             .iter()
             .map(|x| x.address_data.make_output(x.value.clone()))
             .collect();
-        let result = internal_apply_transaction_output(
-            utxos,
-            accounts,
-            multisig_ledger,
-            &static_params,
-            &dyn_params,
-            &transaction_id,
-            outputs.as_slice(),
-        );
+
+        let ledger = build_ledger(utxos, accounts, multisig_ledger, static_params.clone());
+
+        let auth_tx = TransactionBuilder::new()
+            .with_outputs(outputs.clone())
+            .authenticate()
+            .seal();
+
+        let result = ledger.apply_tx_outputs(transaction_id, &auth_tx);
 
         match (
             should_expect_success(arbitrary_outputs, &static_params),
             result,
         ) {
-            (true, Ok((_, _, _))) => TestResult::passed(),
+            (true, Ok(_)) => TestResult::passed(),
             (true, Err(err)) => TestResult::error(format!("Unexpected failure: {:?}", err)),
-            (false, Ok((_, _, _))) => TestResult::error("Expected failure, but got sucess"),
+            (false, Ok(_)) => TestResult::error("Expected failure, but got sucess"),
             (false, Err(_)) => TestResult::passed(),
         }
+    }
+
+    fn build_ledger(
+        utxos: utxo::Ledger<Address>,
+        accounts: account::Ledger,
+        multisig_ledger: multisig::Ledger,
+        static_params: LedgerStaticParameters,
+    ) -> Ledger {
+        let mut ledger = Ledger::empty(Settings::new(), static_params, build_time_era());
+
+        ledger.utxos = utxos;
+        ledger.accounts = accounts;
+        ledger.multisig = multisig_ledger;
+        ledger
+    }
+
+    fn build_time_era() -> TimeEra {
+        let now = SystemTime::now();
+        let t0 = Timeline::new(now);
+        let f0 = SlotDuration::from_secs(5);
+        let tf0 = TimeFrame::new(t0, f0);
+        let t1 = now + Duration::from_secs(10);
+        let slot1 = tf0.slot_at(&t1).unwrap();
+        TimeEra::new(slot1, Epoch(2), 4)
     }
 
     fn should_expect_success(
@@ -1312,6 +1335,10 @@ mod tests {
             self.transaction_id.clone()
         }
 
+        pub fn static_params(&self) -> LedgerStaticParameters {
+            self.static_params.clone()
+        }
+
         pub fn expected_account_with_value(&self, value: Value) -> AccountState<()> {
             let account_state = AccountState {
                 counter: 0.into(),
@@ -1342,19 +1369,11 @@ mod tests {
     }
 
     impl LedgerStateVerifier {
-        pub fn from_ledger(ledger: Ledger) -> Self {
-            LedgerStateVerifier::new(ledger.multisig, ledger.utxos, ledger.accounts)
-        }
-
-        pub fn new(
-            multisig_ledger: multisig::Ledger,
-            utxos: utxo::Ledger<Address>,
-            accounts: account::Ledger,
-        ) -> Self {
+        pub fn new(ledger: Ledger) -> Self {
             LedgerStateVerifier {
-                multisig_ledger,
-                utxos,
-                accounts,
+                multisig_ledger: ledger.multisig,
+                utxos: ledger.utxos,
+                accounts: ledger.accounts,
             }
         }
 
@@ -1474,18 +1493,19 @@ mod tests {
         let delegation = AddressData::delegation_for(&account);
         let delegation_output = delegation.make_output(Value(100));
 
-        let (utxos, accounts, multisig_ledger) = internal_apply_transaction_output(
-            utxos,
-            accounts,
-            multisig_ledger,
-            &params.static_params,
-            &params.dyn_params,
-            &params.transaction_id(),
-            &[delegation_output.clone(), account.make_output(Value(1))],
-        )
-        .expect("Unexpected error while applying transaction output");
+        let ledger = build_ledger(utxos, accounts, multisig_ledger, params.static_params());
 
-        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
+        let auth_tx = TransactionBuilder::new()
+            .with_output(delegation_output.clone())
+            .with_output(account.make_output(Value(1)))
+            .authenticate()
+            .seal();
+
+        let ledger = ledger
+            .apply_tx_outputs(params.transaction_id(), &auth_tx)
+            .expect("Unexpected error while applying transaction output");
+
+        LedgerStateVerifier::new(ledger)
             .utxos_count_is(1)
             .and()
             .accounts_count_is(1)
@@ -1511,18 +1531,18 @@ mod tests {
         let delegation_address = AddressData::delegation(Discrimination::Test);
         let delegation_output = delegation_address.make_output(Value(100));
 
-        let (utxos, accounts, multisig_ledger) = internal_apply_transaction_output(
-            utxos,
-            accounts,
-            multisig_ledger,
-            &params.static_params,
-            &params.dyn_params,
-            &params.transaction_id(),
-            &[delegation_output.clone()],
-        )
-        .expect("Unexpected error while applying transaction output");
+        let ledger = build_ledger(utxos, accounts, multisig_ledger, params.static_params());
 
-        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
+        let auth_tx = TransactionBuilder::new()
+            .with_output(delegation_output.clone())
+            .authenticate()
+            .seal();
+
+        let ledger = ledger
+            .apply_tx_outputs(params.transaction_id(), &auth_tx)
+            .expect("Unexpected error while applying transaction output");
+
+        LedgerStateVerifier::new(ledger)
             .utxos_count_is(1)
             .and()
             .accounts_count_is(1)
@@ -1550,18 +1570,18 @@ mod tests {
             .add_account(&account.to_id(), Value(100), ())
             .unwrap();
 
-        let (utxos, accounts, multisig_ledger) = internal_apply_transaction_output(
-            utxos,
-            accounts,
-            multisig_ledger,
-            &params.static_params,
-            &params.dyn_params,
-            &params.transaction_id(),
-            &[account.make_output(Value(200))],
-        )
-        .expect("Unexpected error while applying transaction output");
+        let ledger = build_ledger(utxos, accounts, multisig_ledger, params.static_params());
 
-        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
+        let auth_tx = TransactionBuilder::new()
+            .with_output(account.make_output(Value(200)))
+            .authenticate()
+            .seal();
+
+        let ledger = ledger
+            .apply_tx_outputs(params.transaction_id(), &auth_tx)
+            .expect("Unexpected error while applying transaction output");
+
+        LedgerStateVerifier::new(ledger)
             .utxos_count_is(0)
             .and()
             .accounts_count_is(1)
@@ -1583,18 +1603,18 @@ mod tests {
         let accounts = account::Ledger::new();
         let account = AddressData::account(Discrimination::Test);
 
-        let (utxos, accounts, multisig_ledger) = internal_apply_transaction_output(
-            utxos,
-            accounts,
-            multisig_ledger,
-            &params.static_params,
-            &params.dyn_params,
-            &params.transaction_id(),
-            &[account.make_output(Value(200))],
-        )
-        .expect("Unexpected error while applying transaction output");
+        let ledger = build_ledger(utxos, accounts, multisig_ledger, params.static_params());
 
-        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
+        let auth_tx = TransactionBuilder::new()
+            .with_output(account.make_output(Value(200)))
+            .authenticate()
+            .seal();
+
+        let ledger = ledger
+            .apply_tx_outputs(params.transaction_id(), &auth_tx)
+            .expect("Unexpected error while applying transaction output");
+
+        LedgerStateVerifier::new(ledger)
             .utxos_count_is(0)
             .and()
             .accounts_count_is(1)
@@ -1615,18 +1635,15 @@ mod tests {
         let utxos = utxo::Ledger::new();
         let accounts = account::Ledger::new();
 
-        let (utxos, accounts, multisig_ledger) = internal_apply_transaction_output(
-            utxos,
-            accounts,
-            multisig_ledger,
-            &params.static_params,
-            &params.dyn_params,
-            &params.transaction_id(),
-            &[],
-        )
-        .expect("Unexpected error while applying transaction output");
+        let ledger = build_ledger(utxos, accounts, multisig_ledger, params.static_params());
 
-        LedgerStateVerifier::new(multisig_ledger, utxos, accounts)
+        let auth_tx = TransactionBuilder::new().authenticate().seal();
+
+        let ledger = ledger
+            .apply_tx_outputs(params.transaction_id(), &auth_tx)
+            .expect("Unexpected error while applying transaction output");
+
+        LedgerStateVerifier::new(ledger)
             .utxos_count_is(0)
             .and()
             .accounts_count_is(0)
@@ -1634,29 +1651,10 @@ mod tests {
             .multisigs_count_is_zero();
     }
 
-    fn test_internal_apply_transaction(
-        ledger: Ledger,
-        params: &InternalApplyTransactionTestParams,
-        auth_tx: &AuthenticatedTransaction<Address, NoExtra>,
-        fee: Value,
-    ) -> Result<Ledger, Error> {
-        super::internal_apply_transaction(
-            ledger,
-            &params.dyn_params,
-            &params.transaction_id(),
-            &auth_tx.transaction.hash(),
-            &auth_tx.transaction.inputs.as_slice(),
-            &auth_tx.transaction.outputs.as_slice(),
-            &auth_tx.witnesses.as_slice(),
-            fee,
-        )
-    }
-
     /// internal_apply_transaction
     #[test]
     pub fn test_internal_apply_transaction_max_witnesses() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(100));
         let reciever = AddressData::utxo(Discrimination::Test);
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
@@ -1674,22 +1672,22 @@ mod tests {
             .with_witnesses(
                 &block0_hash,
                 &iter::from_fn(|| Some(faucet.clone().into()))
-                    .take(MAX_TRANSACTION_WITNESSES_COUNT)
+                    .take(TX_VERIFY_LIMITS.max_witnesses_count)
                     .collect(),
             )
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_max_outputs() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::utxo(
             Discrimination::Test,
-            Value(MAX_TRANSACTION_OUTPUTS_COUNT as u64),
+            Value(TX_VERIFY_LIMITS.max_outputs_count as u64),
         );
         let reciever = AddressData::utxo(Discrimination::Test);
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
@@ -1704,24 +1702,24 @@ mod tests {
             .with_input(faucet.clone().make_input(utxo))
             .with_outputs(
                 iter::from_fn(|| Some(reciever.make_output(Value(100))))
-                    .take(MAX_TRANSACTION_OUTPUTS_COUNT)
+                    .take(TX_VERIFY_LIMITS.max_outputs_count)
                     .collect(),
             )
             .authenticate()
             .with_witness(&block0_hash, &faucet.clone().into())
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_max_inputs() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucets: Vec<AddressDataValue> =
             iter::from_fn(|| Some(AddressDataValue::account(Discrimination::Test, Value(1))))
-                .take(MAX_TRANSACTION_INPUTS_COUNT + 1)
+                .take(TX_VERIFY_LIMITS.max_inputs_count + 1)
                 .collect();
 
         let reciever = AddressData::utxo(Discrimination::Test);
@@ -1733,7 +1731,9 @@ mod tests {
 
         let auth_tx = TransactionBuilder::new()
             .with_inputs(faucets.iter().map(|x| x.make_input(None)).collect())
-            .with_output(reciever.make_output(Value((MAX_TRANSACTION_INPUTS_COUNT + 1) as u64)))
+            .with_output(
+                reciever.make_output(Value((TX_VERIFY_LIMITS.max_inputs_count + 1) as u64)),
+            )
             .authenticate()
             .with_witnesses(
                 &block0_hash,
@@ -1741,14 +1741,14 @@ mod tests {
             )
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_same_witness_for_all_input() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucets = &[
             AddressDataValue::account(Discrimination::Test, Value(1)),
             AddressDataValue::account(Discrimination::Test, Value(1)),
@@ -1768,17 +1768,20 @@ mod tests {
             )
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_verify_pot() {
-        let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(100);
+        let mut params = InternalApplyTransactionTestParams::new();
+        params.dyn_params = LedgerParameters {
+            fees: LinearFee::new(100, 0, 0),
+        };
         let faucet = AddressDataValue::account(Discrimination::Test, Value(101));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
-        let (block0_hash, mut ledger) = ledger_mock::create_fake_ledger_with_faucet(
+        let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
             &[faucet.clone()],
             ConfigBuilder::new().build(),
         )
@@ -1791,17 +1794,17 @@ mod tests {
             .with_witness(&block0_hash, &faucet.into())
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
+        let result =
+            ledger.apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params);
         assert!(result.is_ok(), "{:?}", result.err());
-        ledger = result.unwrap();
+        let (ledger, _) = result.unwrap();
 
-        assert_eq!(ledger.pot, fee);
+        assert_eq!(ledger.pot, Value(100));
     }
 
     #[test]
     pub fn test_internal_apply_transaction_witnesses_count_are_grater_than_inputs() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucets = &[
             AddressDataValue::account(Discrimination::Test, Value(1)),
             AddressDataValue::account(Discrimination::Test, Value(1)),
@@ -1821,14 +1824,14 @@ mod tests {
             )
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_witnesses_count_are_smaller_than_inputs() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucets = &[
             AddressDataValue::account(Discrimination::Test, Value(1)),
             AddressDataValue::account(Discrimination::Test, Value(1)),
@@ -1848,8 +1851,9 @@ mod tests {
             .with_witness(&block0_hash, &faucets[0].clone().into())
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[quickcheck]
@@ -1880,7 +1884,7 @@ mod tests {
             .and_then(|balance| balance - fee);
         match (
             balance_res,
-            test_internal_apply_transaction(ledger, &params, &auth_tx, fee),
+            ledger.apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params),
         ) {
             (Ok(balance), Ok(_)) => TestResult::from_bool(balance == Value::zero()),
             (Err(err), Ok(_)) => TestResult::error(format!(
@@ -1895,7 +1899,6 @@ mod tests {
     #[test]
     pub fn test_internal_apply_transaction_witness_collection_should_be_ordered_as_inputs() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucets = &[
             AddressDataValue::account(Discrimination::Test, Value(1)),
             AddressDataValue::account(Discrimination::Test, Value(1)),
@@ -1918,14 +1921,14 @@ mod tests {
             )
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_no_inputs_outputs() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::account(Discrimination::Test, Value(1));
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
             &[faucet.clone()],
@@ -1935,8 +1938,9 @@ mod tests {
 
         let auth_tx = create_empty_transaction(&block0_hash, &faucet.into());
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
-        assert!(result.is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[quickcheck]
@@ -1945,7 +1949,6 @@ mod tests {
         reciever_address: AddressData,
     ) {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::new(sender_address, Value(1));
         let reciever = AddressDataValue::new(reciever_address, Value(1));
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
@@ -1963,11 +1966,12 @@ mod tests {
             .with_witness(&block0_hash, &faucet.clone().into())
             .seal();
 
-        let result = test_internal_apply_transaction(ledger, &params, &auth_tx, fee);
+        let result =
+            ledger.apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params);
         assert!(result.is_ok());
-        let ledger = result.unwrap();
+        let (ledger, _) = result.unwrap();
 
-        LedgerStateVerifier::from_ledger(ledger)
+        LedgerStateVerifier::new(ledger)
             .address_has_expected_balance(reciever.into(), Value(1))
             .and()
             .address_has_expected_balance(faucet.into(), Value(0))
@@ -1978,7 +1982,6 @@ mod tests {
     #[test]
     pub fn test_internal_apply_transaction_wrong_witness_type() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
@@ -2003,13 +2006,14 @@ mod tests {
 
         let auth_tx = finalizer.with_witness_from(witness).seal();
 
-        assert!(test_internal_apply_transaction(ledger, &params, &auth_tx, fee).is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_wrong_transaction_hash() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
@@ -2036,13 +2040,14 @@ mod tests {
 
         let auth_tx = finalizer.with_witness_from(witness).seal();
 
-        assert!(test_internal_apply_transaction(ledger, &params, &auth_tx, fee).is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_wrong_block0_hash() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let wrong_block0_hash = TestGen::hash();
         let faucet = AddressDataValue::account(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
@@ -2063,13 +2068,14 @@ mod tests {
             &finalizer.transaction_hash(),
         );
         let auth_tx = finalizer.with_witness_from(witness).seal();
-        assert!(test_internal_apply_transaction(ledger, &params, &auth_tx, fee).is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_wrong_spending_counter() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
@@ -2091,13 +2097,14 @@ mod tests {
             &finalizer.transaction_hash(),
         );
         let auth_tx = finalizer.with_witness_from(witness).seal();
-        assert!(test_internal_apply_transaction(ledger, &params, &auth_tx, fee).is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 
     #[test]
     pub fn test_internal_apply_transaction_wrong_private_key() {
         let params = InternalApplyTransactionTestParams::new();
-        let fee = Value(0);
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
@@ -2119,6 +2126,8 @@ mod tests {
             &finalizer.transaction_hash(),
         );
         let auth_tx = finalizer.with_witness_from(witness).seal();
-        assert!(test_internal_apply_transaction(ledger, &params, &auth_tx, fee).is_err());
+        assert!(ledger
+            .apply_transaction(&params.transaction_id(), &auth_tx, &params.dyn_params)
+            .is_err());
     }
 }
