@@ -4,7 +4,7 @@ use crate::{
         Certificate, PoolManagement, PoolOwnersSigned, PoolRegistration, PoolRetirement,
         StakeDelegation,
     },
-    testing::address::AddressData,
+    testing::data::AddressData,
     transaction::AccountIdentifier,
 };
 use chain_time::units::DurationSeconds;
