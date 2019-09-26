@@ -1320,6 +1320,10 @@ mod tests {
 
     impl InternalApplyTransactionTestParams {
         pub fn new() -> Self {
+            InternalApplyTransactionTestParams::new_with_fee(LinearFee::new(0, 0, 0))
+        }
+
+        pub fn new_with_fee(fees: LinearFee) -> Self {
             let static_params = LedgerStaticParameters {
                 block0_initial_hash: TestGen::hash(),
                 block0_start_time: config::Block0Date(0),
@@ -1328,7 +1332,7 @@ mod tests {
             };
 
             let dyn_params = LedgerParameters {
-                fees: LinearFee::new(0, 0, 0),
+                fees: fees,
                 reward_params: Some(RewardParams::Linear(0, 0, 0)),
             };
             InternalApplyTransactionTestParams {
@@ -1874,7 +1878,7 @@ mod tests {
             return TestResult::discard();
         }
 
-        let params = InternalApplyTransactionTestParams::new();
+        let params = InternalApplyTransactionTestParams::new_with_fee(LinearFee::new(fee.0, 0, 0));
         let (block0_hash, ledger) = ledger_mock::create_fake_ledger_with_faucet(
             &input_addresses.values().as_slice(),
             ConfigBuilder::new().build(),

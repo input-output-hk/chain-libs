@@ -221,6 +221,13 @@ impl AddressDataValue {
         }
     }
 
+    pub fn delegation(discrimination: Discrimination, value: Value) -> Self {
+        AddressDataValue {
+            address_data: AddressData::delegation(discrimination),
+            value: value,
+        }
+    }
+
     pub fn to_id(&self) -> Identifier {
         self.address_data.to_id()
     }
