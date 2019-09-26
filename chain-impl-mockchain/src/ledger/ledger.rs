@@ -986,6 +986,7 @@ mod tests {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             LedgerParameters {
                 fees: Arbitrary::arbitrary(g),
+                reward_params: Arbitrary::arbitrary(g),
             }
         }
     }
@@ -1274,7 +1275,12 @@ mod tests {
         multisig_ledger: multisig::Ledger,
         static_params: LedgerStaticParameters,
     ) -> Ledger {
-        let mut ledger = Ledger::empty(Settings::new(), static_params, build_time_era());
+        let mut ledger = Ledger::empty(
+            Settings::new(),
+            static_params,
+            build_time_era(),
+            Pots::zero(),
+        );
 
         ledger.utxos = utxos;
         ledger.accounts = accounts;
@@ -1323,6 +1329,7 @@ mod tests {
 
             let dyn_params = LedgerParameters {
                 fees: LinearFee::new(0, 0, 0),
+                reward_params: Some(RewardParams::Linear(0, 0, 0)),
             };
             InternalApplyTransactionTestParams {
                 dyn_params: dyn_params,
@@ -1342,7 +1349,7 @@ mod tests {
         pub fn expected_account_with_value(&self, value: Value) -> AccountState<()> {
             let account_state = AccountState {
                 counter: 0.into(),
-                delegation: None,
+                delegation: DelegationType::NonDelegated,
                 value: value,
                 extra: (),
             };
@@ -1778,6 +1785,7 @@ mod tests {
         let mut params = InternalApplyTransactionTestParams::new();
         params.dyn_params = LedgerParameters {
             fees: LinearFee::new(100, 0, 0),
+            reward_params: Some(RewardParams::Linear(0, 0, 0)),
         };
         let faucet = AddressDataValue::account(Discrimination::Test, Value(101));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
@@ -1799,7 +1807,7 @@ mod tests {
         assert!(result.is_ok(), "{:?}", result.err());
         let (ledger, _) = result.unwrap();
 
-        assert_eq!(ledger.pot, Value(100));
+        assert_eq!(ledger.pots.fees, Value(100));
     }
 
     #[test]

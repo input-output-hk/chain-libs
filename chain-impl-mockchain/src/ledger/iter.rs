@@ -349,6 +349,9 @@ mod tests {
                         id, info.serial, info.owners, info.keys,
                     );
                 }
+                Entry::Pot(entry) => {
+                    println!("Pot {:?}", entry);
+                }
             }
         }
 
