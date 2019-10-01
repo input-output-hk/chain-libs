@@ -10,7 +10,6 @@ use chain_crypto::{Ed25519Extended, SecretKey};
 
 pub fn build_proposal(
     proposer_id: LeaderId,
-    proposer_secret_key: SecretKey<Ed25519Extended>,
     config_params: Vec<ConfigParam>,
 ) -> SignedUpdateProposal {
     //create proposal
@@ -32,11 +31,7 @@ pub fn build_proposal(
     }
 }
 
-pub fn build_vote(
-    proposal_id: UpdateProposalId,
-    leader_id: LeaderId,
-    leader_secret_key: SecretKey<Ed25519Extended>,
-) -> SignedUpdateVote {
+pub fn build_vote(proposal_id: UpdateProposalId, leader_id: LeaderId) -> SignedUpdateVote {
     let update_vote = UpdateVote {
         proposal_id: proposal_id.clone(),
         voter_id: leader_id.clone(),

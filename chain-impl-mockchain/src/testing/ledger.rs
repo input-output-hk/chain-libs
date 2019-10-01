@@ -1,12 +1,14 @@
 use crate::{
     block::{ConsensusVersion, HeaderHash},
     config::ConfigParam,
+    fee::LinearFee,
     fragment::{config::ConfigParams, Fragment},
     leadership::bft::LeaderId,
     ledger::{Error, Ledger},
     milli::Milli,
+    transaction::Output,
 };
-use chain_addr::Discrimination;
+use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
 use std::vec::Vec;
 

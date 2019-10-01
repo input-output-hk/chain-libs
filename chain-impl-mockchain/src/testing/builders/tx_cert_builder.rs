@@ -60,10 +60,7 @@ impl TransactionCertBuilder {
         Transaction {
             inputs: self.inputs.clone(),
             outputs: self.outputs.clone(),
-            extra: self
-                .certificate
-                .clone()
-                .expect("Cannot build transaction: Certificate in None"),
+            extra: self.certificate.clone(),
         }
     }
 }
@@ -107,7 +104,9 @@ impl TransactionCertAuthenticator {
     fn build_finalizer(&self) -> txbuilder::TransactionFinalizer {
         let mut cert_finalizer = txbuilder::TransactionFinalizer::new(self.transaction.clone());
         for (index, witness) in self.witnesses.iter().cloned().enumerate() {
-            cert_finalizer.set_witness(index, witness);
+            cert_finalizer
+                .set_witness(index, witness)
+                .expect("cannot set witness");
         }
         cert_finalizer
     }

@@ -1,6 +1,5 @@
-use crate::{fee::LinearFee, fragment::Fragment, testing::builders::tx_builder, transaction::*};
+use crate::{fragment::Fragment, testing::builders::tx_builder, transaction::*};
 use chain_addr::Address;
-use chain_core::property::Fragment as FragmentProperty;
 use std::vec::Vec;
 
 pub fn create_initial_transaction(output: Output<Address>) -> Fragment {
