@@ -194,45 +194,26 @@ impl Readable for GenesisPraosLeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::certificate::{PoolId, PoolRegistration};
+    use crate::certificate::PoolId;
     use crate::ledger::Ledger;
     use crate::milli::Milli;
-    use crate::rewards::TaxType;
     use crate::stake::{PoolStakeDistribution, PoolStakeInformation, PoolStakeTotal};
-    use crate::testing::ledger as ledger_mock;
+    use crate::testing::{builders::StakePoolBuilder, ledger as ledger_mock};
     use crate::value::*;
 
     use chain_crypto::*;
-    use chain_time::DurationSeconds;
     use lazy_static::lazy_static;
     use quickcheck::{Arbitrary, Gen};
     use rand_core;
     use std::collections::HashMap;
 
     fn make_pool(ledger: &mut Ledger) -> (PoolId, SecretKey<Curve25519_2HashDH>) {
-        let mut rng = rand_os::OsRng::new().unwrap();
-
-        let pool_vrf_private_key = SecretKey::generate(&mut rng);
-        let pool_kes: KeyPair<SumEd25519_12> = KeyPair::generate(&mut rng);
-        let (_, pool_kes_public_key) = pool_kes.into_keys();
-
-        let pool_info = PoolRegistration {
-            serial: 1234,
-            owners: vec![],
-            start_validity: DurationSeconds::from(0).into(),
-            management_threshold: 1,
-            rewards: TaxType::zero(),
-            keys: GenesisPraosLeader {
-                vrf_public_key: pool_vrf_private_key.to_public(),
-                kes_public_key: pool_kes_public_key,
-            },
-        };
-
-        let pool_id = pool_info.to_id();
-
-        ledger.delegation().register_stake_pool(pool_info).unwrap();
-
-        (pool_id, pool_vrf_private_key)
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot add stake pool to ledger");
+        (stake_pool.id(), stake_pool.vrf().private_key().clone())
     }
 
     #[derive(Clone, Debug)]
@@ -290,19 +271,27 @@ mod tests {
         let mut selection = LeadershipData::new(0, &ledger);
 
         for (pool_id, (_, _, value)) in pools {
-            selection.distribution.to_pools.insert(
-                pool_id.clone(),
-                PoolStakeInformation {
-                    total: PoolStakeTotal {
-                        total_stake: *value,
-                    },
-                    stake_owners: PoolStakeDistribution {
-                        accounts: HashMap::new(),
-                    },
-                },
-            );
+            update_stake_pool_total_value(&mut selection, pool_id, value);
         }
         selection
+    }
+
+    fn update_stake_pool_total_value(
+        selection: &mut LeadershipData,
+        pool_id: &PoolId,
+        value: &Value,
+    ) {
+        selection.distribution.to_pools.insert(
+            pool_id.clone(),
+            PoolStakeInformation {
+                total: PoolStakeTotal {
+                    total_stake: *value,
+                },
+                stake_owners: PoolStakeDistribution {
+                    accounts: HashMap::new(),
+                },
+            },
+        );
     }
 
     #[test]
@@ -473,5 +462,219 @@ mod tests {
         // the chance of becoming slot leader.
         assert!((times_selected_big as f64 / times_selected_small as f64) > 0.98);
         assert!((times_selected_big as f64 / times_selected_small as f64) < 1.02);
+    }
+
+    #[test]
+    pub fn leadership_leader_different_epoch() {
+        let selection_epoch = 0;
+        let date = BlockDate {
+            epoch: 1u32,
+            slot_id: 0u32,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let mut selection = LeadershipData::new(selection_epoch, &ledger);
+        update_stake_pool_total_value(&mut selection, &stake_pool.id(), &Value(100));
+
+        assert!(selection
+            .leader(&stake_pool.id(), &stake_pool.vrf().private_key(), date)
+            .is_err());
+    }
+
+    #[test]
+    pub fn leadership_leader_no_stake() {
+        let date = BlockDate {
+            epoch: 0,
+            slot_id: 0,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let selection = LeadershipData::new(date.epoch, &ledger);
+
+        assert_eq!(
+            selection
+                .leader(&stake_pool.id(), &stake_pool.vrf().private_key(), date)
+                .unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    pub fn leadership_leader_zero_stake() {
+        let date = BlockDate {
+            epoch: 0,
+            slot_id: 0,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let mut selection = LeadershipData::new(date.epoch, &ledger);
+        update_stake_pool_total_value(&mut selection, &stake_pool.id(), &Value(0));
+
+        assert!(selection
+            .leader(&stake_pool.id(), &stake_pool.vrf().private_key(), date)
+            .is_err());
+    }
+
+    use crate::block::Block;
+    use crate::block::{BlockBuilder, Header};
+    use crate::testing::data::stake_pool::StakePool;
+    use chain_core::property::ChainLength;
+
+    #[test]
+    pub fn leadership_verify_different_epoch() {
+        let date = BlockDate {
+            epoch: 1,
+            slot_id: 0,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let selection = LeadershipData::new(0, &ledger);
+
+        let block = build_block_by_pool(&stake_pool, date, &ledger);
+
+        assert!(selection.verify(&block.header).failure());
+    }
+
+    fn build_block_by_pool(stake_pool: &StakePool, date: BlockDate, ledger: &Ledger) -> Block {
+        let mut rng = rand_os::OsRng::new().unwrap();
+        let vrf_proof =
+            vrf_evaluate_and_prove(stake_pool.vrf().private_key(), &[0, 1, 2, 3], &mut rng);
+        let mut block_builder = BlockBuilder::new();
+        block_builder.date(date);
+        block_builder.chain_length(ledger.chain_length().next());
+        block_builder.make_genesis_praos_block(
+            &stake_pool.id(),
+            stake_pool.kes().private_key(),
+            vrf_proof,
+        )
+    }
+
+    #[test]
+    pub fn leadership_verify_different_proof() {
+        let date = BlockDate {
+            epoch: 1,
+            slot_id: 0,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let selection = LeadershipData::new(date.epoch, &ledger);
+        let rng = rand_os::OsRng::new().unwrap();
+        let mut block_builder = BlockBuilder::new();
+        block_builder.date(date);
+        block_builder.chain_length(ledger.chain_length().next());
+        let block = block_builder.make_bft_block(&SecretKey::generate(rng));
+
+        assert!(selection.verify(&block.header).failure());
+    }
+
+    #[test]
+    pub fn leadership_verify_no_stake() {
+        let date = BlockDate {
+            epoch: 0,
+            slot_id: 0,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let selection = LeadershipData::new(date.epoch, &ledger);
+
+        let block = build_block_by_pool(&stake_pool, date, &ledger);
+        assert!(selection.verify(&block.header).failure());
+    }
+
+    #[test]
+    pub fn leadership_verify_zero_stake() {
+        let date = BlockDate {
+            epoch: 0,
+            slot_id: 0,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let mut selection = LeadershipData::new(date.epoch, &ledger);
+        update_stake_pool_total_value(&mut selection, &stake_pool.id(), &Value(0));
+
+        let block = build_block_by_pool(&stake_pool, date, &ledger);
+        assert!(selection.verify(&block.header).failure());
+    }
+
+    #[test]
+    pub fn leadership_verify_non_existing_pool() {
+        let date = BlockDate {
+            epoch: 0,
+            slot_id: 0,
+        };
+        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+            &vec![],
+            ledger_mock::ConfigBuilder::new().build(),
+        )
+        .unwrap();
+
+        let stake_pool = StakePoolBuilder::new().build();
+        let selection = LeadershipData::new(date.epoch, &ledger);
+
+        let block = build_block_by_pool(&stake_pool, date, &ledger);
+        assert!(selection.verify(&block.header).failure());
     }
 }
