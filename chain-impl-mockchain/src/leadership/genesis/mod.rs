@@ -198,7 +198,10 @@ mod tests {
     use crate::ledger::Ledger;
     use crate::milli::Milli;
     use crate::stake::{PoolStakeDistribution, PoolStakeInformation, PoolStakeTotal};
-    use crate::testing::{builders::StakePoolBuilder, ledger as ledger_mock};
+    use crate::testing::{
+        builders::{GenesisPraosBlockBuilder, StakePoolBuilder},
+        ledger as ledger_mock,
+    };
     use crate::value::*;
 
     use chain_crypto::*;
@@ -553,7 +556,7 @@ mod tests {
             epoch: 1,
             slot_id: 0,
         };
-        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+        let (genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
             &vec![],
             ledger_mock::ConfigBuilder::new().build(),
         )
@@ -566,23 +569,13 @@ mod tests {
             .expect("cannot register stake pool");
         let selection = LeadershipData::new(0, &ledger);
 
-        let block = build_block_by_pool(&stake_pool, date, &ledger);
+        let block = GenesisPraosBlockBuilder::new()
+            .with_date(date)
+            .with_chain_length(ledger.chain_length())
+            .with_parent_id(genesis_hash)
+            .build(&stake_pool, ledger.era());
 
         assert!(selection.verify(&block.header).failure());
-    }
-
-    fn build_block_by_pool(stake_pool: &StakePool, date: BlockDate, ledger: &Ledger) -> Block {
-        let mut rng = rand_os::OsRng::new().unwrap();
-        let vrf_proof =
-            vrf_evaluate_and_prove(stake_pool.vrf().private_key(), &[0, 1, 2, 3], &mut rng);
-        let mut block_builder = BlockBuilder::new();
-        block_builder.date(date);
-        block_builder.chain_length(ledger.chain_length().next());
-        block_builder.make_genesis_praos_block(
-            &stake_pool.id(),
-            stake_pool.kes().private_key(),
-            vrf_proof,
-        )
     }
 
     #[test]
@@ -618,7 +611,7 @@ mod tests {
             epoch: 0,
             slot_id: 0,
         };
-        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+        let (genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
             &vec![],
             ledger_mock::ConfigBuilder::new().build(),
         )
@@ -631,7 +624,11 @@ mod tests {
             .expect("cannot register stake pool");
         let selection = LeadershipData::new(date.epoch, &ledger);
 
-        let block = build_block_by_pool(&stake_pool, date, &ledger);
+        let block = GenesisPraosBlockBuilder::new()
+            .with_date(date)
+            .with_chain_length(ledger.chain_length())
+            .with_parent_id(genesis_hash)
+            .build(&stake_pool, ledger.era());
         assert!(selection.verify(&block.header).failure());
     }
 
@@ -641,7 +638,7 @@ mod tests {
             epoch: 0,
             slot_id: 0,
         };
-        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+        let (genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
             &vec![],
             ledger_mock::ConfigBuilder::new().build(),
         )
@@ -655,7 +652,12 @@ mod tests {
         let mut selection = LeadershipData::new(date.epoch, &ledger);
         update_stake_pool_total_value(&mut selection, &stake_pool.id(), &Value(0));
 
-        let block = build_block_by_pool(&stake_pool, date, &ledger);
+        let block = GenesisPraosBlockBuilder::new()
+            .with_date(date)
+            .with_chain_length(ledger.chain_length())
+            .with_parent_id(genesis_hash)
+            .build(&stake_pool, ledger.era());
+
         assert!(selection.verify(&block.header).failure());
     }
 
@@ -665,7 +667,7 @@ mod tests {
             epoch: 0,
             slot_id: 0,
         };
-        let (_genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
+        let (genesis_hash, ledger) = ledger_mock::create_initial_fake_ledger(
             &vec![],
             ledger_mock::ConfigBuilder::new().build(),
         )
@@ -674,7 +676,12 @@ mod tests {
         let stake_pool = StakePoolBuilder::new().build();
         let selection = LeadershipData::new(date.epoch, &ledger);
 
-        let block = build_block_by_pool(&stake_pool, date, &ledger);
+        let block = GenesisPraosBlockBuilder::new()
+            .with_date(date)
+            .with_chain_length(ledger.chain_length())
+            .with_parent_id(genesis_hash)
+            .build(&stake_pool, ledger.era());
+
         assert!(selection.verify(&block.header).failure());
     }
 }
