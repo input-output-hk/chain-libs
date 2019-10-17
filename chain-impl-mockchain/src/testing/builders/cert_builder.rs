@@ -1,8 +1,8 @@
 use crate::{
     account::Identifier,
     certificate::{
-        Certificate, OwnerStakeDelegation, PoolId, PoolManagement, PoolOwnersSigned,
-        PoolRegistration, PoolRetirement, StakeDelegation,
+        Certificate, PoolId, PoolManagement, PoolOwnersSigned, PoolRegistration, PoolRetirement,
+        StakeDelegation,OwnerStakeDelegation
     },
     key::EitherEd25519SecretKey,
     legacy::UtxoDeclaration,
@@ -24,6 +24,15 @@ pub fn build_stake_delegation_cert(
     })
 }
 
+pub fn build_stake_owner_delegation_cert(
+    pool_id: &PoolId,
+) -> Certificate {
+    Certificate::OwnerStakeDelegation(
+        OwnerStakeDelegation{
+            pool_id: pool_id.clone()
+        })
+}
+
 pub fn build_stake_pool_registration_cert(stake_pool: &PoolRegistration) -> Certificate {
     Certificate::PoolRegistration(stake_pool.clone())
 }
@@ -35,15 +44,16 @@ pub fn build_owner_stake_delegation(stake_pool: PoolId) -> Certificate {
 }
 
 pub fn build_stake_pool_retirement_cert(
-    pool_id: PoolId,
+    stake_pool: &PoolRegistration,
     start_validity: u64,
-    owners_private_keys: &Vec<EitherEd25519SecretKey>,
+    owners: &Vec<AddressData>,
 ) -> Certificate {
     let retirement = PoolRetirement {
-        pool_id: pool_id,
+        pool_id: stake_pool.to_id(),
         retirement_time: DurationSeconds(start_validity).into(),
     };
 
+    let owners_private_keys: Vec<EitherEd25519SecretKey> = owners.iter().cloned().map(|x| x.private_key()).collect();
     let mut signatures = Vec::new();
     for (i, owner) in owners_private_keys.iter().enumerate() {
         let byte_array = retirement.serialize_in(ByteBuilder::new()).finalize();

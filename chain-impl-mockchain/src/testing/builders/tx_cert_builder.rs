@@ -28,6 +28,11 @@ impl TransactionCertBuilder {
         }
     }
 
+    pub fn with_input(&mut self, input: Input) -> &mut Self {
+        self.inputs.push(input);
+        self
+    }
+
     pub fn with_certificate(&mut self, cert: Certificate) -> &mut Self {
         self.certificate = Some(cert);
         self
@@ -84,6 +89,13 @@ impl TransactionCertAuthenticator {
             &address_data,
             self.hash(),
         ));
+        self
+    }
+
+    pub fn with_witnesses(&mut self, block0: &HeaderHash, addresses_data: &Vec<AddressData>) -> &mut Self {
+        for address_data in addresses_data {
+            self.with_witness(block0,address_data);
+        }
         self
     }
 
