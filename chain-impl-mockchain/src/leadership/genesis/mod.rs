@@ -552,7 +552,9 @@ mod tests {
     }
 
     use crate::fragment::Contents;
+    use crate::block::{Block, BlockBuilder, Contents, Header};
     use crate::header::{BlockVersion, HeaderBuilderNew};
+    use crate::testing::data::StakePool;
     use chain_core::property::ChainLength;
 
     #[test]
