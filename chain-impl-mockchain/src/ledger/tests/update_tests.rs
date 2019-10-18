@@ -1,5 +1,5 @@
 use crate::{
-    block::{Block, BlockBuilder, HeaderHash},
+    block::{Block, BlockBuilder, HeaderHash, Contents},
     date::BlockDate,
     ledger::ledger::Ledger,
     testing::arbitrary::update_proposal::UpdateProposalData,
@@ -81,7 +81,7 @@ fn build_block(
     date: BlockDate,
     block_signing_key: &SecretKey<Ed25519>,
 ) -> Block {
-    let mut block_builder = BlockBuilder::new();
+    let mut block_builder = BlockBuilder::new(Contents::empty());
     block_builder.chain_length(ledger.chain_length.next());
     block_builder.parent(block0_hash);
     block_builder.date(date.next_epoch());

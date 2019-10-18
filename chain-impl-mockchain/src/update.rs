@@ -375,29 +375,27 @@ impl Readable for SignedUpdateVote {
 mod test {
     use super::*;
     use crate::{
+        block::{Block, BlockBuilder, Contents, HeaderHash},
         config::ConfigParam,
         fragment::config::ConfigParams,
+        ledger::ledger::Ledger,
         testing::{
+            arbitrary::update_proposal::UpdateProposalData,
             builders::update_builder::{ProposalBuilder, SignedProposalBuilder, UpdateVoteBuilder},
             data::LeaderPair,
-            TestGen,
-            arbitrary::update_proposal::UpdateProposalData,
-            ledger as mock_ledger,
+            ledger as mock_ledger, TestGen,
         },
-        block::{Block, BlockBuilder, Contents, HeaderHash},
-        ledger::ledger::Ledger,
         update::{
             SignedUpdateProposal, SignedUpdateVote, UpdateProposal, UpdateProposalWithProposer,
             UpdateVote,
         },
     };
-    use chain_core::property::ChainLength;
     use chain_addr::Discrimination;
+    use chain_core::property::ChainLength;
     use chain_crypto::{Ed25519, SecretKey};
 
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
-
 
     impl Arbitrary for UpdateProposal {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
