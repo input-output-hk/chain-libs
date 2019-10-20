@@ -116,6 +116,9 @@ impl<A: VerificationAlgorithm, T> Signature<T, A> {
             phantom: PhantomData,
         })
     }
+    pub fn to_bytes<'a>(&'a self) -> Vec<u8> {
+        self.signdata.as_ref().to_vec()
+    }
     pub fn coerce<U>(self) -> Signature<U, A> {
         Signature {
             signdata: self.signdata,
