@@ -150,6 +150,12 @@ impl<A: AsymmetricPublicKey> AsRef<[u8]> for PublicKey<A> {
     }
 }
 
+impl<A: AsymmetricKey> AsRef<[u8]> for SecretKey<A> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 impl<A: AsymmetricKey> From<SecretKey<A>> for KeyPair<A> {
     fn from(secret_key: SecretKey<A>) -> Self {
         let public_key = secret_key.to_public();

@@ -21,7 +21,7 @@ pub struct Sig(pub(crate) [u8; ed25519::SIGNATURE_LENGTH]);
 
 impl Pub {
     pub fn from_xpub(xpub: &XPub) -> Self {
-        let mut buf = [0; 32];
+        let mut buf = [0; ed25519::PUBLIC_KEY_LENGTH];
         xpub.get_without_chaincode(&mut buf);
         Pub(buf)
     }
