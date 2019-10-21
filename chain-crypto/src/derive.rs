@@ -1,4 +1,3 @@
-use ed25519_bip32::{XPrv, XPub, XPRV_SIZE, XPUB_SIZE};
 use ed25519_bip32::{DerivationScheme, DerivationError};
 use crate::key::{SecretKey, PublicKey};
 use crate::{Ed25519Bip32, Ed25519, Ed25519Extended, ExtendedPriv, Pub};
