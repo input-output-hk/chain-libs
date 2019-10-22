@@ -92,7 +92,7 @@ impl TransactionCertAuthenticator {
         self
     }
 
-    pub fn with_witnesses(&mut self, block0: &HeaderHash, addresses_data: &Vec<AddressData>) -> &mut Self {
+    pub fn with_witnesses(&mut self, block0: &HeaderId, addresses_data: &Vec<AddressData>) -> &mut Self {
         for address_data in addresses_data {
             self.with_witness(block0,address_data);
         }
