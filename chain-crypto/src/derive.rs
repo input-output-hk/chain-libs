@@ -1,7 +1,10 @@
-use ed25519_bip32::{PrivateKeyError, XPrv, XPRV_SIZE};
+use ed25519_bip32::{XPrv, XPRV_SIZE};
 use ed25519_bip32::{DerivationScheme, DerivationError};
 use crate::key::{SecretKey, PublicKey};
 use crate::{Ed25519Bip32, Ed25519, Ed25519Extended, ExtendedPriv, Pub};
+use cryptoxide::hmac::Hmac;
+use cryptoxide::pbkdf2::pbkdf2;
+use cryptoxide::sha2::Sha512;
 
 pub fn derive_sk_ed25519(
     key: &SecretKey<Ed25519Bip32>,
@@ -28,12 +31,12 @@ pub fn to_raw_pk(key: &PublicKey<Ed25519Bip32>) -> PublicKey<Ed25519> {
     PublicKey(Pub::from_xpub(&key.0))
 }
 
-pub fn from_bip39_seed(seed: &[u8]) -> Result<SecretKey<Ed25519Bip32>, PrivateKeyError> {
-    if seed.len() != XPRV_SIZE {
-      return Err(PrivateKeyError::LengthInvalid(seed.len()));
-    }
+pub fn from_bip39_entropy(entropy: &[u8], password: &[u8]) -> SecretKey<Ed25519Bip32> {
+  let mut pbkdf2_result = [0; XPRV_SIZE];
 
-    let mut buf = [0u8; XPRV_SIZE];
-    buf[..].clone_from_slice(seed);
-    Ok(SecretKey(XPrv::normalize_bytes(buf)))
+  const ITER: u32 = 4096;
+  let mut mac = Hmac::new(Sha512::new(), password);
+  pbkdf2(&mut mac, entropy.as_ref(), ITER, &mut pbkdf2_result);
+
+  SecretKey(XPrv::normalize_bytes(pbkdf2_result))
 }
