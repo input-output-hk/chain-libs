@@ -149,8 +149,8 @@ With the following serialization:
   * Type=2 utxo witness scheme (64 bytes):
     * ED25519 Signature (64 bytes)
   * Type=3 Account witness (68 bytes):
-    * Account Counter (4 bytes : TODO-ENDIANNESS)
     * ED25519 Signature (64 bytes)
+    * Account Counter (4 bytes in big endian)
 
 The message, w.r.t the cryptographic signature, is generally of the form:
 
