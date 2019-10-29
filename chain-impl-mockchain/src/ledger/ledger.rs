@@ -776,7 +776,7 @@ impl Ledger {
         witness: &Witness,
     ) -> Result<Self, Error> {
         match witness {
-            Witness::Account(_) => Err(Error::ExpectingUtxoWitness),
+            Witness::Account(_, _) => Err(Error::ExpectingUtxoWitness),
             Witness::Multisig(_) => Err(Error::ExpectingUtxoWitness),
             Witness::OldUtxo(xpub, signature) => {
                 let (old_utxos, associated_output) = self
@@ -885,7 +885,8 @@ fn match_identifier_witness<'a>(
     match witness {
         Witness::OldUtxo(_, _) => Err(Error::ExpectingAccountWitness),
         Witness::Utxo(_) => Err(Error::ExpectingAccountWitness),
-        Witness::Account(sig) => {
+        Witness::Account(sig, counter) => {
+            // TODO: use counter in verification?
             // refine account to a single account identifier
             let account = account
                 .to_single_account()
@@ -917,7 +918,7 @@ fn input_single_account_verify<'a>(
     if verified == chain_crypto::Verification::Failed {
         return Err(Error::AccountInvalidSignature {
             account: account.clone(),
-            witness: Witness::Account(witness.clone()),
+            witness: Witness::Account(witness.clone(), spending_counter.clone()),
         });
     };
     Ok(ledger)
@@ -1057,8 +1058,8 @@ mod tests {
             (Witness::OldUtxo(_, _), Err(_)) => TestResult::passed(),
             (Witness::Utxo(_), Ok(_)) => TestResult::error("expecting error, but got success"),
             (Witness::Utxo(_), Err(_)) => TestResult::passed(),
-            (Witness::Account(_), Ok(_)) => TestResult::passed(),
-            (Witness::Account(_), Err(_)) => TestResult::error("unexpected error"),
+            (Witness::Account(_, _), Ok(_)) => TestResult::passed(),
+            (Witness::Account(_, _), Err(_)) => TestResult::error("unexpected error"),
             (Witness::Multisig(_), _) => TestResult::discard(),
         }
     }
@@ -1159,7 +1160,7 @@ mod tests {
 
     fn to_account_witness(witness: &Witness) -> &account::Witness {
         match witness {
-            Witness::Account(account_witness) => account_witness,
+            Witness::Account(account_witness, _) => account_witness,
             _ => panic!("wrong type of witness"),
         }
     }
@@ -1235,8 +1236,8 @@ mod tests {
             (Witness::OldUtxo(_, _), Err(_)) => TestResult::passed(),
             (Witness::Utxo(_), Ok(_)) => TestResult::error("expecting error, but got success"),
             (Witness::Utxo(_), Err(_)) => TestResult::passed(),
-            (Witness::Account(_), Ok(_)) => TestResult::error("expecting error, but got success"),
-            (Witness::Account(_), Err(_)) => TestResult::passed(),
+            (Witness::Account(_, _), Ok(_)) => TestResult::error("expecting error, but got success"),
+            (Witness::Account(_, _), Err(_)) => TestResult::passed(),
             (Witness::Multisig(_), _) => TestResult::discard(),
         }
     }

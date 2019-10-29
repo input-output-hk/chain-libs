@@ -248,7 +248,7 @@ impl TransactionFinalizer {
         match (self.tx.inputs[index].get_type(), &witness) {
             (tx::InputType::Utxo, tx::Witness::OldUtxo(_, _)) => (),
             (tx::InputType::Utxo, tx::Witness::Utxo(_)) => (),
-            (tx::InputType::Account, tx::Witness::Account(_)) => (),
+            (tx::InputType::Account, tx::Witness::Account(_, _)) => (),
             (tx::InputType::Account, tx::Witness::Multisig(_)) => (),
             (_, _) => return Err(BuildError::WitnessMismatch { index }),
         };
