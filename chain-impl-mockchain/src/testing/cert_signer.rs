@@ -1,7 +1,7 @@
 
 use crate::{
-    certificate::{Certificate,SignedCertificate,PoolOwnersSigned},
-    transaction::{SetAuthData,TxBuilderState,AccountBindingSignature,Payload,Transaction},
+    certificate::{Certificate,SignedCertificate,PoolOwnersSigned,PoolSignature},
+    transaction::{SetAuthData,TxBuilderState,AccountBindingSignature,Payload,Transaction,SingleAccountBindingSignature},
     key::EitherEd25519SecretKey
 };
 
@@ -60,7 +60,7 @@ impl CertificateSigner {
                         return Err(CertificateSignerError::MoreThanOneKeyUsed{});
                     }
                     let builder = Transaction::block0_payload_builder(&s);
-                    let signature = AccountBindingSignature::new(&keys[0], &builder.get_auth_data());
+                    let signature = AccountBindingSignature::new_single(&keys[0], &builder.get_auth_data());
                     Ok(SignedCertificate::StakeDelegation(s.clone(), signature))
                 },
                 Certificate::PoolRegistration(s) => {
@@ -88,13 +88,14 @@ impl CertificateSigner {
         &self,
         keys: &[EitherEd25519SecretKey],
         builder: TxBuilderState<SetAuthData<P>>
-    ) -> PoolOwnersSigned {
+    ) -> PoolSignature {
         let auth_data = builder.get_auth_data();
         let mut sigs = Vec::new();
         for (i, key) in keys.iter().enumerate() {
-            let sig = AccountBindingSignature::new(key, &auth_data);
-            sigs.push((i as u16, sig))
+            let sig = SingleAccountBindingSignature::new(key, &auth_data);
+            sigs.push((i as u8, sig))
         }
-        PoolOwnersSigned { signatures: sigs }
+        let pool_owner = PoolOwnersSigned { signatures: sigs };
+        PoolSignature::Owners(pool_owner)
     }
 }
