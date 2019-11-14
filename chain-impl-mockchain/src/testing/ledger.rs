@@ -10,7 +10,7 @@ use crate::{
     transaction::{Output, TxBuilder},
     value::Value,
     utxo::{Entry,Iter},
-    testing::data::address::{AddressData,AddressDataValue}
+    testing::data::{AddressData,AddressDataValue}
 };
 use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
