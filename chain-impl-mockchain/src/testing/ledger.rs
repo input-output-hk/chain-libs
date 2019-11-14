@@ -242,7 +242,7 @@ impl LedgerBuilder {
 
             // TODO subdivide utxo_declaration in group of 254 elements
             // and repeatdly create fragment
-            assert!(self.utxo_declaration.len() > 254);
+            assert!(self.utxo_declaration.len() < 254);
             let group = self.utxo_declaration;
             {
                 let tx = TxBuilder::new()
@@ -310,5 +310,31 @@ impl TestLedger {
                 panic!("test ledger apply transaction only supports transaction type for now")
             }
         }
+    }
+
+    pub fn total_funds(&self) -> Value {
+        let utxo_total = Value(self.ledger.utxos().map(|x| x.output.value.0).sum::<u64>());
+        let accounts_total = self.ledger.accounts().get_total_value().unwrap();
+        (utxo_total + accounts_total).unwrap()
+    }
+
+    pub fn find_utxo_for_address<'a>(
+        &'a self,
+        address_data: &AddressData
+    ) -> Option<Entry<'a, Address>> {
+        let entry = self.utxos().find(|x| x.output.address == address_data.address);
+        entry
+    }
+
+    pub fn accounts(&self) -> &AccountLedger {
+        &self.ledger.accounts()
+    }
+
+    pub fn utxos<'a>(&'a self) -> Iter<'a, Address> {
+        self.ledger.utxos()
+    }
+
+    pub fn fee(&self) -> LinearFee {
+        self.parameters.fees
     }
 }
