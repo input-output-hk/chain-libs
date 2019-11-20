@@ -34,6 +34,7 @@ pub struct LedgerStaticParameters {
 pub struct LedgerParameters {
     pub fees: LinearFee,
     pub reward_params: Option<RewardParams>,
+    pub max_number_of_transactions_per_block: u32,
 }
 
 /// Overall ledger structure.
@@ -665,6 +666,7 @@ impl Ledger {
         LedgerParameters {
             fees: *self.settings.linear_fees,
             reward_params: self.settings.reward_params.clone(),
+            max_number_of_transactions_per_block: self.settings.max_number_of_transactions_per_block,
         }
     }
 
