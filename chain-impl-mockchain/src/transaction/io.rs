@@ -61,6 +61,49 @@ pub enum OutputPolicy {
     Forget,
 }
 
+impl InputOutput {
+    pub fn balance(&self, fee: Value) -> Result<Balance, ValueError> {
+        let inputs = Value::sum(self.inputs.iter().map(|i| i.value()))?;
+        let outputs = Value::sum(self.outputs.iter().map(|o| o.value))?;
+        let z = (outputs + fee)?;
+        if inputs > z {
+            Ok(Balance::Positive((inputs - z)?))
+        } else if inputs < z {
+            Ok(Balance::Negative((z - inputs)?))
+        } else {
+            Ok(Balance::Zero)
+        }
+    }
+
+    /// Calculate the fees on a given fee algorithm for the current transaction
+    pub fn estimate_fee<'a, P: Payload, F: FeeAlgorithm>(
+        &self,
+        payload: PayloadSlice<'a, P>,
+        fee_algorithm: &F,
+    ) -> Value {
+        fee_algorithm.calculate(
+            payload.to_certificate_slice(),
+            self.inputs.len() as u8,
+            self.outputs.len() as u8,
+        )
+    }
+
+    /// Get balance including current fee.
+    pub fn get_balance<'a, P: Payload, F: FeeAlgorithm>(
+        &self,
+        payload: PayloadSlice<'a, P>,
+        fee_algorithm: &F,
+    ) -> Result<Balance, ValueError> {
+        let fee = self.estimate_fee(payload, fee_algorithm);
+        self.balance(fee)
+    }
+
+    /// Get transaction balance without fee included.
+    pub fn get_balance_without_fee(&self) -> Result<Balance, ValueError> {
+        self.balance(Value::zero())
+    }
+}
+
 impl InputOutputBuilder {
     /// Create a new empty builder
     pub fn empty() -> InputOutputBuilder {
