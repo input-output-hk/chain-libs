@@ -3,6 +3,7 @@ pub mod builders;
 pub mod data;
 pub mod ledger;
 pub mod verifiers;
+pub mod scenario;
 pub use arbitrary::*;
 pub use builders::*;
 pub use data::KeysDb;
