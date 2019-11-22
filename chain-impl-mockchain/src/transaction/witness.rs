@@ -128,7 +128,7 @@ impl Witness {
         Witness::Utxo(sig)
     }
 
-    pub fn new_old_utxo(
+    pub fn new_old_icarus_utxo(
         block0: &HeaderId,
         sign_data_hash: &TransactionSignDataHash,
         secret_key: &SecretKey<Ed25519Bip32>,
