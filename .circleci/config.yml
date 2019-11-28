@@ -81,9 +81,9 @@ jobs:
           name: Test
           command: cargo test --verbose --frozen --release
 
-  test_nightly:
+  test_beta:
     docker:
-      - image: rustlang/rust:nightly
+      - image: instrumentisto/rust:beta
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -118,7 +118,7 @@ workflows:
           requires:
             #- rustfmt
             - cargo_fetch
-      - test_nightly:
+      - test_beta:
           requires:
             #- rustfmt
             - cargo_fetch
