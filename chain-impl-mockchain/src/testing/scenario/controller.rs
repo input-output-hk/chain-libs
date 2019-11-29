@@ -3,9 +3,11 @@ use crate::{
     date::BlockDate,
     key::Hash,
     ledger::Error as LedgerError,
+    accounting::account::{DelegationType,DelegationRatio},
+    certificate::PoolId,
     testing::{
         builders::{
-            build_owner_stake_delegation, build_stake_delegation_cert,
+            build_owner_stake_full_delegation, build_stake_delegation_cert,build_no_stake_delegation,build_owner_stake_delegation,
             build_stake_pool_registration_cert, build_stake_pool_retirement_cert, TestTxBuilder,
             TestTxCertBuilder,
         },
@@ -100,13 +102,28 @@ impl Controller {
         self.apply_transaction_with_cert(&[from], cert, ledger)
     }
 
+    pub fn removes_delegation(&self, from: &Wallet,ledger: &mut TestLedger) -> Result<(), LedgerError> {
+        let cert = build_no_stake_delegation();
+        self.apply_transaction_with_cert(&[from], cert, ledger)
+    }
+
+    pub fn delegates_to_many(&self, from: &Wallet, distribution: &[(&StakePool,u8)],ledger: &mut TestLedger) -> Result<(), LedgerError> {
+        let pools_ratio_sum: u8 = distribution.iter().map(|(_st,ratio)| *ratio as u8 ).sum();
+        let pools: Vec<(PoolId,u8)> = distribution.iter().map(|(st,ratio)| (st.info().to_id().clone(),*ratio)).collect();
+
+        let delegation_ratio = DelegationRatio::new(pools_ratio_sum, pools);
+        let delegation_type = DelegationType::Ratio(delegation_ratio.unwrap());
+        let cert = build_owner_stake_delegation(delegation_type);
+        self.apply_transaction_with_cert(&[from], cert, ledger)
+    }
+
     pub fn owner_delegates(
         &self,
         from: &Wallet,
         stake_pool: &StakePool,
         ledger: &mut TestLedger,
     ) -> Result<(), LedgerError> {
-        let cert = build_owner_stake_delegation(stake_pool.id());
+        let cert = build_owner_stake_full_delegation(stake_pool.id());
         self.apply_transaction_with_cert(&[from], cert, ledger)
     }
 
