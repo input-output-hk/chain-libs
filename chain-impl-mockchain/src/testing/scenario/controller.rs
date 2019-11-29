@@ -155,7 +155,7 @@ mod tests {
     use crate::{
         fee::LinearFee,
         stake::Stake,
-        testing::{ledger::ConfigBuilder, verifiers::LedgerStateVerifier},
+        testing::{ledger::ConfigBuilder, verifiers::LedgerStateVerifier, scenario::template::StakePoolDef},
         value::Value,
     };
 
@@ -171,6 +171,12 @@ mod tests {
                 wallet("Alice").with(1_000).delegates_to("stake_pool"),
                 wallet("Bob").with(1_000),
                 wallet("Clarice").with(1_000).owns("stake_pool"),
+            ])
+            .with_stake_pools(vec![
+                StakePoolDef{
+                    name: "stake_pool".to_owned(),
+                    permissions_threshold: Some(1u8)
+                },
             ])
             .build()
             .unwrap();
