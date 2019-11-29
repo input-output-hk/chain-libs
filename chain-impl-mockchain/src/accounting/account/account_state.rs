@@ -212,8 +212,13 @@ impl<'a, ID, Extra> Iterator for Iter<'a, ID, Extra> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AccountState, DelegationType, SpendingCounter};
-    use crate::{certificate::PoolId, value::Value};
+    use super::{
+        AccountState, DelegationRatio, DelegationType, SpendingCounter, DELEGATION_RATIO_MAX_DECLS,
+    };
+    use crate::{
+        certificate::{PoolId, PoolRegistration},
+        value::Value,
+    };
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
     use std::iter;
@@ -440,5 +445,50 @@ mod tests {
         (account_state.get_value() - value).is_err()
             || (account_state.counter.0.checked_add(1).is_none()
                 && account_state.get_value() != value)
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct ArbitraryDelegationRatioFactory {
+        parts: u8,
+        pools: Vec<(PoolId, u8)>,
+    }
+
+    impl Arbitrary for ArbitraryDelegationRatioFactory {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let parts = u8::arbitrary(g);
+            let count = u8::arbitrary(g);
+            let pools: Vec<(PoolId, u8)> = (0..count)
+                .map(|_| {
+                    let ratio = u8::arbitrary(g);
+                    let pool_id = PoolRegistration::arbitrary(g).to_id();
+                    (pool_id, ratio)
+                })
+                .collect();
+            ArbitraryDelegationRatioFactory {
+                parts: parts,
+                pools: pools,
+            }
+        }
+    }
+
+    impl ArbitraryDelegationRatioFactory {
+        pub fn is_valid(&self) -> bool {
+            let total: u32 = self.pools.iter().map(|x| x.1 as u32).sum();
+            let has_no_zero = self.pools.iter().find(|x| x.1 == 0).is_none();
+            has_no_zero
+                && self.parts > 1
+                && self.pools.len() > 1
+                && self.pools.len() <= DELEGATION_RATIO_MAX_DECLS
+                && total == (self.parts as u32)
+        }
+    }
+
+    #[quickcheck]
+    pub fn delegation_ratio(delegation_factory: ArbitraryDelegationRatioFactory) -> TestResult {
+        TestResult::from_bool(
+            delegation_factory.is_valid()
+                == DelegationRatio::new(delegation_factory.parts, delegation_factory.pools.clone())
+                    .is_some(),
+        )
     }
 }
