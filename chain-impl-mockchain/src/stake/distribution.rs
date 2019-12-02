@@ -1,11 +1,5 @@
 use super::stake::Stake;
-use crate::{
-    account,
-    accounting::account::DelegationType,
-    certificate::PoolId,
-    testing::{builders::StakePoolBuilder, TestGen},
-    utxo,
-};
+use crate::{account, accounting::account::DelegationType, certificate::PoolId, utxo};
 use chain_addr::{Address, Kind};
 use std::collections::{hash_map, HashMap};
 
@@ -221,9 +215,10 @@ mod tests {
         certificate::PoolRegistration,
         fragment::FragmentId,
         testing::{
-            arbitrary::utils as arbitrary_utils,
-            arbitrary::ArbitraryAddressDataValueVec,
+            arbitrary::{utils as arbitrary_utils, ArbitraryAddressDataValueVec},
+            builders::StakePoolBuilder,
             data::{AddressData, AddressDataValue},
+            TestGen,
         },
         transaction::{Output, TransactionIndex},
         utxo,
