@@ -215,10 +215,7 @@ mod tests {
     use super::{
         AccountState, DelegationRatio, DelegationType, SpendingCounter, DELEGATION_RATIO_MAX_DECLS,
     };
-    use crate::{
-        certificate::{PoolId, PoolRegistration},
-        value::Value,
-    };
+    use crate::{certificate::PoolId, testing::builders::StakePoolBuilder, value::Value};
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
     use std::iter;
@@ -447,48 +444,68 @@ mod tests {
                 && account_state.get_value() != value)
     }
 
-    #[derive(Clone, Debug)]
-    pub struct ArbitraryDelegationRatioFactory {
-        parts: u8,
-        pools: Vec<(PoolId, u8)>,
+    #[test]
+    pub fn delegation_ratio_correct() {
+        let fake_pool_id = StakePoolBuilder::new().build().id();
+        let parts = 8u8;
+        let pools: Vec<(PoolId, u8)> = vec![
+            (fake_pool_id.clone(), 2u8),
+            (fake_pool_id.clone(), 3u8),
+            (fake_pool_id.clone(), 3u8),
+        ];
+        assert!(DelegationRatio::new(parts, pools).is_some());
     }
 
-    impl Arbitrary for ArbitraryDelegationRatioFactory {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let parts = u8::arbitrary(g);
-            let count = u8::arbitrary(g);
-            let pools: Vec<(PoolId, u8)> = (0..count)
-                .map(|_| {
-                    let ratio = u8::arbitrary(g);
-                    let pool_id = PoolRegistration::arbitrary(g).to_id();
-                    (pool_id, ratio)
-                })
-                .collect();
-            ArbitraryDelegationRatioFactory {
-                parts: parts,
-                pools: pools,
-            }
-        }
+    #[test]
+    pub fn delegation_ratio_zero_parts() {
+        let fake_pool_id = StakePoolBuilder::new().build().id();
+        let parts = 0u8;
+        let pools: Vec<(PoolId, u8)> = vec![
+            (fake_pool_id.clone(), 2u8),
+            (fake_pool_id.clone(), 3u8),
+            (fake_pool_id.clone(), 3u8),
+        ];
+        assert!(DelegationRatio::new(parts, pools).is_none());
     }
 
-    impl ArbitraryDelegationRatioFactory {
-        pub fn is_valid(&self) -> bool {
-            let total: u32 = self.pools.iter().map(|x| x.1 as u32).sum();
-            let has_no_zero = self.pools.iter().find(|x| x.1 == 0).is_none();
-            has_no_zero
-                && self.parts > 1
-                && self.pools.len() > 1
-                && self.pools.len() <= DELEGATION_RATIO_MAX_DECLS
-                && total == (self.parts as u32)
-        }
+    #[test]
+    pub fn delegation_ratio_zero_pool_parts() {
+        let fake_pool_id = StakePoolBuilder::new().build().id();
+        let parts = 8u8;
+        let pools: Vec<(PoolId, u8)> = vec![
+            (fake_pool_id.clone(), 0u8),
+            (fake_pool_id.clone(), 3u8),
+            (fake_pool_id.clone(), 3u8),
+        ];
+        assert!(DelegationRatio::new(parts, pools).is_none());
     }
 
-    #[quickcheck]
-    pub fn delegation_ratio(delegation_factory: ArbitraryDelegationRatioFactory) -> TestResult {
-        TestResult::from_bool(
-            delegation_factory.is_valid()
-                == DelegationRatio::new(delegation_factory.parts, delegation_factory.pools.clone())
-                    .is_some(),
-        )
+    #[test]
+    pub fn delegation_ratio_no_pool_parts() {
+        let parts = 1u8;
+        let pools: Vec<(PoolId, u8)> = vec![];
+        assert!(DelegationRatio::new(parts, pools).is_none());
+    }
+
+    #[test]
+    pub fn delegation_ratio_pool_parts_larger_than_limit() {
+        let fake_pool_id = StakePoolBuilder::new().build().id();
+        let parts = (DELEGATION_RATIO_MAX_DECLS + 1) as u8;
+        let pools: Vec<(PoolId, u8)> = iter::from_fn(|| Some((fake_pool_id.clone(), 1u8)))
+            .take(parts as usize)
+            .collect();
+        assert!(DelegationRatio::new(parts, pools).is_none());
+    }
+
+    #[test]
+    pub fn delegation_ratio_different_total() {
+        let fake_pool_id = StakePoolBuilder::new().build().id();
+        let parts = 8u8;
+        let pools: Vec<(PoolId, u8)> = vec![
+            (fake_pool_id.clone(), 3u8),
+            (fake_pool_id.clone(), 3u8),
+            (fake_pool_id.clone(), 3u8),
+        ];
+        assert!(DelegationRatio::new(parts, pools).is_none());
     }
 }
