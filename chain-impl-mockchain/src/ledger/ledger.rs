@@ -903,6 +903,11 @@ impl Ledger {
     }
 
     fn validate_utxo_total_value(&self) -> Result<(), Error> {
+        self.get_total_value()?;
+        Ok(())
+    }
+
+    pub fn get_total_value(&self) -> Result<Value, Error> {
         let old_utxo_values = self.oldutxos.iter().map(|entry| entry.output.value);
         let new_utxo_values = self.utxos.iter().map(|entry| entry.output.value);
         let account_value = self.accounts.get_total_value().map_err(|_| Error::Block0 {
@@ -918,8 +923,7 @@ impl Ledger {
             .chain(self.pots.values());
         Value::sum(all_utxo_values).map_err(|_| Error::Block0 {
             source: Block0Error::UtxoTotalValueTooBig,
-        })?;
-        Ok(())
+        })
     }
 
     fn apply_tx_inputs<'a, Extra: Payload>(
