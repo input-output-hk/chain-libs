@@ -310,7 +310,7 @@ pub fn rewards_from_fees() {
     assert!(ledger.produce_block(&stake_pool, vec![fragment]).is_ok());
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
-    ledger_verifier.info("after rewards distribution with single transaction");
+    ledger_verifier.info("before rewards distribution with single transaction");
 
     ledger_verifier
         .pots()
@@ -322,11 +322,14 @@ pub fn rewards_from_fees() {
 
     ledger.distribute_rewards().unwrap();
 
+    let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
+    ledger_verifier.info("after rewards distribution with single transaction");
+
     ledger_verifier
         .pots()
         .has_fee_equals_to(&Value::zero())
         .and()
-        .has_treasury_equals_to(&Value(99))
+        .has_treasury_equals_to(&Value(92))
         .and()
         .has_remaining_rewards_equals_to(&Value(901));
 
@@ -334,7 +337,7 @@ pub fn rewards_from_fees() {
 
     ledger_verifier
         .account(reward_account.clone())
-        .does_not_exist();
+        .has_value(&Value(10));
 }
 
 #[test]
