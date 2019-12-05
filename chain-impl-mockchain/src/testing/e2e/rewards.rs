@@ -1,6 +1,6 @@
 use crate::{
     config::RewardParams,
-    date::BlockDate,
+    fee::LinearFee,
     rewards::Ratio,
     testing::{
         ledger::ConfigBuilder,
@@ -52,13 +52,7 @@ pub fn rewards_empty_pots() {
         .unwrap();
     let stake_pool = controller.stake_pool("stake_pool").unwrap();
 
-    let date = BlockDate {
-        epoch: 0,
-        slot_id: 0,
-    };
-
-    let block = ledger.forge_empty_block(date, &stake_pool);
-    assert!(ledger.apply_block(block).is_ok());
+    assert!(ledger.produce_empty_block(&stake_pool).is_ok());
     ledger.distribute_rewards().unwrap();
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
@@ -110,14 +104,7 @@ pub fn rewards_owners_split() {
     let bob = controller.wallet("Bob").unwrap();
     let clarice = controller.wallet("Clarice").unwrap();
 
-    let date = BlockDate {
-        epoch: 0,
-        slot_id: 0,
-    };
-
-    let block = ledger.forge_empty_block(date, &stake_pool);
-    assert!(ledger.apply_block(block).is_ok());
-
+    assert!(ledger.produce_empty_block(&stake_pool).is_ok());
     ledger.distribute_rewards().unwrap();
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
@@ -166,13 +153,7 @@ pub fn rewards_single_owner() {
     let stake_pool = controller.stake_pool("stake_pool").unwrap();
     let alice = controller.wallet("Alice").unwrap();
 
-    let date = BlockDate {
-        epoch: 0,
-        slot_id: 0,
-    };
-
-    let block = ledger.forge_empty_block(date, &stake_pool);
-    assert!(ledger.apply_block(block).is_ok());
+    assert!(ledger.produce_empty_block(&stake_pool).is_ok());
     ledger.distribute_rewards().unwrap();
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
@@ -216,13 +197,7 @@ pub fn rewards_reward_account() {
         .unwrap();
     let stake_pool = controller.stake_pool("stake_pool").unwrap();
 
-    let date = BlockDate {
-        epoch: 0,
-        slot_id: 0,
-    };
-
-    let block = ledger.forge_empty_block(date, &stake_pool);
-    assert!(ledger.apply_block(block).is_ok());
+    assert!(ledger.produce_empty_block(&stake_pool).is_ok());
     ledger.distribute_rewards().unwrap();
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());

@@ -2163,7 +2163,7 @@ mod tests {
             .and()
             .address_has_expected_balance(faucet.into(), Value(0))
             .and()
-            .total_value_is(Value(1));
+            .total_value_is(&Value(1));
     }
 
     #[test]
