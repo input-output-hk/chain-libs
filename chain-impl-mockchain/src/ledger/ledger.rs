@@ -2146,9 +2146,13 @@ mod tests {
         sender_address: AddressData,
         reciever_address: AddressData,
     ) {
+        let config_builder = ConfigBuilder::new(0)
+            .with_rewards(Value(0))
+            .with_treasury(Value(0));
+
         let faucet = AddressDataValue::new(sender_address, Value(1));
         let reciever = AddressDataValue::new(reciever_address, Value(1));
-        let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new(0))
+        let mut test_ledger = LedgerBuilder::from_config(config_builder)
             .faucet(&faucet)
             .build()
             .unwrap();
