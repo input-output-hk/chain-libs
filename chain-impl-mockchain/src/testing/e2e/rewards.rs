@@ -436,3 +436,92 @@ pub fn rewards_total_amount_is_constant_after_reward_distribution() {
         .info("after rewards distribution")
         .total_value_is(&Value(4100));
 }
+
+#[test]
+pub fn rewards_are_propotional_to_stake_pool_effectivness_in_building_blocks() {
+    let (mut ledger, controller) = prepare_scenario()
+        .with_config(
+            ConfigBuilder::new(0)
+                .with_slots_per_epoch(100)
+                .with_rewards(Value(1_000_000))
+                .with_treasury(Value(0))
+                .with_rewards_params(RewardParams::Linear {
+                    constant: 100,
+                    ratio: Ratio {
+                        numerator: 1,
+                        denominator: NonZeroU64::new(1).unwrap(),
+                    },
+                    epoch_start: 0,
+                    epoch_rate: NonZeroU32::new(1).unwrap(),
+                }),
+        )
+        .with_initials(vec![
+            wallet("Alice")
+                .with(1_000_000)
+                .owns_and_delegates_to("alice_stake_pool"),
+            wallet("Bob")
+                .with(1_000_000)
+                .owns_and_delegates_to("bob_stake_pool"),
+            wallet("Clarice")
+                .with(1_000_000)
+                .owns_and_delegates_to("clarice_stake_pool"),
+            wallet("Carol").with(1_000_000),
+            wallet("David").with(1_000_000),
+        ])
+        .with_stake_pools(vec![
+            stake_pool("alice_stake_pool").tax_ratio(1, 2),
+            stake_pool("bob_stake_pool").tax_ratio(1, 2),
+            stake_pool("clarice_stake_pool").tax_ratio(1, 2),
+        ])
+        .build()
+        .unwrap();
+
+    let alice = controller.wallet("Alice").unwrap();
+    let bob = controller.wallet("Bob").unwrap();
+    let clarice = controller.wallet("Clarice").unwrap();
+
+    let alice_stake_pool = controller.stake_pool("alice_stake_pool").unwrap();
+    let bob_stake_pool = controller.stake_pool("bob_stake_pool").unwrap();
+    let clarice_stake_pool = controller.stake_pool("clarice_stake_pool").unwrap();
+
+    let mut carol = controller.wallet("Carol").unwrap();
+    let david = controller.wallet("David").unwrap();
+
+    let fragment_factory = controller.fragment_factory();
+
+    while ledger.date().slot_id < 99 {
+        let fragment = fragment_factory.transaction(&mut carol, &david, &mut ledger, 100);
+        let block_was_created = ledger
+            .fire_leadership_event(controller.initial_stake_pools(), vec![fragment])
+            .unwrap();
+        if block_was_created {
+            carol.confirm_transaction();
+        }
+    }
+
+    let alice_stake_pool_count: u64 = ledger.leaders_log_for(&alice_stake_pool.id()).into();
+    let bob_stake_pool_count: u64 = ledger.leaders_log_for(&bob_stake_pool.id()).into();
+    let clarice_stake_pool_count: u64 = ledger.leaders_log_for(&clarice_stake_pool.id()).into();
+
+    println!(
+        "alice_stake_pool_count: {}, bob_stake_pool_count: {} ,clarice_stake_pool_count: {}",
+        alice_stake_pool_count, bob_stake_pool_count, clarice_stake_pool_count
+    );
+
+    ledger.distribute_rewards().unwrap();
+
+    let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
+
+    ledger_verifier
+        .info("after rewards distribution for alice")
+        .account(alice.as_account_data())
+        .has_value(&Value(1_000_000 + alice_stake_pool_count));
+    ledger_verifier
+        .info("after rewards distribution for bob")
+        .account(bob.as_account_data())
+        .has_value(&Value(1_000_000 + bob_stake_pool_count));
+    ledger_verifier
+        .info("after rewards distribution for clarice")
+        .account(clarice.as_account_data())
+        .has_value(&Value(1_000_000 + clarice_stake_pool_count));
+}
