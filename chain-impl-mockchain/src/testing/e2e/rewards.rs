@@ -515,13 +515,13 @@ pub fn rewards_are_propotional_to_stake_pool_effectivness_in_building_blocks() {
     ledger_verifier
         .info("after rewards distribution for alice")
         .account(alice.as_account_data())
-        .has_value(&Value(1_000_000 + alice_stake_pool_count));
+        .has_value(&Value(1_000_000 + alice_stake_pool_count * 2));
     ledger_verifier
         .info("after rewards distribution for bob")
         .account(bob.as_account_data())
-        .has_value(&Value(1_000_000 + bob_stake_pool_count));
+        .has_value(&Value(1_000_000 + bob_stake_pool_count * 2));
     ledger_verifier
         .info("after rewards distribution for clarice")
         .account(clarice.as_account_data())
-        .has_value(&Value(1_000_000 + clarice_stake_pool_count));
+        .has_value(&Value(1_000_000 + clarice_stake_pool_count * 2));
 }
