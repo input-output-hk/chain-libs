@@ -1,9 +1,10 @@
 use crate::{
+    certificate::PoolId,
     config::RewardParams,
     fee::LinearFee,
     rewards::Ratio,
     testing::{
-        ledger::ConfigBuilder,
+        ledger::{ConfigBuilder, TestLedger},
         scenario::{prepare_scenario, stake_pool, wallet},
         verifiers::LedgerStateVerifier,
     },
@@ -439,16 +440,21 @@ pub fn rewards_total_amount_is_constant_after_reward_distribution() {
 
 #[test]
 pub fn rewards_are_propotional_to_stake_pool_effectivness_in_building_blocks() {
+    let slots_per_epoch = 100;
+    let reward_constant = 100;
+    let ratio_numerator = 1;
+    let expected_total_reward = Value(reward_constant - ratio_numerator);
+
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new(0)
-                .with_slots_per_epoch(100)
+                .with_slots_per_epoch(slots_per_epoch)
                 .with_rewards(Value(1_000_000))
                 .with_treasury(Value(0))
                 .with_rewards_params(RewardParams::Linear {
-                    constant: 100,
+                    constant: reward_constant,
                     ratio: Ratio {
-                        numerator: 1,
+                        numerator: ratio_numerator,
                         denominator: NonZeroU64::new(1).unwrap(),
                     },
                     epoch_start: 0,
@@ -499,29 +505,36 @@ pub fn rewards_are_propotional_to_stake_pool_effectivness_in_building_blocks() {
         }
     }
 
-    let alice_stake_pool_count: u64 = ledger.leaders_log_for(&alice_stake_pool.id()).into();
-    let bob_stake_pool_count: u64 = ledger.leaders_log_for(&bob_stake_pool.id()).into();
-    let clarice_stake_pool_count: u64 = ledger.leaders_log_for(&clarice_stake_pool.id()).into();
-
-    println!(
-        "alice_stake_pool_count: {}, bob_stake_pool_count: {} ,clarice_stake_pool_count: {}",
-        alice_stake_pool_count, bob_stake_pool_count, clarice_stake_pool_count
-    );
+    let expected_alice_reward =
+        (calculate_reward(&expected_total_reward, &alice_stake_pool.id(), &ledger) + alice.value())
+            .unwrap();
+    let expected_bob_reward =
+        (calculate_reward(&expected_total_reward, &bob_stake_pool.id(), &ledger) + bob.value())
+            .unwrap();
+    let expected_clarice_reward =
+        (calculate_reward(&expected_total_reward, &clarice_stake_pool.id(), &ledger)
+            + clarice.value())
+        .unwrap();
 
     ledger.distribute_rewards().unwrap();
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
-
     ledger_verifier
         .info("after rewards distribution for alice")
         .account(alice.as_account_data())
-        .has_value(&Value(1_000_000 + alice_stake_pool_count * 2));
+        .has_value(&expected_alice_reward);
     ledger_verifier
         .info("after rewards distribution for bob")
         .account(bob.as_account_data())
-        .has_value(&Value(1_000_000 + bob_stake_pool_count * 2));
+        .has_value(&expected_bob_reward);
     ledger_verifier
         .info("after rewards distribution for clarice")
         .account(clarice.as_account_data())
-        .has_value(&Value(1_000_000 + clarice_stake_pool_count * 2));
+        .has_value(&expected_clarice_reward);
+}
+
+fn calculate_reward(expected_total_reward: &Value, pool_id: &PoolId, ledger: &TestLedger) -> Value {
+    let reward_unit = expected_total_reward.split_in(ledger.leaders_log().total());
+    let block_count = ledger.leaders_log_for(pool_id);
+    reward_unit.parts.scale(block_count).unwrap()
 }
