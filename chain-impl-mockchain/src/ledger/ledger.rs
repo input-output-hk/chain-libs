@@ -12,6 +12,7 @@ use crate::fragment::{BlockContentHash, BlockContentSize, Contents, Fragment, Fr
 use crate::header::{BlockDate, ChainLength, Epoch, HeaderContentEvalContext, HeaderId};
 use crate::leadership::genesis::ActiveSlotsCoeffError;
 use crate::rewards;
+use crate::rewards::{PoolLimit, RewardLimitByStake};
 use crate::stake::{PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeDistribution};
 use crate::transaction::*;
 use crate::treasury::Treasury;
@@ -21,6 +22,7 @@ use chain_addr::{Address, Discrimination, Kind};
 use chain_crypto::Verification;
 use chain_time::Epoch as TimeEpoch;
 use chain_time::{SlotDuration, TimeEra, TimeFrame, Timeline};
+use std::cmp;
 use std::mem::swap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -52,6 +54,10 @@ pub struct LedgerParameters {
     pub epoch_stability_depth: u32,
     /// Where the fees get transfered to during the rewards
     pub fees_goes_to: setting::FeesGoesTo,
+    /// Limit on total rewards as a %age of delegated stake
+    pub rewards_limit: RewardLimitByStake,
+    /// "Dynamic" limit on target number of pools
+    pub pool_limit: PoolLimit,
 }
 
 /// Overall ledger structure.
@@ -368,8 +374,13 @@ impl Ledger {
 
         let epoch = new_ledger.date.epoch + 1;
 
-        let expected_epoch_reward =
-            rewards::rewards_contribution_calculation(epoch, &ledger_params.reward_params);
+        // changed to scale rewards calculation
+        let expected_epoch_reward = rewards::rewards_contribution_calculation_scaled(
+            epoch,
+            &ledger_params.reward_params,
+            &ledger_params.rewards_limit,
+            distribution.total_stake(),
+        );
 
         let drawn = new_ledger.pots.draw_reward(expected_epoch_reward);
 
@@ -382,7 +393,7 @@ impl Ledger {
 
         let mut total_reward = drawn;
 
-        // Move fees in the rewarding pots for distribution or depending on settings
+        // Move transaction fees in the rewarding pots for distribution or depending on settings
         // to the treasury directly
         match ledger_params.fees_goes_to {
             setting::FeesGoesTo::Rewards => {
@@ -408,6 +419,7 @@ impl Ledger {
         if total_reward > Value::zero() {
             let total_blocks = leaders_log.total();
             let reward_unit = total_reward.split_in(total_blocks);
+            let pool_count = leaders_log.iter().count() as u32;
 
             for (pool_id, pool_blocks) in leaders_log.iter() {
                 let pool_total_reward = reward_unit.parts.scale(*pool_blocks).unwrap();
@@ -427,6 +439,9 @@ impl Ledger {
                             &pool_reg,
                             pool_total_reward,
                             pool_distribution,
+                            &ledger_params.pool_limit,
+                            pool_count,
+                            total_reward,
                         )?;
                     }
                     _ => {
@@ -457,8 +472,25 @@ impl Ledger {
         reg: &certificate::PoolRegistration,
         total_reward: Value,
         distribution: &PoolStakeInformation,
+        pool_limit: &PoolLimit,
+        pool_count: u32,
+        overall_reward: Value,
     ) -> Result<(), Error> {
-        let distr = rewards::tax_cut(total_reward, &reg.rewards).unwrap();
+        let npools = u32::from(pool_limit.npools) as u64;
+        let npools_threshold = u32::from(pool_limit.npools_threshold);
+
+        // Limit the rewards according to the pools parameter and total delegated stake
+        let mut max_deleg_reward = overall_reward.0;
+
+        // Only apply the limit once the threshold is reached
+        if pool_count >= npools_threshold {
+            max_deleg_reward = overall_reward.0 / npools;
+        }
+
+        // limit the reward to 1/npools of total reward if the limit is reached
+        let capped_reward = cmp::min(total_reward, Value(max_deleg_reward));
+
+        let distr = rewards::tax_cut(capped_reward, &reg.rewards).unwrap();
 
         reward_info.set_stake_pool(pool_id, distr.taxed, distr.after_tax);
         self.delegation
@@ -918,6 +950,14 @@ impl Ledger {
             block_content_max_size: self.settings.block_content_max_size,
             epoch_stability_depth: self.settings.epoch_stability_depth,
             fees_goes_to: self.settings.fees_goes_to,
+            rewards_limit: self
+                .settings
+                .rewards_limit
+                .unwrap_or_else(|| rewards::RewardLimitByStake::zero()),
+            pool_limit: self
+                .settings
+                .pool_limit
+                .unwrap_or_else(|| rewards::PoolLimit::zero()),
         }
     }
 
@@ -1317,6 +1357,8 @@ mod tests {
                 block_content_max_size: Arbitrary::arbitrary(g),
                 epoch_stability_depth: Arbitrary::arbitrary(g),
                 fees_goes_to: Arbitrary::arbitrary(g),
+                rewards_limit: Arbitrary::arbitrary(g),
+                pool_limit: Arbitrary::arbitrary(g),
             }
         }
     }
@@ -1769,6 +1811,8 @@ mod tests {
                 block_content_max_size: 10_240,
                 epoch_stability_depth: 1000,
                 fees_goes_to: FeesGoesTo::Rewards,
+                rewards_limit: rewards::RewardLimitByStake::zero(),
+                pool_limit: rewards::PoolLimit::zero(),
             };
             InternalApplyTransactionTestParams {
                 dyn_params: dyn_params,

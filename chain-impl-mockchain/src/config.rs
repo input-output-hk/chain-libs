@@ -1,7 +1,7 @@
 use crate::header::Epoch;
 use crate::leadership::bft::LeaderId;
 use crate::milli::Milli;
-use crate::rewards::{Ratio, TaxType};
+use crate::rewards::{PoolLimit, Ratio, RewardLimitByStake, TaxType};
 use crate::value::Value;
 use crate::{
     block::ConsensusVersion,
@@ -75,6 +75,8 @@ pub enum ConfigParam {
     RewardParams(RewardParams),
     PerCertificateFees(PerCertificateFee),
     FeesInTreasury(bool),
+    RewardLimitByStake(RewardLimitByStake),
+    PoolLimit(PoolLimit),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -134,6 +136,10 @@ pub enum Tag {
     PerCertificateFees = 21,
     #[strum(to_string = "fees-in-treasury")]
     FeesInTreasury = 22,
+    #[strum(to_string = "reward-limit-by-stake")]
+    RewardLimitByStake = 23,
+    #[strum(to_string = "pool-limit")]
+    PoolLimit = 24,
 }
 
 impl Tag {
@@ -158,6 +164,8 @@ impl Tag {
             20 => Some(Tag::RewardParams),
             21 => Some(Tag::PerCertificateFees),
             22 => Some(Tag::FeesInTreasury),
+            23 => Some(Tag::RewardLimitByStake),
+            24 => Some(Tag::PoolLimit),
             _ => None,
         }
     }
@@ -187,6 +195,8 @@ impl<'a> From<&'a ConfigParam> for Tag {
             ConfigParam::RewardParams(_) => Tag::RewardParams,
             ConfigParam::PerCertificateFees(_) => Tag::PerCertificateFees,
             ConfigParam::FeesInTreasury(_) => Tag::FeesInTreasury,
+            ConfigParam::RewardLimitByStake(_) => Tag::RewardLimitByStake,
+            ConfigParam::PoolLimit(_) => Tag::PoolLimit,
         }
     }
 }
@@ -246,6 +256,10 @@ impl Readable for ConfigParam {
             Tag::FeesInTreasury => {
                 ConfigParamVariant::from_payload(bytes).map(ConfigParam::FeesInTreasury)
             }
+            Tag::RewardLimitByStake => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::RewardLimitByStake)
+            }
+            Tag::PoolLimit => ConfigParamVariant::from_payload(bytes).map(ConfigParam::PoolLimit),
         }
         .map_err(Into::into)
     }
@@ -276,6 +290,8 @@ impl property::Serialize for ConfigParam {
             ConfigParam::RewardParams(data) => data.to_payload(),
             ConfigParam::PerCertificateFees(data) => data.to_payload(),
             ConfigParam::FeesInTreasury(data) => data.to_payload(),
+            ConfigParam::RewardLimitByStake(data) => data.to_payload(),
+            ConfigParam::PoolLimit(data) => data.to_payload(),
         };
         let taglen = TagLen::new(tag, bytes.len()).ok_or_else(|| {
             io::Error::new(
@@ -318,6 +334,32 @@ impl ConfigParamVariant for TaxType {
         let tax_type = TaxType::read_frombuf(&mut rb)?;
         rb.expect_end()?;
         Ok(tax_type)
+    }
+}
+
+impl ConfigParamVariant for RewardLimitByStake {
+    fn to_payload(&self) -> Vec<u8> {
+        self.serialize_in(ByteBuilder::new()).finalize_as_vec()
+    }
+
+    fn from_payload(payload: &[u8]) -> Result<Self, Error> {
+        let mut rb = ReadBuf::from(payload);
+        let rewards_limit = RewardLimitByStake::read_frombuf(&mut rb)?;
+        rb.expect_end()?;
+        Ok(rewards_limit)
+    }
+}
+
+impl ConfigParamVariant for PoolLimit {
+    fn to_payload(&self) -> Vec<u8> {
+        self.serialize_in(ByteBuilder::new()).finalize_as_vec()
+    }
+
+    fn from_payload(payload: &[u8]) -> Result<Self, Error> {
+        let mut rb = ReadBuf::from(payload);
+        let pool_limit = PoolLimit::read_frombuf(&mut rb)?;
+        rb.expect_end()?;
+        Ok(pool_limit)
     }
 }
 
@@ -680,7 +722,7 @@ mod test {
 
     impl Arbitrary for ConfigParam {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            match u8::arbitrary(g) % 16 {
+            match u8::arbitrary(g) % 18 {
                 0 => ConfigParam::Block0Date(Arbitrary::arbitrary(g)),
                 1 => ConfigParam::Discrimination(Arbitrary::arbitrary(g)),
                 2 => ConfigParam::ConsensusVersion(Arbitrary::arbitrary(g)),
@@ -697,6 +739,8 @@ mod test {
                 13 => ConfigParam::RewardParams(Arbitrary::arbitrary(g)),
                 14 => ConfigParam::PerCertificateFees(Arbitrary::arbitrary(g)),
                 15 => ConfigParam::FeesInTreasury(Arbitrary::arbitrary(g)),
+                16 => ConfigParam::RewardLimitByStake(Arbitrary::arbitrary(g)),
+                17 => ConfigParam::PoolLimit(Arbitrary::arbitrary(g)),
                 _ => unreachable!(),
             }
         }

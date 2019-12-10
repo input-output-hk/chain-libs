@@ -4,6 +4,8 @@
 use crate::fragment::{config::ConfigParams, BlockContentSize};
 use crate::leadership::genesis::ActiveSlotsCoeff;
 use crate::milli::Milli;
+use crate::rewards::PoolLimit;
+use crate::rewards::RewardLimitByStake;
 use crate::update::Error;
 use crate::{
     block::ConsensusVersion,
@@ -34,6 +36,8 @@ pub struct Settings {
     pub reward_params: Option<RewardParams>,
     pub treasury_params: Option<rewards::TaxType>,
     pub fees_goes_to: FeesGoesTo,
+    pub rewards_limit: Option<rewards::RewardLimitByStake>,
+    pub pool_limit: Option<rewards::PoolLimit>,
 }
 
 /// Fees nSettings
@@ -70,6 +74,8 @@ impl Settings {
             reward_params: None,
             treasury_params: None,
             fees_goes_to: FeesGoesTo::Rewards,
+            rewards_limit: None,
+            pool_limit: None,
         }
     }
 
@@ -146,6 +152,12 @@ impl Settings {
                         FeesGoesTo::Rewards
                     };
                 }
+                ConfigParam::RewardLimitByStake(lim) => {
+                    new_state.rewards_limit = Some(*lim);
+                }
+                ConfigParam::PoolLimit(lim) => {
+                    new_state.pool_limit = Some(*lim);
+                }
             }
         }
 
@@ -183,6 +195,14 @@ impl Settings {
         };
         match &self.treasury_params {
             Some(p) => params.push(ConfigParam::TreasuryParams(p.clone())),
+            None => (),
+        };
+        match &self.rewards_limit {
+            Some(p) => params.push(ConfigParam::RewardLimitByStake(p.clone())),
+            None => (),
+        };
+        match &self.pool_limit {
+            Some(p) => params.push(ConfigParam::PoolLimit(p.clone())),
             None => (),
         };
 

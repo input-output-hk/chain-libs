@@ -1,6 +1,9 @@
 use crate::block::Epoch;
+use crate::stake::Stake;
 use crate::value::{Value, ValueError};
 use chain_core::mempack::{ReadBuf, ReadError};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::cmp;
 use std::num::{NonZeroU32, NonZeroU64};
 use typed_bytes::ByteBuilder;
 
@@ -77,6 +80,64 @@ impl TaxType {
                 denominator,
             },
             max_limit: NonZeroU64::new(limit),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PoolLimit {
+    pub npools: NonZeroU32,
+    pub npools_threshold: NonZeroU32,
+}
+
+impl PoolLimit {
+    pub fn zero() -> Self {
+        PoolLimit {
+            npools: NonZeroU32::new(1).unwrap(),
+            npools_threshold: NonZeroU32::new(1).unwrap(),
+        }
+    }
+
+    pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
+        bb.u32(self.npools.get()).u32(self.npools_threshold.get())
+    }
+
+    pub fn read_frombuf(rb: &mut ReadBuf) -> Result<Self, ReadError> {
+        let npools = rb.get_u32()?;
+        let npools_threshold = rb.get_u32()?;
+
+        Ok(PoolLimit {
+            npools: NonZeroU32::new(npools).unwrap(),
+            npools_threshold: NonZeroU32::new(npools_threshold).unwrap(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RewardLimitByStake {
+    pub numerator: u32,
+    pub denominator: NonZeroU32,
+}
+
+impl RewardLimitByStake {
+    pub fn zero() -> Self {
+        RewardLimitByStake {
+            numerator: 1,
+            denominator: NonZeroU32::new(1).unwrap(),
+        }
+    }
+
+    pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
+        bb.u32(self.numerator).u32(self.denominator.get())
+    }
+
+    pub fn read_frombuf(rb: &mut ReadBuf) -> Result<Self, ReadError> {
+        let numerator = rb.get_u32()?;
+        let denominator = rb.get_u32()?;
+
+        Ok(RewardLimitByStake {
+            numerator,
+            denominator: NonZeroU32::new(denominator).unwrap(),
         })
     }
 }
@@ -161,6 +222,25 @@ pub fn rewards_contribution_calculation(epoch: Epoch, params: &Parameters) -> Va
             Value((acc / SCALE) as u64)
         }
     }
+}
+
+// Added new function to ensure rewards calculation complies with research results and commercial needs -- KH
+/// Scale the total rewards in proportion to the total delegated stake
+pub fn rewards_contribution_calculation_scaled(
+    epoch: Epoch,
+    params: &Parameters,
+    rewards_limit: &RewardLimitByStake,
+    total_delegated: Stake, // This is coming out as zero in the reward/tax test cases: not sure whether it's a bug in total_stake, or faulty tests
+) -> Value {
+    let r = rewards_contribution_calculation(epoch, params);
+
+    // limit the rewards if necessary
+    const SCALE: u128 = 1_000_000_000;
+
+    let limit_scaled = u64::from(total_delegated) as u128 * SCALE;
+    let limit =
+        limit_scaled * rewards_limit.numerator as u128 / rewards_limit.denominator.get() as u128;
+    cmp::min(Value((limit / SCALE) as u64), r)
 }
 
 /// Tax some value into the tax value and what is remaining
@@ -249,6 +329,8 @@ mod tests {
         );
     }
 
+    // would be good to add some additional reward calculation tests here, including scaling etc. KH
+
     impl Arbitrary for TaxType {
         fn arbitrary<G: Gen>(gen: &mut G) -> Self {
             let fixed = Arbitrary::arbitrary(gen);
@@ -263,6 +345,32 @@ mod tests {
                     denominator: NonZeroU64::new(denominator).unwrap(),
                 },
                 max_limit,
+            }
+        }
+    }
+
+    impl Arbitrary for RewardLimitByStake {
+        fn arbitrary<G: Gen>(gen: &mut G) -> Self {
+            // ugly, but avoids generating unwanted 0.  KH
+            let denominator = u32::arbitrary(gen) + 1;
+            let numerator = u32::arbitrary(gen) % denominator;
+
+            RewardLimitByStake {
+                numerator,
+                denominator: NonZeroU32::new(denominator).unwrap(),
+            }
+        }
+    }
+
+    impl Arbitrary for PoolLimit {
+        fn arbitrary<G: Gen>(gen: &mut G) -> Self {
+            // ugly, but avoids generating unwanted 0.  KH
+            let npools = u32::arbitrary(gen) + 1;
+            let npools_threshold = u32::arbitrary(gen) + 1;
+
+            PoolLimit {
+                npools: NonZeroU32::new(npools).unwrap(),
+                npools_threshold: NonZeroU32::new(npools_threshold).unwrap(),
             }
         }
     }
