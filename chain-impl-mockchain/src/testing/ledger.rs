@@ -392,9 +392,9 @@ impl TestLedger {
     }
 
     pub fn total_funds(&self) -> Value {
-        let utxo_total = Value(self.ledger.utxos().map(|x| x.output.value.0).sum::<u64>());
-        let accounts_total = self.ledger.accounts().get_total_value().unwrap();
-        (utxo_total + accounts_total).unwrap()
+        self.ledger
+            .get_total_value()
+            .expect("total ledger funds are too big")
     }
 
     pub fn find_utxo_for_address<'a>(
