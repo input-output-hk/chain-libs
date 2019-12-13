@@ -26,11 +26,7 @@ pub fn per_certificate_fees() {
     let mut bob_funds = 1_000;
     let transaction_fee = input_coefficient + input_coefficient;
     let expected_pool_registration_fee = transaction_fee + certificate_pool_registration_fee;
-    // this is due to potential issue, which leads to situation that fee is not taken from owner delegation cert
-    // however it's withdraw from account
-    let expected_owner_delegation_fee = 0;
-    let correct_expected_owner_delegation_fee =
-        transaction_fee + certificate_owner_stake_delegation;
+    let expected_owner_delegation_fee = transaction_fee + certificate_owner_stake_delegation;
 
     let expected_delegation_fee = transaction_fee + certificate_stake_delegation;
     let expected_retirement_fee = transaction_fee + default_certificate_fee;
@@ -89,7 +85,7 @@ pub fn per_certificate_fees() {
     alice.confirm_transaction();
 
     fee_amount = fee_amount + expected_owner_delegation_fee;
-    alice_funds = alice_funds - correct_expected_owner_delegation_fee;
+    alice_funds = alice_funds - expected_owner_delegation_fee;
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.clone().into());
 
@@ -150,17 +146,9 @@ pub fn owner_delegates_fee() {
 
     let expected_total_funds_before = reward_value + treasury_value + alice_funds;
 
-    // currently there is an issue, which lead to situation in which total ada is decreased
-    // (fee is taken from account but not transfer to pots)
-    // after the issue is fixed, please change wrong* constant to correct
-
     // constant (1) + coefficient (1) * inputs (1) + certificate_fee (1) = 3;
-    let correct_expected_fee_amount = 1 + 1 + 1;
-    let _correct_expected_total_funds_after = expected_total_funds_before;
-
-    let wrong_expected_total_funds_after =
-        reward_value + treasury_value + alice_funds - correct_expected_fee_amount;
-    let wrong_expected_fee_amount = 0;
+    let expected_fee_amount = 1 + 1 + 1;
+    let expected_total_funds_after = expected_total_funds_before;
 
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
@@ -190,7 +178,7 @@ pub fn owner_delegates_fee() {
     ledger_verifier
         .info("after owner_delegates")
         .pots()
-        .has_fee_equals_to(&Value(wrong_expected_fee_amount));
+        .has_fee_equals_to(&Value(expected_fee_amount));
 
-    ledger_verifier.total_value_is(&Value(wrong_expected_total_funds_after));
+    ledger_verifier.total_value_is(&Value(expected_total_funds_after));
 }

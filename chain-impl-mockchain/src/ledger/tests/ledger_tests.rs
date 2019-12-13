@@ -1,6 +1,5 @@
 #![cfg(test)]
 
-use crate::fee::FeeAlgorithm;
 use crate::{
     config::ConfigParam,
     fragment::{config::ConfigParams, Fragment},
