@@ -4,11 +4,11 @@ use crate::{
     certificate::PoolId,
     config::{ConfigParam, RewardParams},
     date::BlockDate,
-    fee::LinearFee,
+    fee::{LinearFee, PerCertificateFee},
     fragment::{config::ConfigParams, Fragment, FragmentId},
     header::ChainLength,
     leadership::{bft::LeaderId, genesis::LeadershipData},
-    ledger::{Error, Ledger, LedgerParameters, RewardsInfoParameters},
+    ledger::{Error, Ledger, LedgerParameters, Pots, RewardsInfoParameters},
     milli::Milli,
     rewards::{Ratio, TaxType},
     stake::PoolsState,
@@ -35,6 +35,7 @@ pub struct ConfigBuilder {
     active_slots_coeff: Milli,
     discrimination: Discrimination,
     linear_fee: Option<LinearFee>,
+    per_certificate_fee: Option<PerCertificateFee>,
     leaders: Vec<LeaderId>,
     seed: u64,
     rewards: Value,
@@ -52,6 +53,7 @@ impl ConfigBuilder {
             discrimination: Discrimination::Test,
             leaders: Vec::new(),
             linear_fee: None,
+            per_certificate_fee: None,
             seed,
             rewards: Value(1_000_000),
             reward_params: RewardParams::Linear {
@@ -108,6 +110,11 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn with_per_certificate_fee(mut self, per_certificate_fee: PerCertificateFee) -> Self {
+        self.per_certificate_fee = Some(per_certificate_fee);
+        self
+    }
+
     pub fn with_slots_per_epoch(mut self, slots_per_epoch: u32) -> Self {
         self.slots_per_epoch = slots_per_epoch;
         self
@@ -148,6 +155,12 @@ impl ConfigBuilder {
 
         if self.linear_fee.is_some() {
             ie.push(ConfigParam::LinearFee(self.linear_fee.clone().unwrap()));
+        }
+
+        if self.per_certificate_fee.is_some() {
+            ie.push(ConfigParam::PerCertificateFees(
+                self.per_certificate_fee.clone().unwrap(),
+            ));
         }
 
         ie.push(ConfigParam::Block0Date(crate::config::Block0Date(0)));
@@ -531,6 +544,10 @@ impl TestLedger {
         }
         self.forward_date();
         Ok(false)
+    }
+
+    pub fn pots(&self) -> Pots {
+        self.ledger.pots.clone()
     }
 }
 
