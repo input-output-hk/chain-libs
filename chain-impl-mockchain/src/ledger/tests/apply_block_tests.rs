@@ -135,7 +135,6 @@ pub fn apply_block_epoch_transition_without_rewards_distribution() {
 #[test]
 pub fn apply_block_incorrect_fragment() {
     let (mut ledger, controller) = prepare_scenario()
-        .with_config(ConfigBuilder::new(0).with_block_content_max_size(5))
         .with_initials(vec![
             wallet("Bob").with(1_000).owns("stake_pool"),
             wallet("Alice").with(1_000),
@@ -180,12 +179,12 @@ pub fn apply_block_incorrect_fragment() {
 
 #[test]
 pub fn apply_block_above_max_content_size() {
-    let block_content_max_size = 100;
+    let block_content_max_size = 152;
     let (mut ledger, controller) = prepare_scenario()
         .with_config(ConfigBuilder::new(0).with_block_content_max_size(block_content_max_size))
         .with_initials(vec![
-            wallet("Bob").with(1_000),
             wallet("Alice").with(1_000).owns("stake_pool"),
+            wallet("Bob").with(1_000),
         ])
         .build()
         .unwrap();
@@ -198,8 +197,8 @@ pub fn apply_block_above_max_content_size() {
     };
 
     let fragment_factory = FragmentFactory::new(ledger.block0_hash);
-
     let fragment = fragment_factory.transaction(&alice, &bob, &mut ledger, 10);
+
     let block = GenesisPraosBlockBuilder::new()
         .with_date(date.clone())
         .with_fragment(fragment)
