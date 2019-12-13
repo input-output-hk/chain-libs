@@ -322,7 +322,7 @@ mod tests {
             Ok(ledger) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
-                    "Error for id {} should be successful: {:?}",
+                    "Operation for id {} should be successful: {:?}",
                     account_id, err
                 ))
             }
@@ -340,7 +340,7 @@ mod tests {
             Ok(ledger) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
-                    "Error for id {} should be successful: {:?}",
+                    "Operation for id {} should be successful: {:?}",
                     account_id, err
                 ))
             }
@@ -355,6 +355,26 @@ mod tests {
             return test_result;
         }
 
+        //add reward to account
+        ledger = match ledger.add_rewards_to_account(&account_id, 0, value.clone(), ()) {
+            Ok(ledger) => ledger,
+            Err(err) => {
+                return TestResult::error(format!(
+                    "Operation for id {} should be successful: {:?}",
+                    account_id, err
+                ))
+            }
+        };
+
+        // verify total value was increased
+        let test_result = test_total_value(
+            (initial_total_value + Value(value.0 * 3)).unwrap(),
+            ledger.get_total_value().unwrap(),
+        );
+        if test_result.is_error() {
+            return test_result;
+        }
+
         //verify account state
         match ledger.get_state(&account_id) {
             Ok(account_state) => {
@@ -362,7 +382,7 @@ mod tests {
                     counter: SpendingCounter::zero(),
                     last_rewards: LastRewards::default(),
                     delegation: DelegationType::Full(stake_pool_id),
-                    value: Value(value.0 * 2),
+                    value: Value(value.0 * 3),
                     extra: (),
                 };
 
@@ -389,7 +409,7 @@ mod tests {
             Ok((ledger, _spending_counter)) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
-                    "Error for id {} should be successful: {:?}",
+                    "Operation for id {} should be successful: {:?}",
                     account_id, err
                 ))
             }
@@ -397,7 +417,7 @@ mod tests {
 
         // verify total value was decreased
         let test_result = test_total_value(
-            (initial_total_value + value).unwrap(),
+            (initial_total_value + Value(value.0 * 2)).unwrap(),
             ledger.get_total_value().unwrap(),
         );
         if test_result.is_error() {
@@ -417,7 +437,7 @@ mod tests {
             Ok((ledger, _spending_counter)) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
-                    "Error for id {} should be successful: {:?}",
+                    "Operation for id {} should be successful: {:?}",
                     account_id, err
                 ))
             }
@@ -428,7 +448,7 @@ mod tests {
             Ok(ledger) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
-                    "Error for id {} should be successful: {:?}",
+                    "Operation for id {} should be successful: {:?}",
                     account_id, err
                 ))
             }
