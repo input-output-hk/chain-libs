@@ -9,7 +9,6 @@ use crate::{
     date::BlockDate,
     fragment::{BlockContentHash, BlockContentSize, Contents},
     leadership,
-    testing::TestGen,
 };
 
 use chain_crypto::{Ed25519, SecretKey, SumEd25519_12};
@@ -217,7 +216,10 @@ mod tests {
     use super::*;
     use crate::{
         header::components::HeaderId,
-        testing::data::{LeaderPair, StakePool},
+        testing::{
+            data::{LeaderPair, StakePool},
+            TestGen,
+        },
     };
 
     fn block_date() -> BlockDate {
@@ -278,7 +280,6 @@ mod tests {
 
     #[test]
     pub fn correct_genesis_header() {
-        let parent_id = parent_id();
         let header = HeaderBuilderNew::new(BlockVersion::KesVrfproof, &contents())
             .set_genesis()
             .set_date(block_date())
