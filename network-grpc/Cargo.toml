@@ -21,7 +21,7 @@ tokio-executor = "0.1"
 tower-hyper = "0.1.1"
 tower-grpc = "0.1.1"
 tower-request-modifier = "0.1"
-tower-service = "0.2"
+tower-service = "0.3"
 tower-util = "0.1"
 
 [build-dependencies]
