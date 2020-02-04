@@ -8,6 +8,6 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 chain-core = { path = "../chain-core" }
-bytes = "0.4"
+bytes = "0.5"
 futures = "0.1"
 thiserror = "1.0"
