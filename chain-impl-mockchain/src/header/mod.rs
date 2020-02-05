@@ -21,3 +21,6 @@ pub use header::{Header, HeaderBft, HeaderGenesisPraos, HeaderUnsigned};
 pub use version::{AnyBlockVersion, BlockVersion};
 
 pub use eval::HeaderContentEvalContext;
+
+pub type HeaderIdSequence = imtseq::Sequence<HeaderId>;
+pub type HeaderSequence = imtseq::Sequence<Header>;
