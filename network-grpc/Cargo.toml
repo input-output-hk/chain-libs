@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 chain-core = { path = "../chain-core" }
 network-core = { path = "../network-core" }
 bytes = "0.4"
-futures = "0.1"
+futures = "0.3"
 http = "0.1.16"
 http-connection = "0.1"
 hyper = "0.12"
