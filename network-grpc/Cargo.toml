@@ -22,7 +22,7 @@ tower-hyper = "0.1.1"
 tower-grpc = "0.1.1"
 tower-request-modifier = "0.1"
 tower-service = "0.2"
-tower-util = "0.1"
+tower-util = "0.3"
 
 [build-dependencies]
 tower-grpc-build = { version = "0.1", features = ["tower-hyper"] }
