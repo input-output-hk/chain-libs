@@ -66,6 +66,18 @@ impl<T> Chunk<T> {
             None
         }
     }
+
+    pub fn find(&self, element: &T) -> Option<u64>
+    where
+        T: Eq,
+    {
+        for (idx, e) in self.data.iter().enumerate() {
+            if e == element {
+                return Some(self.start_depth + idx as u64);
+            }
+        }
+        None
+    }
 }
 
 pub struct ChunkIter<'a, T> {
@@ -123,6 +135,18 @@ impl<T> ChunkMut<T> {
 
     pub fn append(&mut self, elem: T) {
         self.data.push(elem)
+    }
+
+    pub fn find(&self, element: &T) -> Option<u64>
+    where
+        T: Eq,
+    {
+        for (idx, e) in self.data.iter().enumerate() {
+            if e == element {
+                return Some(self.start_depth + idx as u64);
+            }
+        }
+        None
     }
 }
 
@@ -193,6 +217,7 @@ impl<T> Sequence<T> {
         self.current.append(element)
     }
 
+    /// Return the depth range of this sequence
     pub fn range(&self) -> Range<u64> {
         Range {
             start: self.start_depth(),
@@ -205,11 +230,16 @@ impl<T> Sequence<T> {
         range.start >= self.start_depth() && range.end <= self.end_depth()
     }
 
+    /// Return the common depth range between 2 sequences
+    ///
+    /// If none, then there's no depth range in common
+    /// If Some, the range of valid common data is returned;
+    /// it's guaranteed that the data between [start_depth..end_depth) exists.
     pub fn common_range(&self, other: &Self) -> Option<Range<u64>> {
         let b1 = std::cmp::max(self.start_depth(), other.start_depth());
         let b2 = std::cmp::min(self.end_depth(), other.end_depth());
 
-        let common_range = std::ops::Range { start: b1, end: b2 };
+        let common_range = Range { start: b1, end: b2 };
         if b1 < b2 && self.in_range(common_range.clone()) && other.in_range(common_range.clone()) {
             Some(common_range)
         } else {
@@ -231,20 +261,12 @@ impl<T> Sequence<T> {
         match self.common_range(other) {
             None => Err(()),
             Some(range) => {
-                println!("range: {:?}", range);
                 // no common prefix for sure
                 if self.get(range.start) != other.get(range.start) {
                     return Ok(None);
                 }
 
                 // check the end match already
-                /*
-                println!(
-                    "{:?} {:?}",
-                    self.get(range.end - 1),
-                    self.get(range.end - 1)
-                );
-                */
                 if self.get(range.end - 1) == other.get(range.end - 1) {
                     return Ok(Some(range.end - 1));
                 }
@@ -259,24 +281,34 @@ impl<T> Sequence<T> {
                     let mid = base + half;
                     // if equal we move the base to analyse the right side of the partition
                     if self.get(mid) == other.get(mid) {
-                        println!("match at mid {}", mid);
                         base = mid
                     } else {
-                        println!("unmatch at mid {}", mid);
                     }
                     size -= half;
                 }
 
-                println!("{}", base);
                 if self.get(base) == other.get(base) {
                     Ok(Some(base))
                 } else {
                     Ok(Some(base - 1))
                 }
-                //assert!(self.get(base) == other.get(base));
-                //Ok(Some(base))
             }
         }
+    }
+
+    /// Find an element
+    pub fn get_index(&self, element: &T) -> Option<u64>
+    where
+        T: Eq,
+    {
+        self.current.find(element).or_else(|| {
+            for c in self.spine.iter() {
+                if let Some(idx) = c.find(element) {
+                    return Some(idx);
+                }
+            }
+            None
+        })
     }
 
     /// Advance the frozen chunk by one, and push a new empty mutable chunk
@@ -318,13 +350,15 @@ impl<T> Sequence<T> {
                 let idx = (depth - c.start_depth) as usize;
                 return Some(&c.data[idx]);
             }
-            unreachable!()
+            // we should never reach this: unreachable!()
+            None
         } else {
             let idx = (depth - self.current.start_depth) as usize;
             Some(&self.current.data[idx])
         }
     }
 
+    /// Create a new iterator over the whole sequence of elements
     pub fn into_iter<'a>(&'a self) -> SequenceIterator<'a, T> {
         SequenceIterator {
             depth: self.start_depth(),
@@ -332,14 +366,20 @@ impl<T> Sequence<T> {
         }
     }
 
+    /// Create a new iterator that starts at a specific depth
+    ///
+    /// if the depth specified doesn't exists, this will panic
     pub fn into_iter_from<'a>(&'a self, depth: u64) -> SequenceIterator<'a, T> {
         assert!(self.start_depth() <= depth && depth < self.end_depth());
         SequenceIterator { depth, seq: self }
     }
 }
 
+/// Iterator over the sequence
 pub struct SequenceIterator<'a, T> {
+    /// Depth of the next element
     depth: u64,
+    /// Reference to the whole sequence
     seq: &'a Sequence<T>,
 }
 
