@@ -148,6 +148,32 @@ impl<T> ChunkMut<T> {
         }
         None
     }
+
+    pub fn clone_until(chunk: &Chunk<T>, max_depth: u64) -> Self
+    where
+        T: Clone,
+    {
+        assert!(chunk.start_depth < max_depth);
+        let mut new_chunk = ChunkMut::new(chunk.start_depth);
+        for i in chunk.start_depth..max_depth {
+            let idx = (i - chunk.start_depth) as usize;
+            new_chunk.data.push(chunk.data[idx].clone())
+        }
+        new_chunk
+    }
+
+    pub fn mut_clone_until(chunk: &ChunkMut<T>, max_depth: u64) -> Self
+    where
+        T: Clone,
+    {
+        assert!(chunk.start_depth < max_depth);
+        let mut new_chunk = ChunkMut::new(chunk.start_depth);
+        for i in chunk.start_depth..max_depth {
+            let idx = (i - chunk.start_depth) as usize;
+            new_chunk.data.push(chunk.data[idx].clone())
+        }
+        new_chunk
+    }
 }
 
 impl<T> From<ChunkMut<T>> for Chunk<T> {
@@ -372,6 +398,48 @@ impl<T> Sequence<T> {
     pub fn into_iter_from<'a>(&'a self, depth: u64) -> SequenceIterator<'a, T> {
         assert!(self.start_depth() <= depth && depth < self.end_depth());
         SequenceIterator { depth, seq: self }
+    }
+
+    /// Clone the structure up to the specified depth excluded
+    ///
+    /// The resulting structure will be a sequence that contains
+    /// element which element.depth is strictly below depth
+    pub fn clone_to_depth(&self, depth: u64) -> Self
+    where
+        T: Clone,
+    {
+        if depth < self.start_depth() {
+            Self::new(depth)
+        } else if depth >= self.end_depth() {
+            self.clone()
+        } else if depth >= self.current.start_depth {
+            let new_spine = self.spine.clone();
+            let new_current = ChunkMut::mut_clone_until(&self.current, depth);
+
+            Sequence {
+                spine: new_spine,
+                current: new_current,
+            }
+        } else {
+            let mut new_spine = VecDeque::new();
+            for c in self.spine.iter() {
+                if c.start_depth > depth {
+                    break;
+                }
+                if c.end_depth() < depth {
+                    new_spine.push_back(Arc::clone(c))
+                } else {
+                    let new_chunk = ChunkMut::clone_until(c, depth);
+                    new_spine.push_back(Arc::new(new_chunk.into()));
+                    break;
+                }
+            }
+
+            Sequence {
+                spine: new_spine,
+                current: ChunkMut::new(depth),
+            }
+        }
     }
 }
 
