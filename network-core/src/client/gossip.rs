@@ -9,6 +9,12 @@ use futures::prelude::*;
 pub trait GossipService: P2pService {
     type Node: Node<Id = Self::NodeId>;
 
+    /// The type of asynchronous futures returned by method `gossip_exchange`.
+    type ExchangeGossipFuture: Future<Item = Gossip<Self::Node>, Error = Error>;
+
+    /// A one-off gossip exchange with the remote peer.
+    fn exchange_gossip(&mut self, gossip: Gossip<Self::Node>) -> Self::ExchangeGossipFuture;
+
     /// The type of an asynchronous stream that provides node gossip messages
     /// sent by the peer.
     type GossipSubscription: Stream<Item = Gossip<Self::Node>, Error = Error>;

@@ -9,7 +9,10 @@ pub mod unary;
 use client_streaming::RequestStream;
 
 use crate::{
-    convert::{encode_node_id, error_from_grpc, serialize_to_bytes, serialize_to_repeated_bytes},
+    convert::{
+        encode_node_id, error_from_grpc, serialize_to_bytes, serialize_to_repeated_bytes,
+        IntoProtobuf,
+    },
     gen::{self, node::client as gen_client},
 };
 
@@ -279,9 +282,16 @@ where
     P: ProtocolConfig,
 {
     type Node = P::Node;
+    type ExchangeGossipFuture = unary::ResponseFuture<Gossip<P::Node>, gen::node::Gossip>;
     type GossipSubscription = server_streaming::ResponseStream<Gossip<P::Node>, gen::node::Gossip>;
     type GossipSubscriptionFuture =
         subscription::ResponseFuture<Gossip<P::Node>, Self::NodeId, gen::node::Gossip>;
+
+    fn exchange_gossip(&mut self, gossip: Gossip<Self::Node>) -> Self::ExchangeGossipFuture {
+        let req = IntoProtobuf::into_message(gossip).unwrap();
+        let future = self.service.exchange_gossip(Request::new(req));
+        unary::ResponseFuture::new(future)
+    }
 
     fn gossip_subscription<Out>(&mut self, outbound: Out) -> Self::GossipSubscriptionFuture
     where
