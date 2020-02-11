@@ -13,6 +13,9 @@ pub trait GossipService: P2pService {
     /// Gossip message describing a network node.
     type Node: Node<Id = Self::NodeId>;
 
+    /// The type of asynchronous futures returned by method `exchange_gossip`.
+    type ExchangeGossipFuture: Future<Item = Gossip<Self::Node>, Error = Error> + Send + 'static;
+
     /// The type of a bidirectional subscription object that is used as:
     ///
     /// - a stream for outbound gossip;
@@ -30,6 +33,9 @@ pub trait GossipService: P2pService {
     type GossipSubscriptionFuture: Future<Item = Self::GossipSubscription, Error = Error>
         + Send
         + 'static;
+
+    /// Responds to an incoming one-off gossip exchange request from a peer.
+    fn exchange_gossip(&mut self, gossip: Gossip<Self::Node>) -> Self::ExchangeGossipFuture;
 
     /// Establishes a bidirectional subscription for node gossip messages.
     ///

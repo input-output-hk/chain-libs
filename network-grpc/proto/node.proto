@@ -111,6 +111,9 @@ service Node {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
 
+  // A one-off gossip exchange.
+  rpc ExchangeGossip(Gossip) returns (Gossip);
+
   // Requests headers of blocks in the chain in the chronological order,
   // given a selection of possible starting blocks known by the requester,
   // and the identifier of the end block to be included in the returned

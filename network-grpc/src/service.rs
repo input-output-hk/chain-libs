@@ -10,7 +10,7 @@ use subscription::{Subscription, SubscriptionFuture};
 use crate::{
     convert::{
         decode_node_id, deserialize_bytes, deserialize_repeated_bytes, error_into_grpc,
-        serialize_to_bytes,
+        serialize_to_bytes, FromProtobuf,
     },
     gen, PROTOCOL_VERSION,
 };
@@ -122,6 +122,10 @@ where
     type GetHeadersFuture = ResponseFuture<
         Self::GetHeadersStream,
         <<T as Node>::BlockService as BlockService>::GetHeadersFuture,
+    >;
+    type ExchangeGossipFuture = ResponseFuture<
+        gen::node::Gossip,
+        <<T as Node>::GossipService as GossipService>::ExchangeGossipFuture,
     >;
     type PullHeadersStream = ResponseStream<
         gen::node::Header,
@@ -274,6 +278,15 @@ where
             }
         };
         ResponseFuture::new(service.get_fragments(&tx_ids))
+    }
+
+    fn exchange_gossip(&mut self, req: Request<gen::node::Gossip>) -> Self::ExchangeGossipFuture {
+        let service = try_get_service!(self.inner.gossip_service());
+        let gossip = match FromProtobuf::from_message(req.into_inner()) {
+            Ok(gossip) => gossip,
+            Err(e) => return ResponseFuture::error(error_into_grpc(e)),
+        };
+        ResponseFuture::new(service.exchange_gossip(gossip))
     }
 
     fn push_headers(
