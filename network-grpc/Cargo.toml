@@ -10,7 +10,7 @@ chain-core = { path = "../chain-core" }
 network-core = { path = "../network-core" }
 bytes = "0.4"
 futures = "0.1"
-http = "0.1.16"
+http = "0.2.0"
 http-connection = "0.1"
 hyper = "0.12"
 prost = "0.5"
