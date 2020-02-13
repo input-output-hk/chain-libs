@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 chain-core = { path = "../chain-core" }
 chain-storage = { path = "../chain-storage" }
 r2d2 = { version = "0.8" }
-r2d2_sqlite = { version = "0.8" }
+r2d2_sqlite = { version = "0.14" }
 thiserror = "1.0"
 
 [dependencies.rusqlite]
