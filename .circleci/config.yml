@@ -2,7 +2,7 @@ version: 2
 jobs:
   cargo_fetch:
     docker:
-      - image: rust:latest
+      - image: inputoutput/rust:stable
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -21,25 +21,9 @@ jobs:
             - /usr/local/cargo/registry
             - /usr/local/cargo/git
 
-  #rustfmt:
-  #  docker:
-  #    - image: rust:latest
-  #  working_directory: /mnt/crate
-  #  steps:
-  #    - checkout
-  #    - run:
-  #        name: Install rustfmt
-  #        command: rustup component add rustfmt
-  #    - run:
-  #        name: Print version information
-  #        command: cargo fmt -- --version
-  #    - run:
-  #        name: Check rustfmt
-  #        command: cargo fmt -- --check
-
   test_debug:
     docker:
-      - image: rust:latest
+      - image: inputoutput/rust:stable
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -62,7 +46,7 @@ jobs:
 
   test_release:
     docker:
-      - image: rust:latest
+      - image: inputoutput/rust:stable
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -83,7 +67,7 @@ jobs:
 
   test_nightly:
     docker:
-      - image: rustlang/rust:nightly
+      - image: inputoutput/rust:nightly
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -109,16 +93,12 @@ workflows:
   test_all:
     jobs:
       - cargo_fetch
-      #- rustfmt
       - test_debug:
           requires:
-            #- rustfmt
             - cargo_fetch
       - test_release:
           requires:
-            #- rustfmt
             - cargo_fetch
       - test_nightly:
           requires:
-            #- rustfmt
             - cargo_fetch
