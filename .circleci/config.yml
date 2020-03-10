@@ -21,6 +21,26 @@ jobs:
             - /usr/local/cargo/registry
             - /usr/local/cargo/git
 
+  cargo_audit:
+    docker:
+      - image: inputoutput/rust:stable
+    working_directory: /home/circleci/build
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/build
+      - restore_cache:
+          keys:
+            - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
+      - restore_cache:
+          keys:
+            - cargo-advisory-db-v1
+      - run: cargo audit
+      - save_cache:
+          key: cargo-advisory-db-v1
+          paths:
+            - /usr/local/cargo/advisory-db
+
   test_debug:
     docker:
       - image: inputoutput/rust:stable
@@ -93,6 +113,9 @@ workflows:
   test_all:
     jobs:
       - cargo_fetch
+      - cargo_audit:
+          requires:
+            - cargo_fetch
       - test_debug:
           requires:
             - cargo_fetch
