@@ -3,7 +3,7 @@ jobs:
   cargo_fetch:
     docker:
       - image: inputoutput/rust:stable
-    working_directory: /mnt/crate
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - restore_cache:
@@ -12,7 +12,7 @@ jobs:
             - cargo-v3-
       - run: cargo fetch
       - persist_to_workspace:
-          root: /mnt/crate
+          root: /home/circleci/build
           paths:
             - Cargo.lock
       - save_cache:
@@ -24,11 +24,11 @@ jobs:
   test_debug:
     docker:
       - image: inputoutput/rust:stable
-    working_directory: /mnt/crate
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - attach_workspace:
-          at: /mnt/crate
+          at: /home/circleci/build
       - restore_cache:
           keys:
             - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
@@ -47,11 +47,11 @@ jobs:
   test_release:
     docker:
       - image: inputoutput/rust:stable
-    working_directory: /mnt/crate
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - attach_workspace:
-          at: /mnt/crate
+          at: /home/circleci/build
       - restore_cache:
           keys:
             - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
@@ -68,11 +68,11 @@ jobs:
   test_nightly:
     docker:
       - image: inputoutput/rust:nightly
-    working_directory: /mnt/crate
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - attach_workspace:
-          at: /mnt/crate
+          at: /home/circleci/build
       - restore_cache:
           keys:
             - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
