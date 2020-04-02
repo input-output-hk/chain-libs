@@ -113,6 +113,12 @@ message Gossip {
   repeated bytes nodes = 2;
 }
 
+// Gossip message with encrypred information on nodes in the network (bottle in
+// the sea). These messages are forwarded until they find their target peers.
+message BottleInSea {
+  bytes node = 1;
+}
+
 // Element of the subscription stream returned by BlockSubscription.
 message BlockEvent {
   oneof item {
@@ -174,4 +180,8 @@ service Node {
   // Establishes a bidirectional stream to exchange information on new
   // network peers.
   rpc GossipSubscription(stream Gossip) returns (stream Gossip);
+
+  // Establishes a bidirectional stream to forward "bottle in the sea" gossip
+  // messages.
+  rpc BottleInSeaSubscription(stream BottleInSea) returns (stream BottleInSea);
 }

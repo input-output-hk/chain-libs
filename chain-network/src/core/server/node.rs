@@ -1,4 +1,4 @@
-use super::{BlockService, FragmentService, GossipService};
+use super::{BlockService, BottleInSeaService, FragmentService, GossipService};
 
 /// Interface to application logic of the blockchain node server.
 ///
@@ -15,6 +15,9 @@ pub trait Node {
     /// The implementation of the gossip service.
     type GossipService: GossipService + Send + Sync;
 
+    /// The implementation of the "bottle in the sea" gossip service.
+    type BottleInSeaService: BottleInSeaService + Send + Sync;
+
     /// Instantiates the block service,
     /// if supported by this node.
     fn block_service(&self) -> Option<&Self::BlockService>;
@@ -26,4 +29,8 @@ pub trait Node {
     /// Instantiates the gossip service,
     /// if supported by this node.
     fn gossip_service(&self) -> Option<&Self::GossipService>;
+
+    /// Instantiates the "bottle in the sea" service,
+    /// if supported by this node.
+    fn bottle_in_sea_service(&self) -> Option<&Self::BottleInSeaService>;
 }

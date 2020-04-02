@@ -1,6 +1,7 @@
 use super::proto;
 use crate::data::{
     block::{self, Block, BlockEvent, BlockId, ChainPullRequest, Header},
+    bottle::BottleInSea,
     fragment::Fragment,
     gossip::{Gossip, Node},
     p2p::Peer,
@@ -197,6 +198,22 @@ impl IntoProtobuf for Gossip {
                 .into_iter()
                 .map(|node| node.into_bytes())
                 .collect(),
+        }
+    }
+}
+
+impl FromProtobuf<proto::BottleInSea> for BottleInSea {
+    fn from_message(message: proto::BottleInSea) -> Result<Self, Error> {
+        Ok(BottleInSea::from_bytes(message.node))
+    }
+}
+
+impl IntoProtobuf for BottleInSea {
+    type Message = proto::BottleInSea;
+
+    fn into_message(self) -> proto::BottleInSea {
+        proto::BottleInSea {
+            node: self.into_bytes(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use super::convert;
 use super::proto;
 use super::streaming::{InboundStream, OutboundTryStream};
-use crate::core::server::{BlockService, FragmentService, GossipService, Node};
+use crate::core::server::{BlockService, BottleInSeaService, FragmentService, GossipService, Node};
 use crate::data::{block, fragment, BlockId};
 use crate::PROTOCOL_VERSION;
 use tonic::{Code, Status};
@@ -33,6 +33,12 @@ where
     fn gossip_service(&self) -> Result<&T::GossipService, Status> {
         self.inner
             .gossip_service()
+            .ok_or_else(|| Status::new(Code::Unimplemented, "not implemented"))
+    }
+
+    fn bottle_in_sea_service(&self) -> Result<&T::BottleInSeaService, Status> {
+        self.inner
+            .bottle_in_sea_service()
             .ok_or_else(|| Status::new(Code::Unimplemented, "not implemented"))
     }
 }
@@ -210,6 +216,23 @@ where
         let peer = convert::decode_peer(req.metadata())?;
         let inbound = InboundStream::new(req.into_inner());
         let outbound = service.gossip_subscription(peer, Box::pin(inbound)).await?;
+        let res = OutboundTryStream::new(outbound);
+        Ok(tonic::Response::new(res))
+    }
+
+    type BottleInSeaSubscriptionStream =
+        OutboundTryStream<<T::BottleInSeaService as BottleInSeaService>::SubscriptionStream>;
+
+    async fn bottle_in_sea_subscription(
+        &self,
+        req: tonic::Request<tonic::Streaming<proto::BottleInSea>>,
+    ) -> Result<tonic::Response<Self::BottleInSeaSubscriptionStream>, tonic::Status> {
+        let service = self.bottle_in_sea_service()?;
+        let peer = convert::decode_peer(req.metadata())?;
+        let inbound = InboundStream::new(req.into_inner());
+        let outbound = service
+            .bottle_in_sea_subscription(peer, Box::pin(inbound))
+            .await?;
         let res = OutboundTryStream::new(outbound);
         Ok(tonic::Response::new(res))
     }
