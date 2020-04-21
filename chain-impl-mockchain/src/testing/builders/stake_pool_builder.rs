@@ -16,6 +16,7 @@ pub struct StakePoolBuilder {
     operators: Vec<PublicKey<Ed25519>>,
     pool_permissions: Option<PoolPermissions>,
     reward_account: bool,
+    serial: u128,
     tax_type: TaxType,
     alias: String,
 }
@@ -23,6 +24,7 @@ pub struct StakePoolBuilder {
 impl StakePoolBuilder {
     pub fn new() -> Self {
         StakePoolBuilder {
+            serial: 1234,
             owners: Vec::new(),
             operators: Vec::new(),
             alias: "".to_owned(),
@@ -41,6 +43,11 @@ impl StakePoolBuilder {
 
     pub fn with_owners(&mut self, owners: Vec<PublicKey<Ed25519>>) -> &mut Self {
         self.owners.extend(owners);
+        self
+    }
+
+    pub fn with_serial(&mut self, serial: u128) -> &mut Self {
+        self.serial = serial;
         self
     }
 
@@ -106,7 +113,7 @@ impl StakePoolBuilder {
         };
 
         let pool_info = PoolRegistration {
-            serial: 1234,
+            serial: self.serial,
             owners: self.owners.iter().cloned().collect(),
             operators: self.operators.iter().cloned().collect(),
             start_validity: DurationSeconds::from(0).into(),
