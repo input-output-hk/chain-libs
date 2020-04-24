@@ -1008,7 +1008,12 @@ impl Ledger {
     }
 
     pub fn active_vote_plans(&self) -> Vec<VotePlan> {
-        self.votes.plans.iter().map(|(_, (plan, _))| plan.plan()).cloned().collect()
+        self.votes
+            .plans
+            .iter()
+            .map(|(_, (plan, _))| plan.plan())
+            .cloned()
+            .collect()
     }
 
     pub fn apply_pool_registration_signcheck<'a>(
