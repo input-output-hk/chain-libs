@@ -177,20 +177,3 @@ impl property::HasHeader for Block {
         self.header.clone()
     }
 }
-
-#[cfg(test)]
-#[cfg(feature = "with-bench")]
-mod bench {
-    use test::Bencher;
-
-    /*
-    #[bench]
-    pub fn serialization(&b: &mut Bencher) -> Self {
-        let bc = BlockContent::new();
-
-        b.iter(|| {
-
-        })
-    }
-    */
-}
