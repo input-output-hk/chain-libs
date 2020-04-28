@@ -103,6 +103,29 @@ jobs:
           environment:
             RUST_BACKTRACE: 1
           command: cargo test --verbose --frozen
+    
+  test_mockchain_all_features:
+    docker:
+      - image: rustlang/rust:nightly
+    working_directory: /mnt/crate
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /mnt/crate
+      - restore_cache:
+          keys:
+            - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
+      - run:
+          name: Print version information
+          command: rustc --version; cargo --version
+      - run:
+          name: Build
+          command: cargo build --tests --verbose --frozen -p chain-impl-mockchain --all-features
+      - run:
+          name: Test
+          environment:
+            RUST_BACKTRACE: 1
+          command: cargo test --verbose --frozen -p chain-impl-mockchain --all-features
 
 workflows:
   version: 2
@@ -119,6 +142,10 @@ workflows:
             #- rustfmt
             - cargo_fetch
       - test_nightly:
+          requires:
+            #- rustfmt
+            - cargo_fetch
+      - test_mockchain_all_features:
           requires:
             #- rustfmt
             - cargo_fetch
