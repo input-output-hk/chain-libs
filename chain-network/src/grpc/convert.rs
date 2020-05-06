@@ -70,25 +70,35 @@ impl From<Status> for Error {
     }
 }
 
-pub(super) fn decode_peer(meta: &MetadataMap) -> Result<Peer, Error> {
-    let address = meta.get(PEER_ADDRESS_HEADER).ok_or_else(|| {
-        Error::new(
-            error::Code::Internal,
-            format!("missing metadata {}", PEER_ADDRESS_HEADER),
-        )
-    })?;
-    let address = address.to_str().map_err(|e| {
-        Error::new(
-            error::Code::Internal,
-            format!("invalid metadata value in {}: {}", PEER_ADDRESS_HEADER, e),
-        )
-    })?;
-    let address: SocketAddr = address.parse().map_err(|e| {
-        Error::new(
-            error::Code::Internal,
-            format!("invalid socket address in {}: {}", PEER_ADDRESS_HEADER, e),
-        )
-    })?;
+pub(super) fn decode_peer(
+    meta: &MetadataMap,
+    remote_addr: Option<SocketAddr>,
+) -> Result<Peer, Error> {
+    let address = match meta.get(PEER_ADDRESS_HEADER) {
+        Some(value) => {
+            let address = value.to_str().map_err(|e| {
+                Error::new(
+                    error::Code::Internal,
+                    format!("invalid metadata value in {}: {}", PEER_ADDRESS_HEADER, e),
+                )
+            })?;
+            address.parse().map_err(|e| {
+                Error::new(
+                    error::Code::Internal,
+                    format!("invalid socket address in {}: {}", PEER_ADDRESS_HEADER, e),
+                )
+            })?
+        }
+        None => remote_addr.ok_or_else(|| {
+            Error::new(
+                error::Code::Internal,
+                format!(
+                    "peer address not available in metadata {} or transport connection",
+                    PEER_ADDRESS_HEADER
+                ),
+            )
+        })?,
+    };
     Ok(address.into())
 }
 
