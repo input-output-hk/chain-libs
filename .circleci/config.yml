@@ -34,10 +34,10 @@ jobs:
             - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
       - restore_cache:
           keys:
-            - cargo-advisory-db-v1
+            - cargo-advisory-db-v2-
       - run: cargo audit
       - save_cache:
-          key: cargo-advisory-db-v1
+          key: cargo-advisory-db-v2-{{ checksum "/usr/local/cargo/advisory-db/.git/refs/heads/master" }}
           paths:
             - /usr/local/cargo/advisory-db
 
