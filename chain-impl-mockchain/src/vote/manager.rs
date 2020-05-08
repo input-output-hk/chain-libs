@@ -4,14 +4,14 @@ use crate::{
     transaction::UnspecifiedAccountIdentifier,
 };
 use imhamt::Hamt;
-use std::{collections::hash_map::DefaultHasher, sync::Arc};
+use std::{collections::hash_map::DefaultHasher, fmt, sync::Arc};
 use thiserror::Error;
 
 /// Manage the vote plan and the associated votes in the ledger
 ///
 /// this structure manage the lifespan of the vote plan, the votes
 /// casted and the associated parameters
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct VotePlanManager {
     id: VotePlanId,
     plan: Arc<VotePlan>,
@@ -19,12 +19,25 @@ pub struct VotePlanManager {
     proposal_managers: ProposalManagers,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 struct ProposalManagers(Vec<ProposalManager>);
 
 #[derive(Clone, PartialEq, Eq)]
 struct ProposalManager {
     votes_by_voters: Hamt<DefaultHasher, UnspecifiedAccountIdentifier, VoteCastPayload>,
+}
+
+impl fmt::Debug for ProposalManager {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:?}",
+            self.votes_by_voters
+                .iter()
+                .map(|(id, payload)| (id.clone(), payload.clone()))
+                .collect::<Vec<(UnspecifiedAccountIdentifier, VoteCastPayload)>>()
+        )
+    }
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
