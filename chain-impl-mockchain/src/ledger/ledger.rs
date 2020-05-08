@@ -1588,7 +1588,7 @@ mod tests {
     use chain_addr::Discrimination;
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
-    use smoke::{Seed, R};
+    use smoke::R;
     use std::{fmt, iter};
 
     impl Arbitrary for LedgerStaticParameters {
