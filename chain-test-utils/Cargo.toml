@@ -13,3 +13,4 @@ chain-time = { path = "../chain-time" }
 quickcheck = "0.9.2"
 quickcheck_macros = "0.9.1"
 smoke = "0.1.0"
+rand = "0.7.3"

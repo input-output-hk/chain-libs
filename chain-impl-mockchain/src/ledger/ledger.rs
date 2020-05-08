@@ -1588,6 +1588,7 @@ mod tests {
     use chain_addr::Discrimination;
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
+    use smoke::{Seed, R};
     use std::{fmt, iter};
 
     impl Arbitrary for LedgerStaticParameters {
@@ -1620,10 +1621,11 @@ mod tests {
 
     impl Arbitrary for ArbitraryEmptyLedger {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let mut r = R::from_seed(chain_test_utils::utils::seed::random_seed());
             let mut ledger = Ledger::empty(
                 Arbitrary::arbitrary(g),
                 Arbitrary::arbitrary(g),
-                Arbitrary::arbitrary(g),
+                chain_test_utils::time::generate_time_era(&mut r),
                 Arbitrary::arbitrary(g),
             );
 
