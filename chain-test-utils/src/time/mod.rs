@@ -2,7 +2,7 @@ use chain_time::{Epoch, Slot, TimeEra};
 use smoke::{Generator, R};
 
 // Generate an `Epoch` from a generator function
-fn _generate_epoch<GenF>(mut gen: GenF) -> Epoch
+fn generate_epoch_with<GenF>(mut gen: GenF) -> Epoch
 where
     GenF: FnMut() -> u32,
 {
@@ -10,7 +10,7 @@ where
 }
 
 // Generate an `Slot` from a generator function
-fn _generate_slot<GenF>(mut gen: GenF) -> Slot
+fn generate_slot_with<GenF>(mut gen: GenF) -> Slot
 where
     GenF: FnMut() -> u64,
 {
@@ -19,22 +19,22 @@ where
 
 // Generate an `Epoch` given a `smoke::R` (random generator)
 pub fn generate_epoch(r: &mut R) -> Epoch {
-    _generate_epoch(|| r.num())
+    generate_epoch_with(|| r.num())
 }
 
 // Generate an `Epoch` given a `smoke::R` (random generator) and a `(u32, u32)` range limit tuple
 pub fn generate_epoch_with_range(r: &mut R, range: (u32, u32)) -> Epoch {
-    _generate_epoch(|| r.num_range(range.0, range.1))
+    generate_epoch_with(|| r.num_range(range.0, range.1))
 }
 
 // Generate an `Slot` given a `smoke::R` (random generator)
 pub fn generate_slot(r: &mut R) -> Slot {
-    _generate_slot(|| r.num())
+    generate_slot_with(|| r.num())
 }
 
 // Generate an `Slot` given a `smoke::R` (random generator) and a `(u32, u32)` range limit tuple
 pub fn generate_slot_with_range(r: &mut R, range: (u64, u64)) -> Slot {
-    _generate_slot(|| r.num_range(range.0, range.1))
+    generate_slot_with(|| r.num_range(range.0, range.1))
 }
 
 // Generate an `TimeEra` given a `smoke::R` (random generator)
@@ -102,19 +102,19 @@ impl Generator for TimeEraGenerator {
 mod test {
     use super::*;
     use crate::time::{TimeEraGenCfg, TimeEraGenerator};
-    use crate::utils::new_R_from_random_seed;
+    use crate::utils::new_random_generator;
 
     #[test]
     fn generate_epoch() {
         let epoch_value = 10;
-        let epoch = _generate_epoch(|| epoch_value);
+        let epoch = generate_epoch_with(|| epoch_value);
         assert_eq!(epoch.0, epoch_value);
     }
 
     #[test]
     fn generate_slot() {
         let slot_value = 10;
-        let slot = _generate_slot(|| slot_value);
+        let slot = generate_slot_with(|| slot_value);
         assert_eq!(Into::<u64>::into(slot), slot_value);
     }
 
@@ -129,8 +129,8 @@ mod test {
             slots_per_epoch_range,
         };
         let time_era_generator = TimeEraGenerator::new(Some(config.clone()));
-        let mut r = new_R_from_random_seed();
+        let mut r = new_random_generator();
         let new_time_era = time_era_generator.gen(&mut r);
-        assert!((1..10).contains(&new_time_era.slots_per_epoch()));
+        assert!((1..=10).contains(&new_time_era.slots_per_epoch()));
     }
 }
