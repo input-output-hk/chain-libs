@@ -43,21 +43,26 @@ pub fn generate_time_era(r: &mut R) -> TimeEra {
 }
 
 // `TimeEra` configuration, encapsulates the building boundaries for the inner data
+#[derive(Clone)]
 pub struct TimeEraGenCfg {
-    pub slot_rng: (u64, u64),
-    pub epoch_rng: (u32, u32),
-    pub slots_per_epoch_rng: (u32, u32),
+    pub slot_range: (u64, u64),
+    pub epoch_range: (u32, u32),
+    pub slots_per_epoch_range: (u32, u32),
 }
 
 // Generate an `TimeEra` given a `smoke::R` (random generator) and a `TimeEraGenCfg` range limit tuple
 pub fn generate_time_era_with_config(r: &mut R, config: &TimeEraGenCfg) -> TimeEra {
     TimeEra::new(
-        generate_slot_with_range(r, config.slot_rng),
-        generate_epoch_with_range(r, config.epoch_rng),
-        r.num_range(config.slots_per_epoch_rng.0, config.slots_per_epoch_rng.1),
+        generate_slot_with_range(r, config.slot_range),
+        generate_epoch_with_range(r, config.epoch_range),
+        r.num_range(
+            config.slots_per_epoch_range.0,
+            config.slots_per_epoch_range.1,
+        ),
     )
 }
 
+// Generator wrapper for TimeEra generator methods
 pub struct TimeEraGenerator {
     config: Option<TimeEraGenCfg>,
 }
@@ -94,4 +99,38 @@ impl Generator for TimeEraGenerator {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+    use crate::time::{TimeEraGenCfg, TimeEraGenerator};
+    use crate::utils::new_R_from_random_seed;
+
+    #[test]
+    fn generate_epoch() {
+        let epoch_value = 10;
+        let epoch = _generate_epoch(|| epoch_value);
+        assert_eq!(epoch.0, epoch_value);
+    }
+
+    #[test]
+    fn generate_slot() {
+        let slot_value = 10;
+        let slot = _generate_slot(|| slot_value);
+        assert_eq!(Into::<u64>::into(slot), slot_value);
+    }
+
+    #[test]
+    fn generate_time_era() {
+        let slot_range = (1, 10);
+        let epoch_range = (1, 10);
+        let slots_per_epoch_range = (1, 10);
+        let config = TimeEraGenCfg {
+            slot_range,
+            epoch_range,
+            slots_per_epoch_range,
+        };
+        let time_era_generator = TimeEraGenerator::new(Some(config.clone()));
+        let mut r = new_R_from_random_seed();
+        let new_time_era = time_era_generator.gen(&mut r);
+        assert!((1..10).contains(&new_time_era.slots_per_epoch()));
+    }
+}
