@@ -14,7 +14,8 @@ pub struct TimeEraGenConfig {
 /// The configuration can be change dynamically in runtime to change its behaviour with the method.
 /// `TimeGenerator::set_config`.
 /// This `TimeEraGenerator` implements `smoke::Generator`. It has publicly available a `gen` method
-/// (`fn gen(&self, r: &mut R) -> TimeEra`) which is the core functionality of the type.
+/// (`fn gen(&self, r: &mut R) -> TimeEra`) which is the core functionality of the type. Where `r`
+/// is a `smoke::R` (available through `chain_test_utils::utils::R` too), a random generator.
 /// For example, we can generate a bunch of `TimeEra` like the following:
 /// ```
 /// use chain_test_utils::time::TimeEraGenerator;
