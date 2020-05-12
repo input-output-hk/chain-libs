@@ -1,8 +1,7 @@
 use chain_time::{Epoch, Slot, TimeEra};
 use smoke::{Generator, R};
 
-// `TimeEra` configuration, encapsulates the building boundaries for the inner data
-//
+/// `TimeEra` configuration, encapsulates the building boundaries for the inner data
 #[derive(Clone)]
 pub struct TimeEraGenConfig {
     pub slot_range: (u64, u64),
@@ -10,17 +9,28 @@ pub struct TimeEraGenConfig {
     pub slots_per_epoch_range: (u32, u32),
 }
 
-// Generator wrapper for TimeEra generator methods
-// It can generate `TimeEra` values both randomized or configuration based.
-// The configuration can be change dynamically in runtime to change its behaviour with the method.
-// `TimeGenerator::set_config`.
+/// Generator wrapper for TimeEra generator methods
+/// It can generate `TimeEra` values both randomized or configuration based.
+/// The configuration can be change dynamically in runtime to change its behaviour with the method.
+/// `TimeGenerator::set_config`.
+/// This `TimeEraGenerator` implements `smoke::Generator`. It has publicly available a `gen` method
+/// (`fn gen(&self, r: &mut R) -> TimeEra`) which is the core functionality of the type.
+/// For example, we can generate a bunch of `TimeEra` like the following:
+/// ```
+/// use chain_test_utils::time::TimeEraGenerator;
+/// use chain_test_utils::utils::Generator;
+/// use chain_time::TimeEra;
+/// let mut r = chain_test_utils::utils::new_random_generator();
+/// let time_era_generator = TimeEraGenerator::default();
+/// let time_eras : Vec<TimeEra> = (1..10).map(|_| time_era_generator.gen(&mut r)).collect();
+/// ```
 pub struct TimeEraGenerator {
     config: Option<TimeEraGenConfig>,
 }
 
-// Generate an `Epoch` from a generator function
-// This function generates an Epoch value taking the value from the generator function it receives as parameter
-// The method assumes that the values generated from the generator function are valid for the scope
+/// Generate an `Epoch` from a generator function
+/// This function generates an Epoch value taking the value from the generator function it receives as parameter
+/// The method assumes that the values generated from the generator function are valid for the scope
 fn generate_epoch_with<GenF>(mut gen: GenF) -> Epoch
 where
     GenF: FnMut() -> u32,
@@ -28,9 +38,9 @@ where
     Epoch(gen())
 }
 
-// Generate an `Slot` from a generator function
-// This method generates an Slot value taking the value from the generator function it receives as parameter
-// The method assumes that the values generated from the generator function are valid for the scope
+/// Generate an `Slot` from a generator function
+/// This method generates an Slot value taking the value from the generator function it receives as parameter
+/// The method assumes that the values generated from the generator function are valid for the scope
 fn generate_slot_with<GenF>(mut gen: GenF) -> Slot
 where
     GenF: FnMut() -> u64,
@@ -38,37 +48,37 @@ where
     gen().into()
 }
 
-// Generate an `Epoch` given a `smoke::R` (random generator)
-// This method generates a completely random Epoch from a random generator.
+/// Generate an `Epoch` given a `smoke::R` (random generator)
+/// This method generates a completely random Epoch from a random generator.
 pub fn generate_epoch(r: &mut R) -> Epoch {
     generate_epoch_with(|| r.num())
 }
 
-// Generate an `Epoch` given a `smoke::R` (random generator) and a `(u32, u32)` range limit tuple
-// The range is assumed to be close start and close end `[start, end]`
+/// Generate an `Epoch` given a `smoke::R` (random generator) and a `(u32, u32)` range limit tuple
+/// The range is assumed to be close start and close end `[start, end]`
 pub fn generate_epoch_with_range(r: &mut R, range: (u32, u32)) -> Epoch {
     generate_epoch_with(|| r.num_range(range.0, range.1))
 }
 
-// Generate an `Slot` given a `smoke::R` (random generator)
-// This method generates a completely random Slot from a random generator.
+/// Generate an `Slot` given a `smoke::R` (random generator)
+/// This method generates a completely random Slot from a random generator.
 pub fn generate_slot(r: &mut R) -> Slot {
     generate_slot_with(|| r.num())
 }
 
-// Generate an `Slot` given a `smoke::R` (random generator) and a `(u32, u32)` range limit tuple
-// The range is assumed to be close start and close end `[start, end]`
+/// Generate an `Slot` given a `smoke::R` (random generator) and a `(u32, u32)` range limit tuple
+/// The range is assumed to be close start and close end `[start, end]`
 pub fn generate_slot_with_range(r: &mut R, range: (u64, u64)) -> Slot {
     generate_slot_with(|| r.num_range(range.0, range.1))
 }
 
-// Generate an `TimeEra` given a `smoke::R` (random generator)
-// This method generates a completely random TimeEra. The generated `TimeEra` may not be a valid one.
+/// Generate an `TimeEra` given a `smoke::R` (random generator)
+/// This method generates a completely random TimeEra. The generated `TimeEra` may not be a valid one.
 pub fn generate_time_era(r: &mut R) -> TimeEra {
     TimeEra::new(generate_slot(r), generate_epoch(r), r.num())
 }
 
-// Generate an `TimeEra` given a `smoke::R` (random generator) and a `TimeEraGenConfig` range limit tuple
+/// Generate an `TimeEra` given a `smoke::R` (random generator) and a `TimeEraGenConfig` range limit tuple
 pub fn generate_time_era_with_config(r: &mut R, config: &TimeEraGenConfig) -> TimeEra {
     TimeEra::new(
         generate_slot_with_range(r, config.slot_range),
