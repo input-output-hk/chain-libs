@@ -373,20 +373,16 @@ mod tests {
         testing::{ConfigBuilder, LedgerBuilder},
         value::Value,
     };
-    use chain_test_utils::{
-        time::generate_time_era,
-        utils::{seed::random_seed, R},
-    };
+
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for Globals {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let mut r = R::from_seed(random_seed());
             Globals {
                 date: Arbitrary::arbitrary(g),
                 chain_length: Arbitrary::arbitrary(g),
                 static_params: Arbitrary::arbitrary(g),
-                era: generate_time_era(&mut r),
+                era: Arbitrary::arbitrary(g),
             }
         }
     }

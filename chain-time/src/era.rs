@@ -108,31 +108,9 @@ mod test {
     use crate::timeline::Timeline;
 
     use chain_ser::packer::Codec;
-    use quickcheck::{quickcheck, Arbitrary, Gen, TestResult};
+    use quickcheck::{quickcheck, TestResult};
     use std::io::Cursor;
     use std::time::{Duration, SystemTime};
-
-    impl Arbitrary for TimeEra {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            TimeEra::new(
-                Arbitrary::arbitrary(g),
-                Arbitrary::arbitrary(g),
-                u32::arbitrary(g) % 127 + 1,
-            )
-        }
-    }
-
-    impl Arbitrary for Slot {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            Slot(Arbitrary::arbitrary(g))
-        }
-    }
-
-    impl Arbitrary for Epoch {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            Epoch(Arbitrary::arbitrary(g))
-        }
-    }
 
     quickcheck! {
         fn time_era_pack_unpack_bijection(time_era: TimeEra) -> TestResult {
