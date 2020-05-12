@@ -1,6 +1,19 @@
 use chain_time::{Epoch, Slot, TimeEra};
 use smoke::{Generator, R};
 
+// `TimeEra` configuration, encapsulates the building boundaries for the inner data
+#[derive(Clone)]
+pub struct TimeEraGenConfig {
+    pub slot_range: (u64, u64),
+    pub epoch_range: (u32, u32),
+    pub slots_per_epoch_range: (u32, u32),
+}
+
+// Generator wrapper for TimeEra generator methods
+pub struct TimeEraGenerator {
+    config: Option<TimeEraGenConfig>,
+}
+
 // Generate an `Epoch` from a generator function
 fn generate_epoch_with<GenF>(mut gen: GenF) -> Epoch
 where
@@ -42,16 +55,8 @@ pub fn generate_time_era(r: &mut R) -> TimeEra {
     TimeEra::new(generate_slot(r), generate_epoch(r), r.num())
 }
 
-// `TimeEra` configuration, encapsulates the building boundaries for the inner data
-#[derive(Clone)]
-pub struct TimeEraGenCfg {
-    pub slot_range: (u64, u64),
-    pub epoch_range: (u32, u32),
-    pub slots_per_epoch_range: (u32, u32),
-}
-
 // Generate an `TimeEra` given a `smoke::R` (random generator) and a `TimeEraGenCfg` range limit tuple
-pub fn generate_time_era_with_config(r: &mut R, config: &TimeEraGenCfg) -> TimeEra {
+pub fn generate_time_era_with_config(r: &mut R, config: &TimeEraGenConfig) -> TimeEra {
     TimeEra::new(
         generate_slot_with_range(r, config.slot_range),
         generate_epoch_with_range(r, config.epoch_range),
@@ -62,18 +67,19 @@ pub fn generate_time_era_with_config(r: &mut R, config: &TimeEraGenCfg) -> TimeE
     )
 }
 
-// Generator wrapper for TimeEra generator methods
-pub struct TimeEraGenerator {
-    config: Option<TimeEraGenCfg>,
-}
-
 impl TimeEraGenerator {
-    pub fn new(config: Option<TimeEraGenCfg>) -> Self {
-        Self { config }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn with_config(&mut self, config: TimeEraGenCfg) {
-        self.config = Some(config);
+    pub fn with_config(config: TimeEraGenConfig) -> Self {
+        Self {
+            config: Some(config),
+        }
+    }
+
+    pub fn set_config(&mut self, config: TimeEraGenConfig) {
+        self.config = Some(config)
     }
 
     pub fn clear_config(&mut self) {
@@ -83,7 +89,7 @@ impl TimeEraGenerator {
 
 impl Default for TimeEraGenerator {
     fn default() -> Self {
-        Self::new(None)
+        Self { config: None }
     }
 }
 
@@ -101,7 +107,7 @@ impl Generator for TimeEraGenerator {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::time::{TimeEraGenCfg, TimeEraGenerator};
+    use crate::time::{TimeEraGenConfig, TimeEraGenerator};
     use crate::utils::new_random_generator;
 
     #[test]
@@ -123,12 +129,12 @@ mod test {
         let slot_range = (1, 10);
         let epoch_range = (1, 10);
         let slots_per_epoch_range = (1, 10);
-        let config = TimeEraGenCfg {
+        let config = TimeEraGenConfig {
             slot_range,
             epoch_range,
             slots_per_epoch_range,
         };
-        let time_era_generator = TimeEraGenerator::new(Some(config.clone()));
+        let time_era_generator = TimeEraGenerator::with_config(config.clone());
         let mut r = new_random_generator();
         let new_time_era = time_era_generator.gen(&mut r);
         assert!((1..=10).contains(&new_time_era.slots_per_epoch()));
