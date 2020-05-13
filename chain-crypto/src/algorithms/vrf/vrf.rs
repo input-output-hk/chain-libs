@@ -40,6 +40,7 @@ impl Hash for PublicKey {
         self.as_bytes().hash(state)
     }
 }
+
 impl AsRef<[u8]> for PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
