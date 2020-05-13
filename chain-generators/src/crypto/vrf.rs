@@ -1,7 +1,19 @@
 use chain_crypto::algorithms::vrf::vrf;
 use smoke::{Generator, R};
 
-pub struct VRFSecretKeyGenerator {}
+pub struct VRFSecretKeyGenerator();
+
+impl VRFSecretKeyGenerator {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for VRFSecretKeyGenerator {
+    fn default() -> Self {
+        Self()
+    }
+}
 
 impl Generator for VRFSecretKeyGenerator {
     type Item = vrf::SecretKey;
@@ -16,14 +28,16 @@ impl Generator for VRFSecretKeyGenerator {
 #[cfg(test)]
 mod test {
     use super::*;
-    use chain_crypto::algorithms::vrf::vrf::Scalar;
+    use rand::random;
 
     #[test]
-    fn check_generates() {
-        let mut seed = smoke::Seed::from(1_000_0000u128);
+    fn check_generates_vrf_secret_key() {
+        let n: u128 = random();
+        let seed = smoke::Seed::from(n);
         let mut r = smoke::R::from_seed(seed);
-        let gen = VRFSecretKeyGenerator {};
-        let sk = gen.gen(&mut r);
-        // sk.
+        let gen = VRFSecretKeyGenerator::new();
+        for _ in 0..100 {
+            gen.gen(&mut r);
+        }
     }
 }

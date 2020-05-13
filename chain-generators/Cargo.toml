@@ -8,4 +8,6 @@ edition = "2018"
 
 [dependencies]
 chain-crypto = { path = "../chain-crypto" }
+chain-test-utils = { path = "../chain-test-utils" }
 smoke = "0.1.0"
+rand = "0.7.3"
