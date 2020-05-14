@@ -1,6 +1,8 @@
 use chain_crypto::algorithms::vrf::vrf;
 use smoke::{Generator, R};
 
+/// This type implements a  `vrf::SecretKey` generator.
+/// It is **not guaranteed** that the generated keys will be unique.
 pub struct VRFSecretKeyGenerator();
 
 impl VRFSecretKeyGenerator {
@@ -31,7 +33,7 @@ mod test {
     use rand::random;
 
     #[test]
-    fn check_generates_vrf_secret_key() {
+    fn generates_vrf_secret_key() {
         let n: u128 = random();
         let seed = smoke::Seed::from(n);
         let mut r = smoke::R::from_seed(seed);

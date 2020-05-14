@@ -2,6 +2,9 @@ use chain_crypto;
 use chain_test_utils::generators::utils as generator_utils;
 use smoke::{Generator, R};
 
+/// This type implements a [`ed25519`](https://ed25519.cr.yp.to/) key generator
+/// The generated keys are random but **it does not use a cryptographically secure generator**.
+/// Due to that ⚠️**it is not meant to be use in production**, it is ⚠️**just for testing** porpoises.
 pub struct Ed25519Generator();
 
 impl Ed25519Generator {
@@ -31,7 +34,7 @@ mod test {
     use rand::random;
 
     #[test]
-    fn check_generates_ed25519_secret_key() {
+    fn generates_ed25519_secret_key() {
         let n: u128 = random();
         let seed = smoke::Seed::from(n);
         let mut r = smoke::R::from_seed(seed);

@@ -1,6 +1,9 @@
 use rand::{CryptoRng, Error, RngCore};
 use smoke::R;
 
+/// `NonSecureRng` is a wrapper around `smoke::R`
+/// This type implements `rand::CryptoRng` and `rand::RngCore` but it is not cryptographically secure,
+/// hence ⚠️it **is not meant to be use in production**, it is ⚠️**just for testing** porpoises.
 pub struct NonSecureRng<'a> {
     r: &'a mut R,
 }
