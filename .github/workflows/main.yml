@@ -28,10 +28,10 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}-${{ env.CRATES_IO_SHA }}
+          key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('**/Cargo.toml') }}-${{ env.CRATES_IO_SHA }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}-
-            ${{ runner.os }}-cargo-registry-
+            ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('**/Cargo.toml') }}-
+            ${{ runner.os }}-cargo-registry-v1-
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
