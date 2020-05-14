@@ -1,5 +1,5 @@
 use chain_crypto::algorithms::vrf::vrf;
-use smoke::{Generator, R};
+use chain_test_utils::generators::utils::{Generator, R};
 
 /// This type implements a  `vrf::SecretKey` generator.
 /// It is **not guaranteed** that the generated keys will be unique.

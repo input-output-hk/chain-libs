@@ -1,6 +1,8 @@
 use chain_crypto;
-use chain_test_utils::generators::utils as generator_utils;
-use smoke::{Generator, R};
+use chain_test_utils::{
+    generators::utils as generator_utils,
+    generators::utils::{Generator, R},
+};
 
 /// This type implements a [`ed25519`](https://ed25519.cr.yp.to/) key generator
 /// The generated keys are random but **it does not use a cryptographically secure generator**.
