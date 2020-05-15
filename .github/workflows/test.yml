@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - master
-    branches-ignore:
-      # reserved for automatically updated branches; keep this rule to remember
-      - 'ci/**'
+    #branches-ignore:
+    #  # Reserved for automatically updated branches;
+    #  # restore this rule if the branches filter above is removed.
+    #  - 'ci/**'
   pull_request:
 
 env:
