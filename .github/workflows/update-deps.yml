@@ -49,6 +49,7 @@ jobs:
       - name: Check if Cargo.lock has been modified
         id: deps_updated
         run: |
+          git diff -- Cargo.lock
           test -n "$(git ls-files -m -- Cargo.lock)"
         continue-on-error: true
 
