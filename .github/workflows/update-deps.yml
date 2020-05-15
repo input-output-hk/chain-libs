@@ -59,7 +59,7 @@ jobs:
 
       - name: Push the rebased Cargo.lock branch
         if: ${{ steps.deps_updated.outcome == 'success' }}
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@v0.5.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ci/cargo-lock
