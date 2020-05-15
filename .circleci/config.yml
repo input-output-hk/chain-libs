@@ -108,17 +108,33 @@ workflows:
   version: 2
   test_all:
     jobs:
-      - cargo_fetch
+      - cargo_fetch:
+          filters:
+            branches:
+              ignore:
+                - /^ci\/.*/
       #- rustfmt
       - test_debug:
           requires:
             #- rustfmt
             - cargo_fetch
+          filters:
+            branches:
+              ignore:
+                - /^ci\/.*/
       - test_release:
           requires:
             #- rustfmt
             - cargo_fetch
+          filters:
+            branches:
+              ignore:
+                - /^ci\/.*/
       - test_nightly:
           requires:
             #- rustfmt
             - cargo_fetch
+          filters:
+            branches:
+              ignore:
+                - /^ci\/.*/
