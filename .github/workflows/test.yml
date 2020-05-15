@@ -29,7 +29,7 @@ jobs:
       - name: Fetch baseline Cargo.lock
         run: |
           git fetch --depth=2 origin ci/cargo-lock
-          git cherry-pick FETCH_HEAD
+          git cherry-pick --no-commit FETCH_HEAD
 
       - name: Cache cargo registry
         uses: actions/cache@v1
