@@ -5,6 +5,12 @@ on:
     branches:
       - github-ci-improvements # for testing, to replace with master
 
+env:
+  GIT_AUTHOR_NAME: GitHub CI
+  GIT_AUTHOR_EMAIL: 1198919+mzabaluev@users.noreply.github.com
+  GIT_COMMITTER_NAME: GitHub CI
+  GIT_COMMITTER_EMAIL: 1198919+mzabaluev@users.noreply.github.com
+
 jobs:
   update_deps:
     name: Update baseline Cargo.lock
@@ -18,9 +24,6 @@ jobs:
 
       - name: Graft baseline Cargo.lock onto the branch head
         run: |
-          env
-          git config --local -l
-          git config --global -l
           git fetch origin ${GITHUB_SHA}
           git rebase FETCH_HEAD
           git reset --soft FETCH_HEAD
