@@ -3,7 +3,7 @@ name: Update dependencies
 on:
   push:
     branches:
-      - github-ci-improvements # for testing, to replace with master
+      - master
 
 env:
   GIT_AUTHOR_NAME: GitHub CI
