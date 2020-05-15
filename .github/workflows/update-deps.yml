@@ -55,7 +55,8 @@ jobs:
       - name: Commit Cargo.lock
         if: ${{ steps.deps_updated.outcome == 'success' }}
         run: |
-          git commit -C ORIG_HEAD --reset-author -- Cargo.lock
+          git add Cargo.lock .gitignore
+          git commit -C ORIG_HEAD --reset-author
 
       - name: Push the rebased Cargo.lock branch
         if: ${{ steps.deps_updated.outcome == 'success' }}
