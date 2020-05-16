@@ -11,10 +11,14 @@ jobs:
           command: |
             git fetch --depth=2 origin ci/cargo-lock
             git cherry-pick --no-commit FETCH_HEAD
+      - run:
+          name: Collate all Cargo.toml files for a checksum
+          command: |
+            find . -type f -name Cargo.toml | LC_COLLATE=C sort | xargs cat > .Cargo.toml.collated
       - restore_cache:
           keys:
-            - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
-            - cargo-v3-{{ checksum "Cargo.toml" }}-
+            - cargo-v3-{{ checksum ".Cargo.toml.collated" }}-{{ checksum "Cargo.lock" }}
+            - cargo-v3-{{ checksum ".Cargo.toml.collated" }}-
             - cargo-v3-
       - run: cargo fetch
       - persist_to_workspace:
@@ -22,7 +26,7 @@ jobs:
           paths:
             - Cargo.lock
       - save_cache:
-          key: cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
+          key: cargo-v3-{{ checksum ".Cargo.toml.collated" }}-{{ checksum "Cargo.lock" }}
           paths:
             - /usr/local/cargo/registry
             - /usr/local/cargo/git
