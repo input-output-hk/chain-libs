@@ -6,8 +6,14 @@ jobs:
     working_directory: /mnt/crate
     steps:
       - checkout
+      - run:
+          name: Fetch baseline Cargo.lock
+          command: |
+            git fetch --depth=2 origin ci/cargo-lock
+            git cherry-pick --no-commit FETCH_HEAD
       - restore_cache:
           keys:
+            - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
             - cargo-v3-{{ checksum "Cargo.toml" }}-
             - cargo-v3-
       - run: cargo fetch
