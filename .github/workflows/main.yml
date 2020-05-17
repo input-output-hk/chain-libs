@@ -7,8 +7,8 @@ on:
   pull_request:
 
 jobs:
-  lockfile:
-    name: Generate lock file
+  update_deps:
+    name: Update dependencies
     runs-on: ubuntu-latest
     steps:
 
@@ -38,6 +38,27 @@ jobs:
       - name: Generate Cargo.lock
         run: cargo generate-lockfile
 
+      - name: Cache cargo registry with dependencies
+        id: cache-deps
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: cargo-registry-v1-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-v1-
+
+      # This would come in handy here:
+      # https://github.com/matthiaskrgr/cargo-cache/issues/76
+      - if: ${{ steps.cache-deps.outputs.cache-hit != 'true' }}
+        name: Clear cached dependency crates
+        run: |
+          rm -r ~/.cargo/registry/cache/*
+          rm -r ~/.cargo/registry/src/*
+
+      - if: ${{ steps.cache-deps.outputs.cache-hit != 'true' }}
+        name: Fetch dependencies
+        run: cargo fetch --locked
+
       - name: Upload Cargo.lock
         uses: actions/upload-artifact@v2
         with:
@@ -46,7 +67,7 @@ jobs:
 
   test:
     name: Test
-    needs: lockfile
+    needs: update_deps
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -75,26 +96,12 @@ jobs:
           command: fmt
           args: --all -- --check
 
-      - name: Cache cargo registry dependencies
+      - name: Restore cargo registry from cache
         id: cache-deps
         uses: actions/cache@v1
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-v2-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-v2-
-
-      # This would come in handy here:
-      # https://github.com/matthiaskrgr/cargo-cache/issues/76
-      - if: ${{ steps.cache-deps.outputs.cache-hit != 'true' }}
-        name: Clear cached dependency crates
-        run: |
-          rm -r ~/.cargo/registry/cache/*
-          rm -r ~/.cargo/registry/src/*
-
-      - if: ${{ steps.cache-deps.outputs.cache-hit != 'true' }}
-        name: Fetch dependencies
-        run: cargo fetch --locked
+          key: cargo-registry-v1-${{ hashFiles('Cargo.lock') }}
 
       - name: Build
         uses: actions-rs/cargo@v1
