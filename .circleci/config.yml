@@ -104,9 +104,9 @@ jobs:
             RUST_BACKTRACE: 1
           command: cargo test --verbose --frozen
     
-  test_mockchain_all_features:
+  test_all_features:
     docker:
-      - image: rustlang/rust:nightly
+      - image: rust:latest
     working_directory: /mnt/crate
     steps:
       - checkout
