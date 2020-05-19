@@ -2,8 +2,8 @@ version: 2
 jobs:
   cargo_fetch:
     docker:
-      - image: rust:latest
-    working_directory: /mnt/crate
+      - image: inputoutput/rust:stable
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - restore_cache:
@@ -12,7 +12,7 @@ jobs:
             - cargo-v3-
       - run: cargo fetch
       - persist_to_workspace:
-          root: /mnt/crate
+          root: /home/circleci/build
           paths:
             - Cargo.lock
       - save_cache:
@@ -21,30 +21,34 @@ jobs:
             - /usr/local/cargo/registry
             - /usr/local/cargo/git
 
-  #rustfmt:
-  #  docker:
-  #    - image: rust:latest
-  #  working_directory: /mnt/crate
-  #  steps:
-  #    - checkout
-  #    - run:
-  #        name: Install rustfmt
-  #        command: rustup component add rustfmt
-  #    - run:
-  #        name: Print version information
-  #        command: cargo fmt -- --version
-  #    - run:
-  #        name: Check rustfmt
-  #        command: cargo fmt -- --check
-
-  test_debug:
+  cargo_audit:
     docker:
-      - image: rust:latest
-    working_directory: /mnt/crate
+      - image: inputoutput/rust:stable
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - attach_workspace:
-          at: /mnt/crate
+          at: /home/circleci/build
+      - restore_cache:
+          keys:
+            - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
+      - restore_cache:
+          keys:
+            - cargo-advisory-db-v2-
+      - run: cargo audit
+      - save_cache:
+          key: cargo-advisory-db-v2-{{ checksum "/usr/local/cargo/advisory-db/.git/refs/heads/master" }}
+          paths:
+            - /usr/local/cargo/advisory-db
+
+  test_debug:
+    docker:
+      - image: inputoutput/rust:stable
+    working_directory: /home/circleci/build
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/build
       - restore_cache:
           keys:
             - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
@@ -62,12 +66,12 @@ jobs:
 
   test_release:
     docker:
-      - image: rust:latest
-    working_directory: /mnt/crate
+      - image: inputoutput/rust:stable
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - attach_workspace:
-          at: /mnt/crate
+          at: /home/circleci/build
       - restore_cache:
           keys:
             - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
@@ -83,12 +87,12 @@ jobs:
 
   test_nightly:
     docker:
-      - image: rustlang/rust:nightly
-    working_directory: /mnt/crate
+      - image: inputoutput/rust:nightly
+    working_directory: /home/circleci/build
     steps:
       - checkout
       - attach_workspace:
-          at: /mnt/crate
+          at: /home/circleci/build
       - restore_cache:
           keys:
             - cargo-v3-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}
@@ -109,16 +113,15 @@ workflows:
   test_all:
     jobs:
       - cargo_fetch
-      #- rustfmt
+      - cargo_audit:
+          requires:
+            - cargo_fetch
       - test_debug:
           requires:
-            #- rustfmt
             - cargo_fetch
       - test_release:
           requires:
-            #- rustfmt
             - cargo_fetch
       - test_nightly:
           requires:
-            #- rustfmt
             - cargo_fetch
