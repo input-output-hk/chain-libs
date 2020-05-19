@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["danielsanchezq <daniel.sanchez@iohk.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
+description = "Smoke generators for chain types. ⚠  The generated types are not crytographically secure and are for testing porpuses."
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

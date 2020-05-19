@@ -1,4 +1,3 @@
-use chain_crypto;
 use chain_test_utils::{
     generators::utils as generator_utils,
     generators::utils::{Generator, R},
