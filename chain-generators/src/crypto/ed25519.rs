@@ -32,13 +32,10 @@ impl Generator for Ed25519Generator {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::random;
 
     #[test]
     fn generates_ed25519_secret_key() {
-        let n: u128 = random();
-        let seed = smoke::Seed::from(n);
-        let mut r = smoke::R::from_seed(seed);
+        let (_, mut r) = smoke::R::new();
         let gen = Ed25519Generator::new();
         for _ in 0..100 {
             gen.gen(&mut r);

@@ -49,14 +49,11 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use chain_test_utils::generators::utils::{Seed, R};
-    use rand::random;
+    use chain_test_utils::generators::utils::R;
     use smoke::generator::constant;
     #[test]
     fn generates_ed25519_secret_key() {
-        let n: u128 = random();
-        let seed = Seed::from(n);
-        let mut r = R::from_seed(seed);
+        let (_, mut r) = R::new();
         let value = vec![255u8; 1000];
         let const_gen = constant(value);
         let gen = Blake2b256Generator::new(const_gen);

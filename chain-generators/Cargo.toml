@@ -13,4 +13,3 @@ description = "Smoke generators for chain types. ⚠  The generated types are no
 chain-crypto = { path = "../chain-crypto" }
 chain-test-utils = { path = "../chain-test-utils" }
 smoke = "0.2.0"
-rand = "0.7.3"
