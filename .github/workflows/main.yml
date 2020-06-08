@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches:
+      - verbose-rustfmt
       - master
   pull_request:
 
@@ -150,7 +151,7 @@ jobs:
         continue-on-error: false
         with:
           command: fmt
-          args: --all -- --check
+          args: --all --verbose -- --check --verbose
 
       - name: Restore cargo registry index
         uses: actions/cache@v1
