@@ -146,6 +146,9 @@ jobs:
           components: rustfmt, clippy
           override: true
 
+      - name: Print rustfmt version
+        run: rustfmt --version
+
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         continue-on-error: false
