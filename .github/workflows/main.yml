@@ -149,13 +149,6 @@ jobs:
       - name: Print rustfmt version
         run: rustfmt --version
 
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        continue-on-error: false
-        with:
-          command: fmt
-          args: --all --verbose -- --check --verbose
-
       - name: Restore cargo registry index
         uses: actions/cache@v1
         with:
@@ -167,6 +160,13 @@ jobs:
         with:
           path: ~/.cargo/registry/cache
           key: cargo-deps-v1-${{ hashFiles('Cargo.lock') }}
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
+        with:
+          command: fmt
+          args: --all --verbose -- --check --verbose
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
