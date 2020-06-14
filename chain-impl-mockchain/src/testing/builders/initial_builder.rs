@@ -1,5 +1,5 @@
 use crate::{
-    certificate::{Certificate, PoolUpdate, VoteCast, VotePlan},
+    certificate::{Certificate, PoolUpdate, VoteCast, VotePlan, VotePlanProof},
     fragment::Fragment,
     key::EitherEd25519SecretKey,
     ledger::ledger::OutputAddress,
@@ -23,7 +23,7 @@ pub fn create_initial_stake_pool_update(
         .cloned()
         .map(|owner| owner.private_key())
         .collect();
-    fragment(cert, keys, &[], &[])
+    fragment(cert, keys, &[], &[], None)
 }
 
 pub fn create_initial_stake_pool_registration(
@@ -36,17 +36,21 @@ pub fn create_initial_stake_pool_registration(
         .cloned()
         .map(|owner| owner.private_key())
         .collect();
-    fragment(cert, keys, &[], &[])
+    fragment(cert, keys, &[], &[], None)
 }
 
-pub fn create_initial_vote_plan(vote_plan: &VotePlan, owners: &[Wallet]) -> Fragment {
+pub fn create_initial_vote_plan(
+    vote_plan: &VotePlan,
+    owners: &[Wallet],
+    committee: EitherEd25519SecretKey,
+) -> Fragment {
     let cert: Certificate = vote_plan.clone().into();
     let keys: Vec<EitherEd25519SecretKey> = owners
         .iter()
         .cloned()
         .map(|owner| owner.private_key())
         .collect();
-    fragment(cert, keys, &[], &[])
+    fragment(cert, keys, &[], &[], Some(committee))
 }
 
 pub fn create_initial_vote_cast(vote_cast: &VoteCast, owners: &[Wallet]) -> Fragment {
@@ -56,7 +60,7 @@ pub fn create_initial_vote_cast(vote_cast: &VoteCast, owners: &[Wallet]) -> Frag
         .cloned()
         .map(|owner| owner.private_key())
         .collect();
-    fragment(cert, keys, &[], &[])
+    fragment(cert, keys, &[], &[], None)
 }
 
 pub fn create_initial_transaction(wallet: &Wallet) -> Fragment {
@@ -71,7 +75,7 @@ pub fn create_initial_transaction(wallet: &Wallet) -> Fragment {
 pub fn create_initial_stake_pool_delegation(stake_pool: &StakePool, wallet: &Wallet) -> Fragment {
     let cert = build_stake_delegation_cert(&stake_pool.info(), &wallet.as_account_data());
     let keys: Vec<EitherEd25519SecretKey> = vec![wallet.private_key()];
-    fragment(cert, keys, &[], &[])
+    fragment(cert, keys, &[], &[], None)
 }
 
 fn set_initial_ios<P: Payload>(
@@ -87,6 +91,7 @@ fn fragment(
     keys: Vec<EitherEd25519SecretKey>,
     inputs: &[Input],
     outputs: &[OutputAddress],
+    committee: Option<EitherEd25519SecretKey>,
 ) -> Fragment {
     match cert {
         Certificate::StakeDelegation(s) => {
@@ -111,7 +116,19 @@ fn fragment(
         }
         Certificate::VotePlan(s) => {
             let builder = set_initial_ios(TxBuilder::new().set_payload(&s), inputs, outputs);
-            let tx = builder.set_payload_auth(&());
+            let committee = if let Some(key) = committee {
+                key
+            } else {
+                keys[0].clone()
+            };
+            let signature = SingleAccountBindingSignature::new(&builder.get_auth_data(), |d| {
+                committee.sign_slice(&d.0)
+            });
+            let auth = VotePlanProof {
+                id: committee.to_public().into(),
+                signature,
+            };
+            let tx = builder.set_payload_auth(&auth);
             Fragment::VotePlan(tx)
         }
         Certificate::VoteCast(s) => {
@@ -126,13 +143,22 @@ fn fragment(
 pub struct InitialFaultTolerantTxCertBuilder {
     cert: Certificate,
     funder: Wallet,
+    committee: Option<EitherEd25519SecretKey>,
 }
 
 impl InitialFaultTolerantTxCertBuilder {
     pub fn new(cert: Certificate, funder: Wallet) -> Self {
         Self {
-            cert: cert,
-            funder: funder,
+            cert,
+            funder,
+            committee: None,
+        }
+    }
+
+    pub fn with_committee(self, committee: EitherEd25519SecretKey) -> Self {
+        Self {
+            committee: Some(committee),
+            ..self
         }
     }
 
@@ -140,18 +166,36 @@ impl InitialFaultTolerantTxCertBuilder {
         let keys = vec![self.funder.private_key()];
         let input = self.funder.make_input_with_value(Value(1));
         let output = self.funder.make_output_with_value(Value(1));
-        fragment(self.cert.clone(), keys, &[input], &[output])
+        fragment(
+            self.cert.clone(),
+            keys,
+            &[input],
+            &[output],
+            self.committee.clone(),
+        )
     }
 
     pub fn transaction_with_output_only(&self) -> Fragment {
         let keys = vec![self.funder.private_key()];
         let output = self.funder.make_output_with_value(Value(1));
-        fragment(self.cert.clone(), keys, &[], &[output])
+        fragment(
+            self.cert.clone(),
+            keys,
+            &[],
+            &[output],
+            self.committee.clone(),
+        )
     }
 
     pub fn transaction_with_input_only(&self) -> Fragment {
         let keys = vec![self.funder.private_key()];
         let input = self.funder.make_input_with_value(Value(1));
-        fragment(self.cert.clone(), keys, &[input], &[])
+        fragment(
+            self.cert.clone(),
+            keys,
+            &[input],
+            &[],
+            self.committee.clone(),
+        )
     }
 }

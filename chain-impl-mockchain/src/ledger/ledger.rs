@@ -12,6 +12,7 @@ use crate::config::{self, ConfigParam};
 use crate::date::{BlockDate, Epoch};
 use crate::fee::{FeeAlgorithm, LinearFee};
 use crate::fragment::{BlockContentHash, BlockContentSize, Contents, Fragment, FragmentId};
+use crate::key::BftLeaderId;
 use crate::rewards;
 use crate::setting::ActiveSlotsCoeffError;
 use crate::stake::{PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeDistribution};
@@ -57,6 +58,8 @@ pub struct LedgerParameters {
     pub fees_goes_to: setting::FeesGoesTo,
     /// List of committee members
     pub committees: Arc<Vec<CommitteeId>>,
+    /// list of the consensus leader ids
+    pub bft_leaders: Arc<Vec<BftLeaderId>>,
 }
 
 /// Overall ledger structure.
@@ -405,6 +408,8 @@ impl Ledger {
             Ledger::empty(settings, static_params, era, pots)
         };
 
+        let ledger_params = ledger.get_ledger_parameters();
+
         for content in content_iter {
             let fragment_id = content.hash();
             match content {
@@ -451,7 +456,13 @@ impl Ledger {
                     // here current date is the date of the previous state of the
                     // ledger. It makes sense only because we are creating the block0
                     let cur_date = ledger.date();
-                    ledger = ledger.apply_vote_plan(cur_date, tx.payload().into_payload())?;
+                    ledger = ledger.apply_vote_plan(
+                        cur_date,
+                        tx.payload().into_payload(),
+                        &tx.transaction_binding_auth_data(),
+                        tx.payload_auth().into_payload_auth(),
+                        &ledger_params,
+                    )?;
                 }
                 Fragment::VoteCast(_) => {
                     return Err(Error::Block0(Block0Error::HasVoteCast));
@@ -876,8 +887,13 @@ impl Ledger {
                 let tx = tx.as_slice();
                 let (new_ledger_, _fee) =
                     new_ledger.apply_transaction(&fragment_id, &tx, &ledger_params)?;
-                new_ledger =
-                    new_ledger_.apply_vote_plan(block_date, tx.payload().into_payload())?;
+                new_ledger = new_ledger_.apply_vote_plan(
+                    block_date,
+                    tx.payload().into_payload(),
+                    &tx.transaction_binding_auth_data(),
+                    tx.payload_auth().into_payload_auth(),
+                    &ledger_params,
+                )?;
             }
             Fragment::VoteCast(tx) => {
                 let tx = tx.as_slice();
@@ -943,10 +959,13 @@ impl Ledger {
         Ok(self)
     }
 
-    pub fn apply_vote_plan(
+    pub fn apply_vote_plan<'a>(
         mut self,
         cur_date: BlockDate,
         vote_plan: VotePlan,
+        bad: &TransactionBindingAuthData<'a>,
+        sig: certificate::VotePlanProof,
+        ledger_params: &LedgerParameters,
     ) -> Result<Self, Error> {
         self.votes = self.votes.add_vote_plan(cur_date, vote_plan)?;
         Ok(self)
@@ -1027,7 +1046,13 @@ impl Ledger {
         sig: certificate::TallyProof,
         ledger_params: &LedgerParameters,
     ) -> Result<Self, Error> {
-        if sig.verify(tally, bad, &ledger_params.committees) == Verification::Failed {
+        if sig.verify(
+            tally,
+            bad,
+            &ledger_params.bft_leaders,
+            &ledger_params.committees,
+        ) == Verification::Failed
+        {
             return Err(Error::VoteTallyProofFailed);
         }
 
@@ -1222,6 +1247,7 @@ impl Ledger {
             epoch_stability_depth: self.settings.epoch_stability_depth,
             fees_goes_to: self.settings.fees_goes_to,
             committees: Arc::clone(&self.settings.committees),
+            bft_leaders: Arc::clone(&self.settings.bft_leaders),
         }
     }
 
@@ -1633,6 +1659,7 @@ mod tests {
                 epoch_stability_depth: Arbitrary::arbitrary(g),
                 fees_goes_to: Arbitrary::arbitrary(g),
                 committees: Arbitrary::arbitrary(g),
+                bft_leaders: Arbitrary::arbitrary(g),
             }
         }
     }
@@ -2076,6 +2103,7 @@ mod tests {
                 epoch_stability_depth: 1000,
                 fees_goes_to: FeesGoesTo::Rewards,
                 committees: Arc::new(Vec::new()),
+                bft_leaders: Arc::new(Vec::new()),
             };
             InternalApplyTransactionTestParams {
                 dyn_params,

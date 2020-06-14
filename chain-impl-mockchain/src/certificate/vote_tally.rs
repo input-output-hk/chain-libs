@@ -1,5 +1,6 @@
 use crate::{
     certificate::{CertificateSlice, VotePlanId},
+    key::BftLeaderId,
     transaction::{
         Payload, PayloadAuthData, PayloadData, PayloadSlice, SingleAccountBindingSignature,
         TransactionBindingAuthData,
@@ -77,11 +78,15 @@ impl TallyProof {
         &self,
         tally: &VoteTally,
         verify_data: &TransactionBindingAuthData<'a>,
+        leaders: &[BftLeaderId],
         committee: &[CommitteeId],
     ) -> Verification {
         match self {
             Self::Public { id, signature } => {
-                if tally.tally_type() != PayloadType::Public || !committee.contains(id) {
+                if tally.tally_type() != PayloadType::Public
+                    || !committee.contains(id)
+                    || !leaders.iter().any(|leader| leader.as_ref() == id.as_ref())
+                {
                     Verification::Failed
                 } else {
                     let pk = id.public_key();

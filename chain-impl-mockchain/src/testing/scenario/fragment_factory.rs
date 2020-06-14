@@ -3,7 +3,7 @@ use crate::{
     certificate::{Certificate, PoolId, PoolUpdate, VoteCast, VotePlan},
     fee::LinearFee,
     fragment::Fragment,
-    key::Hash,
+    key::{EitherEd25519SecretKey, Hash},
     testing::{
         builders::{
             build_no_stake_delegation, build_owner_stake_delegation,
@@ -51,12 +51,12 @@ impl FragmentFactory {
 
     pub fn stake_pool_registration(&self, funder: &Wallet, stake_pool: &StakePool) -> Fragment {
         let cert = build_stake_pool_registration_cert(&stake_pool.info());
-        self.transaction_with_cert(&[funder], cert)
+        self.transaction_with_cert(&[funder], cert, None)
     }
 
     pub fn delegation(&self, from: &Wallet, stake_pool: &StakePool) -> Fragment {
         let cert = build_stake_delegation_cert(&stake_pool.info(), &from.as_account_data());
-        self.transaction_with_cert(&[from], cert)
+        self.transaction_with_cert(&[from], cert, None)
     }
 
     pub fn delegation_different_funder(
@@ -66,12 +66,12 @@ impl FragmentFactory {
         stake_pool: &StakePool,
     ) -> Fragment {
         let cert = build_stake_delegation_cert(&stake_pool.info(), &delegation.as_account_data());
-        self.transaction_with_cert(&[funder], cert)
+        self.transaction_with_cert(&[funder], cert, None)
     }
 
     pub fn delegation_remove(&self, from: &Wallet) -> Fragment {
         let cert = build_no_stake_delegation();
-        self.transaction_with_cert(&[from], cert)
+        self.transaction_with_cert(&[from], cert, None)
     }
 
     pub fn delegation_to_many(&self, from: &Wallet, distribution: &[(&StakePool, u8)]) -> Fragment {
@@ -84,17 +84,17 @@ impl FragmentFactory {
         let delegation_ratio = DelegationRatio::new(pools_ratio_sum, pools);
         let delegation_type = DelegationType::Ratio(delegation_ratio.unwrap());
         let cert = build_owner_stake_delegation(delegation_type);
-        self.transaction_with_cert(&[from], cert)
+        self.transaction_with_cert(&[from], cert, None)
     }
 
     pub fn owner_delegation(&self, from: &Wallet, stake_pool: &StakePool) -> Fragment {
         let cert = build_owner_stake_full_delegation(stake_pool.id());
-        self.transaction_with_cert(&[from], cert)
+        self.transaction_with_cert(&[from], cert, None)
     }
 
     pub fn stake_pool_retire(&self, owners: &[&Wallet], stake_pool: &StakePool) -> Fragment {
         let certificate = build_stake_pool_retirement_cert(stake_pool.id(), 0);
-        self.transaction_with_cert(&owners, certificate)
+        self.transaction_with_cert(&owners, certificate, None)
     }
 
     pub fn stake_pool_update(
@@ -109,18 +109,29 @@ impl FragmentFactory {
             new_pool_reg: update.info(),
         };
         let certificate = build_stake_pool_update_cert(&pool_update);
-        self.transaction_with_cert(&owners, certificate)
+        self.transaction_with_cert(&owners, certificate, None)
     }
 
-    pub fn vote_plan(&self, owner: &Wallet, vote_plan: VotePlan) -> Fragment {
-        self.transaction_with_cert(&[owner], vote_plan.into())
+    pub fn vote_plan(
+        &self,
+        owner: &Wallet,
+        vote_plan: VotePlan,
+        committee: EitherEd25519SecretKey,
+    ) -> Fragment {
+        self.transaction_with_cert(&[owner], vote_plan.into(), Some(committee))
     }
 
     pub fn vote_cast(&self, owner: &Wallet, vote_cast: VoteCast) -> Fragment {
-        self.transaction_with_cert(&[owner], vote_cast.into())
+        self.transaction_with_cert(&[owner], vote_cast.into(), None)
     }
 
-    fn transaction_with_cert(&self, wallets: &[&Wallet], certificate: Certificate) -> Fragment {
-        TestTxCertBuilder::new(self.block0_hash, self.fee).make_transaction(wallets, &certificate)
+    fn transaction_with_cert(
+        &self,
+        wallets: &[&Wallet],
+        certificate: Certificate,
+        committee: Option<EitherEd25519SecretKey>,
+    ) -> Fragment {
+        TestTxCertBuilder::new(self.block0_hash, self.fee, committee)
+            .make_transaction(wallets, &certificate)
     }
 }

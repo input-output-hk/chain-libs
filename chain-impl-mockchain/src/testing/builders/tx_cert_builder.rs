@@ -1,6 +1,7 @@
 use crate::{
     certificate::{
-        Certificate, CertificatePayload, PoolOwnersSigned, PoolSignature, TallyProof, VoteTally,
+        Certificate, CertificatePayload, PoolOwnersSigned, PoolSignature, TallyProof, VotePlan,
+        VotePlanProof, VoteTally,
     },
     chaintypes::HeaderId,
     fee::FeeAlgorithm,
@@ -20,11 +21,20 @@ use crate::{
 pub struct TestTxCertBuilder {
     block0_hash: HeaderId,
     fee: LinearFee,
+    committee: Option<EitherEd25519SecretKey>,
 }
 
 impl TestTxCertBuilder {
-    pub fn new(block0_hash: HeaderId, fee: LinearFee) -> Self {
-        Self { block0_hash, fee }
+    pub fn new(
+        block0_hash: HeaderId,
+        fee: LinearFee,
+        committee: Option<EitherEd25519SecretKey>,
+    ) -> Self {
+        Self {
+            block0_hash,
+            fee,
+            committee,
+        }
     }
 
     pub fn block0_hash(&self) -> &HeaderId {
@@ -142,7 +152,15 @@ impl TestTxCertBuilder {
                     outputs,
                     make_witness,
                 );
-                let tx = builder.set_payload_auth(&());
+
+                let committee = if let Some(key) = &self.committee {
+                    key
+                } else {
+                    &keys[0]
+                };
+
+                let committee_signature = vote_plan_committee_sign(committee, &builder);
+                let tx = builder.set_payload_auth(&committee_signature);
                 Fragment::VotePlan(tx)
             }
             Certificate::VoteCast(vp) => {
@@ -164,7 +182,14 @@ impl TestTxCertBuilder {
                     outputs,
                     make_witness,
                 );
-                let committee_signature = committee_sign(vt, &builder);
+
+                let committee = if let Some(key) = &self.committee {
+                    key
+                } else {
+                    &keys[0]
+                };
+
+                let committee_signature = committee_sign(vt, committee, &builder);
                 let tx = builder.set_payload_auth(&committee_signature);
                 Fragment::VoteTally(tx)
             }
@@ -191,13 +216,30 @@ impl TestTxCertBuilder {
     }
 }
 
-fn committee_sign(vt: &VoteTally, builder: &TxBuilderState<SetAuthData<VoteTally>>) -> TallyProof {
+fn vote_plan_committee_sign(
+    committee: &EitherEd25519SecretKey,
+    builder: &TxBuilderState<SetAuthData<VotePlan>>,
+) -> VotePlanProof {
+    let id = committee.to_public().into();
+    let key = committee;
+
+    let auth_data = builder.get_auth_data();
+    let signature = SingleAccountBindingSignature::new(&auth_data, |d| key.sign_slice(&d.0));
+
+    VotePlanProof { id, signature }
+}
+
+fn committee_sign(
+    vt: &VoteTally,
+    committee: &EitherEd25519SecretKey,
+    builder: &TxBuilderState<SetAuthData<VoteTally>>,
+) -> TallyProof {
     let payload_type = vt.tally_type();
 
     match payload_type {
         PayloadType::Public => {
-            let id = todo!();
-            let key: EitherEd25519SecretKey = todo!();
+            let id = committee.to_public().into();
+            let key = committee;
 
             let auth_data = builder.get_auth_data();
             let signature =
@@ -238,11 +280,17 @@ pub struct FaultTolerantTxCertBuilder {
 }
 
 impl FaultTolerantTxCertBuilder {
-    pub fn new(block0_hash: HeaderId, fee: LinearFee, cert: Certificate, funder: Wallet) -> Self {
+    pub fn new(
+        block0_hash: HeaderId,
+        fee: LinearFee,
+        cert: Certificate,
+        funder: Wallet,
+        committee: Option<EitherEd25519SecretKey>,
+    ) -> Self {
         Self {
-            builder: TestTxCertBuilder::new(block0_hash, fee),
-            cert: cert,
-            funder: funder,
+            builder: TestTxCertBuilder::new(block0_hash, fee, committee),
+            cert,
+            funder,
         }
     }
 

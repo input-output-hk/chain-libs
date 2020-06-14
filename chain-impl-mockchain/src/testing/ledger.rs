@@ -24,6 +24,7 @@ use crate::{
     transaction::{Output, TxBuilder},
     utxo::{Entry, Iter},
     value::Value,
+    vote::CommitteeId,
 };
 use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
@@ -52,6 +53,7 @@ pub struct ConfigBuilder {
     kes_update_speed: u32,
     block0_date: Block0Date,
     consensus_version: ConsensusVersion,
+    committee: Vec<CommitteeId>,
 }
 
 impl ConfigBuilder {
@@ -82,6 +84,7 @@ impl ConfigBuilder {
             kes_update_speed: 3600 * 12,
             block0_date: Block0Date(0),
             consensus_version: ConsensusVersion::Bft,
+            committee: Vec::new(),
         }
     }
 
@@ -174,6 +177,11 @@ impl ConfigBuilder {
         leader_pub_key.into()
     }
 
+    pub fn with_committee(mut self, committee: &[CommitteeId]) -> Self {
+        self.committee.extend(committee.iter().cloned());
+        self
+    }
+
     pub fn normalize(&mut self) {
         // TODO remove rng: make this creation deterministic
         if self.leaders.is_empty() {
@@ -188,6 +196,10 @@ impl ConfigBuilder {
 
         for leader_id in self.leaders.iter().cloned() {
             ie.push(ConfigParam::AddBftLeader(leader_id));
+        }
+
+        for committee_id in self.committee.iter().cloned() {
+            ie.push(ConfigParam::AddCommitteeId(committee_id));
         }
 
         ie.push(ConfigParam::RewardPot(self.rewards));
