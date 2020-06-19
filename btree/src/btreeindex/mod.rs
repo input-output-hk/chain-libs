@@ -2,28 +2,25 @@ mod backtrack;
 mod metadata;
 // FIXME: allow dead code momentarily, because all of the delete algorithms are unused, and placing the directive with more granularity would be too troublesome
 mod iter;
+pub mod multitree;
 mod node;
 mod page_manager;
 mod pages;
+mod tree_algorithm;
 mod version_management;
 
-use version_management::transaction::{PageRef, PageRefMut, ReadTransaction, WriteTransaction};
+use version_management::transaction::{PageRef, ReadTransaction};
 use version_management::*;
 
-use crate::mem_page::MemPage;
 use crate::BTreeStoreError;
 use metadata::{Metadata, StaticSettings};
-use node::internal_node::InternalDeleteStatus;
-use node::leaf_node::LeafDeleteStatus;
-use node::{
-    InternalInsertStatus, LeafInsertStatus, Node, NodeRef, NodeRefMut, RebalanceResult, SiblingsArg,
-};
+use node::{Node, NodeRef};
 use pages::{Pages, PagesInitializationParams};
 use std::borrow::Borrow;
 
 use crate::FixedSize;
 
-use backtrack::{DeleteBacktrack, InsertBacktrack, UpdateBacktrack};
+use backtrack::UpdateBacktrack;
 use std::convert::{TryFrom, TryInto};
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom};
@@ -57,8 +54,6 @@ pub(crate) type Values<'a, V> = ArrayView<'a, &'a [u8], V>;
 pub(crate) type ValuesMut<'a, V> = ArrayView<'a, &'a mut [u8], V>;
 pub(crate) type Keys<'a, K> = ArrayView<'a, &'a [u8], K>;
 pub(crate) type KeysMut<'a, K> = ArrayView<'a, &'a mut [u8], K>;
-
-type SplitKeyNodePair<K> = (K, Node<K, MemPage>);
 
 impl<'me, K: 'me, V> BTree<K, V>
 where
@@ -175,18 +170,24 @@ where
         Ok(())
     }
 
-    pub fn insert_async(&self, key: K, value: V) -> Result<(), BTreeStoreError> {
-        let mut tx = self.transaction_manager.write_transaction(&self.pages);
+    pub fn insert_async(
+        &self,
+        iter: impl IntoIterator<Item = (K, V)>,
+    ) -> Result<(), BTreeStoreError> {
+        self.transaction_manager
+            .with_write_transaction(&self.pages, |mut tx| {
+                let page_size = usize::try_from(self.static_settings.page_size).unwrap();
 
-        self.insert(&mut tx, key, value)?;
+                for (key, value) in iter {
+                    tree_algorithm::insert(&mut tx, key, value, page_size)?;
+                }
 
-        tx.commit::<K>();
-
-        Ok(())
+                Ok(tx.commit::<K>())
+            })
     }
 
     pub fn insert_one(&self, key: K, value: V) -> Result<(), BTreeStoreError> {
-        self.insert_async(key, value)?;
+        self.insert_async(vec![(key, value)])?;
 
         self.checkpoint()?;
 
@@ -197,137 +198,10 @@ where
         &self,
         iter: impl IntoIterator<Item = (K, V)>,
     ) -> Result<(), BTreeStoreError> {
-        let mut tx = self.transaction_manager.write_transaction(&self.pages);
+        self.insert_async(iter)?;
 
-        for (key, value) in iter {
-            self.insert(&mut tx, key, value)?;
-        }
-
-        tx.commit::<K>();
         self.checkpoint()?;
         Ok(())
-    }
-
-    fn insert<'a>(
-        &self,
-        tx: &mut WriteTransaction<'a, 'a>,
-        key: K,
-        value: V,
-    ) -> Result<(), BTreeStoreError> {
-        let mut backtrack = InsertBacktrack::new_search_for(tx, &key);
-
-        let needs_recurse = {
-            let leaf = backtrack.get_next()?.unwrap();
-            let leaf_id = leaf.id();
-            self.insert_in_leaf(leaf, key, value)?
-                .map(|(split_key, new_node)| (leaf_id, split_key, new_node))
-        };
-
-        if let Some((leaf_id, split_key, new_node)) = needs_recurse {
-            let id = backtrack.add_new_node(new_node.into_page())?;
-
-            if backtrack.has_next() {
-                self.insert_in_internals(split_key, id, &mut backtrack)?;
-            } else {
-                let new_root = self.create_internal_node(leaf_id, id, split_key);
-                backtrack.new_root(new_root.into_page())?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub(crate) fn insert_in_leaf<'a>(
-        &self,
-        mut leaf: PageRefMut<'a>,
-        key: K,
-        value: V,
-    ) -> Result<Option<SplitKeyNodePair<K>>, BTreeStoreError> {
-        let update = {
-            let page_size = usize::try_from(self.static_settings.page_size).unwrap();
-            let mut allocate = || {
-                let uninit = MemPage::new(page_size);
-                Node::<K, MemPage>::new_leaf::<V>(uninit)
-            };
-
-            let insert_status = leaf.as_node_mut(move |mut node: Node<K, &mut [u8]>| {
-                node.as_leaf_mut().insert(key, value, &mut allocate)
-            });
-
-            match insert_status {
-                LeafInsertStatus::Ok => None,
-                LeafInsertStatus::DuplicatedKey(_k) => {
-                    return Err(crate::BTreeStoreError::DuplicatedKey)
-                }
-                LeafInsertStatus::Split(split_key, node) => Some((split_key, node)),
-            }
-        };
-
-        Ok(update)
-    }
-
-    // this function recurses on the backtrack splitting internal nodes as needed
-    fn insert_in_internals(
-        &self,
-        key: K,
-        to_insert: PageId,
-        backtrack: &mut InsertBacktrack<K>,
-    ) -> Result<(), BTreeStoreError> {
-        let mut split_key = key;
-        let mut right_id = to_insert;
-        loop {
-            let (current_id, new_split_key, new_node) = {
-                let mut node = backtrack.get_next()?.unwrap();
-                let node_id = node.id();
-                let page_size = self.static_settings.page_size.try_into().unwrap();
-                let mut allocate = || {
-                    let uninit = MemPage::new(page_size);
-                    Node::new_internal(uninit)
-                };
-
-                match node.as_node_mut(|mut node| {
-                    node.as_internal_mut()
-                        .insert(split_key, right_id, &mut allocate)
-                }) {
-                    InternalInsertStatus::Ok => return Ok(()),
-                    InternalInsertStatus::Split(split_key, new_node) => {
-                        (node_id, split_key, new_node)
-                    }
-                    _ => unreachable!(),
-                }
-            };
-
-            let new_id = backtrack.add_new_node(new_node.into_page())?;
-
-            if backtrack.has_next() {
-                // set values to insert in next iteration (recurse on parent)
-                split_key = new_split_key;
-                right_id = new_id;
-            } else {
-                let left_id = current_id;
-                let right_id = new_id;
-                let new_root = self.create_internal_node(left_id, right_id, new_split_key);
-
-                backtrack.new_root(new_root.into_page())?;
-                return Ok(());
-            }
-        }
-    }
-
-    // Used when the current root needs a split
-    fn create_internal_node(
-        &self,
-        left_child: PageId,
-        right_child: PageId,
-        key: K,
-    ) -> Node<K, MemPage> {
-        let page = MemPage::new(self.static_settings.page_size.try_into().unwrap());
-        let mut node = Node::new_internal(page);
-
-        node.as_internal_mut()
-            .insert_first(key, left_child, right_child);
-
-        node
     }
 
     // we use a function for the return value in order to avoid cloning the value, returning a direct reference is not possible because we need
@@ -369,251 +243,26 @@ where
         Q: Ord,
         K: Borrow<Q>,
     {
-        let mut current = tx.get_page(tx.root()).unwrap();
-
-        loop {
-            let new_current = current.as_node(|node: Node<K, &[u8]>| {
-                node.try_as_internal().map(|inode| {
-                    let upper_pivot = match inode.keys().binary_search(key) {
-                        Ok(pos) => Some(pos + 1),
-                        Err(pos) => Some(pos),
-                    }
-                    .filter(|pos| pos < &inode.children().len());
-
-                    let new_current_id = if let Some(upper_pivot) = upper_pivot {
-                        inode.children().get(upper_pivot)
-                    } else {
-                        let last = inode.children().len().checked_sub(1).unwrap();
-                        inode.children().get(last)
-                    };
-
-                    tx.get_page(new_current_id).unwrap()
-                })
-            });
-
-            if let Some(new_current) = new_current {
-                current = new_current;
-            } else {
-                // found leaf
-                break;
-            }
-        }
-
-        current
+        tree_algorithm::search::<K, Q>(tx, key)
     }
 
     pub fn update(&self, key: &K, value: V) -> Result<(), BTreeStoreError> {
-        let mut tx = self.transaction_manager.write_transaction(&self.pages);
+        self.transaction_manager
+            .with_write_transaction(&self.pages, |mut tx| {
+                UpdateBacktrack::new_search_for(&mut tx, key).update(value)?;
 
-        UpdateBacktrack::new_search_for(&mut tx, key).update(value)?;
-
-        tx.commit::<K>();
-        Ok(())
+                Ok(tx.commit::<K>())
+            })
     }
 
     /// delete given key from the tree, this doesn't sync the file to disk
-    pub fn delete(&self, key: &K) -> Result<(), BTreeStoreError> {
-        let mut tx = self.transaction_manager.write_transaction(&self.pages);
+    pub fn delete<'a, 'b: 'a>(&'a self, key: &'b K) -> Result<(), BTreeStoreError> {
+        self.transaction_manager
+            .with_write_transaction(&self.pages, |mut tx| {
+                tree_algorithm::delete::<K, V, _>(key, &mut tx)?;
 
-        let result = self.delete_async(key, &mut tx);
-
-        tx.commit::<K>();
-
-        result
-    }
-
-    fn delete_async<'a>(
-        &'a self,
-        key: &K,
-        tx: &mut WriteTransaction<'a, 'a>,
-    ) -> Result<(), BTreeStoreError> {
-        let mut backtrack = DeleteBacktrack::new_search_for(tx, key);
-
-        // we can unwrap safely because there is always a leaf in the path
-        // delete will return Ok if the key is not in the given leaf
-        use backtrack::DeleteNextElement;
-        let DeleteNextElement {
-            mut next_element,
-            mut_context,
-        } = backtrack.get_next()?.unwrap();
-
-        let delete_result = next_element
-            .next
-            .as_node_mut(|mut node| node.as_leaf_mut::<V>().delete(key))?;
-
-        match delete_result {
-            LeafDeleteStatus::Ok => return Ok(()),
-            LeafDeleteStatus::NeedsRebalance => (),
-        };
-
-        // this allows us to get mutable references to out parent and siblings, we only need those when we need to rebalance
-        let mut mut_context = match mut_context {
-            Some(mut_context) => mut_context,
-            // this means we are processing the root node, it is not possible to do any rebalancing because we don't have siblings
-            // I think we don't need to do anything here, in theory, we could change the tree height to 0, but we are not tracking the height
-            None => return Ok(()),
-        };
-
-        let next = &mut next_element.next;
-        let left = next_element.left.as_ref();
-        let right = next_element.right.as_ref();
-        // we need this to know which child we are (what position does this node have in the parent)
-        let anchor = next_element.anchor;
-
-        let should_recurse_on_parent: Option<usize> = next.as_node_mut(
-            |mut node: Node<K, &mut [u8]>| -> Result<Option<usize>, BTreeStoreError> {
-                let siblings = SiblingsArg::new_from_options(left, right);
-
-                match node.as_leaf_mut::<V>().rebalance(siblings)? {
-                    RebalanceResult::TakeFromLeft(add_sibling) => {
-                        let (sibling, parent) = mut_context.mut_left_sibling();
-                        add_sibling.take_key_from_left(parent, anchor, sibling);
-                        Ok(None)
-                    }
-                    RebalanceResult::TakeFromRight(add_sibling) => {
-                        let (sibling, parent) = mut_context.mut_right_sibling();
-                        add_sibling.take_key_from_right(parent, anchor, sibling);
-                        Ok(None)
-                    }
-                    RebalanceResult::MergeIntoLeft(add_sibling) => {
-                        let (sibling, _) = mut_context.mut_left_sibling();
-                        add_sibling.merge_into_left(sibling);
-                        mut_context.delete_node();
-                        // the anchor is the the index of the key that splits the left sibling and the node, it's only None if the current node
-                        // it's the leftmost (and thus has no left sibling)
-                        Ok(Some(
-                            anchor.expect("merged into left sibling, but anchor is None"),
-                        ))
-                    }
-                    RebalanceResult::MergeIntoSelf(add_sibling) => {
-                        let (sibling, _) = mut_context.mut_right_sibling();
-                        add_sibling.merge_into_self(sibling);
-                        mut_context
-                            .delete_right_sibling()
-                            .expect("can't mutate right sibling");
-                        Ok(Some(anchor.map_or(0, |a| a + 1)))
-                    }
-                }
-            },
-        )?;
-
-        // we need to do this because `mut_context` has a mutable borrow of the parent, which is the next node to process
-        // I don't think adding an additional scope and indentation level is worth it in that case. Geting rid of the closure above may be a better solution
-        drop(mut_context);
-
-        if let Some(anchor) = should_recurse_on_parent {
-            self.delete_internal(anchor, &mut backtrack)?;
-        }
-
-        Ok(())
-    }
-
-    fn delete_internal(
-        &self,
-        anchor: usize,
-        tx: &mut DeleteBacktrack<K>,
-    ) -> Result<(), BTreeStoreError> {
-        let mut anchor_to_delete = anchor;
-        while let Some(next_element) = tx.get_next()? {
-            let backtrack::DeleteNextElement {
-                mut next_element,
-                mut_context,
-            } = next_element;
-
-            match next_element
-                .next
-                .as_node_mut(|mut node: Node<K, &mut [u8]>| {
-                    let mut node = node.as_internal_mut();
-                    node.delete_key_children(anchor_to_delete)
-                }) {
-                InternalDeleteStatus::Ok => return Ok(()),
-                InternalDeleteStatus::NeedsRebalance => (),
-            };
-
-            match mut_context {
-                None => {
-                    // here we are dealing with the root
-                    // the root is not rebalanced, but if it is empty then it can
-                    // be deleted, and unlike the leaf case, we need to promote it's only remainining child as the new root
-                    let is_empty = next_element
-                        .next
-                        .as_node(|root: Node<K, &[u8]>| root.as_internal().keys().len() == 0);
-
-                    // after deleting a key at position `anchor` and its right children, the left sibling
-                    // is in position == anchor
-
-                    if is_empty {
-                        debug_assert!(anchor == 0);
-                        let new_root = next_element.next.as_node(|node: Node<K, &[u8]>| {
-                            node.as_internal().children().get(anchor)
-                        });
-
-                        next_element.set_root(new_root);
-                    }
-                }
-                Some(mut mut_context) => {
-                    // non-root node
-                    // let parent = next_element.parent.unwrap();
-                    let anchor = next_element.anchor;
-                    let left = next_element.left;
-                    let right = next_element.right;
-
-                    // as in the leaf case, the value in the Option is the 'anchor' (pointer) to the deleted node
-                    let recurse_on_parent: Option<usize> = next_element.next.as_node_mut(
-                        |mut node: Node<K, &mut [u8]>| -> Result<Option<usize>, BTreeStoreError> {
-                            let siblings = SiblingsArg::new_from_options(left, right);
-
-                            match node.as_internal_mut().rebalance(siblings)? {
-                                RebalanceResult::TakeFromLeft(add_params) => {
-                                    let (sibling, parent) = mut_context.mut_left_sibling();
-                                    add_params.take_key_from_left(
-                                        parent,
-                                        anchor.expect(
-                                            "left sibling seems to exist but anchor is none",
-                                        ),
-                                        sibling,
-                                    );
-                                    Ok(None)
-                                }
-                                RebalanceResult::TakeFromRight(add_params) => {
-                                    let (sibling, parent) = mut_context.mut_right_sibling();
-                                    add_params.take_key_from_right(parent, anchor, sibling);
-                                    Ok(None)
-                                }
-                                RebalanceResult::MergeIntoLeft(add_params) => {
-                                    let (sibling, parent) = mut_context.mut_left_sibling();
-                                    add_params.merge_into_left(parent, anchor, sibling)?;
-                                    mut_context.delete_node();
-                                    Ok(Some(
-                                        anchor
-                                            .clone()
-                                            .expect("merged into left sibling, but anchor is none"),
-                                    ))
-                                }
-                                RebalanceResult::MergeIntoSelf(add_params) => {
-                                    let (sibling, parent) = mut_context.mut_right_sibling();
-                                    add_params.merge_into_self(parent, anchor, sibling)?;
-                                    let new_anchor = anchor.map_or(0, |n| n + 1);
-                                    mut_context
-                                        .delete_right_sibling()
-                                        .expect("right sibling doesn't exist");
-                                    Ok(Some(new_anchor))
-                                }
-                            }
-                        },
-                    )?;
-
-                    // (there is no recursive call, we just go the next loop iteration)
-                    if let Some(anchor) = recurse_on_parent {
-                        anchor_to_delete = anchor;
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-
-        Ok(())
+                Ok(tx.commit::<K>())
+            })
     }
 }
 
@@ -656,7 +305,7 @@ mod tests {
             let root_id = read_tx.root();
 
             // TODO: get the next page but IN the read transaction
-            for n in 1..self.metadata.lock().unwrap().0.page_manager.next_page() {
+            for n in 1..self.metadata.lock().unwrap().0.page_manager.next_page {
                 let pages = &self.pages;
                 let page_ref = pages.get_page(n).unwrap();
 
@@ -724,7 +373,7 @@ mod tests {
 
         tree.insert_many((0..n).map(|i| (U64Key(i), i))).unwrap();
 
-        tree.debug_print();
+        // tree.debug_print();
 
         for i in 0..n {
             assert_eq!(
@@ -884,7 +533,7 @@ mod tests {
 
                 for i in inserts {
                     index
-                        .insert_async(U64Key(i), i)
+                        .insert_async(Some((U64Key(i), i)))
                         .expect("duplicated insert in disjoint threads");
                 }
             }));
@@ -975,6 +624,70 @@ mod tests {
         tree.update(&U64Key(100), 120).unwrap();
 
         assert_eq!(tree.get(&U64Key(100), |v| v.cloned()), Some(120));
+    }
+
+    use crate::Storeable;
+    impl<'a> Storeable<'a> for () {
+        type Error = std::io::Error;
+        type Output = Self;
+
+        fn write(&self, _buf: &mut [u8]) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        fn read(_buf: &'a [u8]) -> Result<Self::Output, Self::Error> {
+            Ok(())
+        }
+    }
+
+    impl FixedSize for () {
+        fn max_size() -> usize {
+            0
+        }
+    }
+
+    #[test]
+    fn zero_size_value() {
+        let metadata_file = tempfile().unwrap();
+        let tree_file = tempfile().unwrap();
+        let static_file = tempfile().unwrap();
+
+        let page_size = 88;
+
+        let tree: BTree<U64Key, ()> = BTree::new(
+            metadata_file,
+            tree_file,
+            static_file,
+            page_size,
+            size_of::<U64Key>().try_into().unwrap(),
+        )
+        .unwrap();
+
+        let n: u64 = 2000;
+
+        tree.insert_many((0..n).map(|i| (U64Key(i), ()))).unwrap();
+
+        // tree.debug_print();
+
+        for i in 0..n {
+            assert_eq!(
+                tree.get(&U64Key(i), |key| key.cloned())
+                    .expect("Key not found"),
+                ()
+            );
+        }
+
+        for i in (0..n).step_by(2) {
+            tree.delete(&U64Key(dbg!(i))).unwrap();
+        }
+
+        for i in (1..n).step_by(2) {
+            assert_eq!(
+                tree.get(&U64Key(dbg!(i)), |key| key.cloned())
+                    .expect("Key not found"),
+                ()
+            );
+        }
     }
 
     #[test]

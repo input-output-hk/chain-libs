@@ -54,14 +54,14 @@ where
         len: usize,
         element_size: usize,
     ) -> ArrayView<'elements, T, E> {
-        assert_eq!(
-            if element_size < 8 {
-                data.as_ref().as_ptr().align_offset(element_size)
-            } else {
-                0
-            },
-            0
-        );
+        // assert_eq!(
+        //     if element_size < 8 {
+        //         data.as_ref().as_ptr().align_offset(element_size)
+        //     } else {
+        //         0
+        //     },
+        //     0
+        // );
 
         ArrayView {
             data,
@@ -164,7 +164,14 @@ where
     T: AsRef<[u8]> + AsMut<[u8]> + 'elements,
 {
     pub(crate) fn insert(&mut self, pos: usize, element: &E) -> Result<(), ()> {
-        if self.len() < self.data.as_ref().len() / usize::from(&self.element_size) {
+        let stride = usize::from(&self.element_size);
+
+        if stride == 0 {
+            self.len += 1;
+            return Ok(());
+        }
+
+        if self.len() < self.data.as_ref().len() / stride {
             unsafe {
                 let src: *mut u8 = self
                     .data
@@ -205,7 +212,13 @@ where
     }
 
     pub(crate) fn delete(&mut self, pos: usize) -> Result<(), ()> {
+        let stride = usize::from(&self.element_size);
         if pos < self.len() {
+            if stride == 0 {
+                self.len -= 1;
+                return Ok(());
+            }
+
             unsafe {
                 let src: *mut u8 = self
                     .data

@@ -54,7 +54,7 @@ impl TransactionManager {
             transaction: WriteTransactionDelta {
                 new_root: metadata.root,
                 shadowed_pages: vec![],
-                next_page_id: metadata.page_manager.next_page(),
+                next_page_id: metadata.page_manager.next_page,
                 deleted_pages: vec![],
             },
         })));
@@ -77,20 +77,46 @@ impl TransactionManager {
         ReadTransaction::new(self.latest_version(), pages)
     }
 
-    pub fn write_transaction<'me, 'index: 'me>(
+    pub fn with_write_transaction<'me, 'index: 'me, F>(
         &'me self,
         pages: &'index Pages,
-    ) -> WriteTransaction<'me, 'index> {
-        let page_manager = self.page_manager.lock().unwrap();
-        let versions = self.versions.lock().unwrap();
+        f: F,
+    ) -> Result<(), crate::BTreeStoreError>
+    where
+        F: FnOnce(
+            WriteTransaction<'index, MutexGuard<'me, PageManager>>,
+        ) -> Result<WriteTransactionDelta, crate::BTreeStoreError>,
+    {
+        let tx = self.write_transaction(pages);
 
-        WriteTransaction::new(
-            self.latest_version().root(),
-            pages,
-            page_manager,
-            versions,
-            self.latest_version.clone(),
-        )
+        let version = f(tx)?;
+
+        self.set_current_version(version);
+
+        Ok(())
+    }
+
+    fn write_transaction<'me, 'index: 'me>(
+        &'me self,
+        pages: &'index Pages,
+    ) -> WriteTransaction<'index, MutexGuard<'me, PageManager>> {
+        let page_manager = self.page_manager.lock().unwrap();
+
+        WriteTransaction::new(self.latest_version().root(), pages, page_manager)
+    }
+
+    fn set_current_version(&self, delta: WriteTransactionDelta) {
+        let mut current_version = self.latest_version.write();
+
+        *current_version = Arc::new(Version {
+            root: delta.new_root,
+            transaction: delta,
+        });
+
+        self.versions
+            .lock()
+            .unwrap()
+            .push_back(current_version.clone());
     }
 
     /// collect versions without readers, in order to reuse its pages (the ones that are shadow in transactions after that)

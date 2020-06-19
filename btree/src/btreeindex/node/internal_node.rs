@@ -33,6 +33,7 @@ pub(crate) enum InternalInsertStatus<K> {
 pub(crate) enum InternalDeleteStatus {
     Ok,
     NeedsRebalance,
+    LastValue(PageId),
 }
 
 impl<'b, K, T> InternalNode<'b, K, T>
@@ -273,12 +274,17 @@ where
         self.children_mut()
             .delete(pos + 1)
             .expect("Couldn't delete last child");
-        self.set_len(current_len - 1);
 
-        if self.children().len() < self.lower_bound() {
-            InternalDeleteStatus::NeedsRebalance
+        if dbg!(current_len) == 1 {
+            InternalDeleteStatus::LastValue(self.children().get(0))
         } else {
-            InternalDeleteStatus::Ok
+            self.set_len(current_len - 1);
+
+            if self.children().len() < self.lower_bound() {
+                InternalDeleteStatus::NeedsRebalance
+            } else {
+                InternalDeleteStatus::Ok
+            }
         }
     }
 

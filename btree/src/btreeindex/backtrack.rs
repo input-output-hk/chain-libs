@@ -2,18 +2,18 @@
 use super::transaction;
 use super::transaction::{MutablePage, PageRef, PageRefMut, WriteTransaction};
 use crate::btreeindex::node::{InternalNode, NodeRefMut};
-use crate::btreeindex::{node::NodeRef, Node, PageId};
+use crate::btreeindex::{node::NodeRef, page_manager::PageIdGenerator, Node, PageId};
 use crate::mem_page::MemPage;
 use crate::FixedSize;
 use std::marker::PhantomData;
 
 /// this is basically a stack, but it will rename pointers and interact with the transaction in order to reuse
 /// already cloned pages
-pub struct InsertBacktrack<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K>
+pub(crate) struct InsertBacktrack<'txbuilder, 'txmanager: 'txbuilder, K, G: PageIdGenerator>
 where
     K: FixedSize,
 {
-    tx: &'txbuilder mut transaction::WriteTransaction<'txmanager, 'storage>,
+    tx: &'txbuilder mut transaction::WriteTransaction<'txmanager, G>,
     backtrack: Vec<PageId>,
     new_root: Option<PageId>,
     phantom_key: PhantomData<[K]>,
@@ -21,11 +21,11 @@ where
 
 /// this is basically a stack, but it will rename pointers and interact with the transaction in order to reuse
 /// already cloned pages
-pub struct DeleteBacktrack<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K>
+pub(crate) struct DeleteBacktrack<'txbuilder, 'txmanager: 'txbuilder, K, G: PageIdGenerator>
 where
     K: FixedSize,
 {
-    tx: &'txbuilder transaction::WriteTransaction<'txmanager, 'storage>,
+    tx: &'txbuilder transaction::WriteTransaction<'txmanager, G>,
     backtrack: Vec<PageId>,
     // The first parameter is the anchor used to get from the parent to the node in the top of the stack
     // the other two are both its siblings. The parent id can be found after the top of the stack, of course.
@@ -34,21 +34,21 @@ where
     phantom_key: PhantomData<[K]>,
 }
 
-pub struct DeleteNextElement<'a, 'b: 'a, 'c: 'b, 'd: 'c, K>
+pub(crate) struct DeleteNextElement<'a, 'b: 'a, 'c: 'b, K, G: PageIdGenerator>
 where
     K: FixedSize,
 {
-    pub next_element: NextElement<'a, 'b, 'c, 'd, K>,
-    pub mut_context: Option<MutableContext<'a, 'b, 'c, 'd, K>>,
+    pub(crate) next_element: NextElement<'a, 'b, K, G>,
+    pub(crate) mut_context: MutableContext<'a, 'b, 'c, K, G>,
 }
 
 /// this is basically a stack, but it will rename pointers and interact with the transaction in order to reuse
 /// already cloned pages
-pub struct UpdateBacktrack<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K>
+pub(crate) struct UpdateBacktrack<'txbuilder, 'txmanager: 'txbuilder, K, G: PageIdGenerator>
 where
     K: FixedSize,
 {
-    tx: &'txbuilder mut transaction::WriteTransaction<'txmanager, 'storage>,
+    tx: &'txbuilder mut transaction::WriteTransaction<'txmanager, G>,
     backtrack: Vec<PageId>,
     key_to_update: K,
     new_root: Option<PageId>,
@@ -59,61 +59,91 @@ where
 // the hierarchy
 /// type to operate on the current element in the stack (branch) of nodes. This borrows the backtrack and acts as a proxy, in order to make borrowing simpler, because
 // XXX: having a left sibling means anchor is not None, and having a sibling in general means parent is not None also, maybe this invariants could be expressed in the type structure
-pub struct NextElement<'a, 'b: 'a, 'c: 'b, 'd: 'c, K>
+pub(crate) struct NextElement<'a, 'b: 'a, K, G: PageIdGenerator>
 where
     K: FixedSize,
 {
-    pub next: PageRefMut<'a>,
+    pub(crate) next: PageRefMut<'a>,
     // anchor is an index into the keys array of a node used to find the current node in the parent without searching. The leftmost(lowest) child has None as anchor
     // this means it's inmediate right sibling would have anchor of 0, and so on.
-    pub anchor: Option<usize>,
-    pub left: Option<PageRef<'a>>,
-    pub right: Option<PageRef<'a>>,
-    backtrack: &'a DeleteBacktrack<'b, 'c, 'd, K>,
+    pub(crate) anchor: Option<usize>,
+    pub(crate) left: Option<PageRef<'a>>,
+    pub(crate) right: Option<PageRef<'a>>,
+    backtrack: &'a DeleteBacktrack<'a, 'b, K, G>,
 }
 
-pub struct MutableContext<'a, 'b: 'a, 'c: 'b, 'd: 'c, K>
-where
-    K: FixedSize,
-{
+pub(crate) enum MutableContext<'a, 'b: 'a, 'c: 'b, K: FixedSize, G: PageIdGenerator> {
+    NonRoot(DeleteContext<'a, 'b, 'c, K, NonRoot<'a>, G>),
+    Root(DeleteContext<'a, 'b, 'c, K, RootNode, G>),
+}
+
+pub(crate) struct NonRoot<'a> {
     parent: PageRefMut<'a>,
-    // anchor is an index into the keys array of a node used to find the current node in the parent without searching. The leftmost(lowest) child has None as anchor
-    // this means it's inmediate right sibling would have anchor of 0, and so on.
-    current_id: PageId,
     left_id: Option<PageId>,
     right_id: Option<PageId>,
-    backtrack: &'a DeleteBacktrack<'b, 'c, 'd, K>,
 }
 
-impl<'a, 'b: 'a, 'c: 'b, 'd: 'c, K> MutableContext<'a, 'b, 'c, 'd, K>
+pub(crate) struct RootNode {}
+
+pub(crate) struct DeleteContext<'a, 'b: 'a, 'c: 'b, K, Neighbourhood, G: PageIdGenerator>
+where
+    K: FixedSize,
+{
+    current_id: PageId,
+    backtrack: &'a DeleteBacktrack<'b, 'c, K, G>,
+    neighbourhood: Neighbourhood,
+}
+
+impl<'a, 'b: 'a, 'c: 'b, K, Neighbourhood, G: PageIdGenerator>
+    DeleteContext<'a, 'b, 'c, K, Neighbourhood, G>
+where
+    K: FixedSize,
+{
+    /// delete current node, this just adds the id to the list of free pages *after* the transaction is confirmed
+    pub fn delete_node(&self) {
+        self.backtrack.delete_node(self.current_id)
+    }
+}
+
+impl<'a, 'b: 'a, 'c: 'b, K, G: PageIdGenerator> DeleteContext<'a, 'b, 'c, K, NonRoot<'a>, G>
 where
     K: FixedSize,
 {
     pub fn mut_left_sibling(&mut self) -> (PageRefMut<'a>, &mut PageRefMut<'a>) {
-        let sibling = match self.backtrack.tx.mut_page(self.left_id.unwrap()).unwrap() {
+        let sibling = match self
+            .backtrack
+            .tx
+            .mut_page(self.neighbourhood.left_id.unwrap())
+            .unwrap()
+        {
             MutablePage::InTransaction(handle) => handle,
             MutablePage::NeedsParentRedirect(redirect_pointers) => {
-                redirect_pointers.redirect_parent_in_tx::<K>(&mut self.parent)
+                redirect_pointers.redirect_parent_in_tx::<K>(&mut self.neighbourhood.parent)
             }
         };
 
-        (sibling, &mut self.parent)
+        (sibling, &mut self.neighbourhood.parent)
     }
 
     pub fn mut_right_sibling(&mut self) -> (PageRefMut<'a>, &mut PageRefMut<'a>) {
-        let sibling = match self.backtrack.tx.mut_page(self.right_id.unwrap()).unwrap() {
+        let sibling = match self
+            .backtrack
+            .tx
+            .mut_page(self.neighbourhood.right_id.unwrap())
+            .unwrap()
+        {
             MutablePage::InTransaction(handle) => handle,
             MutablePage::NeedsParentRedirect(redirect_pointers) => {
-                redirect_pointers.redirect_parent_in_tx::<K>(&mut self.parent)
+                redirect_pointers.redirect_parent_in_tx::<K>(&mut self.neighbourhood.parent)
             }
         };
 
-        (sibling, &mut self.parent)
+        (sibling, &mut self.neighbourhood.parent)
     }
 
     /// delete right sibling of current node, this just adds the id to the list of free pages *after* the transaction is confirmed
     pub fn delete_right_sibling(&self) -> Result<(), ()> {
-        match self.right_id {
+        match self.neighbourhood.right_id {
             None => Err(()),
             Some(right_id) => {
                 self.backtrack.delete_node(right_id);
@@ -121,14 +151,9 @@ where
             }
         }
     }
-
-    /// delete current node, this just adds the id to the list of free pages *after* the transaction is confirmed
-    pub fn delete_node(&self) {
-        self.backtrack.delete_node(self.current_id)
-    }
 }
 
-impl<'a, 'b: 'a, 'c: 'b, 'd: 'c, K> NextElement<'a, 'b, 'c, 'd, K>
+impl<'a, 'b: 'a, K, G: PageIdGenerator> NextElement<'a, 'b, K, G>
 where
     K: FixedSize,
 {
@@ -142,7 +167,7 @@ enum Step<'a, K> {
     Internal(PageId, &'a InternalNode<'a, K, &'a [u8]>, Option<usize>),
 }
 
-fn search<F, K>(key: &K, tx: &WriteTransaction, mut f: F)
+fn search<F, K, G: PageIdGenerator>(key: &K, tx: &WriteTransaction<G>, mut f: F)
 where
     F: FnMut(Step<K>),
     K: FixedSize,
@@ -181,13 +206,13 @@ where
     }
 }
 
-impl<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K>
-    DeleteBacktrack<'txbuilder, 'txmanager, 'storage, K>
+impl<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K, G: PageIdGenerator>
+    DeleteBacktrack<'txbuilder, 'txmanager, K, G>
 where
     K: FixedSize,
 {
     pub(crate) fn new_search_for(
-        tx: &'txbuilder mut WriteTransaction<'txmanager, 'storage>,
+        tx: &'txbuilder mut WriteTransaction<'txmanager, G>,
         key: &K,
     ) -> Self {
         let mut backtrack = vec![];
@@ -223,7 +248,7 @@ where
 
     pub fn get_next<'this>(
         &'this mut self,
-    ) -> Result<Option<DeleteNextElement<'this, 'txbuilder, 'txmanager, 'storage, K>>, std::io::Error>
+    ) -> Result<Option<DeleteNextElement<'this, 'txbuilder, 'txmanager, K, G>>, std::io::Error>
     {
         let id = match self.backtrack.pop() {
             Some(id) => id,
@@ -276,24 +301,21 @@ where
             transaction::MutablePage::InTransaction(handle) => handle,
         };
 
-        let mut_context = match parent_info {
-            Some((parent, _anchor, left_id, right_id)) => {
-                let parent = match self.tx.mut_page(*parent)? {
-                    MutablePage::InTransaction(handle) => handle,
-                    _ => unreachable!(),
-                };
-                Some(MutableContext {
-                    parent,
-                    // anchor is an index into the keys array of a node used to find the current node in the parent without searching. The leftmost(lowest) child has None as anchor
-                    // this means it's inmediate right sibling would have anchor of 0, and so on.
-                    left_id,
-                    right_id,
-                    current_id: id,
-                    backtrack: self,
-                })
-            }
-            None => None,
-        };
+        let neighbourhood = parent_info
+            .map(
+                |(parent, _anchor, left_id, right_id)| -> Result<NonRoot, std::io::Error> {
+                    let parent = match self.tx.mut_page(*parent)? {
+                        MutablePage::InTransaction(handle) => handle,
+                        _ => unreachable!(),
+                    };
+                    Ok(NonRoot {
+                        parent,
+                        left_id,
+                        right_id,
+                    })
+                },
+            )
+            .transpose()?;
 
         let (left, right) = match parent_info {
             Some((_parent, _anchor, left, right)) => {
@@ -306,6 +328,19 @@ where
         };
 
         let anchor = parent_info.and_then(|(_, anchor, _, _)| anchor);
+
+        let mut_context = match neighbourhood {
+            Some(neighbourhood) => MutableContext::NonRoot(DeleteContext {
+                neighbourhood,
+                current_id: id,
+                backtrack: self,
+            }),
+            None => MutableContext::Root(DeleteContext {
+                neighbourhood: RootNode {},
+                current_id: id,
+                backtrack: self,
+            }),
+        };
         let next_element = NextElement {
             next,
             anchor,
@@ -325,13 +360,13 @@ where
     }
 }
 
-impl<'txbuilder, 'txmanager: 'txbuilder, 'index: 'txmanager, K>
-    InsertBacktrack<'txbuilder, 'txmanager, 'index, K>
+impl<'txbuilder, 'txmanager: 'txbuilder, 'index: 'txmanager, K, G: PageIdGenerator>
+    InsertBacktrack<'txbuilder, 'txmanager, K, G>
 where
     K: FixedSize,
 {
     pub(crate) fn new_search_for(
-        tx: &'txbuilder mut WriteTransaction<'txmanager, 'index>,
+        tx: &'txbuilder mut WriteTransaction<'txmanager, G>,
         key: &K,
     ) -> Self {
         let mut backtrack = vec![];
@@ -356,10 +391,10 @@ where
 
         if self.backtrack.is_empty() {
             assert!(self.new_root.is_none());
-            self.new_root = Some(id);
+            self.new_root = Some(dbg!(id));
         }
 
-        match self.tx.mut_page(id)? {
+        match self.tx.mut_page(dbg!(id))? {
             transaction::MutablePage::NeedsParentRedirect(rename_in_parents) => {
                 // this part may be tricky, we need to recursively clone and redirect all the path
                 // from the root to the node we are writing to. We need the backtrack stack, because
@@ -391,19 +426,19 @@ where
 
     pub fn new_root(&mut self, mem_page: MemPage) -> Result<(), std::io::Error> {
         let id = self.tx.add_new_node(mem_page)?;
-        self.new_root = Some(id);
+        self.tx.current_root.set(id);
 
         Ok(())
     }
 }
 
-impl<'txbuilder, 'txmanager: 'txbuilder, 'index: 'txmanager, K>
-    UpdateBacktrack<'txbuilder, 'txmanager, 'index, K>
+impl<'txbuilder, 'txmanager: 'txbuilder, K, G: PageIdGenerator>
+    UpdateBacktrack<'txbuilder, 'txmanager, K, G>
 where
     K: FixedSize,
 {
     pub(crate) fn new_search_for(
-        tx: &'txbuilder mut WriteTransaction<'txmanager, 'index>,
+        tx: &'txbuilder mut WriteTransaction<'txmanager, G>,
         key: &K,
     ) -> Self {
         let mut backtrack = vec![];
@@ -482,47 +517,5 @@ where
         });
 
         Ok(())
-    }
-}
-
-impl<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K> Drop
-    for InsertBacktrack<'txbuilder, 'txmanager, 'storage, K>
-where
-    K: FixedSize,
-{
-    fn drop(&mut self) {
-        if let Some(new_root) = self.new_root {
-            self.tx.current_root.set(new_root);
-        } else {
-            self.tx.current_root.set(*self.backtrack.first().unwrap());
-        }
-    }
-}
-
-impl<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K> Drop
-    for DeleteBacktrack<'txbuilder, 'txmanager, 'storage, K>
-where
-    K: FixedSize,
-{
-    fn drop(&mut self) {
-        if let Some(new_root) = self.new_root {
-            self.tx.current_root.set(new_root);
-        } else {
-            self.tx.current_root.set(*self.backtrack.first().unwrap());
-        }
-    }
-}
-
-impl<'txbuilder, 'txmanager: 'txbuilder, 'storage: 'txmanager, K> Drop
-    for UpdateBacktrack<'txbuilder, 'txmanager, 'storage, K>
-where
-    K: FixedSize,
-{
-    fn drop(&mut self) {
-        if let Some(new_root) = self.new_root {
-            self.tx.current_root.set(new_root);
-        } else {
-            self.tx.current_root.set(*self.backtrack.first().unwrap());
-        }
     }
 }

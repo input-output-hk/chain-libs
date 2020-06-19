@@ -1,7 +1,7 @@
 use super::Version;
 use crate::btreeindex::{
     node::NodeRefMut,
-    page_manager::PageManager,
+    page_manager::PageIdGenerator,
     pages::{
         borrow::{Immutable, Mutable},
         PageHandle,
@@ -9,10 +9,9 @@ use crate::btreeindex::{
     Node, PageId, Pages,
 };
 use crate::FixedSize;
-use parking_lot::RwLock;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::{Arc, MutexGuard};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 pub struct ReadTransaction<'a> {
     version: Arc<Version>,
@@ -21,21 +20,21 @@ pub struct ReadTransaction<'a> {
 
 /// staging area for batched insertions, it will keep track of pages already shadowed and reuse them,
 /// it can be used to create a new `Version` at the end with all the insertions done atomically
-pub(crate) struct WriteTransaction<'locks, 'storage: 'locks> {
+pub(crate) struct WriteTransaction<'storage, G: PageIdGenerator> {
     pub current_root: Cell<PageId>,
-    state: RefCell<State<'locks>>,
+    state: RefCell<State<G>>,
     pages: &'storage Pages,
-    versions: MutexGuard<'locks, VecDeque<Arc<Version>>>,
-    current_version: Arc<RwLock<Arc<Version>>>,
+    // page_manager: MutexGuard<'locks, PageManager>,
+    // page_manager: G,
 }
 
-struct State<'a> {
+struct State<G: PageIdGenerator> {
     /// maps old_id -> new_id
     shadows: HashMap<PageId, PageId>,
     /// in order to find shadows by the new_id (as we already redirected pointers to this)
     shadows_image: HashSet<PageId>,
     deleted_pages: Vec<PageId>,
-    page_manager: MutexGuard<'a, PageManager>,
+    page_manager: G,
 }
 
 pub type PageRef<'a> = PageHandle<'a, Immutable<'a>>;
@@ -55,25 +54,21 @@ impl<'a> ReadTransaction<'a> {
     }
 }
 
-impl<'locks, 'storage: 'locks> WriteTransaction<'locks, 'storage> {
+impl<'locks, 'storage: 'locks, G: PageIdGenerator> WriteTransaction<'storage, G> {
     pub fn new(
         root: PageId,
         pages: &'storage Pages,
-        page_manager: MutexGuard<'locks, PageManager>,
-        versions: MutexGuard<'locks, VecDeque<Arc<Version>>>,
-        current_version: Arc<RwLock<Arc<Version>>>,
-    ) -> WriteTransaction<'locks, 'storage> {
+        page_manager: G,
+    ) -> WriteTransaction<'storage, G> {
         let current_root = root;
         let state = State {
             shadows: HashMap::new(),
             shadows_image: HashSet::new(),
-            page_manager,
             deleted_pages: Vec::new(),
+            page_manager,
         };
         WriteTransaction {
             current_root: Cell::new(current_root),
-            versions,
-            current_version,
             pages,
             state: RefCell::new(state),
         }
@@ -122,7 +117,7 @@ impl<'locks, 'storage: 'locks> WriteTransaction<'locks, 'storage> {
     pub fn mut_page<'this>(
         &'this self,
         id: PageId,
-    ) -> Result<MutablePage<'this, 'locks, 'storage>, std::io::Error> {
+    ) -> Result<MutablePage<'this, 'locks, G>, std::io::Error> {
         let mut state = self.state.borrow_mut();
 
         match state
@@ -147,6 +142,10 @@ impl<'locks, 'storage: 'locks> WriteTransaction<'locks, 'storage> {
                 state.shadows.insert(old_id, new_id);
                 state.shadows_image.insert(new_id);
 
+                if old_id == self.current_root.get() {
+                    self.current_root.set(new_id);
+                }
+
                 Ok(MutablePage::NeedsParentRedirect(RedirectPointers {
                     tx: self,
                     last_old_id: old_id,
@@ -169,6 +168,7 @@ impl<'locks, 'storage: 'locks> WriteTransaction<'locks, 'storage> {
             None => {
                 let old_id = id;
                 let new_id = state.page_manager.new_id();
+                // let new_id = new_id();
 
                 self.pages.make_shadow(old_id, new_id)?;
 
@@ -182,39 +182,30 @@ impl<'locks, 'storage: 'locks> WriteTransaction<'locks, 'storage> {
 
     /// commit creates a new version of the tree, it doesn't sync the file, but it makes the version
     /// available to new readers
-    pub fn commit<K>(mut self)
+    pub fn commit<K>(self) -> super::WriteTransactionDelta
     where
         K: FixedSize,
     {
         let new_root = self.root();
         let state = self.state.into_inner();
-        let transaction = super::WriteTransactionDelta {
+        super::WriteTransactionDelta {
             new_root,
             shadowed_pages: state.shadows.keys().cloned().collect(),
             // Pages allocated at the end, basically
-            next_page_id: state.page_manager.next_page(),
+            next_page_id: state.page_manager.next_id(),
             deleted_pages: state.deleted_pages,
-        };
-
-        let mut current_version = self.current_version.write();
-
-        *current_version = Arc::new(Version {
-            root: new_root,
-            transaction,
-        });
-
-        self.versions.push_back(current_version.clone());
+        }
     }
 }
 
-pub enum MutablePage<'a, 'b: 'a, 'c: 'b> {
-    NeedsParentRedirect(RedirectPointers<'a, 'b, 'c>),
-    InTransaction(PageRefMut<'c>),
+pub(crate) enum MutablePage<'a, 'b: 'a, G: PageIdGenerator> {
+    NeedsParentRedirect(RedirectPointers<'a, 'b, G>),
+    InTransaction(PageRefMut<'b>),
 }
 
 /// recursive helper for the shadowing process when we need to clone and redirect pointers
-pub struct RedirectPointers<'a, 'b: 'a, 'c: 'a> {
-    tx: &'a WriteTransaction<'b, 'c>,
+pub(crate) struct RedirectPointers<'a, 'b: 'a, G: PageIdGenerator> {
+    tx: &'a WriteTransaction<'b, G>,
     /// id that we need to change in the next step, at some point, we could optimize this to be
     /// an index instead of the id (so we don't need to perform the search)
     last_old_id: PageId,
@@ -223,7 +214,7 @@ pub struct RedirectPointers<'a, 'b: 'a, 'c: 'a> {
     shadowed_page: PageId,
 }
 
-impl<'a, 'b: 'a, 'c: 'b> RedirectPointers<'a, 'b, 'c> {
+impl<'a, 'b: 'a, G: PageIdGenerator> RedirectPointers<'a, 'b, G> {
     fn find_and_redirect<K: FixedSize, T: NodeRefMut>(&self, parent: &mut T) {
         let old_id = self.last_old_id;
         let new_id = self.last_new_id;
@@ -246,7 +237,7 @@ impl<'a, 'b: 'a, 'c: 'b> RedirectPointers<'a, 'b, 'c> {
     pub fn redirect_parent_pointer<K: FixedSize>(
         self,
         parent_id: PageId,
-    ) -> Result<MutablePage<'a, 'b, 'c>, std::io::Error> {
+    ) -> Result<MutablePage<'a, 'b, G>, std::io::Error> {
         let (parent_needs_shadowing, parent) = self.tx.mut_page_internal(parent_id)?;
         let mut parent = self.tx.pages.mut_page(parent).unwrap();
 
@@ -266,7 +257,7 @@ impl<'a, 'b: 'a, 'c: 'b> RedirectPointers<'a, 'b, 'c> {
         }
     }
 
-    pub fn finish(self) -> PageRefMut<'c> {
+    pub fn finish(self) -> PageRefMut<'b> {
         match self.tx.mut_page(self.shadowed_page).unwrap() {
             MutablePage::InTransaction(handle) => handle,
             _ => unreachable!(),

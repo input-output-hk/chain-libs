@@ -59,7 +59,8 @@ where
         assert_eq!(data.as_ref().as_ptr().align_offset(size_of::<u64>()), 0);
         assert!(K::max_size() % 8 == 0);
 
-        let size_per_key = K::max_size() + size_of::<V>();
+        // let size_per_key = K::max_size() + size_of::<V>();
+        let size_per_key = K::max_size() + V::max_size();
         let extra_size = LEN_SIZE;
 
         let max_keys = (usize::try_from(data.as_ref().len()).unwrap()
@@ -296,9 +297,9 @@ where
         let len = self.keys().len();
 
         let base = KEYS_START + (self.max_keys * K::max_size());
-        let data = &mut self.data.as_mut()[base..base + self.max_keys * size_of::<V>()];
+        let data = &mut self.data.as_mut()[base..base + self.max_keys * V::max_size()];
 
-        ValuesMut::new_static_size(data, len)
+        ValuesMut::new_dynamic_size(data, len, V::max_size())
     }
 
     fn keys_mut(&mut self) -> KeysMut<K> {
@@ -403,17 +404,21 @@ where
             .keys_mut()
             .insert(0, &stolen_key)
             .expect("Couldn't insert key at pos 0");
+
         self.node
             .values_mut()
             .insert(0, &stolen_value)
             .expect("Couldn't insert value at pos 0");
+
         self.node.set_len(current_len + 1);
 
         sibling.as_node_mut(|mut node: Node<K, &mut [u8]>| {
             let mut sibling = node.as_leaf_mut::<V>();
             let last = sibling.keys().len().checked_sub(1).unwrap();
             sibling.keys_mut().delete(last).unwrap();
+
             sibling.values_mut().delete(last).unwrap();
+
             sibling.set_len(last);
         });
 
@@ -503,7 +508,7 @@ where
     pub fn merge_into_left(self, mut sibling: impl NodeRefMut) -> LeafNode<'b, K, V, T> {
         //merge this into left
         sibling.as_node_mut(|mut node| {
-            let mut merge_target = node.as_leaf_mut();
+            let mut merge_target = node.as_leaf_mut::<V>();
             for (k, v) in self.node.keys().iter().zip(self.node.values().iter()) {
                 // TODO: Create an Append?
                 let insert_pos = merge_target.keys().len();
@@ -511,10 +516,12 @@ where
                     .keys_mut()
                     .insert(insert_pos, &k.borrow().clone())
                     .expect("Couldn't insert at the end");
+
                 merge_target
                     .values_mut()
                     .insert(insert_pos, &v.borrow().clone())
                     .expect("Couldn't insert at the end");
+
                 merge_target.set_len(insert_pos + 1);
             }
         });
@@ -543,10 +550,12 @@ where
                     .keys_mut()
                     .insert(insert_pos, &k.borrow().clone())
                     .expect("Couldn't insert at the end");
+
                 self.node
                     .values_mut()
                     .insert(insert_pos, &v.borrow().clone())
                     .expect("Couldn't insert at the end");
+
                 self.node.set_len(insert_pos + 1);
             }
         });
