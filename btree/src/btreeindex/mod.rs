@@ -31,8 +31,12 @@ use std::sync::Mutex;
 
 use iter::BTreeIterator;
 
-pub type PageId = u32;
+const METADATA_FILE: &str = "metadata";
+const TREE_FILE: &str = "pages";
+const TREE_SETTINGS_FILE: &str = "settings";
 const NODES_PER_PAGE: u64 = 2000;
+
+pub type PageId = u32;
 
 pub struct BTree<K, V> {
     // The metadata file contains the latests confirmed version of the tree
@@ -61,13 +65,26 @@ where
     V: FixedSize,
 {
     // TODO: add a builder with defaults?
-    pub fn new(
-        metadata_file: File,
-        tree_file: File,
-        mut static_settings_file: File,
-        page_size: u16,
-        key_buffer_size: u32,
-    ) -> Result<BTree<K, V>, BTreeStoreError> {
+    pub fn new(path: impl AsRef<Path>, page_size: u16) -> Result<BTree<K, V>, BTreeStoreError> {
+        std::fs::create_dir_all(path.as_ref())?;
+
+        let tree_file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .read(true)
+            .open(path.as_ref().join(TREE_FILE))?;
+
+        let mut static_settings_file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .read(true)
+            .open(path.as_ref().join(TREE_SETTINGS_FILE))?;
+
+        let metadata_file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(path.as_ref().join(METADATA_FILE))?;
+
         let mut metadata = Metadata::new();
 
         let pages_storage =
@@ -90,7 +107,7 @@ where
 
         let static_settings = StaticSettings {
             page_size,
-            key_buffer_size,
+            key_buffer_size: K::max_size().try_into().expect("key size is too big"),
         };
 
         static_settings.write(&mut static_settings_file)?;
@@ -107,11 +124,11 @@ where
         })
     }
 
-    pub fn open(
-        metadata_file: impl AsRef<Path>,
-        tree_file: impl AsRef<Path>,
-        static_settings_file: impl AsRef<Path>,
-    ) -> Result<BTree<K, V>, BTreeStoreError> {
+    pub fn open(dir_path: impl AsRef<Path>) -> Result<BTree<K, V>, BTreeStoreError> {
+        let tree_file = dir_path.as_ref().join(TREE_FILE);
+        let static_settings_file = dir_path.as_ref().join(TREE_SETTINGS_FILE);
+        let metadata_file = dir_path.as_ref().join(METADATA_FILE);
+
         let mut static_settings_file = OpenOptions::new()
             .write(true)
             .read(true)
@@ -286,6 +303,7 @@ mod tests {
     use crate::tests::U64Key;
     use crate::FixedSize;
     use std::sync::Arc;
+    use tempfile::tempdir;
     use tempfile::tempfile;
 
     impl<K> BTree<K, u64>
@@ -349,17 +367,11 @@ mod tests {
         let metadata_file = tempfile().unwrap();
         let tree_file = tempfile().unwrap();
         let static_file = tempfile().unwrap();
+        let dir = tempdir().unwrap();
 
         let page_size = 88;
 
-        let tree: BTree<U64Key, u64> = BTree::new(
-            metadata_file,
-            tree_file,
-            static_file,
-            page_size,
-            size_of::<U64Key>().try_into().unwrap(),
-        )
-        .unwrap();
+        let tree: BTree<U64Key, u64> = BTree::new(dir.path(), page_size).unwrap();
 
         tree
     }
@@ -409,50 +421,19 @@ mod tests {
 
     #[test]
     fn saves_and_restores_right() {
-        let key_buffer_size: u32 = size_of::<U64Key>().try_into().unwrap();
         let page_size = 86u16;
         {
-            let metadata_file = OpenOptions::new()
-                .create(true)
-                .write(true)
-                .read(true)
-                .open("metadata")
-                .expect("Couldn't create metadata file");
-
-            let tree_file = OpenOptions::new()
-                .create(true)
-                .write(true)
-                .read(true)
-                .open("tree")
-                .expect("Couldn't create pages file");
-
-            let static_file = OpenOptions::new()
-                .create(true)
-                .write(true)
-                .read(true)
-                .open("static")
-                .expect("Couldn't create pages file");
-
-            BTree::<U64Key, u64>::new(
-                metadata_file,
-                tree_file,
-                static_file,
-                page_size,
-                key_buffer_size,
-            )
-            .unwrap();
+            BTree::<U64Key, u64>::new("path", page_size).unwrap();
         }
 
         {
-            let restored_tree =
-                BTree::<U64Key, u64>::open("metadata", "tree", "static").expect("restore to work");
-            assert_eq!(restored_tree.key_buffer_size(), key_buffer_size);
+            let restored_tree = BTree::<U64Key, u64>::open("path").expect("restore to work");
+            assert_eq!(
+                restored_tree.key_buffer_size(),
+                U64Key::max_size().try_into().unwrap()
+            );
             assert_eq!(restored_tree.page_size(), page_size);
         }
-
-        std::fs::remove_file("tree").unwrap();
-        std::fs::remove_file("metadata").unwrap();
-        std::fs::remove_file("static").unwrap();
     }
 
     #[test]
@@ -648,20 +629,11 @@ mod tests {
 
     #[test]
     fn zero_size_value() {
-        let metadata_file = tempfile().unwrap();
-        let tree_file = tempfile().unwrap();
-        let static_file = tempfile().unwrap();
+        let dir = tempdir().unwrap();
 
         let page_size = 88;
 
-        let tree: BTree<U64Key, ()> = BTree::new(
-            metadata_file,
-            tree_file,
-            static_file,
-            page_size,
-            size_of::<U64Key>().try_into().unwrap(),
-        )
-        .unwrap();
+        let tree: BTree<U64Key, ()> = BTree::new(dir.path(), page_size).unwrap();
 
         let n: u64 = 2000;
 

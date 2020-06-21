@@ -9,10 +9,6 @@ mod mem_page;
 pub mod storage;
 use flatfile::MmapedAppendOnlyFile;
 
-const METADATA_FILE: &str = "metadata";
-const TREE_FILE: &str = "pages";
-const TREE_SETTINGS_FILE: &str = "settings";
-// const BACKUP_FILE: &'static str = "commit_backup";
 const APPENDER_FILE_PATH: &str = "flatfile";
 
 use mem_page::MemPage;
@@ -60,37 +56,13 @@ where
 {
     pub fn new(
         path: impl AsRef<Path>,
-        key_buffer_size: u32,
         page_size: u16,
     ) -> Result<BTreeStore<K>, BTreeStoreError> {
         std::fs::create_dir_all(path.as_ref())?;
 
         let flatfile = MmapedAppendOnlyFile::new(path.as_ref().join(APPENDER_FILE_PATH))?;
 
-        let tree_file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .read(true)
-            .open(path.as_ref().join(TREE_FILE))?;
-
-        let static_settings_file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .read(true)
-            .open(path.as_ref().join(TREE_SETTINGS_FILE))?;
-
-        let metadata_file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(path.as_ref().join(METADATA_FILE))?;
-
-        let index = BTree::<K, Offset>::new(
-            metadata_file,
-            tree_file,
-            static_settings_file,
-            page_size.try_into().unwrap(),
-            key_buffer_size,
-        )?;
+        let index = BTree::<K, Offset>::new(path, page_size.try_into().unwrap())?;
 
         Ok(BTreeStore { index, flatfile })
     }
@@ -100,13 +72,7 @@ where
             return Err(BTreeStoreError::InvalidDirectory("path is not a directory"));
         }
 
-        let metadata = directory.as_ref().join(METADATA_FILE);
-
-        let file = directory.as_ref().join(TREE_FILE);
-
-        let static_file = directory.as_ref().join(TREE_SETTINGS_FILE);
-
-        let index = BTree::open(metadata, file, static_file)?;
+        let index = BTree::open(directory.as_ref())?;
 
         let mut flatfile = directory.as_ref().to_path_buf();
         flatfile.push(APPENDER_FILE_PATH);
