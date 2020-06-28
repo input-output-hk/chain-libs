@@ -56,7 +56,7 @@ where
     pub(crate) unsafe fn from_raw(data: T) -> LeafNode<'b, K, V, T> {
         assert_eq!(data.as_ref().as_ptr().align_offset(size_of::<PageId>()), 0);
         assert_eq!(data.as_ref().as_ptr().align_offset(size_of::<u64>()), 0);
-        assert!(K::max_size() % 8 == 0);
+        // assert!(K::max_size() % 8 == 0);
 
         // let size_per_key = K::max_size() + size_of::<V>();
         let size_per_key = K::max_size() + V::max_size();

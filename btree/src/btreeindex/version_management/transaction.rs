@@ -165,7 +165,6 @@ impl<'locks, 'storage: 'locks, G: PageIdGenerator> WriteTransaction<'storage, G>
             None => {
                 let old_id = id;
                 let new_id = state.page_manager.new_id();
-                // let new_id = new_id();
 
                 self.pages.make_shadow(old_id, new_id)?;
 

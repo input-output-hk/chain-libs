@@ -275,7 +275,7 @@ where
             .delete(pos + 1)
             .expect("Couldn't delete last child");
 
-        if dbg!(current_len) == 1 {
+        if current_len == 1 {
             InternalDeleteStatus::LastValue(self.children().get(0))
         } else {
             self.set_len(current_len - 1);
