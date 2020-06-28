@@ -4,7 +4,8 @@ use super::transaction::{MutablePage, PageRef, PageRefMut, WriteTransaction};
 use crate::btreeindex::node::{InternalNode, NodeRefMut};
 use crate::btreeindex::{node::NodeRef, page_manager::PageIdGenerator, Node, PageId};
 use crate::mem_page::MemPage;
-use crate::FixedSize;
+use crate::{BTreeStoreError, FixedSize};
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 /// this is basically a stack, but it will rename pointers and interact with the transaction in order to reuse
@@ -222,9 +223,10 @@ where
             Step::Leaf(page_id) => backtrack.push(page_id),
             Step::Internal(page_id, inode, upper_pivot) => {
                 backtrack.push(page_id);
-                let anchor = upper_pivot
-                    .or_else(|| inode.keys().len().checked_sub(1))
-                    .and_then(|up| up.checked_sub(1));
+                let anchor = match upper_pivot {
+                    Some(upper_pivot) => upper_pivot.checked_sub(1),
+                    None => inode.keys().len().checked_sub(1),
+                };
 
                 let left_sibling_id = anchor.and_then(|pos| inode.children().try_get(pos));
 
@@ -244,6 +246,58 @@ where
             new_root: None,
             phantom_key: PhantomData,
         }
+    }
+
+    pub(crate) fn new_descend_right<V: FixedSize>(
+        tx: &'txbuilder mut WriteTransaction<'txmanager, G>,
+    ) -> (Option<(K, V)>, Self) {
+        let mut backtrack = vec![];
+        let mut parent_info = vec![];
+
+        descend_rightmost::<G, K, _>(tx, |step| match step {
+            Step::Leaf(page_id) => backtrack.push(page_id),
+            Step::Internal(page_id, inode, upper_pivot) => {
+                backtrack.push(page_id);
+                let anchor = match upper_pivot {
+                    Some(upper_pivot) => upper_pivot.checked_sub(1),
+                    None => inode.keys().len().checked_sub(1),
+                };
+
+                let left_sibling_id = anchor.and_then(|pos| inode.children().try_get(pos));
+
+                let right_sibling_id = anchor
+                    .map(|pos| pos + 2)
+                    .or(Some(1))
+                    .and_then(|pos| inode.children().try_get(pos));
+
+                parent_info.push((anchor, left_sibling_id, right_sibling_id));
+            }
+        });
+
+        let key_value = backtrack.last().and_then(|leaf_id| {
+            tx.get_page(*leaf_id)
+                .unwrap()
+                .as_node(|node: Node<K, &[u8]>| {
+                    let leaf = node.as_leaf::<V>();
+                    let keys = leaf.keys();
+                    let values = leaf.values();
+                    keys.len()
+                        .checked_sub(1)
+                        .map(|idx| (keys.get(idx), values.get(idx)))
+                        .map(|(key, value)| (key.borrow().clone(), value.borrow().clone()))
+                })
+        });
+
+        (
+            key_value,
+            DeleteBacktrack {
+                tx,
+                backtrack,
+                parent_info,
+                new_root: None,
+                phantom_key: PhantomData,
+            },
+        )
     }
 
     pub fn get_next<'this>(
@@ -391,10 +445,10 @@ where
 
         if self.backtrack.is_empty() {
             assert!(self.new_root.is_none());
-            self.new_root = Some(dbg!(id));
+            self.new_root = Some(id);
         }
 
-        match self.tx.mut_page(dbg!(id))? {
+        match self.tx.mut_page(id)? {
             transaction::MutablePage::NeedsParentRedirect(rename_in_parents) => {
                 // this part may be tricky, we need to recursively clone and redirect all the path
                 // from the root to the node we are writing to. We need the backtrack stack, because
@@ -456,10 +510,10 @@ where
         }
     }
 
-    pub fn update<V: FixedSize>(&mut self, new_value: V) -> Result<(), std::io::Error> {
+    pub fn update<V: FixedSize>(&mut self, f: impl FnOnce(&V) -> V) -> Result<(), BTreeStoreError> {
         let leaf = match self.backtrack.pop() {
             Some(id) => id,
-            None => return Ok(()),
+            None => return Err(BTreeStoreError::KeyNotFound),
         };
 
         let position_to_update =
@@ -473,7 +527,7 @@ where
                         .binary_search(&self.key_to_update)
                 }) {
                 Ok(pos) => pos,
-                Err(_) => return Ok(()),
+                Err(_) => return Err(BTreeStoreError::KeyNotFound),
             };
 
         let mut page_handle = match self.tx.mut_page(leaf)? {
@@ -510,12 +564,47 @@ where
         };
 
         page_handle.as_node_mut(|mut node: Node<K, &mut [u8]>| {
-            node.as_leaf_mut()
-                .values_mut()
-                .update(position_to_update, &new_value)
+            let mut leaf = node.as_leaf_mut::<V>();
+            let mut values = leaf.values_mut();
+            let new = {
+                let old = values
+                    .try_get(position_to_update)
+                    .expect("position to update was not in range");
+                f(&old.borrow())
+            };
+            values
+                .update(position_to_update, &new)
                 .expect("position to update was not in range")
         });
 
         Ok(())
+    }
+}
+
+fn descend_rightmost<G, K, F>(tx: &WriteTransaction<G>, mut f: F)
+where
+    G: PageIdGenerator,
+    K: FixedSize,
+    F: FnMut(Step<K>),
+{
+    let starting_node = tx.root();
+    let mut current = tx.get_page(starting_node).unwrap();
+    loop {
+        let id = current.id();
+        let next = current.as_node(|node: Node<K, &[u8]>| {
+            node.try_as_internal().map(|inode| {
+                f(Step::Internal(id, &inode, None));
+
+                let last = inode.children().len().checked_sub(1).unwrap();
+                inode.children().get(last)
+            })
+        });
+
+        if let Some(new_current_id) = next {
+            current = tx.get_page(new_current_id).unwrap();
+        } else {
+            f(Step::Leaf(current.id()));
+            return;
+        }
     }
 }

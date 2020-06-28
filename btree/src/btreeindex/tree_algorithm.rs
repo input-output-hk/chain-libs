@@ -184,6 +184,29 @@ pub(crate) fn delete<K: FixedSize, V: FixedSize, G: PageIdGenerator>(
 ) -> Result<(), BTreeStoreError> {
     let mut backtrack = DeleteBacktrack::new_search_for(tx, key);
 
+    delete_backtrack::<K, V, G>(key, &mut backtrack)
+}
+
+pub(crate) fn pop_max<K: FixedSize, V: FixedSize, G: PageIdGenerator>(
+    tx: &mut WriteTransaction<G>,
+) -> Result<Option<(K, V)>, BTreeStoreError> {
+    let (key_value, mut backtrack) = DeleteBacktrack::new_descend_right(tx);
+
+    match key_value {
+        None => Ok(None),
+        Some((key, value)) => {
+            delete_backtrack::<K, V, G>(&key, &mut backtrack)?;
+            Ok(Some((key, value)))
+        }
+    }
+}
+
+pub(crate) fn delete_backtrack<'a, 'b: 'a, K: FixedSize, V: FixedSize, G: PageIdGenerator>(
+    key: &K,
+    mut backtrack: &'a mut DeleteBacktrack<'b, 'b, K, G>,
+) -> Result<(), BTreeStoreError> {
+    // let mut backtrack = DeleteBacktrack::new_search_for(tx, key);
+
     // we can unwrap safely because there is always a leaf in the path
     // delete will return Ok if the key is not in the given leaf
     use super::backtrack::DeleteNextElement;

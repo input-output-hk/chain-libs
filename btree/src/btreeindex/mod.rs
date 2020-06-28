@@ -264,10 +264,10 @@ where
         tree_algorithm::search::<T, K, Q, &'a Pages>(tx, key)
     }
 
-    pub fn update(&self, key: &K, value: V) -> Result<(), BTreeStoreError> {
+    pub fn update(&self, key: &K, f: impl FnOnce(&V) -> V) -> Result<(), BTreeStoreError> {
         self.transaction_manager
             .with_write_transaction(&self.pages, |mut tx| {
-                UpdateBacktrack::new_search_for(&mut tx, key).update(value)?;
+                UpdateBacktrack::new_search_for(&mut tx, key).update(f)?;
 
                 Ok(tx.commit::<K>())
             })
@@ -281,6 +281,24 @@ where
 
                 Ok(tx.commit::<K>())
             })
+    }
+
+    /// pop max key from the tree and return it with its value, this doesn't sync the file to disk
+    pub fn pop_max(&self) -> Result<Option<(K, V)>, BTreeStoreError> {
+        let mut result = None;
+
+        self.transaction_manager
+            .with_write_transaction(&self.pages, |mut tx| {
+                let key_value = tree_algorithm::pop_max::<K, V, _>(&mut tx)?;
+
+                if let Some(key_value) = key_value {
+                    result.replace(key_value);
+                }
+
+                Ok(tx.commit::<K>())
+            })?;
+
+        Ok(result)
     }
 }
 
@@ -603,29 +621,9 @@ mod tests {
 
         assert_eq!(tree.get(&U64Key(100), |v| v.cloned()), Some(100));
 
-        tree.update(&U64Key(100), 120).unwrap();
+        tree.update(&U64Key(100), |_| 120).unwrap();
 
         assert_eq!(tree.get(&U64Key(100), |v| v.cloned()), Some(120));
-    }
-
-    use crate::Storeable;
-    impl<'a> Storeable<'a> for () {
-        type Error = std::io::Error;
-        type Output = Self;
-
-        fn write(&self, _buf: &mut [u8]) -> Result<(), Self::Error> {
-            Ok(())
-        }
-
-        fn read(_buf: &'a [u8]) -> Result<Self::Output, Self::Error> {
-            Ok(())
-        }
-    }
-
-    impl FixedSize for () {
-        fn max_size() -> usize {
-            0
-        }
     }
 
     #[test]
@@ -639,8 +637,6 @@ mod tests {
         let n: u64 = 2000;
 
         tree.insert_many((0..n).map(|i| (U64Key(i), ()))).unwrap();
-
-        // tree.debug_print();
 
         for i in 0..n {
             assert_eq!(
@@ -660,6 +656,29 @@ mod tests {
                     .expect("Key not found"),
                 ()
             );
+        }
+    }
+
+    #[test]
+    fn test_pop_max_drain_tree() {
+        let dir = tempdir().unwrap();
+
+        let page_size = 88;
+
+        let tree: BTree<U64Key, ()> = BTree::new(dir.path(), page_size).unwrap();
+
+        let n: u64 = 2000;
+
+        tree.insert_many((0..n).map(|i| (U64Key(i), ()))).unwrap();
+        tree.checkpoint().unwrap();
+
+        for i in (0..2000).rev() {
+            let (key, _value) = tree.pop_max().unwrap().unwrap();
+            assert_eq!(key, U64Key(i));
+        }
+
+        for i in 0..2000 {
+            assert!(tree.get(&U64Key(dbg!(i)), |key| key.cloned()).is_none());
         }
     }
 
