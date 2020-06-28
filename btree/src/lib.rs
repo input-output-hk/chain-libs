@@ -16,6 +16,8 @@ use std::fmt::Debug;
 use std::path::Path;
 use thiserror::Error;
 
+pub use btreeindex::multitree::*;
+
 const APPENDER_FILE_PATH: &str = "flatfile";
 
 type Offset = u64;
@@ -36,6 +38,8 @@ pub enum BTreeStoreError {
     WrongMagicNumber,
     #[error("write implementation not compatible with read")]
     InconsistentWriteRead,
+    #[error("tagged tree error")]
+    TaggedTree(#[from] TaggedTreeError),
 }
 
 pub struct BTreeStore<K>
@@ -150,6 +154,25 @@ impl FixedSize for Offset {
     }
 }
 
+impl<'a> Storeable<'a> for () {
+    type Error = std::io::Error;
+    type Output = Self;
+
+    fn write(&self, _buf: &mut [u8]) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn read(_buf: &'a [u8]) -> Result<Self::Output, Self::Error> {
+        Ok(())
+    }
+}
+
+impl FixedSize for () {
+    fn max_size() -> usize {
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{FixedSize, Storeable};
@@ -174,6 +197,12 @@ mod tests {
     impl FixedSize for U64Key {
         fn max_size() -> usize {
             std::mem::size_of::<U64Key>()
+        }
+    }
+
+    impl From<u64> for U64Key {
+        fn from(n: u64) -> U64Key {
+            U64Key(n)
         }
     }
 
