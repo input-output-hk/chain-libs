@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use super::{Node, NodeRef, NodeRefMut, RebalanceResult, RebalanceSiblingArg, SiblingsArg};
 use crate::btreeindex::{Keys, KeysMut, PageId, Values, ValuesMut};
 use crate::BTreeStoreError;
@@ -8,6 +6,7 @@ use crate::MemPage;
 use byteorder::ByteOrder as _;
 use byteorder::LittleEndian;
 use std::borrow::Borrow;
+use std::marker::PhantomData;
 
 use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
@@ -569,7 +568,6 @@ mod tests {
     use crate::btreeindex::node::tests::{internal_page, internal_page_mut, pages};
     use crate::btreeindex::pages::borrow::{Immutable, Mutable};
     use crate::btreeindex::pages::{PageHandle, Pages};
-    use crate::btreeindex::*;
     use crate::tests::U64Key;
     use std::mem::size_of;
 

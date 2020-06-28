@@ -7,20 +7,16 @@ pub mod btreeindex;
 pub mod flatfile;
 mod mem_page;
 pub mod storage;
-use flatfile::MmapedAppendOnlyFile;
-
-const APPENDER_FILE_PATH: &str = "flatfile";
-
-use mem_page::MemPage;
-
 use crate::btreeindex::BTree;
+use flatfile::MmapedAppendOnlyFile;
+use mem_page::MemPage;
 use std::borrow::Borrow;
 use std::convert::TryInto;
 use std::fmt::Debug;
-use std::fs::OpenOptions;
 use std::path::Path;
-
 use thiserror::Error;
+
+const APPENDER_FILE_PATH: &str = "flatfile";
 
 type Offset = u64;
 
@@ -54,10 +50,7 @@ impl<K> BTreeStore<K>
 where
     K: FixedSize,
 {
-    pub fn new(
-        path: impl AsRef<Path>,
-        page_size: u16,
-    ) -> Result<BTreeStore<K>, BTreeStoreError> {
+    pub fn new(path: impl AsRef<Path>, page_size: u16) -> Result<BTreeStore<K>, BTreeStoreError> {
         std::fs::create_dir_all(path.as_ref())?;
 
         let flatfile = MmapedAppendOnlyFile::new(path.as_ref().join(APPENDER_FILE_PATH))?;

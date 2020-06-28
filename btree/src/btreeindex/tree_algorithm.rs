@@ -1,12 +1,13 @@
-use super::version_management::transaction::{
-    PageRef, PageRefMut, ReadTransaction, WriteTransaction,
-};
-
 use super::node::internal_node::InternalDeleteStatus;
 use super::node::leaf_node::LeafDeleteStatus;
 use super::node::{
     InternalInsertStatus, LeafInsertStatus, Node, NodeRef, NodeRefMut, RebalanceResult, SiblingsArg,
 };
+use super::pages::Pages;
+use super::version_management::transaction::{
+    PageRef, PageRefMut, ReadTransaction, WriteTransaction,
+};
+use super::version_management::TreeIdentifier;
 use crate::mem_page::MemPage;
 use crate::BTreeStoreError;
 use std::borrow::Borrow;
@@ -137,10 +138,12 @@ fn create_internal_node<K: FixedSize>(
     node
 }
 
-pub(crate) fn search<'a, K, Q>(tx: &'a ReadTransaction, key: &Q) -> PageRef<'a>
+pub(crate) fn search<'a, T, K, Q, P>(tx: &'a ReadTransaction<T, P>, key: &Q) -> PageRef<'a>
 where
     Q: Ord,
     K: FixedSize + Borrow<Q>,
+    P: Borrow<Pages>,
+    T: TreeIdentifier,
 {
     let mut current = tx.get_page(tx.root()).unwrap();
 

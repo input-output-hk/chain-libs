@@ -19,18 +19,18 @@ pub(crate) struct TransactionManager {
 }
 
 #[derive(Debug)]
-pub(crate) struct Version {
-    root: PageId,
-    transaction: WriteTransactionDelta,
+pub struct Version {
+    pub root: PageId,
+    pub(crate) transaction: WriteTransactionDelta,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// delta-like structure, it has the list of pages that can be collected after no readers are using them
 pub(crate) struct WriteTransactionDelta {
-    new_root: PageId,
-    shadowed_pages: Vec<PageId>,
-    deleted_pages: Vec<PageId>,
-    next_page_id: PageId,
+    pub new_root: PageId,
+    pub shadowed_pages: Vec<PageId>,
+    pub deleted_pages: Vec<PageId>,
+    pub next_page_id: PageId,
 }
 
 // this has locks, so no new transaction can occur while this is synced to disk, they are not
@@ -41,9 +41,13 @@ pub(crate) struct Checkpoint<'a> {
     _versions: MutexGuard<'a, VecDeque<Arc<Version>>>,
 }
 
-impl Version {
-    pub fn root(&self) -> PageId {
-        self.root
+pub trait TreeIdentifier {
+    fn root(&self) -> PageId;
+}
+
+impl<T: AsRef<Version>> TreeIdentifier for T {
+    fn root(&self) -> PageId {
+        self.as_ref().root
     }
 }
 
@@ -73,7 +77,10 @@ impl TransactionManager {
         self.latest_version.read().clone()
     }
 
-    pub fn read_transaction<'a>(&self, pages: &'a Pages) -> ReadTransaction<'a> {
+    pub fn read_transaction<'a>(
+        &self,
+        pages: &'a Pages,
+    ) -> ReadTransaction<Arc<Version>, &'a Pages> {
         ReadTransaction::new(self.latest_version(), pages)
     }
 

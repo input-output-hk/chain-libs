@@ -1,4 +1,4 @@
-use super::Version;
+use super::TreeIdentifier;
 use crate::btreeindex::{
     node::NodeRefMut,
     page_manager::PageIdGenerator,
@@ -11,11 +11,10 @@ use crate::btreeindex::{
 use crate::FixedSize;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
-pub struct ReadTransaction<'a> {
-    version: Arc<Version>,
-    pages: &'a Pages,
+pub struct ReadTransaction<T: TreeIdentifier, P: std::borrow::Borrow<Pages>> {
+    version: T,
+    pages: P,
 }
 
 /// staging area for batched insertions, it will keep track of pages already shadowed and reuse them,
@@ -24,8 +23,6 @@ pub(crate) struct WriteTransaction<'storage, G: PageIdGenerator> {
     pub current_root: Cell<PageId>,
     state: RefCell<State<G>>,
     pages: &'storage Pages,
-    // page_manager: MutexGuard<'locks, PageManager>,
-    // page_manager: G,
 }
 
 struct State<G: PageIdGenerator> {
@@ -40,17 +37,17 @@ struct State<G: PageIdGenerator> {
 pub type PageRef<'a> = PageHandle<'a, Immutable<'a>>;
 pub type PageRefMut<'a> = PageHandle<'a, Mutable<'a>>;
 
-impl<'a> ReadTransaction<'a> {
-    pub(super) fn new(version: Arc<Version>, pages: &'a Pages) -> ReadTransaction {
+impl<T: TreeIdentifier, P: std::borrow::Borrow<Pages>> ReadTransaction<T, P> {
+    pub(crate) fn new(version: T, pages: P) -> ReadTransaction<T, P> {
         ReadTransaction { version, pages }
     }
 
     pub fn root(&self) -> PageId {
-        self.version.root
+        self.version.root()
     }
 
-    pub fn get_page(&self, id: PageId) -> Option<PageRef<'a>> {
-        self.pages.get_page(id)
+    pub fn get_page(&self, id: PageId) -> Option<PageRef<'_>> {
+        self.pages.borrow().get_page(id)
     }
 }
 

@@ -5,10 +5,8 @@ use crate::FixedSize;
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
-/// An abstraction over a paged file, Pages is kind of an array but backed from disk. Page represents at the moment
-/// a heap allocated read/write page, while PageRef is a wrapper to share a read only page in an Arc
-/// when we move to mmap, this things may change to take advantage of zero copy.
-
+/// An abstraction over a paged file, Pages is kind of an array but backed from disk.
+///
 pub struct Pages {
     storage: MmapStorage,
     page_size: u16,

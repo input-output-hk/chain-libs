@@ -1,6 +1,6 @@
-use super::version_management::transaction::ReadTransaction;
-
 use super::node::{Node, NodeRef};
+use super::pages::Pages;
+use super::version_management::{transaction::ReadTransaction, TreeIdentifier};
 
 use std::borrow::Borrow;
 
@@ -11,13 +11,14 @@ use super::PageId;
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 
-pub struct BTreeIterator<'a, R, Q, K, V>
+pub struct BTreeIterator<'a, T, R, Q, K, V>
 where
     R: RangeBounds<Q>,
     K: Borrow<Q>,
+    T: TreeIdentifier,
 {
     range: R,
-    tx: ReadTransaction<'a>,
+    tx: ReadTransaction<T, &'a Pages>,
     phantom_data: PhantomData<(Q, K, V)>,
     // usually b+trees have pointers between leaves, but doing this in a copy on write tree is not possible (or at least it requires cloning all the leaves at each operation),
     // so we use a stack to keep track of parents
@@ -27,13 +28,14 @@ where
     current_leaf: PageId,
 }
 
-impl<'a, R, Q, K: FixedSize, V: FixedSize> BTreeIterator<'a, R, Q, K, V>
+impl<'a, T, R, Q, K: FixedSize, V: FixedSize> BTreeIterator<'a, T, R, Q, K, V>
 where
     R: RangeBounds<Q>,
     K: Borrow<Q>,
     Q: Ord,
+    T: TreeIdentifier,
 {
-    pub(super) fn new(tx: ReadTransaction<'a>, range: R) -> Self {
+    pub(super) fn new(tx: ReadTransaction<T, &'a Pages>, range: R) -> Self {
         let mut stack = vec![];
         let mut current = tx.get_page(tx.root()).unwrap();
 
@@ -83,7 +85,7 @@ where
             Bound::Unbounded => {
                 let current_position = 0;
                 let mut current_leaf = None;
-                descend_leftmost::<_, _, K, V>(
+                descend_leftmost::<T, _, _, K, V>(
                     &tx,
                     tx.root(),
                     |internal_node_page| stack.push((internal_node_page, 0)),
@@ -105,11 +107,12 @@ where
     }
 }
 
-impl<'a, R, Q, K: FixedSize, V: FixedSize> Iterator for BTreeIterator<'a, R, Q, K, V>
+impl<'a, T, R, Q, K: FixedSize, V: FixedSize> Iterator for BTreeIterator<'a, T, R, Q, K, V>
 where
     K: Borrow<Q>,
     R: RangeBounds<Q>,
     Q: Ord,
+    T: TreeIdentifier,
 {
     type Item = V;
     fn next(&mut self) -> Option<V> {
@@ -169,7 +172,7 @@ where
 
                         let current_leaf = &mut self.current_leaf;
                         let current_position = &mut self.current_position;
-                        descend_leftmost::<_, _, K, V>(
+                        descend_leftmost::<T, _, _, K, V>(
                             &self.tx,
                             child,
                             |internal_node_page| {
@@ -190,8 +193,8 @@ where
     }
 }
 
-fn descend_leftmost<'a, I, L, K, V>(
-    tx: &'a ReadTransaction<'a>,
+fn descend_leftmost<'a, T, I, L, K, V>(
+    tx: &'a ReadTransaction<T, &'a Pages>,
     starting_node: PageId,
     mut on_internal: I,
     on_leaf: L,
@@ -200,6 +203,7 @@ fn descend_leftmost<'a, I, L, K, V>(
     L: FnOnce(PageId),
     K: FixedSize,
     V: FixedSize,
+    T: TreeIdentifier,
 {
     let mut current = tx.get_page(starting_node).unwrap();
     loop {

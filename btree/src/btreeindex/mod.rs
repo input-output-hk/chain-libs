@@ -244,7 +244,7 @@ where
 
     /// perform a range query. The returned iterator holds a read-only transaction for it's entire lifetime.
     /// This avoids pages to be collected, so it may better for it to not be long-lived.
-    pub fn range<R, Q>(&self, range: R) -> BTreeIterator<R, Q, K, V>
+    pub fn range<R, Q>(&self, range: R) -> BTreeIterator<std::sync::Arc<Version>, R, Q, K, V>
     where
         K: Borrow<Q>,
         R: RangeBounds<Q>,
@@ -255,12 +255,13 @@ where
         BTreeIterator::new(read_transaction, range)
     }
 
-    fn search<'a, Q>(&'a self, tx: &'a ReadTransaction, key: &Q) -> PageRef<'a>
+    fn search<'a, T, Q>(&'a self, tx: &'a ReadTransaction<T, &'a Pages>, key: &Q) -> PageRef<'a>
     where
         Q: Ord,
         K: Borrow<Q>,
+        T: TreeIdentifier,
     {
-        tree_algorithm::search::<K, Q>(tx, key)
+        tree_algorithm::search::<T, K, Q, &'a Pages>(tx, key)
     }
 
     pub fn update(&self, key: &K, value: V) -> Result<(), BTreeStoreError> {
@@ -295,6 +296,12 @@ impl<K, V> Drop for BTree<K, V> {
     }
 }
 
+impl FixedSize for PageId {
+    fn max_size() -> usize {
+        std::mem::size_of::<PageId>()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate rand;
@@ -304,7 +311,6 @@ mod tests {
     use crate::FixedSize;
     use std::sync::Arc;
     use tempfile::tempdir;
-    use tempfile::tempfile;
 
     impl<K> BTree<K, u64>
     where
@@ -364,11 +370,7 @@ mod tests {
     }
 
     pub fn new_tree() -> BTree<U64Key, u64> {
-        let metadata_file = tempfile().unwrap();
-        let tree_file = tempfile().unwrap();
-        let static_file = tempfile().unwrap();
         let dir = tempdir().unwrap();
-
         let page_size = 88;
 
         let tree: BTree<U64Key, u64> = BTree::new(dir.path(), page_size).unwrap();
@@ -376,7 +378,6 @@ mod tests {
         tree
     }
 
-    use std::mem::size_of;
     #[test]
     fn insert_many() {
         let tree = new_tree();
