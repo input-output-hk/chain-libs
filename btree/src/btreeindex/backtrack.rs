@@ -437,6 +437,39 @@ where
         }
     }
 
+    pub(crate) fn new_descend_right<V: FixedSize>(
+        tx: &'txbuilder mut WriteTransaction<'txmanager, G>,
+    ) -> (Option<K>, Self) {
+        let mut backtrack = vec![];
+        descend_rightmost::<G, K, _>(tx, |step| match step {
+            Step::Leaf(page_id) => backtrack.push(page_id),
+            Step::Internal(page_id, _, _) => backtrack.push(page_id),
+        });
+
+        let max_key = backtrack.last().and_then(|leaf_id| {
+            tx.get_page(*leaf_id)
+                .unwrap()
+                .as_node(|node: Node<K, &[u8]>| {
+                    let leaf = node.as_leaf::<V>();
+                    let keys = leaf.keys();
+                    keys.len()
+                        .checked_sub(1)
+                        .map(|idx| keys.get(idx))
+                        .map(|k| k.borrow().clone())
+                })
+        });
+
+        (
+            max_key,
+            InsertBacktrack {
+                tx,
+                backtrack,
+                new_root: None,
+                phantom_key: PhantomData,
+            },
+        )
+    }
+
     pub fn get_next(&mut self) -> Result<Option<PageRefMut<'_>>, std::io::Error> {
         let id = match self.backtrack.pop() {
             Some(id) => id,

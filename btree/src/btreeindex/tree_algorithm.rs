@@ -49,6 +49,37 @@ pub(crate) fn insert<K: FixedSize, V: FixedSize, G: PageIdGenerator>(
     Ok(())
 }
 
+pub(crate) fn append<K: FixedSize, V: FixedSize, G: PageIdGenerator>(
+    tx: &mut WriteTransaction<G>,
+    key_func: impl Fn(Option<K>) -> K,
+    value: V,
+    page_size: usize,
+) -> Result<(), BTreeStoreError> {
+    let (max_key, mut backtrack) = InsertBacktrack::new_descend_right::<V>(tx);
+
+    let key = key_func(max_key);
+
+    let needs_recurse = {
+        let leaf = backtrack.get_next()?.unwrap();
+        let leaf_id = leaf.id();
+        insert_in_leaf(leaf, key, value, page_size)?
+            .map(|(split_key, new_node)| (leaf_id, split_key, new_node))
+    };
+
+    if let Some((leaf_id, split_key, new_node)) = needs_recurse {
+        let id = backtrack.add_new_node(new_node.into_page())?;
+
+        if backtrack.has_next() {
+            insert_in_internals(split_key, id, &mut backtrack, page_size)?;
+        } else {
+            let new_root = create_internal_node(leaf_id, id, split_key, page_size);
+            backtrack.new_root(new_root.into_page())?;
+        }
+    }
+
+    Ok(())
+}
+
 fn insert_in_leaf<K: FixedSize, V: FixedSize>(
     mut leaf: PageRefMut,
     key: K,
