@@ -1,7 +1,9 @@
 use super::page_manager::PageIdGenerator;
 use super::transaction::{ReadTransaction, WriteTransaction};
 use super::version_management::TreeIdentifier;
-use super::{ tree_algorithm, NODES_PER_PAGE, Node, PageId, Pages, PagesInitializationParams, StaticSettings };
+use super::{
+    tree_algorithm, Node, PageId, Pages, PagesInitializationParams, StaticSettings, NODES_PER_PAGE,
+};
 use crate::btreeindex::node::NodeRef;
 use crate::btreeindex::BTree;
 use crate::{BTreeStoreError, FixedSize};
@@ -46,6 +48,9 @@ where
 }
 
 struct PageGenerator {
+    // the idea is to reuse pages somehow, but I don't know how to implement garbage collection
+    // yet, and it is not really that trivial. For the moment, free pages is not used
+    //
     free_pages: BTree<PageId, ()>,
     next_page: AtomicU32,
     next_page_file: File,
@@ -326,15 +331,8 @@ impl PageGenerator {
     fn new_id(&self) -> PageId {
         let next = self.free_pages.pop_max().expect("pop max shouldn't error");
 
-        next
-            .map(|(key, _)| key)
+        next.map(|(key, _)| key)
             .unwrap_or_else(|| self.next_page.fetch_add(1, Ordering::Relaxed))
-    }
-
-    fn return_page(&self, page_id: PageId) -> Result<(), BTreeStoreError> {
-        self.free_pages.insert_one(page_id, ())?;
-
-        Ok(())
     }
 
     fn save(&self) -> Result<(), BTreeStoreError> {
@@ -429,7 +427,6 @@ mod tests {
                     } else {
                         assert!(commit.is_ok());
                     };
-
                 }
                 Op::Read { from, keys } => {
                     let rtx = db.read(from.into()).unwrap();
@@ -452,20 +449,18 @@ mod tests {
 
     #[test]
     fn is_send() {
-        fn is_send<T: Send>() {
-        }
+        fn is_send<T: Send>() {}
 
         is_send::<TaggedTree<U64Key, U64Key, u64>>();
     }
 
     #[test]
     fn is_sync() {
-        fn is_sync<T: Sync>() {
-        }
+        fn is_sync<T: Sync>() {}
 
         is_sync::<TaggedTree<U64Key, U64Key, u64>>();
     }
-    
+
     mod model {
         use super::super::TaggedTreeError;
         use quickcheck::{Arbitrary, Gen};
