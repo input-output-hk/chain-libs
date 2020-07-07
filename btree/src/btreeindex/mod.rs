@@ -244,7 +244,10 @@ where
 
     /// perform a range query. The returned iterator holds a read-only transaction for it's entire lifetime.
     /// This avoids pages to be collected, so it may better for it to not be long-lived.
-    pub fn range<R, Q>(&self, range: R) -> BTreeIterator<std::sync::Arc<Version>, R, Q, K, V>
+    pub fn range<R, Q>(
+        &self,
+        range: R,
+    ) -> BTreeIterator<std::sync::Arc<Version>, R, Q, K, V, &Pages>
     where
         K: Borrow<Q>,
         R: RangeBounds<Q>,
