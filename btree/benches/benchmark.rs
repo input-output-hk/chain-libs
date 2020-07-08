@@ -5,7 +5,6 @@ use crate::rand::rngs::StdRng;
 use crate::rand::Rng as _;
 use crate::rand::SeedableRng;
 use byteorder::{ByteOrder, LittleEndian};
-use std::convert::TryInto;
 
 static SEED: u64 = 11;
 
@@ -41,11 +40,10 @@ fn random_blob(rng: &mut impl rand::Rng) -> Box<[u8]> {
 fn single_key_insertion(c: &mut Criterion) {
     // TODO: Maybe create a temp file somehow?
     let dir_path = "benchmark_single_key_insertion";
-    let key_size = std::mem::size_of::<U64Key>();
     let page_size = 4096;
 
     let tree: BTreeStore<U64Key> =
-        BTreeStore::new(dir_path, key_size.try_into().unwrap(), page_size).unwrap();
+        BTreeStore::new(dir_path, page_size).unwrap();
 
     let n: u64 = 200_000;
 
@@ -78,11 +76,10 @@ fn single_key_insertion(c: &mut Criterion) {
 
 fn single_key_search(c: &mut Criterion) {
     let dir_path = "benchmark_single_key_search";
-    let key_size = std::mem::size_of::<U64Key>();
     let page_size = 4096;
 
     let tree: BTreeStore<U64Key> =
-        BTreeStore::new(dir_path, key_size.try_into().unwrap(), page_size).unwrap();
+        BTreeStore::new(dir_path, page_size).unwrap();
 
     let n: u64 = 200_000;
 
