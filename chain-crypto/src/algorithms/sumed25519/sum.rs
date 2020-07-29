@@ -1,9 +1,11 @@
 use super::common::{self, Depth, Seed};
 use ed25519_dalek as ed25519;
 use ed25519_dalek::Digest;
-//use std::hash::Hash;
+use ed25519_dalek::Signer;
+use ed25519_dalek::signature::Signature as _;
+use ed25519_dalek::Verifier;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Error {
     Ed25519SignatureError(ed25519::SignatureError),
     InvalidSecretKeySize(usize),
