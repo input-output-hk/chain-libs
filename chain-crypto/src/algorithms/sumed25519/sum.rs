@@ -4,6 +4,7 @@ use ed25519_dalek::Digest;
 use ed25519_dalek::Signer;
 use ed25519_dalek::Signature as _;
 use ed25519_dalek::Verifier;
+use signature::signature::Signature;
 
 #[derive(Debug)]
 pub enum Error {
