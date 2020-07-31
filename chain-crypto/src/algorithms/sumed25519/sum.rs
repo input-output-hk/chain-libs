@@ -2,7 +2,7 @@ use super::common::{self, Depth, Seed};
 use ed25519_dalek as ed25519;
 use ed25519_dalek::Digest;
 use ed25519_dalek::Signer;
-use ed25519_dalek::signature::Signature as _;
+use ed25519_dalek::Signature as _;
 use ed25519_dalek::Verifier;
 
 #[derive(Debug)]
