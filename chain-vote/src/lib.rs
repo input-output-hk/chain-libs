@@ -126,6 +126,7 @@ impl Tally {
     }
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn result(
     max_votes: u64,
     table_size: usize,
@@ -198,7 +199,6 @@ mod tests {
     use super::*;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
-    use crate::shvzk::prove;
 
     #[test]
     fn encdec1() {
