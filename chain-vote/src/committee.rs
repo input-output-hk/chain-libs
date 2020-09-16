@@ -71,7 +71,7 @@ impl MemberState {
         }
 
         let mut encrypted = Vec::new();
-        for i in 0..n {
+        for (i, pk) in committee_pks.iter().enumerate().take(n) {
             // don't generate share for self
             if i == my {
                 continue;
@@ -80,7 +80,6 @@ impl MemberState {
                 let share_comm = pcomm.evaluate(&idx);
                 let share_shek = pshek.evaluate(&idx);
 
-                let pk = &committee_pks[i];
                 let ck_comm = CommitmentKey::generate(rng);
                 let ck_shek = CommitmentKey::generate(rng);
 

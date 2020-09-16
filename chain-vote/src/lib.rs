@@ -62,6 +62,7 @@ pub fn encrypt_vote<R: RngCore + CryptoRng>(
 }
 
 /// Verify that the encrypted vote is valid without opening it
+#[allow(clippy::ptr_arg)]
 pub fn verify_vote(
     public_key: &EncryptingVoteKey,
     vote: &EncryptedVote,
@@ -102,6 +103,7 @@ impl Tally {
     ///
     /// Note that the encrypted vote needs to have the exact same number of
     /// options as the tally expect otherwise an assert will trigger
+    #[allow(clippy::ptr_arg)]
     pub fn add(&mut self, vote: &EncryptedVote, weight: u64) {
         assert_eq!(vote.len(), self.r.len());
         for (ri, ci) in self.r.iter_mut().zip(vote.iter()) {
@@ -121,6 +123,7 @@ impl Tally {
     }
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn result(
     max_votes: u64,
     table_size: usize,
@@ -167,7 +170,7 @@ pub fn result(
                         break;
                     }
 
-                    if &e == &r {
+                    if e == r {
                         found = Some(i);
                         break;
                     }
@@ -193,7 +196,6 @@ mod tests {
     use super::*;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
-    use crate::shvzk::prove;
 
     #[test]
     fn encdec1() {
