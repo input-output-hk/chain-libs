@@ -213,7 +213,7 @@ pub fn prove<R: RngCore + CryptoRng>(
             .enumerate()
             .map(|(i, r)| {
                 let mut sum = Scalar::zero();
-                for (j, (_, pj) ) in ciphers.iter().zip(&pjs).enumerate() {
+                for (j, (_, pj)) in ciphers.iter().zip(&pjs).enumerate() {
                     sum = sum + (cy.power(j) * pj.get_coefficient_at(i))
                 }
 

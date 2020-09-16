@@ -18,7 +18,7 @@ impl std::fmt::Display for Polynomial {
             match d {
                 0 => write!(f, "{:?}", coef)?,
                 1 => write!(f, "{:?} x +", coef)?,
-                _ => write!(f, "{:?} x^{} +", coef, d)?
+                _ => write!(f, "{:?} x^{} +", coef, d)?,
             }
         }
         Ok(())

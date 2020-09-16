@@ -35,7 +35,9 @@ impl UnitVector {
         self.size
     }
 
-    pub fn is_empty(&self) -> bool { self.len() == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     pub fn ith(&self) -> usize {
         self.ith
