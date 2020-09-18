@@ -458,7 +458,7 @@ impl VotePlanManager {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::block::BlockDate;
     use crate::testing::{TestGen, VoteTestGen};
@@ -722,7 +722,7 @@ mod tests {
         );
     }
 
-    fn get_tally_proof(wallet: &Wallet, id: VotePlanId) -> TallyProof {
+    pub fn get_tally_proof(wallet: &Wallet, id: VotePlanId) -> TallyProof {
         let certificate = build_vote_tally_cert(id);
         let fragment = TestTxCertBuilder::new(TestGen::hash(), LinearFee::new(0, 0, 0))
             .make_transaction(&[&wallet], &certificate);
@@ -798,7 +798,11 @@ mod tests {
         vote_tally_succesful(&second_proposal_manager, &stake_controlled, &governance);
     }
 
-    fn governance_50_percent(blank: &Choice, favorable: &Choice, rejection: &Choice) -> Governance {
+    pub fn governance_50_percent(
+        blank: &Choice,
+        favorable: &Choice,
+        rejection: &Choice,
+    ) -> Governance {
         let gov_acceptance_criteria = GovernanceAcceptanceCriteria {
             minimum_stake_participation: Some(Ratio {
                 numerator: 50,
