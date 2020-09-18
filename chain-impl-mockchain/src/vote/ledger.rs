@@ -151,3 +151,203 @@ impl Default for VotePlanLedger {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{
+        block::BlockDate,
+        testing::{TestGen, VoteTestGen},
+        vote::{
+            ledger::{VoteCast, VotePlan},
+            PayloadType, VotePlanLedger, VotePlanLedgerError,
+        },
+    };
+    use chain_core::property::BlockDate as _;
+    use std::collections::HashSet;
+
+    #[test]
+    pub fn add_vote_plan_negative() {
+        let ledger: VotePlanLedger = Default::default();
+
+        let vote_plan = VotePlan::new(
+            BlockDate::from_epoch_slot_id(1, 0),
+            BlockDate::from_epoch_slot_id(2, 0),
+            BlockDate::from_epoch_slot_id(3, 0),
+            VoteTestGen::proposals(3),
+            PayloadType::Public,
+        );
+
+        let current_date = BlockDate {
+            epoch: 2,
+            slot_id: 1,
+        };
+
+        assert_eq!(
+            VotePlanLedgerError::VotePlanVoteEndPassed {
+                current_date: current_date.clone(),
+                vote_end: vote_plan.vote_end(),
+            },
+            ledger
+                .add_vote_plan(current_date, vote_plan.clone(), HashSet::new())
+                .err()
+                .unwrap()
+        );
+
+        let current_date = BlockDate {
+            epoch: 1,
+            slot_id: 1,
+        };
+
+        assert_eq!(
+            VotePlanLedgerError::VotePlanVoteStartStartedAlready {
+                current_date: current_date.clone(),
+                vote_start: vote_plan.vote_start(),
+            },
+            ledger
+                .add_vote_plan(current_date, vote_plan, HashSet::new())
+                .err()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn apply_vote_plan_negative() {
+        let mut ledger: VotePlanLedger = Default::default();
+
+        let vote_plan = VotePlan::new(
+            BlockDate::from_epoch_slot_id(1, 0),
+            BlockDate::from_epoch_slot_id(2, 0),
+            BlockDate::from_epoch_slot_id(3, 0),
+            VoteTestGen::proposals(3),
+            PayloadType::Public,
+        );
+
+        let mut current_date = BlockDate {
+            epoch: 0,
+            slot_id: 1,
+        };
+
+        ledger = ledger
+            .add_vote_plan(current_date, vote_plan.clone(), HashSet::new())
+            .unwrap();
+
+        current_date = BlockDate {
+            epoch: 2,
+            slot_id: 1,
+        };
+
+        let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
+
+        assert!(ledger
+            .apply_vote(
+                current_date,
+                TestGen::unspecified_account_identifier(),
+                vote_cast.clone()
+            )
+            .is_err());
+
+        current_date = BlockDate {
+            epoch: 1,
+            slot_id: 1,
+        };
+        assert!(ledger
+            .apply_vote(
+                current_date,
+                TestGen::unspecified_account_identifier(),
+                vote_cast.clone()
+            )
+            .is_ok());
+    }
+
+    use crate::testing::data::Wallet;
+    use crate::{
+        stake::Stake,
+        value::Value,
+        vote::{
+            ledger::{StakeControl, VoteTally},
+            manager::tests::{get_tally_proof, governance_50_percent},
+            Choice,
+        },
+    };
+
+    #[test]
+    pub fn apply_committee_result_test() {
+        let mut ledger: VotePlanLedger = Default::default();
+        let identifier = TestGen::unspecified_account_identifier();
+        let committee = Wallet::from_value(Value(100));
+        let wrong_committee = Wallet::from_value(Value(100));
+
+        let blank = Choice::new(0);
+        let favorable = Choice::new(1);
+        let rejection = Choice::new(2);
+
+        let vote_plan = VotePlan::new(
+            BlockDate::from_epoch_slot_id(1, 0),
+            BlockDate::from_epoch_slot_id(2, 0),
+            BlockDate::from_epoch_slot_id(3, 0),
+            VoteTestGen::proposals(3),
+            PayloadType::Public,
+        );
+
+        let mut current_date = BlockDate {
+            epoch: 0,
+            slot_id: 1,
+        };
+
+        let mut committee_ids = HashSet::new();
+        committee_ids.insert(committee.public_key().into());
+
+        ledger = ledger
+            .add_vote_plan(current_date, vote_plan.clone(), committee_ids)
+            .unwrap();
+
+        current_date = BlockDate {
+            epoch: 1,
+            slot_id: 1,
+        };
+
+        let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
+        ledger
+            .apply_vote(current_date, identifier.clone(), vote_cast.clone())
+            .unwrap();
+
+        let mut stake_controlled = StakeControl::new();
+        stake_controlled =
+            stake_controlled.add_to(identifier.to_single_account().unwrap(), Stake(51));
+        stake_controlled = stake_controlled.add_unassigned(Stake(49));
+        let governance = governance_50_percent(&blank, &favorable, &rejection);
+
+        let tally = VoteTally::new_public(vote_plan.to_id());
+        let tally_proof = get_tally_proof(&committee, vote_plan.to_id());
+
+        current_date = BlockDate {
+            epoch: 2,
+            slot_id: 1,
+        };
+
+        assert!(ledger
+            .apply_committee_result(
+                current_date,
+                &stake_controlled,
+                &governance,
+                &tally,
+                tally_proof,
+                &mut |_| ()
+            )
+            .is_ok());
+
+        let wrong_tally_proof = get_tally_proof(&wrong_committee, vote_plan.to_id());
+
+        assert!(ledger
+            .apply_committee_result(
+                current_date,
+                &stake_controlled,
+                &governance,
+                &tally,
+                wrong_tally_proof,
+                &mut |_| ()
+            )
+            .is_err());
+    }
+}
