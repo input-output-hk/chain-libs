@@ -136,6 +136,8 @@ impl Into<VotePlan> for VotePlanDef {
             self.end_tally_date,
             proposals,
             PayloadType::Public,
+            //TODO: generate keys
+            Vec::new(),
         )
     }
 }

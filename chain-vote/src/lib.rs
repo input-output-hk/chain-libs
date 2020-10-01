@@ -23,7 +23,9 @@ pub mod debug {
 
 use rand_core::{CryptoRng, RngCore};
 
-pub use committee::{MemberCommunicationKey, MemberCommunicationPublicKey, MemberState};
+pub use committee::{
+    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, MemberState,
+};
 pub use encrypted::EncryptingVote;
 use gang::Scalar;
 pub use gargamel::Ciphertext;

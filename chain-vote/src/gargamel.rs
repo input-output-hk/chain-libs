@@ -5,7 +5,7 @@ use rand_core::{CryptoRng, RngCore};
 use std::ops::{Add, Mul};
 
 // ElGamal Ciphertext
-#[derive(Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PublicKey {
     pub pk: GroupElement,
 }
@@ -31,9 +31,9 @@ impl PublicKey {
     pub fn to_bytes(&self) -> Vec<u8> {
         self.pk.to_bytes().to_vec()
     }
-    pub fn from_bytes(key: &[u8]) -> Option<Self> {
+    pub fn from_bytes(buf: &[u8]) -> Option<Self> {
         Some(Self {
-            pk: GroupElement::from_bytes(key)?,
+            pk: GroupElement::from_bytes(buf)?,
         })
     }
 }
