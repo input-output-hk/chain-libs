@@ -126,6 +126,10 @@ impl Tally {
         }
         (TallyState { r2s }, TallyDecryptShare { r1s: dshares })
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.r.iter().flat_map(|ct| ct.to_bytes()).collect()
+    }
 }
 
 #[allow(clippy::ptr_arg)]
