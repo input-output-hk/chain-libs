@@ -1,5 +1,6 @@
 use eccoxide::curve::sec2::p256k1::{FieldElement, Point, PointAffine, Scalar as IScalar};
 use rand_core::{CryptoRng, RngCore};
+use std::hash::{Hash, Hasher};
 use std::ops::{Add, Mul, Sub};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -7,6 +8,20 @@ pub struct Scalar(IScalar);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupElement(Point);
+
+#[allow(clippy::derive_hash_xor_eq)]
+impl Hash for GroupElement {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.to_bytes())
+    }
+}
+
+#[allow(clippy::derive_hash_xor_eq)]
+impl Hash for Scalar {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.to_bytes())
+    }
+}
 
 impl GroupElement {
     pub fn generator() -> Self {
