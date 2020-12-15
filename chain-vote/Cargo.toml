@@ -13,10 +13,10 @@ eccoxide = { version = "0.3", optional = true }
 zerocaf = { version = "0.2", optional = true }
 
 criterion = { version = "0.3", optional = true }
-rand_chacha = { version = "0.2", optional = true }
+rand_chacha = { version = "0.3", optional = true }
 
 [dev-dependencies]
-rand_chacha = "0.2"
+rand_chacha = "0.3"
 smoke = "^0.2.1"
 
 [features]
