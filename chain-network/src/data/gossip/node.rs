@@ -35,6 +35,7 @@ impl From<Node> for Vec<u8> {
     }
 }
 
+#[derive(Clone)]
 pub struct Gossip {
     pub nodes: Nodes,
 }
