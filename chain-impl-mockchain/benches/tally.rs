@@ -24,17 +24,11 @@ const ALICE: &str = "Alice";
 const STAKE_POOL: &str = "stake_pool";
 const VOTE_PLAN: &str = "fund1";
 
-fn voters_aliases(count: usize) -> Vec<String> {
-    let mut counter = 0;
-    std::iter::from_fn(|| {
-        counter += 1;
-        Some(format!("voter_{}", counter))
-    })
-    .take(count)
-    .collect()
-}
-
-fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Criterion) {
+fn tally_benchmark(
+    bench_name_suffix: &str,
+    voting_powers: impl Iterator<Item = u64>,
+    c: &mut Criterion,
+) {
     const MEMBERS_NO: usize = 3;
     const THRESHOLD: usize = 2;
     let favorable = Choice::new(1);
@@ -48,16 +42,24 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
         .committee_member();
     wallets.push(&mut alice_wallet_builder);
 
-    let voters_aliases = voters_aliases(voters_count);
-    let mut wallet_builders: Vec<WalletTemplateBuilder> =
-        voters_aliases.iter().map(|alias| wallet(alias)).collect();
+    let mut voters_aliases = Vec::new();
+    let mut voters_wallets = Vec::new();
+    let mut total_votes = 0u64;
 
-    for wallet_builder in wallet_builders.iter_mut() {
-        wallet_builder.with(voting_power_per_voter);
-        wallets.push(wallet_builder);
+    for (i, voting_power) in voting_powers.enumerate() {
+        let alias = format!("voter_{}", i);
+        let mut wallet_builder = wallet(&alias);
+        wallet_builder.with(voting_power);
+        voters_wallets.push(wallet_builder);
+        voters_aliases.push(alias);
+        total_votes += voting_power;
     }
 
-    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+    voters_wallets
+        .iter_mut()
+        .for_each(|wallet| wallets.push(wallet));
+
+    let mut rng = TestCryptoRng::from_seed([0u8; 16]);
     let members = CommitteeMembersManager::new(&mut rng, THRESHOLD, MEMBERS_NO);
 
     let committee_keys = members
@@ -121,16 +123,17 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
     let parameters = ledger.parameters.clone();
     let date = ledger.date();
 
-    let bench_name_suffix = format!("_{}_voters_{}_ada", voters_count, voting_power_per_voter);
-
-    c.bench_function(&format!("vote_encrypted_tally{}", bench_name_suffix), |b| {
-        b.iter(|| {
-            ledger
-                .ledger
-                .apply_fragment(&parameters, &fragment, date)
-                .unwrap();
-        })
-    });
+    c.bench_function(
+        &format!("vote_encrypted_tally_{}", bench_name_suffix),
+        |b| {
+            b.iter(|| {
+                ledger
+                    .ledger
+                    .apply_fragment(&parameters, &fragment, date)
+                    .unwrap();
+            })
+        },
+    );
 
     ledger.apply_fragment(&fragment, ledger.date()).unwrap();
     alice.confirm_transaction();
@@ -144,7 +147,7 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
         })
         .unwrap();
 
-    c.bench_function(&format!("tally_decrypt_share{}", bench_name_suffix), |b| {
+    c.bench_function(&format!("tally_decrypt_share_{}", bench_name_suffix), |b| {
         b.iter(|| {
             members.members()[0].produce_decrypt_shares(&vote_plan_status);
         })
@@ -159,7 +162,6 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
         .collect();
 
     let decrypt_tally = || {
-        let total_votes = voters_count as u64 * voting_power_per_voter;
         let tally_state = vote_plan_status.proposals[0]
             .tally
             .clone()
@@ -173,7 +175,7 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
     };
 
     c.bench_function(
-        &format!("decrypt_private_tally{}", bench_name_suffix),
+        &format!("decrypt_private_tally_{}", bench_name_suffix),
         |b| b.iter(decrypt_tally),
     );
 
@@ -189,7 +191,7 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
         .fragment_factory()
         .vote_tally(&alice, decrypted_tally);
 
-    c.bench_function(&format!("vote_tally{}", bench_name_suffix), |b| {
+    c.bench_function(&format!("vote_tally_{}", bench_name_suffix), |b| {
         b.iter(|| {
             ledger
                 .ledger
@@ -202,19 +204,35 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
 }
 
 fn tally_benchmark_128_voters_1000_ada(c: &mut Criterion) {
-    tally_benchmark(128, 1000, c);
+    tally_benchmark("128_voters_1000_ada", std::iter::repeat(1000).take(128), c);
 }
 
 fn tally_benchmark_200_voters_1000_ada(c: &mut Criterion) {
-    tally_benchmark(200, 1000, c);
+    tally_benchmark("200_voters_1000_ada", std::iter::repeat(1000).take(200), c);
 }
 
 fn tally_benchmark_200_voters_1_000_000_ada(c: &mut Criterion) {
-    tally_benchmark(200, 1_000_000, c);
+    tally_benchmark(
+        "200_voters_1_000_000_ada",
+        std::iter::repeat(1_000_000).take(200),
+        c,
+    );
 }
 
 fn tally_benchmark_1000_voters_1000_ada(c: &mut Criterion) {
-    tally_benchmark(1000, 1000, c);
+    tally_benchmark(
+        "1000_voters_1000_ada",
+        std::iter::repeat(1000).take(1000),
+        c,
+    );
+}
+
+fn tally_benchmark_fund2_stake(c: &mut Criterion) {
+    let mut csv_reader = csv::Reader::from_path("./benches/fund2_sim.csv").unwrap();
+    let csv_iter = csv_reader
+        .records()
+        .map(|record| record.unwrap()[0].parse().unwrap());
+    tally_benchmark("fund2_stake_data_based", csv_iter, c);
 }
 
 criterion_group!(
@@ -223,5 +241,6 @@ criterion_group!(
     tally_benchmark_200_voters_1000_ada,
     tally_benchmark_200_voters_1_000_000_ada,
     tally_benchmark_1000_voters_1000_ada,
+    tally_benchmark_fund2_stake,
 );
 criterion_main!(benches);
