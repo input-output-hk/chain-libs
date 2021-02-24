@@ -1,5 +1,4 @@
 use chain_crypto::testing::TestCryptoRng;
-use chain_impl_mockchain::testing::scenario::template::WalletTemplateBuilder;
 use chain_impl_mockchain::{
     certificate::{
         DecryptedPrivateTally, DecryptedPrivateTallyProposal, EncryptedVoteTally, VotePlan,
@@ -39,25 +38,19 @@ fn tally_benchmark(voters_count: usize, voting_power_per_voter: u64, c: &mut Cri
     const THRESHOLD: usize = 2;
     let favorable = Choice::new(1);
 
-    let mut wallets: Vec<&mut WalletTemplateBuilder> = Vec::new();
-
-    let mut alice_wallet_builder = wallet(ALICE);
-    alice_wallet_builder
+    let alice_wallet_builder = wallet(ALICE)
         .with(1_000)
         .owns(STAKE_POOL)
         .committee_member();
-    wallets.push(&mut alice_wallet_builder);
 
     let voters_aliases = voters_aliases(voters_count);
-    let mut wallet_builders: Vec<WalletTemplateBuilder> =
-        voters_aliases.iter().map(|alias| wallet(alias)).collect();
+    let wallets: Vec<_> = voters_aliases
+        .iter()
+        .map(|alias| wallet(alias).with(voting_power_per_voter))
+        .chain(std::iter::once(alice_wallet_builder))
+        .collect();
 
-    for wallet_builder in wallet_builders.iter_mut() {
-        wallet_builder.with(voting_power_per_voter);
-        wallets.push(wallet_builder);
-    }
-
-    let mut rng = TestCryptoRng::from_seed([0u8; 16]);
+    let mut rng = TestCryptoRng::from_seed([0u8; 32]);
     let members = CommitteeMembersManager::new(&mut rng, THRESHOLD, MEMBERS_NO);
 
     let committee_keys = members

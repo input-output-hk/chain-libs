@@ -32,41 +32,39 @@ impl GenesisPraosBlockBuilder {
         }
     }
 
-    pub fn with_parent(&mut self, parent: &Header) -> &mut Self {
-        self.with_parent_id(parent.hash());
-        self.with_date(parent.block_date());
-        self.with_chain_length(parent.chain_length());
-        self
+    pub fn with_parent(self, parent: &Header) -> Self {
+        self.with_parent_id(parent.hash())
+            .with_date(parent.block_date())
+            .with_chain_length(parent.chain_length())
     }
 
-    pub fn with_parent_id(&mut self, parent_id: Hash) -> &mut Self {
+    pub fn with_parent_id(mut self, parent_id: Hash) -> Self {
         self.parent_id = Some(parent_id);
         self
     }
 
-    pub fn with_date(&mut self, date: BlockDate) -> &mut Self {
+    pub fn with_date(mut self, date: BlockDate) -> Self {
         self.date = Some(date);
         self
     }
 
-    pub fn with_chain_length(&mut self, chain_length: ChainLength) -> &mut Self {
+    pub fn with_chain_length(mut self, chain_length: ChainLength) -> Self {
         self.chain_length = Some(chain_length);
         self
     }
 
-    pub fn with_fragment(&mut self, fragment: Fragment) -> &mut Self {
+    pub fn with_fragment(mut self, fragment: Fragment) -> Self {
         self.contents_builder.push(fragment);
         self
     }
 
-    pub fn with_fragments(&mut self, fragments: Vec<Fragment>) -> &mut Self {
-        for fragment in fragments {
-            self.with_fragment(fragment);
-        }
-        self
+    pub fn with_fragments(self, fragments: Vec<Fragment>) -> Self {
+        fragments
+            .into_iter()
+            .fold(self, |builder, fragment| builder.with_fragment(fragment))
     }
 
-    pub fn build(&self, stake_pool: &StakePool, time_era: &TimeEra) -> Block {
+    pub fn build(self, stake_pool: &StakePool, time_era: &TimeEra) -> Block {
         if self.date.is_none() || self.chain_length.is_none() || self.parent_id.is_none() {
             panic!("date,chain_length or hash is not set");
         }

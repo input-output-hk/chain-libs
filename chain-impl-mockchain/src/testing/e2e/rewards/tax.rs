@@ -90,7 +90,7 @@ pub fn no_tax() {
 
 fn verify_distribute_rewards(
     total_reward: u64,
-    stake_pool_builder: &mut StakePoolDefBuilder,
+    stake_pool_builder: StakePoolDefBuilder,
     expected_stake_pool_reward: u64,
 ) {
     let (mut ledger, controller) = prepare_scenario()

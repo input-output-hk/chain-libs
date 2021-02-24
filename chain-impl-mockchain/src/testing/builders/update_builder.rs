@@ -24,19 +24,19 @@ impl ProposalBuilder {
             config_params: ConfigParams::new(),
         }
     }
-    pub fn with_proposal_changes(&mut self, changes: Vec<ConfigParam>) -> &mut Self {
-        for change in changes {
-            self.with_proposal_change(change);
-        }
-        self
+
+    pub fn with_proposal_changes(self, changes: Vec<ConfigParam>) -> Self {
+        changes
+            .into_iter()
+            .fold(self, |builder, change| builder.with_proposal_change(change))
     }
 
-    pub fn with_proposal_change(&mut self, change: ConfigParam) -> &mut Self {
+    pub fn with_proposal_change(mut self, change: ConfigParam) -> Self {
         self.config_params.push(change);
         self
     }
 
-    pub fn build(&self) -> UpdateProposal {
+    pub fn build(self) -> UpdateProposal {
         let mut update_proposal = UpdateProposal::new();
         for config_param in self.config_params.iter().cloned() {
             update_proposal.changes.push(config_param);
@@ -59,17 +59,17 @@ impl SignedProposalBuilder {
         }
     }
 
-    pub fn with_proposer_id(&mut self, proposer_id: BftLeaderId) -> &mut Self {
+    pub fn with_proposer_id(mut self, proposer_id: BftLeaderId) -> Self {
         self.proposer_id = Some(proposer_id);
         self
     }
 
-    pub fn with_proposal_update(&mut self, update_proposal: UpdateProposal) -> &mut Self {
+    pub fn with_proposal_update(mut self, update_proposal: UpdateProposal) -> Self {
         self.update_proposal = Some(update_proposal);
         self
     }
 
-    pub fn build(&self) -> SignedUpdateProposal {
+    pub fn build(self) -> SignedUpdateProposal {
         SignedUpdateProposal {
             proposal: UpdateProposalWithProposer {
                 proposal: self.update_proposal.clone().unwrap(),
@@ -93,17 +93,17 @@ impl UpdateVoteBuilder {
         }
     }
 
-    pub fn with_proposal_id(&mut self, proposal_id: UpdateProposalId) -> &mut Self {
+    pub fn with_proposal_id(mut self, proposal_id: UpdateProposalId) -> Self {
         self.proposal_id = Some(proposal_id);
         self
     }
 
-    pub fn with_voter_id(&mut self, voter_id: BftLeaderId) -> &mut Self {
+    pub fn with_voter_id(mut self, voter_id: BftLeaderId) -> Self {
         self.voter_id = Some(voter_id);
         self
     }
 
-    pub fn build(&self) -> SignedUpdateVote {
+    pub fn build(self) -> SignedUpdateVote {
         let update_vote = UpdateVote {
             proposal_id: self.proposal_id.unwrap(),
             voter_id: self.voter_id.clone().unwrap(),
