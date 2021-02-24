@@ -38,32 +38,31 @@ impl WalletTemplateBuilder {
         }
     }
 
-    pub fn with(&mut self, value: u64) -> &mut Self {
+    pub fn with(mut self, value: u64) -> Self {
         self.initial_value = Some(Value(value));
         self
     }
 
-    pub fn owns(&mut self, ownership_alias: &str) -> &mut Self {
+    pub fn owns(mut self, ownership_alias: &str) -> Self {
         self.ownership_alias = Some(ownership_alias.to_owned());
         self
     }
 
-    pub fn delegates_to(&mut self, delegates_to_alias: &str) -> &mut Self {
+    pub fn delegates_to(mut self, delegates_to_alias: &str) -> Self {
         self.delagate_alias = Some(delegates_to_alias.to_owned());
         self
     }
 
-    pub fn committee_member(&mut self) -> &mut Self {
+    pub fn committee_member(mut self) -> Self {
         self.committee_member = true;
         self
     }
 
-    pub fn owns_and_delegates_to(&mut self, ownership_alias: &str) -> &mut Self {
-        self.owns(ownership_alias).delegates_to(ownership_alias);
-        self
+    pub fn owns_and_delegates_to(self, ownership_alias: &str) -> Self {
+        self.owns(ownership_alias).delegates_to(ownership_alias)
     }
 
-    pub fn build(&self) -> Result<WalletTemplate, ScenarioBuilderError> {
+    pub fn build(self) -> Result<WalletTemplate, ScenarioBuilderError> {
         let value = self
             .initial_value
             .ok_or(ScenarioBuilderError::UndefinedValueForWallet {
@@ -179,17 +178,17 @@ impl StakePoolDefBuilder {
         }
     }
 
-    pub fn with_permissions_threshold(&mut self, threshold: u8) -> &mut Self {
+    pub fn with_permissions_threshold(mut self, threshold: u8) -> Self {
         self.permissions_threshold = threshold;
         self
     }
 
-    pub fn with_reward_account(&mut self, reward_account: bool) -> &mut Self {
+    pub fn with_reward_account(mut self, reward_account: bool) -> Self {
         self.reward_account = reward_account;
         self
     }
 
-    pub fn tax_ratio(&mut self, numerator: u64, denominator: u64) -> &mut Self {
+    pub fn tax_ratio(mut self, numerator: u64, denominator: u64) -> Self {
         self.tax_type = Some(TaxType {
             fixed: Value(0),
             ratio: Ratio {
@@ -201,7 +200,7 @@ impl StakePoolDefBuilder {
         self
     }
 
-    pub fn tax_limit(&mut self, limit: u64) -> &mut Self {
+    pub fn tax_limit(mut self, limit: u64) -> Self {
         match self.tax_type.as_mut() {
             Some(tax_type) => tax_type.max_limit = Some(NonZeroU64::new(limit).unwrap()),
             None => unreachable!("setting tax limit for none TaxType"),
@@ -209,7 +208,7 @@ impl StakePoolDefBuilder {
         self
     }
 
-    pub fn fixed_tax(&mut self, value: u64) -> &mut Self {
+    pub fn fixed_tax(mut self, value: u64) -> Self {
         self.tax_type = Some(TaxType {
             fixed: Value(value),
             ratio: Ratio::zero(),
@@ -218,12 +217,12 @@ impl StakePoolDefBuilder {
         self
     }
 
-    pub fn no_tax(&mut self) -> &mut Self {
+    pub fn no_tax(mut self) -> Self {
         self.tax_type = Some(TaxType::zero());
         self
     }
 
-    pub fn build(&self) -> StakePoolDef {
+    pub fn build(self) -> StakePoolDef {
         StakePoolDef {
             alias: self.alias.clone(),
             permissions_threshold: Some(self.permissions_threshold),
@@ -259,22 +258,22 @@ impl VotePlanDefBuilder {
         }
     }
 
-    pub fn owner(&mut self, owner_alias: &str) -> &mut Self {
+    pub fn owner(mut self, owner_alias: &str) -> Self {
         self.owner_alias = Some(owner_alias.to_string());
         self
     }
 
-    pub fn payload_type(&mut self, payload_type: PayloadType) -> &mut Self {
+    pub fn payload_type(mut self, payload_type: PayloadType) -> Self {
         self.payload_type = payload_type;
         self
     }
 
-    pub fn committee_keys(&mut self, committee_keys: Vec<MemberPublicKey>) -> &mut Self {
+    pub fn committee_keys(mut self, committee_keys: Vec<MemberPublicKey>) -> Self {
         self.committee_keys = committee_keys;
         self
     }
 
-    pub fn vote_phases(&mut self, start_epoch: u32, tally_epoch: u32, end_epoch: u32) -> &mut Self {
+    pub fn vote_phases(mut self, start_epoch: u32, tally_epoch: u32, end_epoch: u32) -> Self {
         self.vote_date = Some(BlockDate {
             epoch: start_epoch,
             slot_id: 0,
@@ -290,7 +289,7 @@ impl VotePlanDefBuilder {
         self
     }
 
-    pub fn consecutive_epoch_dates(&mut self) -> &mut Self {
+    pub fn consecutive_epoch_dates(mut self) -> Self {
         self.vote_date = Some(BlockDate {
             epoch: 0,
             slot_id: 0,
@@ -306,7 +305,7 @@ impl VotePlanDefBuilder {
         self
     }
 
-    pub fn with_proposal(&mut self, proposal_builder: &mut ProposalDefBuilder) -> &mut Self {
+    pub fn with_proposal(mut self, proposal_builder: ProposalDefBuilder) -> Self {
         self.proposals.push(proposal_builder.clone().build());
         self
     }
@@ -341,17 +340,17 @@ impl ProposalDefBuilder {
         }
     }
 
-    pub fn options(&mut self, options: u8) -> &mut Self {
+    pub fn options(mut self, options: u8) -> Self {
         self.options = options;
         self
     }
 
-    pub fn action_off_chain(&mut self) -> &mut Self {
+    pub fn action_off_chain(mut self) -> Self {
         self.action_type = VoteAction::OffChain;
         self
     }
 
-    pub fn action_rewards_add(&mut self, value: u64) -> &mut Self {
+    pub fn action_rewards_add(mut self, value: u64) -> Self {
         self.action_type = VoteAction::Treasury {
             action: TreasuryGovernanceAction::TransferToRewards {
                 value: Value(value),
@@ -360,7 +359,7 @@ impl ProposalDefBuilder {
         self
     }
 
-    pub fn action_transfer_to_rewards(&mut self, value: u64) -> &mut Self {
+    pub fn action_transfer_to_rewards(mut self, value: u64) -> Self {
         self.action_type = VoteAction::Parameters {
             action: ParametersGovernanceAction::RewardAdd {
                 value: Value(value),
@@ -369,7 +368,7 @@ impl ProposalDefBuilder {
         self
     }
 
-    pub fn action_parameters_no_op(&mut self) -> &mut Self {
+    pub fn action_parameters_no_op(mut self) -> Self {
         self.action_type = VoteAction::Parameters {
             action: ParametersGovernanceAction::NoOp,
         };

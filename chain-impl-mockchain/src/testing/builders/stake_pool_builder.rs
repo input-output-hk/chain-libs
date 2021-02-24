@@ -45,37 +45,37 @@ impl StakePoolBuilder {
         }
     }
 
-    pub fn with_owners(&mut self, owners: Vec<PublicKey<Ed25519>>) -> &mut Self {
+    pub fn with_owners(mut self, owners: Vec<PublicKey<Ed25519>>) -> Self {
         self.owners.extend(owners);
         self
     }
 
-    pub fn with_alias(&mut self, alias: &str) -> &mut Self {
+    pub fn with_alias(mut self, alias: &str) -> Self {
         self.alias = alias.to_owned();
         self
     }
 
-    pub fn with_operators(&mut self, operators: Vec<PublicKey<Ed25519>>) -> &mut Self {
+    pub fn with_operators(mut self, operators: Vec<PublicKey<Ed25519>>) -> Self {
         self.operators.extend(operators);
         self
     }
 
-    pub fn with_pool_permissions(&mut self, permissions: PoolPermissions) -> &mut Self {
+    pub fn with_pool_permissions(mut self, permissions: PoolPermissions) -> Self {
         self.pool_permissions = Some(permissions);
         self
     }
 
-    pub fn with_reward_account(&mut self, reward_account: bool) -> &mut Self {
+    pub fn with_reward_account(mut self, reward_account: bool) -> Self {
         self.reward_account = reward_account;
         self
     }
 
     pub fn with_ratio_tax_type(
-        &mut self,
+        self,
         numerator: u64,
         denominator: u64,
         max_limit: Option<u64>,
-    ) -> &mut Self {
+    ) -> Self {
         self.with_tax_type(TaxType {
             fixed: Value(0),
             ratio: Ratio {
@@ -86,12 +86,12 @@ impl StakePoolBuilder {
         })
     }
 
-    pub fn with_tax_type(&mut self, tax_type: TaxType) -> &mut Self {
+    pub fn with_tax_type(mut self, tax_type: TaxType) -> Self {
         self.tax_type = tax_type;
         self
     }
 
-    pub fn build(&self) -> StakePool {
+    pub fn build(self) -> StakePool {
         let mut rng = rand_core::OsRng;
 
         let pool_vrf: KeyPair<RistrettoGroup2HashDh> = KeyPair::generate(&mut rng);
