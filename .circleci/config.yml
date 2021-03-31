@@ -39,7 +39,7 @@ jobs:
           name: Save cargo registry index into cache
           key: cargo-index-v1-{{ checksum ".circleci/crates.io-index.head" }}
           paths:
-            - /usr/local/cargo/registry/index
+            - /home/circleci/.cargo/registry/index
       - restore_cache:
           name: Restore dependency crates from cache
           keys:
@@ -50,7 +50,8 @@ jobs:
           name: Save dependency crates into cache
           key: cargo-deps-v1-{{ checksum "Cargo.lock" }}
           paths:
-            - /usr/local/cargo/registry/cache
+            - /home/circleci/.cargo/registry/cache
+            - /home/circleci/.cargo/git/db
       - persist_to_workspace:
           root: .
           paths:
