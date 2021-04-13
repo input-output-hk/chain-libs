@@ -1,3 +1,4 @@
+use cryptoxide::digest::Digest;
 use eccoxide::curve::sec2::p256k1::{FieldElement, Point, PointAffine, Scalar as IScalar};
 use eccoxide::curve::{Sign as ISign, Sign::Positive};
 use rand_core::{CryptoRng, RngCore};
@@ -56,8 +57,24 @@ impl GroupElement {
     const BYTES_ZERO: [u8; Self::BYTES_LEN] = [0; Self::BYTES_LEN];
 
     /// Point from hash
-    pub fn from_hash(input: &[u8]) -> Option<Self> {
-        let x_coord = Coordinate::from_bytes(input)?;
+    pub fn from_hash<D: Digest>(hash: &mut D) -> Self {
+        // todo: from hash shouldn't be handled like this. This gives an error if the hash does not
+        // have the correct output size.
+        let mut x_bytes = [0u8; 32];
+        let mut i = 1u32;
+        loop {
+            hash.input(&i.to_be_bytes());
+            hash.result(&mut x_bytes);
+            if let Some(point) = Self::from_x_bytes(&x_bytes) {
+                break point;
+            }
+
+            i += 1;
+        }
+    }
+
+    fn from_x_bytes(bytes: &[u8; 32]) -> Option<Self> {
+        let x_coord = Coordinate::from_bytes(bytes)?;
         Self::decompress(&x_coord, Sign(Positive))
     }
 
@@ -76,14 +93,14 @@ impl GroupElement {
     }
 
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let fe = Scalar::random(rng);
-        GroupElement(&Point::generator() * &fe.0)
-    }
+        let mut r = [0u8; 32];
+        loop {
+            rng.fill_bytes(&mut r[..]);
 
-    pub fn random_with_fe<R: RngCore + CryptoRng>(rng: &mut R) -> (Scalar, Self) {
-        let fe = Scalar::random(rng);
-        let ge = GroupElement(&Point::generator() * &fe.0);
-        (fe, ge)
+            if let Some(s) = GroupElement::from_x_bytes(&r) {
+                break s;
+            }
+        }
     }
 
     pub fn normalize(&mut self) {
@@ -391,23 +408,17 @@ mod test {
 
     #[test]
     fn from_hash() {
-        let mut test = 1u8;
-        let mut ctx = Blake2b::new(64);
+        let test = 1u8;
+        let mut ctx = Blake2b::new(32);
         ctx.input(&[test]);
-        let mut hash = [0u8; 64];
-        ctx.result(&mut hash);
 
-        let mut element = GroupElement::from_hash(&hash);
+        let element = GroupElement::from_hash(&mut ctx);
 
-        while element.is_none() {
-            test += 1;
-            ctx = Blake2b::new(64);
-            ctx.input(&[test]);
-            ctx.result(&mut hash);
+        let mut hasher2 = Blake2b::new(32);
+        hasher2.input(&[test]);
 
-            element = GroupElement::from_hash(&hash);
-        }
+        let element2 = GroupElement::from_hash(&mut hasher2);
 
-        assert!(element.is_some())
+        assert_eq!(element, element2)
     }
 }

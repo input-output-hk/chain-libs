@@ -141,17 +141,9 @@ impl Proof {
 fn commitkey(pk: &PublicKey) -> CommitmentKey {
     let mut ctx = Blake2b::new(32);
     ctx.input(&pk.to_bytes());
-    let mut i = 1u32;
-    let mut h = [0u8; 32];
-    loop {
-        ctx.input(&i.to_be_bytes());
-        ctx.result(&mut h);
-        match GroupElement::from_hash(&h) {
-            None => i += 1,
-            Some(fe) => {
-                break CommitmentKey { h: fe };
-            }
-        }
+
+    CommitmentKey {
+        h: GroupElement::from_hash(&mut ctx),
     }
 }
 
