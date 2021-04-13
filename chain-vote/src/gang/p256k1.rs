@@ -1,5 +1,5 @@
 use eccoxide::curve::sec2::p256k1::{FieldElement, Point, PointAffine, Scalar as IScalar};
-use eccoxide::curve::Sign as ISign;
+use eccoxide::curve::{Sign as ISign, Sign::Positive};
 use rand_core::{CryptoRng, RngCore};
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Mul, Sub};
@@ -36,6 +36,16 @@ impl Coordinate {
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         self.0.to_bytes()
     }
+
+    pub fn from_bytes(input: &[u8]) -> Option<Self> {
+        if input.len() < Self::BYTES_LEN {
+            None
+        } else {
+            Some(Coordinate(FieldElement::from_slice(
+                &input[..Self::BYTES_LEN],
+            )?))
+        }
+    }
 }
 
 impl GroupElement {
@@ -44,6 +54,18 @@ impl GroupElement {
 
     /// Serialized GroupElement::zero
     const BYTES_ZERO: [u8; Self::BYTES_LEN] = [0; Self::BYTES_LEN];
+
+    /// Point from hash
+    pub fn from_hash(input: &[u8]) -> Option<Self> {
+        let x_coord = Coordinate::from_bytes(input)?;
+        Self::decompress(&x_coord, Sign(Positive))
+    }
+
+    pub fn decompress(coord: &Coordinate, sign: Sign) -> Option<Self> {
+        Some(GroupElement(Point::from_affine(&PointAffine::decompress(
+            &coord.0, sign.0,
+        )?)))
+    }
 
     pub fn generator() -> Self {
         GroupElement(Point::generator())
@@ -360,3 +382,32 @@ impl<'a, 'b> Sub<&'b GroupElement> for &'a GroupElement {
 lref!(GroupElement, Sub, GroupElement, GroupElement, sub);
 rref!(GroupElement, Sub, GroupElement, GroupElement, sub);
 nref!(GroupElement, Sub, GroupElement, GroupElement, sub);
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use cryptoxide::blake2b::Blake2b;
+    use cryptoxide::digest::Digest;
+
+    #[test]
+    fn from_hash() {
+        let mut test = 1u8;
+        let mut ctx = Blake2b::new(64);
+        ctx.input(&[test]);
+        let mut hash = [0u8; 64];
+        ctx.result(&mut hash);
+
+        let mut element = GroupElement::from_hash(&hash);
+
+        while element.is_none() {
+            test += 1;
+            ctx = Blake2b::new(64);
+            ctx.input(&[test]);
+            ctx.result(&mut hash);
+
+            element = GroupElement::from_hash(&hash);
+        }
+
+        assert!(element.is_some())
+    }
+}

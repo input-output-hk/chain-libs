@@ -146,11 +146,10 @@ fn commitkey(pk: &PublicKey) -> CommitmentKey {
     loop {
         ctx.input(&i.to_be_bytes());
         ctx.result(&mut h);
-        match Scalar::from_bytes(&h) {
+        match GroupElement::from_hash(&h) {
             None => i += 1,
             Some(fe) => {
-                let h = &GroupElement::generator() * &fe;
-                break CommitmentKey { h };
+                break CommitmentKey { h: fe };
             }
         }
     }
