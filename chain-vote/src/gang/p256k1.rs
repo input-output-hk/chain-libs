@@ -11,6 +11,10 @@ pub struct Scalar(IScalar);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupElement(Point);
 
+#[derive(Debug, thiserror::Error)]
+#[error("The length of the hash is incorrect. It should be at least BYTES_LEN of Coordinate.")]
+pub struct IncorrectHashLengthError;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Coordinate(FieldElement);
 
@@ -57,23 +61,26 @@ impl GroupElement {
     const BYTES_ZERO: [u8; Self::BYTES_LEN] = [0; Self::BYTES_LEN];
 
     /// Point from hash
-    pub fn from_hash<D: Digest>(hash: &mut D) -> Self {
-        // todo: from hash shouldn't be handled like this. This gives an error if the hash does not
-        // have the correct output size.
-        let mut x_bytes = [0u8; 32];
+    pub fn from_hash<D: Digest>(hash: &mut D) -> Result<Self, IncorrectHashLengthError> {
+        let hash_length = hash.output_bytes();
+        if hash_length < Coordinate::BYTES_LEN {
+            return Err(IncorrectHashLengthError);
+        }
+
+        let mut x_bytes = vec![0u8; hash_length];
         let mut i = 1u32;
         loop {
             hash.input(&i.to_be_bytes());
             hash.result(&mut x_bytes);
-            if let Some(point) = Self::from_x_bytes(&x_bytes) {
-                break point;
+            if let Some(point) = Self::from_x_bytes(&x_bytes[..Coordinate::BYTES_LEN]) {
+                break Ok(point);
             }
 
             i += 1;
         }
     }
 
-    fn from_x_bytes(bytes: &[u8; 32]) -> Option<Self> {
+    fn from_x_bytes(bytes: &[u8]) -> Option<Self> {
         let x_coord = Coordinate::from_bytes(bytes)?;
         Self::decompress(&x_coord, Sign(Positive))
     }
@@ -412,12 +419,15 @@ mod test {
         let mut ctx = Blake2b::new(32);
         ctx.input(&[test]);
 
-        let element = GroupElement::from_hash(&mut ctx);
+        let element = GroupElement::from_hash(&mut ctx).expect("Size of hasher is correct");
 
-        let mut hasher2 = Blake2b::new(32);
-        hasher2.input(&[test]);
-
-        let element2 = GroupElement::from_hash(&mut hasher2);
+        let element2 = GroupElement::from_bytes(&[
+            4, 109, 163, 157, 183, 235, 211, 106, 178, 248, 76, 30, 227, 198, 243, 240, 63, 255,
+            167, 93, 50, 175, 214, 154, 78, 199, 0, 140, 76, 135, 56, 13, 139, 127, 24, 96, 35, 94,
+            9, 77, 47, 243, 67, 97, 21, 228, 160, 70, 88, 218, 29, 175, 90, 85, 214, 85, 138, 28,
+            144, 115, 184, 127, 211, 226, 200,
+        ])
+        .expect("This point is on the curve");
 
         assert_eq!(element, element2)
     }

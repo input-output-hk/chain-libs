@@ -58,22 +58,24 @@ pub type CRS = committee::CRS;
 /// Take a vote and encrypt it + provide a proof of correct voting
 pub fn encrypt_vote<R: RngCore + CryptoRng>(
     rng: &mut R,
+    crs: &CRS,
     public_key: &EncryptingVoteKey,
     vote: Vote,
 ) -> (EncryptedVote, ProofOfCorrectVote) {
     let ev = EncryptingVote::prepare(rng, &public_key.0, &vote);
-    let proof = shvzk::prove(rng, &public_key.0, ev.clone());
+    let proof = shvzk::prove(rng, &crs, &public_key.0, ev.clone());
     (ev.ciphertexts, proof)
 }
 
 /// Verify that the encrypted vote is valid without opening it
 #[allow(clippy::ptr_arg)]
 pub fn verify_vote(
+    crs: &CRS,
     public_key: &EncryptingVoteKey,
     vote: &EncryptedVote,
     proof: &ProofOfCorrectVote,
 ) -> bool {
-    shvzk::verify(&public_key.0, vote, proof)
+    shvzk::verify(&crs, &public_key.0, vote, proof)
 }
 
 /// The encrypted tally
@@ -313,9 +315,9 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 0));
+        let e1 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
+        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
 
         println!("tallying");
 
@@ -366,11 +368,11 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let (e1, e1_proof) = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 0));
+        let (e1, e1_proof) = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
+        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
 
-        assert!(verify_vote(&ek, &e1, &e1_proof));
+        assert!(verify_vote(&h, &ek, &e1, &e1_proof));
         println!("tallying");
 
         let mut tally = EncryptedTally::new(vote_options);
@@ -418,7 +420,7 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let (e1, _) = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 0));
+        let (e1, _) = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
 
         println!("tallying");
 
@@ -504,9 +506,9 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &ek, Vote::new(vote_options, 0));
+        let e1 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
+        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
 
         let mut tally = EncryptedTally::new(vote_options);
         tally.add(&e1.0, 10);
