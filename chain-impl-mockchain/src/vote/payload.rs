@@ -221,6 +221,8 @@ impl Default for PayloadType {
 mod tests {
     use super::*;
     use quickcheck::{Arbitrary, Gen};
+    use cryptoxide::blake2b::Blake2b;
+    use cryptoxide::digest::Digest;
 
     impl Arbitrary for PayloadType {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -247,7 +249,9 @@ mod tests {
                     let mut gen = rand_chacha::ChaCha20Rng::from_seed(seed);
                     let mc = MemberCommunicationKey::new(&mut gen);
                     let threshold = 1;
-                    let h = CRS::random(&mut gen);
+                    let mut hash_crs = Blake2b::new(32);
+                    hash_crs.input(&seed);
+                    let h = CRS::from_hash(&mut hash_crs).expect("Hash size is correct");
                     let m = MemberState::new(&mut gen, threshold, &h, &[mc.to_public()], 0);
                     let participants = vec![m.public_key()];
                     let ek = EncryptingVoteKey::from_participants(&participants);
@@ -255,6 +259,7 @@ mod tests {
                     let choice = g.next_u32() % vote_options;
                     let (vote, proof) = encrypt_vote(
                         &mut gen,
+                        &h,
                         &ek,
                         Vote::new(vote_options as usize, choice as usize),
                     );
