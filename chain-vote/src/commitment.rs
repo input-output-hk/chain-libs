@@ -1,6 +1,7 @@
-use crate::gang::{GroupElement, Scalar};
+use crate::gang::{GroupElement, Scalar, IncorrectHashLengthError};
 use rand_core::{CryptoRng, RngCore};
 use std::ops::{Add, Mul};
+use cryptoxide::digest::Digest;
 
 /// Pedersen commitment
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -14,9 +15,25 @@ pub struct CommitmentKey {
 }
 
 impl CommitmentKey {
-    pub fn generate<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let h = GroupElement::random(rng);
-        CommitmentKey { h }
+    pub fn generate<D: Digest>(hash: &mut D) -> Result<Self, IncorrectHashLengthError> {
+        match GroupElement::from_hash(hash){
+            Ok(h) => Ok(CommitmentKey { h }),
+            Err(e) => Err(e)
+        }
+
+    }
+
+    pub fn commit<R: RngCore + CryptoRng>(&self, rng: &mut R, message: &Scalar) -> Commitment {
+        let randomness = Scalar::random(rng);
+        Commitment {
+            c: GroupElement::generator() * message + &self.h * randomness
+        }
+    }
+
+    pub fn commit_with_randomness(&self, message: &Scalar, randomness: &Scalar) -> Commitment {
+        Commitment {
+            c: GroupElement::generator() * message + &self.h * randomness
+        }
     }
 }
 

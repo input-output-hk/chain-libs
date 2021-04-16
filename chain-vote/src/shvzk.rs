@@ -419,7 +419,11 @@ mod tests {
         let unit_vector = UnitVector::new(2, 0);
         let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
 
-        let crs = CRS::random(&mut r);
+        let shared_string = b"Example of a shared string. This could be the latest block hash";
+        let mut hasher = Blake2b::new(32);
+        hasher.input(shared_string);
+
+        let crs = CRS::from_hash(&mut hasher).expect("Size is big enough for point generation.");
 
         let proof = prove(&mut r, &crs, &public_key, ev.clone());
         assert!(verify(&crs, &public_key, &ev.ciphertexts, &proof))
@@ -432,7 +436,11 @@ mod tests {
         let unit_vector = UnitVector::new(5, 1);
         let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
 
-        let crs = CRS::random(&mut r);
+        let shared_string = b"Example of a shared string. This could be the latest block hash";
+        let mut hasher = Blake2b::new(32);
+        hasher.input(shared_string);
+
+        let crs = CRS::from_hash(&mut hasher).expect("Size is big enough for point generation.");
 
         let proof = prove(&mut r, &crs, &public_key, ev.clone());
         assert!(verify(&crs, &public_key, &ev.ciphertexts, &proof))

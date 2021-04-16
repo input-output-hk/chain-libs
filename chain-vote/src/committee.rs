@@ -82,13 +82,12 @@ impl MemberState {
                 let share_shek = pshek.evaluate(&idx);
 
                 let pk = &committee_pks[i];
-                let ck_comm = CommitmentKey::generate(rng);
-                let ck_shek = CommitmentKey::generate(rng);
+                let ck = CommitmentKey{h: h.clone()};
 
                 let rcomm = Scalar::random(rng);
                 let rshek = Scalar::random(rng);
-                let ecomm = hybrid::encrypt(&pk.0, &ck_comm, &share_comm.to_bytes(), &rcomm);
-                let eshek = hybrid::encrypt(&pk.0, &ck_shek, &share_shek.to_bytes(), &rshek);
+                let ecomm = hybrid::encrypt(&pk.0, &ck, &share_comm.to_bytes(), &rcomm);
+                let eshek = hybrid::encrypt(&pk.0, &ck, &share_shek.to_bytes(), &rshek);
 
                 encrypted.push((ecomm, eshek));
             }

@@ -99,17 +99,6 @@ impl GroupElement {
         GroupElement(Point::infinity())
     }
 
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let mut r = [0u8; 32];
-        loop {
-            rng.fill_bytes(&mut r[..]);
-
-            if let Some(s) = GroupElement::from_x_bytes(&r) {
-                break s;
-            }
-        }
-    }
-
     pub fn normalize(&mut self) {
         self.0.normalize()
     }

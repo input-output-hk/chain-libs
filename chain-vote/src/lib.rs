@@ -293,6 +293,8 @@ impl Tally {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cryptoxide::blake2b::Blake2b;
+    use cryptoxide::digest::Digest;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 
@@ -300,7 +302,11 @@ mod tests {
     fn encdec1() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let h = CRS::random(&mut rng);
+        let shared_string = b"Example of a shared string. This could be the latest block hash";
+        let mut hasher = Blake2b::new(32);
+        hasher.input(shared_string);
+
+        let h = CRS::from_hash(&mut hasher).expect("Size is big enough for point generation.");
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc = [mc1.to_public()];
@@ -349,7 +355,11 @@ mod tests {
     fn encdec3() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let h = CRS::random(&mut rng);
+        let shared_string = b"Example of a shared string. This could be the latest block hash";
+        let mut hasher = Blake2b::new(32);
+        hasher.input(shared_string);
+
+        let h = CRS::from_hash(&mut hasher).expect("Size is big enough for point generation.");
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc2 = MemberCommunicationKey::new(&mut rng);
@@ -405,7 +415,11 @@ mod tests {
     fn zero_and_max_votes() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let h = CRS::random(&mut rng);
+        let shared_string = b"Example of a shared string. This could be the latest block hash";
+        let mut hasher = Blake2b::new(32);
+        hasher.input(shared_string);
+
+        let h = CRS::from_hash(&mut hasher).expect("Size is big enough for point generation.");
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc = [mc1.to_public()];
@@ -450,7 +464,11 @@ mod tests {
     fn empty_tally() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let h = CRS::random(&mut rng);
+        let shared_string = b"Example of a shared string. This could be the latest block hash";
+        let mut hasher = Blake2b::new(32);
+        hasher.input(shared_string);
+
+        let h = CRS::from_hash(&mut hasher).expect("Size is big enough for point generation.");
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc = [mc1.to_public()];
@@ -487,7 +505,11 @@ mod tests {
     fn wrong_max_votes() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let h = CRS::random(&mut rng);
+        let shared_string = b"Example of a shared string. This could be the latest block hash";
+        let mut hasher = Blake2b::new(32);
+        hasher.input(shared_string);
+
+        let h = CRS::from_hash(&mut hasher).expect("Size is big enough for point generation.");
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc2 = MemberCommunicationKey::new(&mut rng);

@@ -47,8 +47,11 @@ mod tests {
 
     #[test]
     fn encrypt_decrypt() {
+        let mut hash = Blake2b::new(32);
+        hash.input(&[0; 23]);
+        let ck = CommitmentKey::generate(&mut hash).expect("Hash size is correct");
+
         let mut r = ChaCha20Rng::from_seed([0u8; 32]);
-        let ck = CommitmentKey::generate(&mut r);
         let k = SecretKey::generate(&mut r);
         let k = Keypair::from_secretkey(k);
 
