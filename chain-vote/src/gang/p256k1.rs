@@ -12,7 +12,7 @@ pub struct Scalar(IScalar);
 pub struct GroupElement(Point);
 
 #[derive(Debug, thiserror::Error)]
-#[error("The length of the hash is incorrect. It should be at least BYTES_LEN of Coordinate.")]
+#[error("The length of the hash is incorrect. It should be at least {} bytes", Coordinate::BYTES_LEN)]
 pub struct IncorrectHashLengthError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
