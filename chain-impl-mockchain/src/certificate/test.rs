@@ -13,9 +13,6 @@ use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use quickcheck_macros::quickcheck;
 
-use cryptoxide::blake2b::Blake2b;
-use cryptoxide::digest::Digest;
-
 impl Arbitrary for PoolRetirement {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let retirement_time = DurationSeconds::from(u64::arbitrary(g)).into();
@@ -188,9 +185,7 @@ impl Arbitrary for VotePlan {
         let mut seed = [0u8; 32];
         g.fill_bytes(&mut seed);
         let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
-        let mut hash = Blake2b::new(32);
-        hash.input(&seed);
-        let h = chain_vote::CRS::from_hash(&mut hash).expect("Hash size should be correct");
+        let h = chain_vote::CRS::from_hash(&seed);
         for _i in 0..keys_n {
             let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
             let threshold = 1;
