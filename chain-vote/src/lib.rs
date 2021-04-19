@@ -301,7 +301,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
+            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
         let h = CRS::from_hash(&mut shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -352,7 +352,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
+            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
         let h = CRS::from_hash(&mut shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -410,7 +410,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
+            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
         let h = CRS::from_hash(&mut shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -457,7 +457,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
+            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
         let h = CRS::from_hash(&mut shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -496,7 +496,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
+            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
         let h = CRS::from_hash(&mut shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
