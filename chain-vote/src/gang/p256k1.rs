@@ -1,3 +1,4 @@
+use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 use eccoxide::curve::sec2::p256k1::{FieldElement, Point, PointAffine, Scalar as IScalar};
 use eccoxide::curve::{Sign as ISign, Sign::Positive};
@@ -10,10 +11,6 @@ pub struct Scalar(IScalar);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupElement(Point);
-
-#[derive(Debug, thiserror::Error)]
-#[error("The length of the hash is incorrect. It should be at least {} bytes", Coordinate::BYTES_LEN)]
-pub struct IncorrectHashLengthError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Coordinate(FieldElement);
@@ -61,21 +58,18 @@ impl GroupElement {
     const BYTES_ZERO: [u8; Self::BYTES_LEN] = [0; Self::BYTES_LEN];
 
     /// Point from hash
-    pub fn from_hash<D: Digest>(hash: &mut D) -> Result<Self, IncorrectHashLengthError> {
-        let hash_length = hash.output_bytes();
-        if hash_length < Coordinate::BYTES_LEN {
-            return Err(IncorrectHashLengthError);
-        }
-
-        let mut x_bytes = vec![0u8; hash_length];
-        let mut i = 1u32;
+    pub fn from_hash(buffer: &[u8]) -> Self {
+        let mut result = [0u8; 32];
+        let mut hash = Blake2b::new(32);
+        hash.input(buffer);
+        let mut i = 0u32;
         loop {
-            hash.input(&i.to_be_bytes());
-            hash.result(&mut x_bytes);
-            if let Some(point) = Self::from_x_bytes(&x_bytes[..Coordinate::BYTES_LEN]) {
-                break Ok(point);
-            }
+            hash.result(&mut result);
 
+            if let Some(point) = Self::from_x_bytes(&result) {
+                break point;
+            }
+            hash.input(&i.to_be_bytes());
             i += 1;
         }
     }
@@ -399,22 +393,16 @@ nref!(GroupElement, Sub, GroupElement, GroupElement, sub);
 #[cfg(test)]
 mod test {
     use super::*;
-    use cryptoxide::blake2b::Blake2b;
-    use cryptoxide::digest::Digest;
 
     #[test]
     fn from_hash() {
-        let test = 1u8;
-        let mut ctx = Blake2b::new(32);
-        ctx.input(&[test]);
-
-        let element = GroupElement::from_hash(&mut ctx).expect("Size of hasher is correct");
+        let element = GroupElement::from_hash(&mut [1u8]);
 
         let element2 = GroupElement::from_bytes(&[
-            4, 109, 163, 157, 183, 235, 211, 106, 178, 248, 76, 30, 227, 198, 243, 240, 63, 255,
-            167, 93, 50, 175, 214, 154, 78, 199, 0, 140, 76, 135, 56, 13, 139, 127, 24, 96, 35, 94,
-            9, 77, 47, 243, 67, 97, 21, 228, 160, 70, 88, 218, 29, 175, 90, 85, 214, 85, 138, 28,
-            144, 115, 184, 127, 211, 226, 200,
+            4, 238, 21, 90, 206, 156, 64, 41, 32, 116, 203, 106, 255, 140, 156, 205, 210, 115, 200,
+            22, 72, 255, 17, 73, 239, 54, 188, 234, 110, 187, 138, 62, 37, 118, 220, 23, 189, 207,
+            152, 182, 86, 240, 37, 233, 17, 111, 86, 215, 174, 77, 96, 212, 83, 190, 44, 148, 208,
+            206, 163, 225, 224, 89, 1, 63, 152,
         ])
         .expect("This point is on the curve");
 

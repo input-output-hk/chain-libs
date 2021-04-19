@@ -82,7 +82,7 @@ impl MemberState {
                 let share_shek = pshek.evaluate(&idx);
 
                 let pk = &committee_pks[i];
-                let ck = CommitmentKey{h: h.clone()};
+                let ck = CommitmentKey { h: h.clone() };
 
                 let rcomm = Scalar::random(rng);
                 let rshek = Scalar::random(rng);
