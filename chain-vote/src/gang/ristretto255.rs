@@ -1,5 +1,5 @@
 use curve25519_dalek_ng::{
-    constants::RISTRETTO_BASEPOINT_POINT,
+    constants::{RISTRETTO_BASEPOINT_POINT, RISTRETTO_BASEPOINT_TABLE},
     ristretto::{CompressedRistretto, RistrettoPoint as Point},
     scalar::Scalar as IScalar,
     traits::Identity,
@@ -143,9 +143,9 @@ impl Scalar {
         while power > 0 {
             let bit = power & 1;
             if bit == 1 {
-                result = result * aux;
+                result *= aux;
             }
-            power = power >> 1;
+            power >>= 1;
             aux = aux * aux;
         }
         Scalar(result)
@@ -157,7 +157,7 @@ impl Scalar {
     {
         let mut sum = i.next()?;
         for v in i {
-            sum = &sum + &v;
+            sum = sum + v;
         }
         Some(sum)
     }
@@ -224,7 +224,7 @@ impl<'a, 'b> Add<&'b Scalar> for &'a Scalar {
     type Output = Scalar;
 
     fn add(self, other: &'b Scalar) -> Scalar {
-        Scalar(&self.0 + &other.0)
+        Scalar(self.0 + other.0)
     }
 }
 
@@ -240,7 +240,7 @@ impl<'a, 'b> Sub<&'b Scalar> for &'a Scalar {
     type Output = Scalar;
 
     fn sub(self, other: &'b Scalar) -> Scalar {
-        Scalar(&self.0 - &other.0)
+        Scalar(self.0 - other.0)
     }
 }
 
@@ -256,7 +256,7 @@ impl<'a, 'b> Mul<&'b Scalar> for &'a Scalar {
     type Output = Scalar;
 
     fn mul(self, other: &'b Scalar) -> Scalar {
-        Scalar(&self.0 * &other.0)
+        Scalar(self.0 * other.0)
     }
 }
 
@@ -272,7 +272,7 @@ impl<'a, 'b> Mul<&'b GroupElement> for &'a Scalar {
     type Output = GroupElement;
 
     fn mul(self, other: &'b GroupElement) -> GroupElement {
-        GroupElement(&other.0 * &self.0)
+        GroupElement(other.0 * self.0)
     }
 }
 
@@ -280,7 +280,7 @@ impl<'a, 'b> Mul<&'b Scalar> for &'a GroupElement {
     type Output = GroupElement;
 
     fn mul(self, other: &'b Scalar) -> GroupElement {
-        GroupElement(&other.0 * &self.0)
+        GroupElement(other.0 * self.0)
     }
 }
 
@@ -300,15 +300,25 @@ impl<'a> Mul<&'a GroupElement> for u64 {
     type Output = GroupElement;
 
     fn mul(self, other: &'a GroupElement) -> GroupElement {
-        GroupElement(&other.0 * IScalar::from(self))
+        other * self
     }
 }
 
 impl<'a> Mul<u64> for &'a GroupElement {
     type Output = GroupElement;
 
-    fn mul(self, other: u64) -> GroupElement {
-        GroupElement(IScalar::from(other) * &self.0)
+    fn mul(self, mut other: u64) -> GroupElement {
+        let mut a = self.0;
+        let mut q = Point::identity();
+
+        while other != 0 {
+            if other & 1 != 0 {
+                q += a;
+            }
+            a += a;
+            other >>= 1;
+        }
+        GroupElement(q)
     }
 }
 
@@ -320,7 +330,7 @@ impl<'a, 'b> Add<&'b GroupElement> for &'a GroupElement {
     type Output = GroupElement;
 
     fn add(self, other: &'b GroupElement) -> GroupElement {
-        GroupElement(&self.0 + &other.0)
+        GroupElement(self.0 + other.0)
     }
 }
 
@@ -336,7 +346,7 @@ impl<'a, 'b> Sub<&'b GroupElement> for &'a GroupElement {
     type Output = GroupElement;
 
     fn sub(self, other: &'b GroupElement) -> GroupElement {
-        GroupElement(&self.0 + (-&other.0))
+        GroupElement(self.0 + (-other.0))
     }
 }
 
