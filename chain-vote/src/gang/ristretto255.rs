@@ -48,10 +48,6 @@ impl GroupElement {
         GroupElement(Point::identity())
     }
 
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        GroupElement(Point::random(rng))
-    }
-
     pub(super) fn compress(&self) -> CompressedRistretto {
         self.0.compress()
     }
