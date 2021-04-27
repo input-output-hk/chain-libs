@@ -10,7 +10,7 @@ const DEFAULT_BALANCE: u64 = 2;
 /// for solving discrete log on ECC
 #[derive(Debug, Clone)]
 pub struct BabyStepsTable {
-    table: HashMap<Option<[u8; Coordinate::BYTES_LEN]>, u64>,
+    table: HashMap<Option<[u8; GroupElement::HASH_MAP_LEN]>, u64>,
     baby_step_size: u64,
     giant_step: GroupElement,
 }
@@ -29,15 +29,41 @@ impl BabyStepsTable {
     ///
     /// For example, a balance of 2 means that the table will precompute 2 times more
     /// baby steps than the standard O(sqrt(n)), 1 means symmetrical steps.
+    #[cfg(not(feature = "ristretto255"))]
     pub fn generate_with_balance(max_value: u64, balance: u64) -> Self {
         let sqrt_step_size = (max_value as f64).sqrt().ceil() as u64;
         let baby_step_size = sqrt_step_size * balance;
         let mut bs = HashMap::new();
         let gen = GroupElement::generator();
         let mut e = GroupElement::zero();
+
         // With ECC we can use the property that P and -P share a coordinate
         for i in 0..=baby_step_size / 2 {
-            bs.insert(e.compress().map(|(c, _sign)| c.to_bytes()), i);
+            bs.insert(e.encode_hash_map(), i);
+            e = &e + &gen;
+        }
+        assert!(!bs.is_empty());
+        assert!(baby_step_size > 0);
+        Self {
+            table: bs,
+            baby_step_size,
+            giant_step: GroupElement::generator() * Scalar::from_u64(baby_step_size).negate(),
+        }
+    }
+
+    /// Same as above. However, the ristretto group API does not allow to use the x coordinate
+    /// for security properties (see [here](https://github.com/dalek-cryptography/curve25519-dalek/issues/235))
+    /// so we cannot use the trick of making a hash map of the X coord.
+    #[cfg(feature = "ristretto255")]
+    pub fn generate_with_balance(max_value: u64, balance: u64) -> Self {
+        let sqrt_step_size = (max_value as f64).sqrt().ceil() as u64;
+        let baby_step_size = sqrt_step_size * balance;
+        let mut bs = HashMap::new();
+        let gen = GroupElement::generator();
+        let mut e = GroupElement::zero();
+
+        for i in 0..=baby_step_size {
+            bs.insert(e.encode_hash_map(), i);
             e = &e + &gen;
         }
         assert!(!bs.is_empty());
@@ -64,11 +90,11 @@ pub fn baby_step_giant_step(
     let table = &table.table;
     points
         .into_par_iter()
-        .map(|mut p| {
+        .map(|mut point| {
             let mut a = 0;
             loop {
-                if let Some(x) = table.get(&p.compress().map(|(c, _sign)| c.to_bytes())) {
-                    let r = if Scalar::from_u64(*x) * GroupElement::generator() == p {
+                if let Some(x) = table.get(&point.encode_hash_map()) {
+                    let r = if Scalar::from_u64(*x) * GroupElement::generator() == point {
                         a * baby_step_size + x
                     } else {
                         a * baby_step_size - x
@@ -78,7 +104,7 @@ pub fn baby_step_giant_step(
                 if a * baby_step_size > max_log {
                     return Err(MaxLogExceeded);
                 }
-                p = p + giant_step;
+                point = point + giant_step;
                 a += 1;
             }
         })
@@ -107,10 +133,7 @@ mod tests {
         let points = votes
             .iter()
             .map(|k| {
-                #[cfg(not(feature = "zerocaf"))]
                 let ks = Scalar::from_u64(*k);
-                #[cfg(feature = "zerocaf")]
-                let ks = FieldElement::from_u64(*k);
                 &p * ks
             })
             .collect();
@@ -125,7 +148,7 @@ mod tests {
                 a as u64,
             )
         }))
-        .into_boxed()
+            .into_boxed()
     }
 
     fn table_generator_default() -> BoxGenerator<BabyStepsTable> {

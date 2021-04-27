@@ -32,6 +32,13 @@ impl Hash for Scalar {
     }
 }
 
+#[allow(clippy::derive_hash_xor_eq)]
+impl Hash for Coordinate {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.to_bytes())
+    }
+}
+
 impl Coordinate {
     pub const BYTES_LEN: usize = FieldElement::SIZE_BYTES;
 
@@ -53,6 +60,7 @@ impl Coordinate {
 impl GroupElement {
     /// Size of the byte representation of `GroupElement`.
     pub const BYTES_LEN: usize = 65;
+    pub const HASH_MAP_LEN: usize = FieldElement::SIZE_BYTES;
 
     /// Serialized GroupElement::zero
     const BYTES_ZERO: [u8; Self::BYTES_LEN] = [0; Self::BYTES_LEN];
@@ -110,6 +118,11 @@ impl GroupElement {
         })
     }
 
+    pub(super) fn encode_hash_map(&self) -> Option<[u8; FieldElement::SIZE_BYTES]> {
+        let (x, _) = self.compress()?;
+        Some(x.to_bytes())
+    }
+
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         match self.0.to_affine() {
             None => Self::BYTES_ZERO,
@@ -138,8 +151,8 @@ impl GroupElement {
     }
 
     pub fn sum<'a, I>(i: I) -> Self
-    where
-        I: Iterator<Item = &'a Self>,
+        where
+            I: Iterator<Item = &'a Self>,
     {
         let mut sum = GroupElement::zero();
         for v in i {
@@ -204,8 +217,8 @@ impl Scalar {
     }
 
     pub fn sum<I>(mut i: I) -> Option<Self>
-    where
-        I: Iterator<Item = Self>,
+        where
+            I: Iterator<Item = Self>,
     {
         let mut sum = i.next()?;
         for v in i {
@@ -410,7 +423,7 @@ mod test {
             98, 217, 114, 141, 108, 225, 197, 90, 251, 208, 66, 121, 120, 247, 73, 98, 111, 219,
             172, 181, 134, 49, 239, 108, 91, 149, 243, 218,
         ])
-        .expect("This point is on the curve");
+            .expect("This point is on the curve");
         assert_eq!(element, element2)
     }
 }

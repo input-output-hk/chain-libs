@@ -22,9 +22,9 @@ impl<A: Clone> PTP<A> {
     }
 
     pub fn new<F>(mut vec: Vec<A>, extended_value: F) -> PTP<A>
-    where
-        A: Clone,
-        F: Fn() -> A,
+        where
+            A: Clone,
+            F: Fn() -> A,
     {
         let orig_len = vec.len();
 
