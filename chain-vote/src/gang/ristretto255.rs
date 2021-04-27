@@ -76,8 +76,8 @@ impl GroupElement {
     }
 
     pub fn sum<'a, I>(i: I) -> Self
-        where
-            I: Iterator<Item = &'a Self>,
+    where
+        I: Iterator<Item = &'a Self>,
     {
         let mut sum = GroupElement::zero();
         for v in i {
@@ -152,8 +152,8 @@ impl Scalar {
     }
 
     pub fn sum<I>(mut i: I) -> Option<Self>
-        where
-            I: Iterator<Item = Self>,
+    where
+        I: Iterator<Item = Self>,
     {
         let mut sum = i.next()?;
         for v in i {
@@ -356,7 +356,7 @@ mod test {
             32, 60, 29, 4, 97, 184, 42, 236, 79, 92, 154, 113, 205, 92, 7, 4, 122, 17, 166, 95,
             127, 151, 46, 225, 202, 83, 42, 58, 50, 163, 1, 82,
         ])
-            .expect("Point is on curve");
+        .expect("Point is on curve");
 
         assert_eq!(element, element2)
     }
