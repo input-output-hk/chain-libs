@@ -272,7 +272,7 @@ impl<'a, 'b> Mul<&'b GroupElement> for &'a Scalar {
     type Output = GroupElement;
 
     fn mul(self, other: &'b GroupElement) -> GroupElement {
-        GroupElement(other.0 * self.0)
+        other * self
     }
 }
 
@@ -280,7 +280,11 @@ impl<'a, 'b> Mul<&'b Scalar> for &'a GroupElement {
     type Output = GroupElement;
 
     fn mul(self, other: &'b Scalar) -> GroupElement {
-        GroupElement(other.0 * self.0)
+        if self.0 == RISTRETTO_BASEPOINT_POINT {
+            GroupElement(&RISTRETTO_BASEPOINT_TABLE * &other.0)
+        } else {
+            GroupElement(other.0 * self.0)
+        }
     }
 }
 
