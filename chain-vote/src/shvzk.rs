@@ -9,6 +9,8 @@ use crate::gargamel::{encrypt, Ciphertext, PublicKey};
 use crate::math::Polynomial;
 use crate::unit_vector::binrep;
 use crate::CRS;
+use merlin::Transcript;
+use crate::transcript::TranscriptProtocol;
 
 struct ABCD {
     alpha: Scalar,
@@ -197,6 +199,7 @@ impl ChallengeContext {
 
 pub(crate) fn prove<R: RngCore + CryptoRng>(
     rng: &mut R,
+    transcript: &mut Transcript,
     crs: &CRS,
     public_key: &PublicKey,
     encrypting_vote: EncryptingVote,
@@ -226,9 +229,13 @@ pub(crate) fn prove<R: RngCore + CryptoRng>(
         .collect();
     debug_assert_eq!(ibas.len(), bits);
 
-    // Generate First verifier challenge
+    // Generate First verifier challenge. This should contain the whole statement.
+    transcript.append_ck(b"Commitment key", &ck);
+    transcript.append_pk(b"Public key", &public_key);
+    transcript.append_ciphers(b"Cipherts", &ciphers);
+    transcript.append_ibas(b"IBAs", &ibas);
     let cc = ChallengeContext::new(public_key, ciphers.as_ref(), &ibas);
-    let cy = cc.first_challenge();
+    let cy = transcript.challenge_scalar(b"First Challenge");
 
     let (ds, rs) = {
         // Compute polynomials pj(x)
@@ -328,6 +335,7 @@ pub(crate) fn prove<R: RngCore + CryptoRng>(
 
 pub(crate) fn verify(
     crs: &CRS,
+    transcript: &mut Transcript,
     public_key: &PublicKey,
     ciphertexts: &[Ciphertext],
     proof: &Proof,
@@ -335,8 +343,13 @@ pub(crate) fn verify(
     let ck = CommitmentKey { h: crs.clone() };
     let ciphertexts = PTP::new(ciphertexts.to_vec(), Ciphertext::zero);
     let bits = ciphertexts.bits();
+
+    transcript.append_ck(b"Commitment key", &ck);
+    transcript.append_pk(b"Public key", &public_key);
+    transcript.append_ciphers(b"Cipherts", &ciphertexts);
+    transcript.append_ibas(b"IBAs", &proof.ibas);
     let cc = ChallengeContext::new(public_key, ciphertexts.as_ref(), &proof.ibas);
-    let cy = cc.first_challenge();
+    let cy = transcript.challenge_scalar(b"First Challenge");
     let cx = cc.second_challenge(&proof.ds);
 
     if proof.ibas.len() != bits {
@@ -423,8 +436,11 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = CRS::from_hash(&mut shared_string);
 
-        let proof = prove(&mut r, &crs, &public_key, ev.clone());
-        assert!(verify(&crs, &public_key, &ev.ciphertexts, &proof))
+        let mut prover_transcript = Transcript::new(b"Correct encryption transcript");
+        let proof = prove(&mut r, &mut prover_transcript, &crs, &public_key, ev.clone());
+
+        let mut verifier_transcript = Transcript::new(b"Correct encryption transcript");
+        assert!(verify(&crs, &mut verifier_transcript, &public_key, &ev.ciphertexts, &proof))
     }
 
     #[test]
@@ -437,8 +453,10 @@ mod tests {
         let mut shared_string =
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = CRS::from_hash(&mut shared_string);
+        let mut transcript = Transcript::new(b"Correct encryption transcript");
+        let proof = prove(&mut r, &mut transcript, &crs, &public_key, ev.clone());
 
-        let proof = prove(&mut r, &crs, &public_key, ev.clone());
-        assert!(verify(&crs, &public_key, &ev.ciphertexts, &proof))
+        let mut verifier_transcript = Transcript::new(b"Correct encryption transcript");
+        assert!(verify(&crs, &mut verifier_transcript, &public_key, &ev.ciphertexts, &proof))
     }
 }

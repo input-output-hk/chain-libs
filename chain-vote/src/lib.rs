@@ -7,6 +7,7 @@ mod gang;
 pub mod gargamel;
 mod hybrid;
 mod math;
+mod transcript;
 pub mod shvzk;
 mod unit_vector;
 
@@ -29,6 +30,7 @@ use gang::GroupElement;
 pub use gang::{BabyStepsTable as TallyOptimizationTable, Scalar};
 pub use gargamel::Ciphertext;
 use rand_core::{CryptoRng, RngCore};
+use merlin::Transcript;
 pub use unit_vector::UnitVector;
 
 /// Secret key for opening vote
@@ -63,7 +65,8 @@ pub fn encrypt_vote<R: RngCore + CryptoRng>(
     vote: Vote,
 ) -> (EncryptedVote, ProofOfCorrectVote) {
     let ev = EncryptingVote::prepare(rng, &public_key.0, &vote);
-    let proof = shvzk::prove(rng, &crs, &public_key.0, ev.clone());
+    let mut transcript = Transcript::new(b"Correct encryption transcript");
+    let proof = shvzk::prove(rng, &mut transcript, &crs, &public_key.0, ev.clone());
     (ev.ciphertexts, proof)
 }
 
@@ -75,7 +78,8 @@ pub fn verify_vote(
     vote: &EncryptedVote,
     proof: &ProofOfCorrectVote,
 ) -> bool {
-    shvzk::verify(&crs, &public_key.0, vote, proof)
+    let mut transcript = Transcript::new(b"Correct encryption transcript");
+    shvzk::verify(&crs, &mut transcript, &public_key.0, vote, proof)
 }
 
 /// The encrypted tally
