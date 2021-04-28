@@ -43,8 +43,6 @@ pub struct MemberState {
     encrypted: Vec<(hybrid::HybridCiphertext, hybrid::HybridCiphertext)>,
 }
 
-pub type CRS = GroupElement;
-
 impl MemberState {
     /// Generate a new member state from random, where the number
     pub fn new<R: RngCore + CryptoRng>(

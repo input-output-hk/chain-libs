@@ -8,6 +8,7 @@ use crate::vote;
 use chain_core::mempack::{ReadBuf, Readable};
 use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
+use merlin::Transcript;
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
@@ -185,11 +186,12 @@ impl Arbitrary for VotePlan {
         let mut seed = [0u8; 32];
         g.fill_bytes(&mut seed);
         let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
-        let h = chain_vote::CRS::from_hash(&seed);
+        let mut members_transcript = Transcript::new(b"Members transcript");
+        members_transcript.append_message(b"Election identifier", &seed);
         for _i in 0..keys_n {
             let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
             let threshold = 1;
-            let m1 = chain_vote::MemberState::new(&mut rng, threshold, &h, &[mc.to_public()], 0);
+            let m1 = chain_vote::MemberState::new(&mut rng, threshold, &mut members_transcript, &[mc.to_public()], 0);
             keys.push(m1.public_key());
         }
 

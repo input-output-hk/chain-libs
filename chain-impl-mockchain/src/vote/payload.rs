@@ -221,6 +221,7 @@ impl Default for PayloadType {
 mod tests {
     use super::*;
     use quickcheck::{Arbitrary, Gen};
+    use merlin::Transcript;
 
     impl Arbitrary for PayloadType {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -235,7 +236,7 @@ mod tests {
     impl Arbitrary for Payload {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             use chain_vote::{
-                encrypt_vote, EncryptingVoteKey, MemberCommunicationKey, MemberState, Vote, CRS,
+                encrypt_vote, EncryptingVoteKey, MemberCommunicationKey, MemberState, Vote,
             };
             use rand_core::SeedableRng;
 
@@ -247,15 +248,20 @@ mod tests {
                     let mut gen = rand_chacha::ChaCha20Rng::from_seed(seed);
                     let mc = MemberCommunicationKey::new(&mut gen);
                     let threshold = 1;
-                    let h = CRS::from_hash(&mut seed);
-                    let m = MemberState::new(&mut gen, threshold, &h, &[mc.to_public()], 0);
+
+                    let mut member_transcript = Transcript::new(b"Member transcript");
+                    member_transcript.append_message(b"Election identifier", &seed);
+                    let m = MemberState::new(&mut gen, threshold, &mut member_transcript, &[mc.to_public()], 0);
                     let participants = vec![m.public_key()];
                     let ek = EncryptingVoteKey::from_participants(&participants);
                     let vote_options = 3;
                     let choice = g.next_u32() % vote_options;
+
+                    let mut voter_transcript = Transcript::new(b"Member transcript");
+                    voter_transcript.append_message(b"Election identifier", &seed);
                     let (vote, proof) = encrypt_vote(
                         &mut gen,
-                        &h,
+                        &mut voter_transcript,
                         &ek,
                         Vote::new(vote_options as usize, choice as usize),
                     );

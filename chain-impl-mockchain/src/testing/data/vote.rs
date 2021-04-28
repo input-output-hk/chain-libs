@@ -1,10 +1,11 @@
 use crate::vote::VotePlanStatus;
 use chain_vote::{
     committee::MemberSecretKey, MemberCommunicationKey, MemberPublicKey, MemberState,
-    TallyDecryptShare, CRS,
+    TallyDecryptShare,
 };
 use rand_core::CryptoRng;
 use rand_core::RngCore;
+use merlin::Transcript;
 
 pub struct CommitteeMembersManager {
     members: Vec<CommitteeMember>,
@@ -28,11 +29,12 @@ impl CommitteeMembersManager {
             public_keys.push(public_key);
         }
 
-        let crs = CRS::from_hash(&crs_seed);
+        let mut transcript = Transcript::new(b"Members transcript");
+        transcript.append_message(b"Election identifier", crs_seed);
 
         let mut members = Vec::new();
         for i in 0..members_no {
-            let state = MemberState::new(rng, threshold, &crs, &public_keys, i);
+            let state = MemberState::new(rng, threshold, &mut transcript, &public_keys, i);
             members.push(CommitteeMember { state })
         }
 

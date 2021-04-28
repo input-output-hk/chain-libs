@@ -54,9 +54,6 @@ pub type EncryptedVote = Vec<Ciphertext>;
 
 pub type ProofOfCorrectVote = shvzk::Proof;
 
-/// Common Reference String
-pub type CRS = committee::CRS;
-
 /// Take a vote and encrypt it + provide a proof of correct voting
 pub fn encrypt_vote<R: RngCore + CryptoRng>(
     rng: &mut R,
@@ -303,7 +300,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
-        let mut member_transcript = Transcript::new(b"Election transcript");
+        let mut member_transcript = Transcript::new(b"Member transcript");
         member_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -372,7 +369,7 @@ mod tests {
 
         let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
 
-        let mut members_transcript = Transcript::new(b"Election transcript");
+        let mut members_transcript = Transcript::new(b"Members transcript");
         members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -450,7 +447,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
-        let mut members_transcript = Transcript::new(b"Election transcript");
+        let mut members_transcript = Transcript::new(b"Members transcript");
         members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -504,7 +501,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
-        let mut members_transcript = Transcript::new(b"Election transcript");
+        let mut members_transcript = Transcript::new(b"Members transcript");
         members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
@@ -543,7 +540,7 @@ mod tests {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
         let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
-        let mut members_transcript = Transcript::new(b"Election transcript");
+        let mut members_transcript = Transcript::new(b"Members transcript");
         members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
