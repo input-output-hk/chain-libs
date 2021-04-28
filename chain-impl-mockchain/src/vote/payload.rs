@@ -220,8 +220,8 @@ impl Default for PayloadType {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-    use quickcheck::{Arbitrary, Gen};
     use merlin::Transcript;
+    use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for PayloadType {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -251,7 +251,13 @@ mod tests {
 
                     let mut member_transcript = Transcript::new(b"Member transcript");
                     member_transcript.append_message(b"Election identifier", &seed);
-                    let m = MemberState::new(&mut gen, threshold, &mut member_transcript, &[mc.to_public()], 0);
+                    let m = MemberState::new(
+                        &mut gen,
+                        threshold,
+                        &mut member_transcript,
+                        &[mc.to_public()],
+                        0,
+                    );
                     let participants = vec![m.public_key()];
                     let ek = EncryptingVoteKey::from_participants(&participants);
                     let vote_options = 3;

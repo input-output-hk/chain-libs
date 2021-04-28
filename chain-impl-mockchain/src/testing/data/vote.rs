@@ -3,9 +3,9 @@ use chain_vote::{
     committee::MemberSecretKey, MemberCommunicationKey, MemberPublicKey, MemberState,
     TallyDecryptShare,
 };
+use merlin::Transcript;
 use rand_core::CryptoRng;
 use rand_core::RngCore;
-use merlin::Transcript;
 
 pub struct CommitteeMembersManager {
     members: Vec<CommitteeMember>,

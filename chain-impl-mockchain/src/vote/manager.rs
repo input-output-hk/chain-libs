@@ -11,15 +11,15 @@ use crate::{
     transaction::UnspecifiedAccountIdentifier,
     vote::{self, CommitteeId, Options, Tally, TallyResult, VotePlanStatus, VoteProposalStatus},
 };
-use chain_vote::{EncryptedTally};
+use chain_vote::EncryptedTally;
 use imhamt::Hamt;
 use thiserror::Error;
 
+use merlin::Transcript;
 use std::collections::{hash_map::DefaultHasher, HashSet};
 use std::convert::TryFrom;
 use std::num::NonZeroU64;
 use std::sync::Arc;
-use merlin::Transcript;
 
 /// Manage the vote plan and the associated votes in the ledger
 ///
@@ -590,13 +590,19 @@ impl VotePlanManager {
                 proof,
             } => {
                 let mut verifier_transcript = Transcript::new(b"Election transcript");
-                verifier_transcript.append_message(b"Election identifier", &self.plan.as_ref().to_id().as_ref());
+                verifier_transcript
+                    .append_message(b"Election identifier", &self.plan.as_ref().to_id().as_ref());
                 let ciphertext = encrypted_vote.as_inner();
                 self.proposal_managers.validate_vote(&cast)?;
                 let pk = chain_vote::EncryptingVoteKey::from_participants(
                     self.plan.committee_public_keys(),
                 );
-                if !chain_vote::verify_vote(&mut verifier_transcript, &pk, ciphertext, proof.as_inner()) {
+                if !chain_vote::verify_vote(
+                    &mut verifier_transcript,
+                    &pk,
+                    ciphertext,
+                    proof.as_inner(),
+                ) {
                     Err(VoteError::VoteVerificationError)
                 } else {
                     Ok(())

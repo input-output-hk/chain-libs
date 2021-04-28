@@ -10,9 +10,9 @@ use crate::{
 };
 use chain_core::property::BlockDate as BlockDateProp;
 use chain_crypto::digest::DigestOf;
+use merlin::Transcript;
 use rand_core::{CryptoRng, RngCore};
 use typed_bytes::ByteBuilder;
-use merlin::Transcript;
 
 pub struct VoteTestGen;
 

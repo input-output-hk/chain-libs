@@ -191,7 +191,13 @@ impl Arbitrary for VotePlan {
         for _i in 0..keys_n {
             let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
             let threshold = 1;
-            let m1 = chain_vote::MemberState::new(&mut rng, threshold, &mut members_transcript, &[mc.to_public()], 0);
+            let m1 = chain_vote::MemberState::new(
+                &mut rng,
+                threshold,
+                &mut members_transcript,
+                &[mc.to_public()],
+                0,
+            );
             keys.push(m1.public_key());
         }
 
