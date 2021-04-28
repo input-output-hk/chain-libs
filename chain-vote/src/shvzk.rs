@@ -1,5 +1,3 @@
-use cryptoxide::blake2b::Blake2b;
-use cryptoxide::digest::Digest;
 use rand_core::{CryptoRng, RngCore};
 
 use crate::commitment::{Commitment, CommitmentKey};
@@ -7,10 +5,9 @@ use crate::encrypted::{EncryptingVote, PTP};
 use crate::gang::Scalar;
 use crate::gargamel::{encrypt, Ciphertext, PublicKey};
 use crate::math::Polynomial;
-use crate::unit_vector::binrep;
-use crate::CRS;
-use merlin::Transcript;
 use crate::transcript::TranscriptProtocol;
+use crate::unit_vector::binrep;
+use merlin::Transcript;
 
 struct ABCD {
     alpha: Scalar,
@@ -161,51 +158,23 @@ impl IBA {
     }
 }
 
-struct ChallengeContext(Blake2b);
-
-fn hash_to_scalar(b: &Blake2b) -> Scalar {
-    let mut h = [0u8; 32];
-    b.clone().result(&mut h);
-    Scalar::from_bytes(&h).unwrap()
-}
-
-impl ChallengeContext {
-    fn new(public_key: &PublicKey, ciphers: &[Ciphertext], ibas: &[IBA]) -> Self {
-        let mut ctx = Blake2b::new(32);
-        ctx.input(&public_key.to_bytes());
-        for c in ciphers {
-            ctx.input(&c.to_bytes());
-        }
-        for iba in ibas {
-            ctx.input(&iba.i.to_bytes());
-            ctx.input(&iba.b.to_bytes());
-            ctx.input(&iba.a.to_bytes());
-        }
-        ChallengeContext(ctx)
-    }
-
-    fn first_challenge(&self) -> Scalar {
-        hash_to_scalar(&self.0)
-    }
-
-    fn second_challenge(&self, ds: &[Ciphertext]) -> Scalar {
-        let mut x = self.0.clone();
-        for d in ds {
-            x.input(&d.to_bytes())
-        }
-        hash_to_scalar(&x)
-    }
-}
-
 pub(crate) fn prove<R: RngCore + CryptoRng>(
     rng: &mut R,
     transcript: &mut Transcript,
-    crs: &CRS,
     public_key: &PublicKey,
     encrypting_vote: EncryptingVote,
 ) -> Proof {
-    let ck = CommitmentKey { h: crs.clone() };
+    let ck = CommitmentKey {
+        h: transcript.hash_to_group(b"Commitment Key"),
+    };
     let ciphers = PTP::new(encrypting_vote.ciphertexts, Ciphertext::zero);
+
+    // We include the whole whole statement in the transcript. This consists of the public key, commitment
+    // key, ciphertexts and the information that is "exchanged" during the protocol (mainly IBAs).
+    transcript.append_pk(b"Public key", &public_key);
+    transcript.append_ck(b"Commitment key", &ck);
+    transcript.append_ciphers(b"Ciphers", ciphers.as_ref());
+
     let cipher_randoms = PTP::new(encrypting_vote.random_elements, Scalar::zero);
 
     assert_eq!(ciphers.bits(), cipher_randoms.bits());
@@ -228,13 +197,9 @@ pub(crate) fn prove<R: RngCore + CryptoRng>(
         .map(|(abcd, index)| IBA::new(&ck, abcd, &(*index).into()))
         .collect();
     debug_assert_eq!(ibas.len(), bits);
-
-    // Generate First verifier challenge. This should contain the whole statement.
-    transcript.append_ck(b"Commitment key", &ck);
-    transcript.append_pk(b"Public key", &public_key);
-    transcript.append_ciphers(b"Cipherts", &ciphers);
     transcript.append_ibas(b"IBAs", &ibas);
-    let cc = ChallengeContext::new(public_key, ciphers.as_ref(), &ibas);
+
+    // Generate First verifier challenge.
     let cy = transcript.challenge_scalar(b"First Challenge");
 
     let (ds, rs) = {
@@ -296,9 +261,10 @@ pub(crate) fn prove<R: RngCore + CryptoRng>(
         (ds, rs)
     };
     debug_assert_eq!(ds.len(), bits);
+    transcript.append_ciphers(b"D commitments", &ds);
 
     // Generate second verifier challenge
-    let cx = cc.second_challenge(&ds);
+    let cx = transcript.challenge_scalar(b"Second challenge");
 
     // Compute ZWVs
     let zwvs = abcds
@@ -334,23 +300,26 @@ pub(crate) fn prove<R: RngCore + CryptoRng>(
 }
 
 pub(crate) fn verify(
-    crs: &CRS,
     transcript: &mut Transcript,
     public_key: &PublicKey,
     ciphertexts: &[Ciphertext],
     proof: &Proof,
 ) -> bool {
-    let ck = CommitmentKey { h: crs.clone() };
+    let ck = CommitmentKey {
+        h: transcript.hash_to_group(b"Commitment Key"),
+    };
     let ciphertexts = PTP::new(ciphertexts.to_vec(), Ciphertext::zero);
-    let bits = ciphertexts.bits();
 
-    transcript.append_ck(b"Commitment key", &ck);
     transcript.append_pk(b"Public key", &public_key);
-    transcript.append_ciphers(b"Cipherts", &ciphertexts);
+    transcript.append_ck(b"Commitment key", &ck);
+    transcript.append_ciphers(b"Ciphers", ciphertexts.as_ref());
     transcript.append_ibas(b"IBAs", &proof.ibas);
-    let cc = ChallengeContext::new(public_key, ciphertexts.as_ref(), &proof.ibas);
     let cy = transcript.challenge_scalar(b"First Challenge");
-    let cx = cc.second_challenge(&proof.ds);
+
+    transcript.append_ciphers(b"D commitments", &proof.ds);
+    let cx = transcript.challenge_scalar(b"Second challenge");
+
+    let bits = ciphertexts.bits();
 
     if proof.ibas.len() != bits {
         return false;
@@ -432,15 +401,21 @@ mod tests {
         let unit_vector = UnitVector::new(2, 0);
         let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
 
-        let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
-        let crs = CRS::from_hash(&mut shared_string);
+        let shared_string = b"Example of a shared string. This could be the VotePlan.to_id()";
 
-        let mut prover_transcript = Transcript::new(b"Correct encryption transcript");
-        let proof = prove(&mut r, &mut prover_transcript, &crs, &public_key, ev.clone());
+        let mut prover_transcript = Transcript::new(b"Election transcript");
+        prover_transcript.append_message(b"Election identifier", shared_string);
+        let proof = prove(&mut r, &mut prover_transcript, &public_key, ev.clone());
 
-        let mut verifier_transcript = Transcript::new(b"Correct encryption transcript");
-        assert!(verify(&crs, &mut verifier_transcript, &public_key, &ev.ciphertexts, &proof))
+        let mut verifier_transcript = Transcript::new(b"Election transcript");
+        verifier_transcript.append_message(b"Election identifier", shared_string);
+
+        assert!(verify(
+            &mut verifier_transcript,
+            &public_key,
+            &ev.ciphertexts,
+            &proof
+        ))
     }
 
     #[test]
@@ -450,13 +425,20 @@ mod tests {
         let unit_vector = UnitVector::new(5, 1);
         let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
 
-        let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
-        let crs = CRS::from_hash(&mut shared_string);
-        let mut transcript = Transcript::new(b"Correct encryption transcript");
-        let proof = prove(&mut r, &mut transcript, &crs, &public_key, ev.clone());
+        let shared_string = b"Example of a shared string. This could be the VotePlan.to_id()";
+
+        let mut prover_transcript = Transcript::new(b"Correct encryption transcript");
+        prover_transcript.append_message(b"Election identifier", shared_string);
+        let proof = prove(&mut r, &mut prover_transcript, &public_key, ev.clone());
 
         let mut verifier_transcript = Transcript::new(b"Correct encryption transcript");
-        assert!(verify(&crs, &mut verifier_transcript, &public_key, &ev.ciphertexts, &proof))
+        verifier_transcript.append_message(b"Election identifier", shared_string);
+
+        assert!(verify(
+            &mut verifier_transcript,
+            &public_key,
+            &ev.ciphertexts,
+            &proof
+        ))
     }
 }

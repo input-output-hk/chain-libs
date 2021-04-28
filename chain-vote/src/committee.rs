@@ -3,6 +3,8 @@ use crate::gargamel::{PublicKey, SecretKey};
 use crate::hybrid;
 use crate::hybrid::SymmetricKey;
 use crate::math::Polynomial;
+use crate::transcript::TranscriptProtocol;
+use merlin::Transcript;
 use rand_core::{CryptoRng, RngCore};
 
 /// Committee member election secret key
@@ -48,10 +50,11 @@ impl MemberState {
     pub fn new<R: RngCore + CryptoRng>(
         rng: &mut R,
         t: usize,
-        h: &CRS, // TODO: document
+        transcript: &mut Transcript, // TODO: document
         committee_pks: &[MemberCommunicationPublicKey],
         my: usize,
     ) -> MemberState {
+        let h = transcript.hash_to_group(b"Commitment Key");
         let n = committee_pks.len();
         assert!(t > 0);
         assert!(t <= n);
@@ -65,7 +68,7 @@ impl MemberState {
 
         for (ai, bi) in pshek.get_coefficients().zip(pcomm.get_coefficients()) {
             let apub = GroupElement::generator() * ai;
-            let e = &apub + h * bi;
+            let e = &apub + &h * bi;
             apubs.push(apub);
             es.push(e);
         }

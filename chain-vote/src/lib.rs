@@ -7,8 +7,8 @@ mod gang;
 pub mod gargamel;
 mod hybrid;
 mod math;
-mod transcript;
 pub mod shvzk;
+mod transcript;
 mod unit_vector;
 
 // re-export under a debug module
@@ -29,8 +29,8 @@ pub use encrypted::EncryptingVote;
 use gang::GroupElement;
 pub use gang::{BabyStepsTable as TallyOptimizationTable, Scalar};
 pub use gargamel::Ciphertext;
-use rand_core::{CryptoRng, RngCore};
 use merlin::Transcript;
+use rand_core::{CryptoRng, RngCore};
 pub use unit_vector::UnitVector;
 
 /// Secret key for opening vote
@@ -60,26 +60,24 @@ pub type CRS = committee::CRS;
 /// Take a vote and encrypt it + provide a proof of correct voting
 pub fn encrypt_vote<R: RngCore + CryptoRng>(
     rng: &mut R,
-    crs: &CRS,
+    transcript: &mut Transcript,
     public_key: &EncryptingVoteKey,
     vote: Vote,
 ) -> (EncryptedVote, ProofOfCorrectVote) {
     let ev = EncryptingVote::prepare(rng, &public_key.0, &vote);
-    let mut transcript = Transcript::new(b"Correct encryption transcript");
-    let proof = shvzk::prove(rng, &mut transcript, &crs, &public_key.0, ev.clone());
+    let proof = shvzk::prove(rng, transcript, &public_key.0, ev.clone());
     (ev.ciphertexts, proof)
 }
 
 /// Verify that the encrypted vote is valid without opening it
 #[allow(clippy::ptr_arg)]
 pub fn verify_vote(
-    crs: &CRS,
+    transcript: &mut Transcript,
     public_key: &EncryptingVoteKey,
     vote: &EncryptedVote,
     proof: &ProofOfCorrectVote,
 ) -> bool {
-    let mut transcript = Transcript::new(b"Correct encryption transcript");
-    shvzk::verify(&crs, &mut transcript, &public_key.0, vote, proof)
+    shvzk::verify(transcript, &public_key.0, vote, proof)
 }
 
 /// The encrypted tally
@@ -304,26 +302,43 @@ mod tests {
     fn encdec1() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let mut shared_string =
-            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
-        let h = CRS::from_hash(&mut shared_string);
+        let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
+        let mut member_transcript = Transcript::new(b"Election transcript");
+        member_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc = [mc1.to_public()];
 
         let threshold = 1;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
+        let m1 = MemberState::new(&mut rng, threshold, &mut member_transcript, &mc, 0);
 
         let participants = vec![m1.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);
 
         println!("encrypting vote");
+        let mut prover_transcript = Transcript::new(b"Election transcript");
+        prover_transcript.append_message(b"Election identifier", shared_string);
 
         let vote_options = 2;
-        let e1 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let e1 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 0),
+        );
+        let e2 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 1),
+        );
+        let e3 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 0),
+        );
 
         println!("tallying");
 
@@ -355,9 +370,10 @@ mod tests {
     fn encdec3() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let mut shared_string =
-            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
-        let h = CRS::from_hash(&mut shared_string);
+        let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
+
+        let mut members_transcript = Transcript::new(b"Election transcript");
+        members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc2 = MemberCommunicationKey::new(&mut rng);
@@ -366,21 +382,41 @@ mod tests {
 
         let threshold = 3;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
-        let m2 = MemberState::new(&mut rng, threshold, &h, &mc, 1);
-        let m3 = MemberState::new(&mut rng, threshold, &h, &mc, 2);
+        let m1 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 0);
+        let m2 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 1);
+        let m3 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 2);
 
         let participants = vec![m1.public_key(), m2.public_key(), m3.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);
 
         println!("encrypting vote");
 
-        let vote_options = 2;
-        let (e1, e1_proof) = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let mut prover_transcript = Transcript::new(b"Election transcript");
+        prover_transcript.append_message(b"Election identifier", shared_string);
 
-        assert!(verify_vote(&h, &ek, &e1, &e1_proof));
+        let vote_options = 2;
+        let (e1, e1_proof) = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 0),
+        );
+        let e2 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 1),
+        );
+        let e3 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 0),
+        );
+
+        let mut verifier_transcript = Transcript::new(b"Election transcript");
+        verifier_transcript.append_message(b"Election identifier", shared_string);
+        assert!(verify_vote(&mut verifier_transcript, &ek, &e1, &e1_proof));
         println!("tallying");
 
         let mut tally = EncryptedTally::new(vote_options);
@@ -413,24 +449,31 @@ mod tests {
     fn zero_and_max_votes() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let mut shared_string =
-            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
-        let h = CRS::from_hash(&mut shared_string);
+        let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
+        let mut members_transcript = Transcript::new(b"Election transcript");
+        members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc = [mc1.to_public()];
 
         let threshold = 1;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
+        let m1 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 0);
 
         let participants = vec![m1.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);
 
         println!("encrypting vote");
+        let mut prover_transcript = Transcript::new(b"Election transcript");
+        prover_transcript.append_message(b"Election identifier", shared_string);
 
         let vote_options = 2;
-        let (e1, _) = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let (e1, _) = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 0),
+        );
 
         println!("tallying");
 
@@ -460,16 +503,16 @@ mod tests {
     fn empty_tally() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let mut shared_string =
-            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
-        let h = CRS::from_hash(&mut shared_string);
+        let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
+        let mut members_transcript = Transcript::new(b"Election transcript");
+        members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc = [mc1.to_public()];
 
         let threshold = 1;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
+        let m1 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 0);
 
         let vote_options = 2;
 
@@ -499,9 +542,9 @@ mod tests {
     fn wrong_max_votes() {
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
 
-        let mut shared_string =
-            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
-        let h = CRS::from_hash(&mut shared_string);
+        let shared_string = b"Example of a shared string. This should be VotePlan.to_id()";
+        let mut members_transcript = Transcript::new(b"Election transcript");
+        members_transcript.append_message(b"Election identifier", shared_string);
 
         let mc1 = MemberCommunicationKey::new(&mut rng);
         let mc2 = MemberCommunicationKey::new(&mut rng);
@@ -510,19 +553,36 @@ mod tests {
 
         let threshold = 3;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
-        let m2 = MemberState::new(&mut rng, threshold, &h, &mc, 1);
-        let m3 = MemberState::new(&mut rng, threshold, &h, &mc, 2);
+        let m1 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 0);
+        let m2 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 1);
+        let m3 = MemberState::new(&mut rng, threshold, &mut members_transcript, &mc, 2);
 
         let participants = vec![m1.public_key(), m2.public_key(), m3.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);
 
         println!("encrypting vote");
+        let mut prover_transcript = Transcript::new(b"Election transcript");
+        prover_transcript.append_message(b"Election identifier", shared_string);
 
         let vote_options = 2;
-        let e1 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let e1 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 0),
+        );
+        let e2 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 1),
+        );
+        let e3 = encrypt_vote(
+            &mut rng,
+            &mut prover_transcript,
+            &ek,
+            Vote::new(vote_options, 0),
+        );
 
         let mut tally = EncryptedTally::new(vote_options);
         tally.add(&e1.0, 10);
