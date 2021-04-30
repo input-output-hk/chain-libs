@@ -29,7 +29,6 @@ impl BabyStepsTable {
     ///
     /// For example, a balance of 2 means that the table will precompute 2 times more
     /// baby steps than the standard O(sqrt(n)), 1 means symmetrical steps.
-    #[cfg(not(feature = "ristretto255"))]
     pub fn generate_with_balance(max_value: u64, balance: u64) -> Self {
         let sqrt_step_size = (max_value as f64).sqrt().ceil() as u64;
         let baby_step_size = sqrt_step_size * balance;
@@ -37,31 +36,15 @@ impl BabyStepsTable {
         let gen = GroupElement::generator();
         let mut e = GroupElement::zero();
 
-        // With ECC we can use the property that P and -P share a coordinate
+        // With sec2 curves we can use the property that P and -P share a coordinate
+        #[cfg(not(feature = "ristretto255"))]
         for i in 0..=baby_step_size / 2 {
             bs.insert(e.encode_hash_map(), i);
             e = &e + &gen;
         }
-        assert!(!bs.is_empty());
-        assert!(baby_step_size > 0);
-        Self {
-            table: bs,
-            baby_step_size,
-            giant_step: GroupElement::generator() * Scalar::from_u64(baby_step_size).negate(),
-        }
-    }
-
-    /// Same as above. However, the ristretto group API does not allow to use the x coordinate
-    /// for security properties (see [here](https://github.com/dalek-cryptography/curve25519-dalek/issues/235))
-    /// so we cannot use the trick of making a hash map of the X coord.
-    #[cfg(feature = "ristretto255")]
-    pub fn generate_with_balance(max_value: u64, balance: u64) -> Self {
-        let sqrt_step_size = (max_value as f64).sqrt().ceil() as u64;
-        let baby_step_size = sqrt_step_size * balance;
-        let mut bs = HashMap::new();
-        let gen = GroupElement::generator();
-        let mut e = GroupElement::zero();
-
+        // Not with ristretto group. the ristretto group API does not allow to use the x coordinate
+        // for security properties (see [here](https://github.com/dalek-cryptography/curve25519-dalek/issues/235))
+        #[cfg(feature = "ristretto255")]
         for i in 0..=baby_step_size {
             bs.insert(e.encode_hash_map(), i);
             e = &e + &gen;
@@ -94,11 +77,14 @@ pub fn baby_step_giant_step(
             let mut a = 0;
             loop {
                 if let Some(x) = table.get(&point.encode_hash_map()) {
+                    #[cfg(not(feature = "ristretto255"))]
                     let r = if Scalar::from_u64(*x) * GroupElement::generator() == point {
                         a * baby_step_size + x
                     } else {
                         a * baby_step_size - x
                     };
+                    #[cfg(feature = "ristretto255")]
+                    let r = a * baby_step_size + x;
                     return Ok(r);
                 }
                 if a * baby_step_size > max_log {

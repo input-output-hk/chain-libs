@@ -237,13 +237,6 @@ impl From<bool> for Scalar {
         }
     }
 }
-/*
-impl From<usize> for Scalar {
-    fn from(sz: usize) -> Self {
-        todo!()
-    }
-}
-*/
 
 macro_rules! lref {
     ($lty: ident, $class: ident, $rty: ident, $out: ident, $f: ident) => {
