@@ -91,7 +91,7 @@ mod tests {
                 .test(ctx);
 
             forall(fe_generator().and(fe_generator()))
-                .ensure(|(e1, e2)| property::equal((e1 - e2) + e2, e1 + Scalar::zero()))
+                .ensure(|(e1, e2)| property::equal((e1 - e2) + e2, e1.clone()))
                 .test(ctx);
 
             forall(fe_generator().and(fe_generator()).and(fe_generator()))

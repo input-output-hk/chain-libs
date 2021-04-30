@@ -121,7 +121,7 @@ impl Scalar {
     pub fn from_bytes(slice: &[u8]) -> Option<Self> {
         let scalar: Result<[u8; 32], TryFromSliceError> = slice.try_into();
         match scalar {
-            Ok(e) => Some(Scalar(IScalar::from_bits(e))),
+            Ok(e) => Some(Scalar(IScalar::from_bytes_mod_order(e))),
             _ => None,
         }
     }
