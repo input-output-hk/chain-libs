@@ -52,10 +52,6 @@ impl GroupElement {
         self.0.compress()
     }
 
-    pub(super) fn encode_hash_map(&self) -> Option<[u8; Self::BYTES_LEN]> {
-        Some(self.0.compress().to_bytes())
-    }
-
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         self.compress().to_bytes()
     }

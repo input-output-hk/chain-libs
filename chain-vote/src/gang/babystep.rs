@@ -39,14 +39,14 @@ impl BabyStepsTable {
         // With sec2 curves we can use the property that P and -P share a coordinate
         #[cfg(not(feature = "ristretto255"))]
         for i in 0..=baby_step_size / 2 {
-            bs.insert(e.encode_hash_map(), i);
+            bs.insert(e.compress().map(|(c, _sign)| c.to_bytes()), i);
             e = &e + &gen;
         }
         // Not with ristretto group. the ristretto group API does not allow to use the x coordinate
         // for security properties (see [here](https://github.com/dalek-cryptography/curve25519-dalek/issues/235))
         #[cfg(feature = "ristretto255")]
         for i in 0..=baby_step_size {
-            bs.insert(e.encode_hash_map(), i);
+            bs.insert(Some(e.to_bytes()), i);
             e = &e + &gen;
         }
         assert!(!bs.is_empty());
@@ -76,17 +76,22 @@ pub fn baby_step_giant_step(
         .map(|mut point| {
             let mut a = 0;
             loop {
-                if let Some(x) = table.get(&point.encode_hash_map()) {
-                    #[cfg(not(feature = "ristretto255"))]
+                #[cfg(not(feature = "ristretto255"))]
+                if let Some(x) = table.get(&point.compress().map(|(c, _sign)| c.to_bytes())) {
                     let r = if Scalar::from_u64(*x) * GroupElement::generator() == point {
                         a * baby_step_size + x
                     } else {
                         a * baby_step_size - x
                     };
-                    #[cfg(feature = "ristretto255")]
+                    return Ok(r);
+                }
+
+                #[cfg(feature = "ristretto255")]
+                if let Some(x) = table.get(&Some(point.to_bytes())) {
                     let r = a * baby_step_size + x;
                     return Ok(r);
                 }
+
                 if a * baby_step_size > max_log {
                     return Err(MaxLogExceeded);
                 }

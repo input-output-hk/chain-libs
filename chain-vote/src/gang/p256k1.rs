@@ -118,11 +118,6 @@ impl GroupElement {
         })
     }
 
-    pub(super) fn encode_hash_map(&self) -> Option<[u8; FieldElement::SIZE_BYTES]> {
-        let (x, _) = self.compress()?;
-        Some(x.to_bytes())
-    }
-
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         match self.0.to_affine() {
             None => Self::BYTES_ZERO,
