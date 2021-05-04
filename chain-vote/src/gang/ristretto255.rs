@@ -38,7 +38,6 @@ impl Hash for Scalar {
 impl GroupElement {
     /// Size of the byte representation of `GroupElement`. We always encode the compressed value
     pub const BYTES_LEN: usize = 32;
-    pub const HASH_MAP_LEN: usize = Self::BYTES_LEN;
 
     pub fn generator() -> Self {
         GroupElement(RISTRETTO_BASEPOINT_POINT)

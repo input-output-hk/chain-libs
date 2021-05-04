@@ -10,7 +10,10 @@ const DEFAULT_BALANCE: u64 = 2;
 /// for solving discrete log on ECC
 #[derive(Debug, Clone)]
 pub struct BabyStepsTable {
-    table: HashMap<Option<[u8; GroupElement::HASH_MAP_LEN]>, u64>,
+    #[cfg(not(feature = "ristretto255"))]
+    table: HashMap<Option<[u8; Coordinate::BYTES_LEN]>, u64>,
+    #[cfg(feature = "ristretto255")]
+    table: HashMap<Option<[u8; GroupElement::BYTES_LEN]>, u64>,
     baby_step_size: u64,
     giant_step: GroupElement,
 }

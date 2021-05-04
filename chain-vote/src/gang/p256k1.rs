@@ -32,13 +32,6 @@ impl Hash for Scalar {
     }
 }
 
-#[allow(clippy::derive_hash_xor_eq)]
-impl Hash for Coordinate {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(&self.to_bytes())
-    }
-}
-
 impl Coordinate {
     pub const BYTES_LEN: usize = FieldElement::SIZE_BYTES;
 
@@ -60,7 +53,6 @@ impl Coordinate {
 impl GroupElement {
     /// Size of the byte representation of `GroupElement`.
     pub const BYTES_LEN: usize = 65;
-    pub const HASH_MAP_LEN: usize = FieldElement::SIZE_BYTES;
 
     /// Serialized GroupElement::zero
     const BYTES_ZERO: [u8; Self::BYTES_LEN] = [0; Self::BYTES_LEN];
