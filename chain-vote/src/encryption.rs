@@ -69,20 +69,17 @@ impl PublicKey {
     }
 
     /// Given a `message` represented as a group element, return a ciphertext.
-    pub fn encrypt_point<R>(&self, message: &GroupElement, rng: &mut R) -> Ciphertext
+    pub(crate) fn encrypt_point<R>(&self, message: &GroupElement, rng: &mut R) -> Ciphertext
     where
         R: RngCore + CryptoRng,
     {
         let r = Scalar::random(rng);
-        Ciphertext {
-            e1: &GroupElement::generator() * &r,
-            e2: message + &(&self.pk * &r),
-        }
+        self.encrypt_point_with_r(&message, &r)
     }
 
     /// Given a `message` represented as a group element, return a ciphertext and the
     /// randomness used.
-    pub fn encrypt_point_return_r<R>(
+    pub(crate) fn encrypt_point_return_r<R>(
         &self,
         message: &GroupElement,
         rng: &mut R,
@@ -91,20 +88,18 @@ impl PublicKey {
         R: RngCore + CryptoRng,
     {
         let r = Scalar::random(rng);
-        (
-            Ciphertext {
-                e1: &GroupElement::generator() * &r,
-                e2: message + &(&self.pk * &r),
-            },
-            r,
-        )
+        (self.encrypt_point_with_r(&message, &r), r)
     }
 
     /// Given a `message` represented as a group element, and some value used as `randomness`,
     /// return the corresponding ciphertext. This function should only be called when the
-    /// randomness value is not random (e.g. verification procedure of the unit vector ZKP).
+    /// randomness value needs to be a particular value (e.g. verification procedure of the unit vector ZKP).
     /// Otherwise, `encrypt_point` should be used.
-    pub fn encrypt_point_with_r(&self, message: &GroupElement, randomness: &Scalar) -> Ciphertext {
+    pub(crate) fn encrypt_point_with_r(
+        &self,
+        message: &GroupElement,
+        randomness: &Scalar,
+    ) -> Ciphertext {
         Ciphertext {
             e1: &GroupElement::generator() * randomness,
             e2: message + &(&self.pk * randomness),
@@ -113,7 +108,7 @@ impl PublicKey {
 
     /// Given a `message` represented as a `Scalar`, return a ciphertext using the
     /// "lifted ElGamal" mechanism. Mainly, return (r * G; `message` * G + r * `self`)
-    pub fn encrypt<R>(&self, message: &Scalar, rng: &mut R) -> Ciphertext
+    pub(crate) fn encrypt<R>(&self, message: &Scalar, rng: &mut R) -> Ciphertext
     where
         R: RngCore + CryptoRng,
     {
@@ -122,7 +117,7 @@ impl PublicKey {
 
     /// Given a `message` represented as a `Scalar`, return a ciphertext and return
     /// the randomness used.
-    pub fn encrypt_return_r<R>(&self, message: &Scalar, rng: &mut R) -> (Ciphertext, Scalar)
+    pub(crate) fn encrypt_return_r<R>(&self, message: &Scalar, rng: &mut R) -> (Ciphertext, Scalar)
     where
         R: RngCore + CryptoRng,
     {
@@ -133,12 +128,12 @@ impl PublicKey {
     /// return the corresponding ciphertext. This function should only be called when the
     /// randomness value is not random (e.g. verification procedure of the unit vector ZKP).
     /// Otherwise, `encrypt_point` should be used.
-    pub fn encrypt_with_r(&self, message: &Scalar, randomness: &Scalar) -> Ciphertext {
+    pub(crate) fn encrypt_with_r(&self, message: &Scalar, randomness: &Scalar) -> Ciphertext {
         self.encrypt_point_with_r(&(&GroupElement::generator() * message), randomness)
     }
 
     /// Given a `message` passed as bytes, encrypt it using hybrid encryption.
-    pub fn hybrid_encrypt<R>(&self, message: &[u8], rng: &mut R) -> HybridCiphertext
+    pub(crate) fn hybrid_encrypt<R>(&self, message: &[u8], rng: &mut R) -> HybridCiphertext
     where
         R: RngCore + CryptoRng,
     {
@@ -161,7 +156,7 @@ impl SecretKey {
 
     #[allow(dead_code)]
     /// Decrypt a message using hybrid decryption
-    pub fn hybrid_decrypt(&self, ciphertext: &HybridCiphertext) -> Vec<u8> {
+    pub(crate) fn hybrid_decrypt(&self, ciphertext: &HybridCiphertext) -> Vec<u8> {
         let symmetric_key = SymmetricKey {
             group_repr: self.decrypt_point(&ciphertext.e1),
         };
@@ -172,28 +167,8 @@ impl SecretKey {
     /// Decrypt ElGamal `Ciphertext` = (`cipher`.e1, `cipher`.e2), by computing
     /// `cipher`.e2 - `self` * `cipher`.e1. This returns the plaintext respresented
     /// as a `GroupElement`.
-    pub fn decrypt_point(&self, cipher: &Ciphertext) -> GroupElement {
+    pub(crate) fn decrypt_point(&self, cipher: &Ciphertext) -> GroupElement {
         &(&cipher.e1 * &self.sk.negate()) + &cipher.e2
-    }
-
-    /// Decrypt ElGamal `Ciphertext` as with `decrypt_point`, and then find the discrete
-    /// log of the plaintext with respect to the generator. This function can only be used
-    /// if we know that the plaintext is represented as a `Scalar`, and that it's space
-    /// is small enough to be able to find the discrete log.
-    pub fn decrypt(&self, cipher: &Ciphertext, incr: usize) -> Option<Scalar> {
-        let ge = self.decrypt_point(cipher);
-
-        let gen = GroupElement::generator();
-        let mut r = &gen * Scalar::one();
-
-        for i in 1..incr {
-            if r == ge {
-                return Some(Scalar::from_u64(i as u64));
-            } else {
-                r = &r + &gen;
-            }
-        }
-        None
     }
 }
 
@@ -278,20 +253,6 @@ impl Ciphertext {
     }
 }
 
-pub fn vec_sum(vec_ciphertexts: Vec<Vec<Ciphertext>>) -> Vec<Ciphertext> {
-    assert!(!vec_ciphertexts.is_empty());
-
-    let mut result = vec_ciphertexts[0].clone();
-    for ciphertexts in &vec_ciphertexts[1..] {
-        assert_eq!(ciphertexts.len(), result.len());
-
-        for (r, c) in result.iter_mut().zip(ciphertexts) {
-            *r = &*r + c
-        }
-    }
-    result
-}
-
 impl<'a, 'b> Add<&'b Ciphertext> for &'a Ciphertext {
     type Output = Ciphertext;
 
@@ -364,8 +325,8 @@ mod tests {
             let keypair = Keypair::generate(&mut rng);
             let m = Scalar::from_u64(n * 24);
             let cipher = keypair.public_key.encrypt(&m, &mut rng);
-            let r = keypair.secret_key.decrypt(&cipher, 5 * 24);
-            assert_eq!(Some(m), r)
+            let r = keypair.secret_key.decrypt_point(&cipher);
+            assert_eq!(m * GroupElement::generator(), r)
         }
     }
 
