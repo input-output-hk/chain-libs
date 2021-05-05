@@ -69,7 +69,7 @@ impl PublicKey {
     }
 
     /// Given a `message` represented as a group element, return a ciphertext.
-    pub(crate) fn encrypt_point<R>(&self, message: &GroupElement, rng: &mut R) -> Ciphertext
+    fn encrypt_point<R>(&self, message: &GroupElement, rng: &mut R) -> Ciphertext
     where
         R: RngCore + CryptoRng,
     {
@@ -79,7 +79,7 @@ impl PublicKey {
 
     /// Given a `message` represented as a group element, return a ciphertext and the
     /// randomness used.
-    pub(crate) fn encrypt_point_return_r<R>(
+    fn encrypt_point_return_r<R>(
         &self,
         message: &GroupElement,
         rng: &mut R,
@@ -95,7 +95,7 @@ impl PublicKey {
     /// return the corresponding ciphertext. This function should only be called when the
     /// randomness value needs to be a particular value (e.g. verification procedure of the unit vector ZKP).
     /// Otherwise, `encrypt_point` should be used.
-    pub(crate) fn encrypt_point_with_r(
+    fn encrypt_point_with_r(
         &self,
         message: &GroupElement,
         randomness: &Scalar,
