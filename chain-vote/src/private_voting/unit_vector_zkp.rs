@@ -19,6 +19,250 @@ use crate::private_voting::ChallengeContext;
 use crate::unit_vector::binrep;
 use crate::CRS;
 
+/// Unit vector proof. In this proof, a prover encrypts each entry of a vector e, and proves
+/// that the vector is a unit vector. In particular, it proves that it is the ith unit
+/// vector without disclosing i.
+/// Common Reference String: Pedersen Commitment Key
+/// Statement: group generator g, public key pk, and ciphertexts
+/// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
+/// Witness: the unit vector e, and randomness r_i for i in [0, m-1]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Proof {
+    ibas: Vec<Announcement>,
+    ds: Vec<Ciphertext>,
+    zwvs: Vec<ResponseRandomness>,
+    r: Scalar,
+}
+
+#[allow(clippy::len_without_is_empty)]
+impl Proof {
+
+    pub(crate) fn prove<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        crs: &CRS,
+        public_key: &PublicKey,
+        encrypting_vote: EncryptingVote,
+    ) -> Self {
+        let ck = CommitmentKey { h: crs.clone() };
+        let ciphers = PTP::new(encrypting_vote.ciphertexts, Ciphertext::zero);
+        let cipher_randoms = PTP::new(encrypting_vote.random_elements, Scalar::zero);
+
+        assert_eq!(ciphers.bits(), cipher_randoms.bits());
+
+        let bits = ciphers.bits();
+
+        let mut blinding_randomness_vec = Vec::with_capacity(bits);
+        for _ in 0..bits {
+            blinding_randomness_vec.push(BlindingRandomness::random(rng))
+        }
+
+        let unit_vector = &encrypting_vote.unit_vector;
+        let idx_binary_rep = binrep(unit_vector.ith(), bits as u32);
+        assert_eq!(idx_binary_rep.len(), bits);
+
+        // Generate I, B, A commitments
+        let first_announcement_vec: Vec<Announcement> = blinding_randomness_vec
+            .iter()
+            .zip(idx_binary_rep.iter())
+            .map(|(abcd, index)| Announcement::new(&ck, abcd, &(*index).into()))
+            .collect();
+        debug_assert_eq!(first_announcement_vec.len(), bits);
+
+        // Generate First verifier challenge
+        let cc = ChallengeContext::new(public_key, ciphers.as_ref(), &first_announcement_vec);
+        let cy = cc.first_challenge();
+
+        let (ds, rs) = {
+            let pjs = generate_polys(
+                ciphers.len(),
+                &idx_binary_rep,
+                bits,
+                &blinding_randomness_vec,
+            );
+
+            // Generate new Rs for Ds
+            let mut rs = Vec::with_capacity(bits);
+            let mut ds = Vec::with_capacity(bits);
+
+            for i in 0..bits {
+                let mut sum = Scalar::zero();
+                #[allow(clippy::needless_range_loop)]
+                for j in 0..ciphers.len() {
+                    sum = sum + (cy.power(j) * pjs[j].get_coefficient_at(i))
+                }
+
+                let (d, r) = public_key.encrypt_return_r(&sum, rng);
+                ds.push(d);
+                rs.push(r);
+            }
+            (ds, rs)
+        };
+        debug_assert_eq!(ds.len(), bits);
+
+        // Generate second verifier challenge
+        let cx = cc.second_challenge(&ds);
+
+        // Compute ZWVs
+        let zwvs = blinding_randomness_vec
+            .iter()
+            .zip(idx_binary_rep.iter())
+            .map(|(abcd, index)| abcd.gen_response(&cx, index))
+            .collect::<Vec<_>>();
+        debug_assert_eq!(zwvs.len(), bits);
+
+        // Compute R
+        let r = Self::compute_response(cx, cy, &rs, cipher_randoms);
+
+        Proof {
+            ibas: first_announcement_vec,
+            ds,
+            zwvs,
+            r,
+        }
+    }
+
+    /// Computes the final response
+    /// todo: detail
+    fn compute_response(
+        first_challenge: Scalar,
+        second_challenge: Scalar,
+        rs: &[Scalar],
+        cipher_randoms: PTP<Scalar>,
+    ) -> Scalar {
+        let cx_pow = first_challenge.power(cipher_randoms.bits());
+        let p1 = cipher_randoms
+            .iter()
+            .enumerate()
+            .fold(Scalar::zero(), |acc, (i, r)| {
+                let el = r * &cx_pow * second_challenge.power(i);
+                el + acc
+            });
+        let p2 = rs.iter().enumerate().fold(Scalar::zero(), |acc, (l, r)| {
+            let el = r * first_challenge.power(l);
+            el + acc
+        });
+        p1 + p2
+    }
+
+    pub(crate) fn verify(
+        &self,
+        crs: &CRS,
+        public_key: &PublicKey,
+        ciphertexts: &[Ciphertext],
+    ) -> bool {
+        let ck = CommitmentKey { h: crs.clone() };
+        let ciphertexts = PTP::new(ciphertexts.to_vec(), Ciphertext::zero);
+        let bits = ciphertexts.bits();
+        let cc = ChallengeContext::new(public_key, ciphertexts.as_ref(), &self.ibas);
+        let cy = cc.first_challenge();
+        let cx = cc.second_challenge(&self.ds);
+
+        if self.ibas.len() != bits {
+            return false;
+        }
+
+        if self.zwvs.len() != bits {
+            return false;
+        }
+
+        // check commitments are 0 / 1
+        for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
+            let com1 = Commitment::new(&ck, &zwv.z, &zwv.w);
+            let lhs = &iba.i * &cx + &iba.b;
+            if lhs != com1 {
+                return false;
+            }
+
+            let com2 = Commitment::new(&ck, &Scalar::zero(), &zwv.v);
+            let lhs = &iba.i * (&cx - &zwv.z) + &iba.a;
+            if lhs != com2 {
+                return false;
+            }
+        }
+
+        // check product
+        {
+            let bits = ciphertexts.bits();
+            let cx_pow = cx.power(bits);
+
+            let p1 = ciphertexts
+                .as_ref()
+                .iter()
+                .enumerate()
+                .fold(Ciphertext::zero(), |acc, (i, c)| {
+                    let idx = binrep(i, bits as u32);
+                    let multz = self
+                        .zwvs
+                        .iter()
+                        .enumerate()
+                        .fold(Scalar::one(), |acc, (j, zwv)| {
+                            let m = if idx[j] { zwv.z.clone() } else { &cx - &zwv.z };
+                            &acc * m
+                        });
+                    let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
+                    let mult_c = c * &cx_pow;
+                    let y_pow_i = cy.power(i);
+                    let t = (&mult_c + &enc) * y_pow_i;
+                    &acc + &t
+                });
+
+            let dsum = self
+                .ds
+                .iter()
+                .enumerate()
+                .fold(Ciphertext::zero(), |acc, (l, d)| &acc + &(d * cx.power(l)));
+
+            let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
+            if &p1 + &dsum != zero {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// Constructs the proof structure from constituent parts.
+    ///
+    /// # Panics
+    ///
+    /// The `ibas`, `ds`, and `zwvs` must have the same length, otherwise the function will panic.
+    pub fn from_parts(
+        ibas: Vec<Announcement>,
+        ds: Vec<Ciphertext>,
+        zwvs: Vec<ResponseRandomness>,
+        r: Scalar,
+    ) -> Self {
+        assert_eq!(ibas.len(), ds.len());
+        assert_eq!(ibas.len(), zwvs.len());
+        Proof { ibas, ds, zwvs, r }
+    }
+
+    /// Returns the length of the size of the witness vector
+    pub fn len(&self) -> usize {
+        self.ibas.len()
+    }
+
+    /// Return an iterator of the announcement commitments
+    pub fn ibas(&self) -> impl Iterator<Item = &Announcement> {
+        self.ibas.iter()
+    }
+
+    /// Return an iterator of the encryptions of the polynomial coefficients
+    pub fn ds(&self) -> impl Iterator<Item = &Ciphertext> {
+        self.ds.iter()
+    }
+
+    /// Return an iterator of the response related to the randomness
+    pub fn zwvs(&self) -> impl Iterator<Item = &ResponseRandomness> {
+        self.zwvs.iter()
+    }
+
+    /// Return R
+    pub fn r(&self) -> &Scalar {
+        &self.r
+    }
+}
+
 /// Randomness generated in the proof, used for the hiding property.
 struct BlindingRandomness {
     alpha: Scalar,
@@ -65,29 +309,6 @@ pub struct Announcement {
     pub(crate) a: Commitment,
 }
 
-/// Response encoding the bits of the private vector, and the randomness of `BlindingRandomness`.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct ResponseRandomness {
-    z: Scalar,
-    w: Scalar,
-    v: Scalar,
-}
-
-/// Unit vector proof. In this proof, a prover encrypts each entry of a vector e, and proves
-/// that the vector is a unit vector. In particular, it proves that it is the ith unit
-/// vector without disclosing i.
-/// Common Reference String: Pedersen Commitment Key
-/// Statement: group generator g, public key pk, and ciphertexts
-/// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
-/// Witness: the unit vector e, and randomness r_i for i in [0, m-1]
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct Proof {
-    ibas: Vec<Announcement>,
-    ds: Vec<Ciphertext>,
-    zwvs: Vec<ResponseRandomness>,
-    r: Scalar,
-}
-
 impl Announcement {
     pub const BYTES_LEN: usize = Commitment::BYTES_LEN * 3;
 
@@ -110,6 +331,35 @@ impl Announcement {
         debug_assert_eq!(buf.len(), Self::BYTES_LEN);
         buf
     }
+
+    fn new(ck: &CommitmentKey, blinding_randomness: &BlindingRandomness, index: &Scalar) -> Self {
+        assert!(index == &Scalar::zero() || index == &Scalar::one());
+
+        // commit index bit: 0 or 1
+        let i = Commitment::new(ck, &index, &blinding_randomness.alpha);
+        // commit beta
+        let b = Commitment::new(ck, &blinding_randomness.beta, &blinding_randomness.gamma);
+        // commit i * B => 0 * B = 0 or 1 * B = B
+        let a = if index == &Scalar::one() {
+            Commitment::new(
+                ck,
+                &blinding_randomness.beta.clone(),
+                &blinding_randomness.delta,
+            )
+        } else {
+            Commitment::new(ck, &Scalar::zero(), &blinding_randomness.delta)
+        };
+
+        Announcement { i, b, a }
+    }
+}
+
+/// Response encoding the bits of the private vector, and the randomness of `BlindingRandomness`.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ResponseRandomness {
+    z: Scalar,
+    w: Scalar,
+    v: Scalar,
 }
 
 impl ResponseRandomness {
@@ -133,73 +383,6 @@ impl ResponseRandomness {
         }
         debug_assert_eq!(buf.len(), Self::BYTES_LEN);
         buf
-    }
-}
-
-#[allow(clippy::len_without_is_empty)]
-impl Proof {
-    /// Constructs the proof structure from constituent parts.
-    ///
-    /// # Panics
-    ///
-    /// The `ibas`, `ds`, and `zwvs` must have the same length, otherwise the function will panic.
-    pub fn from_parts(
-        ibas: Vec<Announcement>,
-        ds: Vec<Ciphertext>,
-        zwvs: Vec<ResponseRandomness>,
-        r: Scalar,
-    ) -> Self {
-        assert_eq!(ibas.len(), ds.len());
-        assert_eq!(ibas.len(), zwvs.len());
-        Proof { ibas, ds, zwvs, r }
-    }
-
-    /// Returns the length of the size of the witness vector
-    pub fn len(&self) -> usize {
-        self.ibas.len()
-    }
-
-    /// Return an iterator of the announcement commitments
-    pub fn ibas(&self) -> impl Iterator<Item = &Announcement> {
-        self.ibas.iter()
-    }
-
-    /// Return an iterator of the encryptions of the polynomial coefficients
-    pub fn ds(&self) -> impl Iterator<Item = &Ciphertext> {
-        self.ds.iter()
-    }
-
-    /// Return an iterator of the response related to the randomness
-    pub fn zwvs(&self) -> impl Iterator<Item = &ResponseRandomness> {
-        self.zwvs.iter()
-    }
-
-    /// Return R
-    pub fn r(&self) -> &Scalar {
-        &self.r
-    }
-}
-
-impl Announcement {
-    fn new(ck: &CommitmentKey, blinding_randomness: &BlindingRandomness, index: &Scalar) -> Self {
-        assert!(index == &Scalar::zero() || index == &Scalar::one());
-
-        // commit index bit: 0 or 1
-        let i = Commitment::new(ck, &index, &blinding_randomness.alpha);
-        // commit beta
-        let b = Commitment::new(ck, &blinding_randomness.beta, &blinding_randomness.gamma);
-        // commit i * B => 0 * B = 0 or 1 * B = B
-        let a = if index == &Scalar::one() {
-            Commitment::new(
-                ck,
-                &blinding_randomness.beta.clone(),
-                &blinding_randomness.delta,
-            )
-        } else {
-            Commitment::new(ck, &Scalar::zero(), &blinding_randomness.delta)
-        };
-
-        Announcement { i, b, a }
     }
 }
 
@@ -244,190 +427,6 @@ fn generate_polys(
     pjs
 }
 
-pub(crate) fn prove<R: RngCore + CryptoRng>(
-    rng: &mut R,
-    crs: &CRS,
-    public_key: &PublicKey,
-    encrypting_vote: EncryptingVote,
-) -> Proof {
-    let ck = CommitmentKey { h: crs.clone() };
-    let ciphers = PTP::new(encrypting_vote.ciphertexts, Ciphertext::zero);
-    let cipher_randoms = PTP::new(encrypting_vote.random_elements, Scalar::zero);
-
-    assert_eq!(ciphers.bits(), cipher_randoms.bits());
-
-    let bits = ciphers.bits();
-
-    let mut blinding_randomness_vec = Vec::with_capacity(bits);
-    for _ in 0..bits {
-        blinding_randomness_vec.push(BlindingRandomness::random(rng))
-    }
-
-    let unit_vector = &encrypting_vote.unit_vector;
-    let idx_binary_rep = binrep(unit_vector.ith(), bits as u32);
-    assert_eq!(idx_binary_rep.len(), bits);
-
-    // Generate I, B, A commitments
-    let first_announcement_vec: Vec<Announcement> = blinding_randomness_vec
-        .iter()
-        .zip(idx_binary_rep.iter())
-        .map(|(abcd, index)| Announcement::new(&ck, abcd, &(*index).into()))
-        .collect();
-    debug_assert_eq!(first_announcement_vec.len(), bits);
-
-    // Generate First verifier challenge
-    let cc = ChallengeContext::new(public_key, ciphers.as_ref(), &first_announcement_vec);
-    let cy = cc.first_challenge();
-
-    let (ds, rs) = {
-        let pjs = generate_polys(
-            ciphers.len(),
-            &idx_binary_rep,
-            bits,
-            &blinding_randomness_vec,
-        );
-
-        // Generate new Rs for Ds
-        let mut rs = Vec::with_capacity(bits);
-        let mut ds = Vec::with_capacity(bits);
-
-        for i in 0..bits {
-            let mut sum = Scalar::zero();
-            #[allow(clippy::needless_range_loop)]
-            for j in 0..ciphers.len() {
-                sum = sum + (cy.power(j) * pjs[j].get_coefficient_at(i))
-            }
-
-            let (d, r) = public_key.encrypt_return_r(&sum, rng);
-            ds.push(d);
-            rs.push(r);
-        }
-        (ds, rs)
-    };
-    debug_assert_eq!(ds.len(), bits);
-
-    // Generate second verifier challenge
-    let cx = cc.second_challenge(&ds);
-
-    // Compute ZWVs
-    let zwvs = blinding_randomness_vec
-        .iter()
-        .zip(idx_binary_rep.iter())
-        .map(|(abcd, index)| abcd.gen_response(&cx, index))
-        .collect::<Vec<_>>();
-    debug_assert_eq!(zwvs.len(), bits);
-
-    // Compute R
-    let r = compute_response(cx, cy, &rs, cipher_randoms);
-
-    Proof {
-        ibas: first_announcement_vec,
-        ds,
-        zwvs,
-        r,
-    }
-}
-
-/// Computes the final response
-/// todo: detail
-fn compute_response(
-    first_challenge: Scalar,
-    second_challenge: Scalar,
-    rs: &[Scalar],
-    cipher_randoms: PTP<Scalar>,
-) -> Scalar {
-    let cx_pow = first_challenge.power(cipher_randoms.bits());
-    let p1 = cipher_randoms
-        .iter()
-        .enumerate()
-        .fold(Scalar::zero(), |acc, (i, r)| {
-            let el = r * &cx_pow * second_challenge.power(i);
-            el + acc
-        });
-    let p2 = rs.iter().enumerate().fold(Scalar::zero(), |acc, (l, r)| {
-        let el = r * first_challenge.power(l);
-        el + acc
-    });
-    p1 + p2
-}
-
-pub(crate) fn verify(
-    crs: &CRS,
-    public_key: &PublicKey,
-    ciphertexts: &[Ciphertext],
-    proof: &Proof,
-) -> bool {
-    let ck = CommitmentKey { h: crs.clone() };
-    let ciphertexts = PTP::new(ciphertexts.to_vec(), Ciphertext::zero);
-    let bits = ciphertexts.bits();
-    let cc = ChallengeContext::new(public_key, ciphertexts.as_ref(), &proof.ibas);
-    let cy = cc.first_challenge();
-    let cx = cc.second_challenge(&proof.ds);
-
-    if proof.ibas.len() != bits {
-        return false;
-    }
-
-    if proof.zwvs.len() != bits {
-        return false;
-    }
-
-    // check commitments are 0 / 1
-    for (iba, zwv) in proof.ibas.iter().zip(proof.zwvs.iter()) {
-        let com1 = Commitment::new(&ck, &zwv.z, &zwv.w);
-        let lhs = &iba.i * &cx + &iba.b;
-        if lhs != com1 {
-            return false;
-        }
-
-        let com2 = Commitment::new(&ck, &Scalar::zero(), &zwv.v);
-        let lhs = &iba.i * (&cx - &zwv.z) + &iba.a;
-        if lhs != com2 {
-            return false;
-        }
-    }
-
-    // check product
-    {
-        let bits = ciphertexts.bits();
-        let cx_pow = cx.power(bits);
-
-        let p1 = ciphertexts
-            .as_ref()
-            .iter()
-            .enumerate()
-            .fold(Ciphertext::zero(), |acc, (i, c)| {
-                let idx = binrep(i, bits as u32);
-                let multz = proof
-                    .zwvs
-                    .iter()
-                    .enumerate()
-                    .fold(Scalar::one(), |acc, (j, zwv)| {
-                        let m = if idx[j] { zwv.z.clone() } else { &cx - &zwv.z };
-                        &acc * m
-                    });
-                let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
-                let mult_c = c * &cx_pow;
-                let y_pow_i = cy.power(i);
-                let t = (&mult_c + &enc) * y_pow_i;
-                &acc + &t
-            });
-
-        let dsum = proof
-            .ds
-            .iter()
-            .enumerate()
-            .fold(Ciphertext::zero(), |acc, (l, d)| &acc + &(d * cx.power(l)));
-
-        let zero = public_key.encrypt_with_r(&Scalar::zero(), &proof.r);
-        if &p1 + &dsum != zero {
-            return false;
-        }
-    }
-
-    true
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -448,8 +447,8 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = CRS::from_hash(&mut shared_string);
 
-        let proof = prove(&mut r, &crs, &public_key, ev.clone());
-        assert!(verify(&crs, &public_key, &ev.ciphertexts, &proof))
+        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
     }
 
     #[test]
@@ -463,7 +462,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = CRS::from_hash(&mut shared_string);
 
-        let proof = prove(&mut r, &crs, &public_key, ev.clone());
-        assert!(verify(&crs, &public_key, &ev.ciphertexts, &proof))
+        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
     }
 }

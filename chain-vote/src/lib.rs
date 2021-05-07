@@ -66,7 +66,7 @@ pub fn encrypt_vote<R: RngCore + CryptoRng>(
     vote: Vote,
 ) -> (EncryptedVote, ProofOfCorrectVote) {
     let ev = EncryptingVote::prepare(rng, &public_key.0, &vote);
-    let proof = private_voting::unit_vector_zkp::prove(rng, &crs, &public_key.0, ev.clone());
+    let proof = private_voting::Proof::prove(rng, &crs, &public_key.0, ev.clone());
     (ev.ciphertexts, proof)
 }
 
@@ -78,7 +78,7 @@ pub fn verify_vote(
     vote: &EncryptedVote,
     proof: &ProofOfCorrectVote,
 ) -> bool {
-    private_voting::unit_vector_zkp::verify(&crs, &public_key.0, vote, proof)
+    proof.verify(&crs, &public_key.0, vote)
 }
 
 /// The encrypted tally
