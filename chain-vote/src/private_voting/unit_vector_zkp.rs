@@ -9,16 +9,15 @@
 //! disclosing the latter.
 
 use rand_core::{CryptoRng, RngCore};
-use cryptoxide::blake2b::Blake2b;
-use cryptoxide::digest::Digest;
 
 use crate::commitment::{Commitment, CommitmentKey};
 use crate::encrypted::{EncryptingVote, PTP};
-use crate::gang::Scalar;
 use crate::encryption::{Ciphertext, PublicKey};
+use crate::gang::Scalar;
+use crate::math::Polynomial;
+use crate::private_voting::ChallengeContext;
 use crate::unit_vector::binrep;
 use crate::CRS;
-use crate::math::Polynomial;
 
 /// Randomness generated in the proof, used for the hiding property.
 struct BlindingRandomness {
@@ -42,15 +41,28 @@ impl BlindingRandomness {
             delta,
         }
     }
+
+    /// Generate a response randomness from the `BlindingRandomness`, and a `challenge` and `index` given as
+    /// input.
+    fn gen_response(
+        &self,
+        challenge: &Scalar,
+        index: &bool,
+    ) -> ResponseRandomness {
+        let z = Scalar::from(*index) * challenge + &self.beta;
+        let w = &self.alpha * challenge + &self.gamma;
+        let v = &self.alpha * (challenge - &z) + &self.delta;
+        ResponseRandomness { z, w, v }
+    }
 }
 
 /// First announcement, formed by I, B, A commitments. These commitments
 /// contain the binary representation of the unit vector index.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Announcement {
-    i: Commitment,
-    b: Commitment,
-    a: Commitment,
+    pub(crate) i: Commitment,
+    pub(crate) b: Commitment,
+    pub(crate) a: Commitment,
 }
 
 /// Response encoding the bits of the private vector, and the randomness of `BlindingRandomness`.
@@ -122,13 +134,6 @@ impl ResponseRandomness {
         debug_assert_eq!(buf.len(), Self::BYTES_LEN);
         buf
     }
-
-    fn from_rand_commitment(rand_commitment: &BlindingRandomness, challenge: &Scalar, index: &bool) -> Self {
-        let z = Scalar::from(*index) * challenge + &rand_commitment.beta;
-        let w = &rand_commitment.alpha * challenge + &rand_commitment.gamma;
-        let v = &rand_commitment.alpha * (challenge - &z) + &rand_commitment.delta;
-        ResponseRandomness { z, w, v }
-    }
 }
 
 #[allow(clippy::len_without_is_empty)]
@@ -138,7 +143,12 @@ impl Proof {
     /// # Panics
     ///
     /// The `ibas`, `ds`, and `zwvs` must have the same length, otherwise the function will panic.
-    pub fn from_parts(ibas: Vec<Announcement>, ds: Vec<Ciphertext>, zwvs: Vec<ResponseRandomness>, r: Scalar) -> Self {
+    pub fn from_parts(
+        ibas: Vec<Announcement>,
+        ds: Vec<Ciphertext>,
+        zwvs: Vec<ResponseRandomness>,
+        r: Scalar,
+    ) -> Self {
         assert_eq!(ibas.len(), ds.len());
         assert_eq!(ibas.len(), zwvs.len());
         Proof { ibas, ds, zwvs, r }
@@ -180,7 +190,11 @@ impl Announcement {
         let b = Commitment::new(ck, &blinding_randomness.beta, &blinding_randomness.gamma);
         // commit i * B => 0 * B = 0 or 1 * B = B
         let a = if index == &Scalar::one() {
-            Commitment::new(ck, &blinding_randomness.beta.clone(), &blinding_randomness.delta)
+            Commitment::new(
+                ck,
+                &blinding_randomness.beta.clone(),
+                &blinding_randomness.delta,
+            )
         } else {
             Commitment::new(ck, &Scalar::zero(), &blinding_randomness.delta)
         };
@@ -189,8 +203,12 @@ impl Announcement {
     }
 }
 
-fn generate_polys(ciphers_len: usize, idx_binary_rep: &[bool], bits: usize, blinding_randomness_vec: &[BlindingRandomness])
-    -> Vec<Polynomial> {
+fn generate_polys(
+    ciphers_len: usize,
+    idx_binary_rep: &[bool],
+    bits: usize,
+    blinding_randomness_vec: &[BlindingRandomness],
+) -> Vec<Polynomial> {
     // Compute polynomials pj(x)
     let polys = idx_binary_rep
         .iter()
@@ -262,7 +280,12 @@ pub(crate) fn prove<R: RngCore + CryptoRng>(
     let cy = cc.first_challenge();
 
     let (ds, rs) = {
-        let pjs = generate_polys(ciphers.len(), &idx_binary_rep, bits, &blinding_randomness_vec);
+        let pjs = generate_polys(
+            ciphers.len(),
+            &idx_binary_rep,
+            bits,
+            &blinding_randomness_vec,
+        );
 
         // Generate new Rs for Ds
         let mut rs = Vec::with_capacity(bits);
@@ -290,21 +313,29 @@ pub(crate) fn prove<R: RngCore + CryptoRng>(
     let zwvs = blinding_randomness_vec
         .iter()
         .zip(idx_binary_rep.iter())
-        .map(|(abcd, index)| {
-            ResponseRandomness::from_rand_commitment(abcd, &cx, index)
-        })
+        .map(|(abcd, index)| abcd.gen_response(&cx, index))
         .collect::<Vec<_>>();
     debug_assert_eq!(zwvs.len(), bits);
 
     // Compute R
     let r = compute_response(cx, cy, &rs, cipher_randoms);
 
-    Proof { ibas: first_announcement_vec, ds, zwvs, r }
+    Proof {
+        ibas: first_announcement_vec,
+        ds,
+        zwvs,
+        r,
+    }
 }
 
 /// Computes the final response
 /// todo: detail
-fn compute_response(first_challenge: Scalar, second_challenge: Scalar, rs: &[Scalar], cipher_randoms: PTP<Scalar>) -> Scalar {
+fn compute_response(
+    first_challenge: Scalar,
+    second_challenge: Scalar,
+    rs: &[Scalar],
+    cipher_randoms: PTP<Scalar>,
+) -> Scalar {
     let cx_pow = first_challenge.power(cipher_randoms.bits());
     let p1 = cipher_randoms
         .iter()
@@ -318,42 +349,6 @@ fn compute_response(first_challenge: Scalar, second_challenge: Scalar, rs: &[Sca
         el + acc
     });
     p1 + p2
-}
-
-pub(crate) struct ChallengeContext(Blake2b);
-
-fn hash_to_scalar(b: &Blake2b) -> Scalar {
-    let mut h = [0u8; 32];
-    b.clone().result(&mut h);
-    Scalar::from_bytes(&h).unwrap()
-}
-
-impl ChallengeContext {
-    pub(crate) fn new(public_key: &PublicKey, ciphers: &[Ciphertext], ibas: &[Announcement]) -> Self {
-        let mut ctx = Blake2b::new(32);
-        ctx.input(&public_key.to_bytes());
-        for c in ciphers {
-            ctx.input(&c.to_bytes());
-        }
-        for iba in ibas {
-            ctx.input(&iba.i.to_bytes());
-            ctx.input(&iba.b.to_bytes());
-            ctx.input(&iba.a.to_bytes());
-        }
-        ChallengeContext(ctx)
-    }
-
-    pub(crate) fn first_challenge(&self) -> Scalar {
-        hash_to_scalar(&self.0)
-    }
-
-    pub(crate) fn second_challenge(&self, ds: &[Ciphertext]) -> Scalar {
-        let mut x = self.0.clone();
-        for d in ds {
-            x.input(&d.to_bytes())
-        }
-        hash_to_scalar(&x)
-    }
 }
 
 pub(crate) fn verify(
@@ -437,8 +432,8 @@ pub(crate) fn verify(
 mod tests {
     use super::*;
     use crate::encrypted::EncryptingVote;
-    use crate::unit_vector::UnitVector;
     use crate::encryption::Keypair;
+    use crate::unit_vector::UnitVector;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 

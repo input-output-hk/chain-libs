@@ -10,8 +10,8 @@ mod gang;
 mod math;
 // mod challenge_ctxs;
 // pub mod shvzk;
-mod unit_vector;
 pub mod private_voting;
+mod unit_vector;
 
 // re-export under a debug module
 #[doc(hidden)]
