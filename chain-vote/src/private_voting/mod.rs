@@ -9,11 +9,9 @@
 //! The proof communication complexity is logarithmic with respect to the size of
 //! the encrypted tuple.
 
-
 pub(crate) mod challenge_context;
 pub mod unit_vector_zkp;
 
 pub(crate) use self::{
-    challenge_context::ChallengeContext, unit_vector_zkp::Announcement,
-    unit_vector_zkp::Proof,
+    challenge_context::ChallengeContext, unit_vector_zkp::Announcement, unit_vector_zkp::Proof,
 };

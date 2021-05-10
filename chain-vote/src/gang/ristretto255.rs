@@ -12,8 +12,131 @@ use rand_core::{CryptoRng, RngCore};
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Mul, Sub};
 
+use crate::encrypted::PTP;
+use crate::private_voting::unit_vector_zkp::ResponseRandomness;
+use crate::unit_vector::binrep;
+use crate::Ciphertext;
 use std::array::TryFromSliceError;
 use std::convert::TryInto;
+use crate::encryption::PublicKey;
+use curve25519_dalek_ng::traits::VartimeMultiscalarMul;
+
+pub(crate) fn mega_check(
+    ciphertexts: &PTP<Ciphertext>,
+    public_key: &PublicKey,
+    challenge_x: &Scalar,
+    committed_rand: &[ResponseRandomness],
+    challenge_y: &Scalar,
+    encrypted_coeff: &[Ciphertext],
+    response: &Scalar,
+) -> Ciphertext {
+
+    let bits = ciphertexts.bits();
+    let cx_pow = challenge_x.power(bits);
+
+    let powers_cx = exp_iter(*challenge_x);
+    let powers_cy = exp_iter(*challenge_y);
+
+    let zero = public_key.encrypt_with_r(&Scalar::zero(), &response);
+
+    // let mega_check = Point::optional_multiscalar_mul(
+    //     iter::once(Scalar::one())
+    //         .chain(iter::once(x))
+    //         .chain(iter::once(c * x))
+    //         .chain(iter::once(c * x * x))
+    //         .chain(x_sq.iter().cloned())
+    //         .chain(x_inv_sq.iter().cloned())
+    //         .chain(iter::once(-self.e_blinding - c * self.t_x_blinding))
+    //         .chain(iter::once(basepoint_scalar))
+    //         .chain(g)
+    //         .chain(h)
+    //         .chain(value_commitment_scalars),
+    //     iter::once(self.A.decompress())
+    //         .chain(iter::once(self.S.decompress()))
+    //         .chain(iter::once(self.T_1.decompress()))
+    //         .chain(iter::once(self.T_2.decompress()))
+    //         .chain(self.ipp_proof.L_vec.iter().map(|L| L.decompress()))
+    //         .chain(self.ipp_proof.R_vec.iter().map(|R| R.decompress()))
+    //         .chain(iter::once(Some(pc_gens.B_blinding)))
+    //         .chain(iter::once(Some(pc_gens.B)))
+    //         .chain(bp_gens.G(n, m).map(|&x| Some(x)))
+    //         .chain(bp_gens.H(n, m).map(|&x| Some(x)))
+    //         .chain(value_commitments.iter().map(|V| V.decompress())),
+    // )
+    //     .ok_or_else(|| ProofError::VerificationError)?;
+
+
+    let p1 = ciphertexts.as_ref().iter().enumerate().fold(
+        Ciphertext::zero(),
+        |acc, (i, c)| {
+            let idx = binrep(i, bits as u32);
+            let multz =
+                committed_rand
+                    .iter()
+                    .enumerate()
+                    .fold(Scalar::one(), |acc, (j, zwv)| {
+                        let m = if idx[j] { zwv.z.clone() } else { challenge_x - &zwv.z };
+                        &acc * m
+                    });
+            let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
+            let mult_c = c * &cx_pow;
+            let y_pow_i = challenge_y.power(i);
+            let t = (&mult_c + &enc) * y_pow_i;
+            &acc + &t
+        },
+    );
+
+    let dsum = encrypted_coeff
+        .iter()
+        .enumerate()
+        .fold(Ciphertext::zero(), |acc, (l, d)| &acc + &(d * challenge_x.power(l)));
+
+    let zero = public_key.encrypt_with_r(&Scalar::zero(), &response);
+
+    &p1 + &dsum - zero
+}
+
+/// Computes the product of the power of `z` given an `index` and a `bit_size`
+fn powers_z_encs(z: &[ResponseRandomness], challenge_x: Scalar, index: usize, bit_size: u32) -> Point {
+    let idx = binrep(index, bit_size as u32);
+    let multz =
+        z
+            .iter()
+            .enumerate()
+            .fold(Scalar::one(), |acc, (j, zwv)| {
+                let m = if idx[j] { zwv.z.clone() } else { challenge_x - &zwv.z };
+                &acc * m
+            });
+    RISTRETTO_BASEPOINT_POINT * multz.0
+}
+
+/// Provides an iterator over the powers of a `Scalar`.
+///
+/// This struct is created by the `exp_iter` function.
+pub struct ScalarExp {
+    x: Scalar,
+    next_exp_x: Scalar,
+}
+
+impl Iterator for ScalarExp {
+    type Item = Scalar;
+
+    fn next(&mut self) -> Option<Scalar> {
+        let exp_x = self.next_exp_x;
+        self.next_exp_x = self.next_exp_x * self.x;
+        Some(exp_x)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::max_value(), None)
+    }
+}
+
+/// Return an iterator of the powers of `x`.
+fn exp_iter(x: Scalar) -> ScalarExp {
+    let next_exp_x = Scalar::one();
+    ScalarExp { x, next_exp_x }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Scalar(IScalar);

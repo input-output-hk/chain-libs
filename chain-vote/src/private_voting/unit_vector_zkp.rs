@@ -3,7 +3,7 @@ use rand_core::{CryptoRng, RngCore};
 use crate::commitment::{Commitment, CommitmentKey};
 use crate::encrypted::{EncryptingVote, PTP};
 use crate::encryption::{Ciphertext, PublicKey};
-use crate::gang::Scalar;
+use crate::gang::{mega_check, Scalar};
 use crate::math::Polynomial;
 use crate::private_voting::ChallengeContext;
 use crate::unit_vector::binrep;
@@ -160,42 +160,8 @@ impl Proof {
         }
 
         // check product
-        {
-            let bits = ciphertexts.bits();
-            let cx_pow = cx.power(bits);
-
-            let p1 =
-                ciphertexts
-                    .as_ref()
-                    .iter()
-                    .enumerate()
-                    .fold(Ciphertext::zero(), |acc, (i, c)| {
-                        let idx = binrep(i, bits as u32);
-                        let multz =
-                            self.zwvs
-                                .iter()
-                                .enumerate()
-                                .fold(Scalar::one(), |acc, (j, zwv)| {
-                                    let m = if idx[j] { zwv.z.clone() } else { &cx - &zwv.z };
-                                    &acc * m
-                                });
-                        let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
-                        let mult_c = c * &cx_pow;
-                        let y_pow_i = cy.power(i);
-                        let t = (&mult_c + &enc) * y_pow_i;
-                        &acc + &t
-                    });
-
-            let dsum = self
-                .ds
-                .iter()
-                .enumerate()
-                .fold(Ciphertext::zero(), |acc, (l, d)| &acc + &(d * cx.power(l)));
-
-            let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
-            if &p1 + &dsum != zero {
-                return false;
-            }
+        if  mega_check(&ciphertexts, public_key, &cx, &self.zwvs, &cy, &self.ds, &self.r) != Ciphertext::zero() {
+            return false;
         }
 
         true
@@ -332,9 +298,9 @@ impl Announcement {
 /// Response encoding the bits of the private vector, and the randomness of `BlindingRandomness`.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ResponseRandomness {
-    z: Scalar,
-    w: Scalar,
-    v: Scalar,
+    pub(crate) z: Scalar,
+    pub(crate) w: Scalar,
+    pub(crate) v: Scalar,
 }
 
 impl ResponseRandomness {

@@ -6,7 +6,7 @@
 
 use crate::gang::{GroupElement, Scalar};
 use rand_core::{CryptoRng, RngCore};
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Sub};
 
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::chacha20::ChaCha20;
@@ -257,6 +257,19 @@ impl<'a, 'b> Add<&'b Ciphertext> for &'a Ciphertext {
 }
 
 std_ops_gen!(Ciphertext, Add, Ciphertext, Ciphertext, add);
+
+impl<'a, 'b> Sub<&'b Ciphertext> for &'a Ciphertext {
+    type Output = Ciphertext;
+
+    fn sub(self, other: &'b Ciphertext) -> Ciphertext {
+        Ciphertext {
+            e1: &self.e1 - &other.e1,
+            e2: &self.e2 - &other.e2,
+        }
+    }
+}
+
+std_ops_gen!(Ciphertext, Sub, Ciphertext, Ciphertext, sub);
 
 impl<'a, 'b> Mul<&'b Scalar> for &'a Ciphertext {
     type Output = Ciphertext;

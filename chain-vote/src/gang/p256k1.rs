@@ -5,6 +5,53 @@ use eccoxide::curve::{Sign as ISign, Sign::Negative, Sign::Positive};
 use rand_core::{CryptoRng, RngCore};
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Mul, Sub};
+use crate::Ciphertext;
+use crate::unit_vector::binrep;
+use crate::encrypted::PTP;
+use crate::encryption::PublicKey;
+use crate::private_voting::unit_vector_zkp::ResponseRandomness;
+
+pub(crate) fn mega_check(
+    ciphertexts: &PTP<Ciphertext>,
+    public_key: &PublicKey,
+    challenge_x: &Scalar,
+    committed_rand: &[ResponseRandomness],
+    challenge_y: &Scalar,
+    encrypted_coeff: &[Ciphertext],
+    response: &Scalar,
+) -> Ciphertext {
+    let bits = ciphertexts.bits();
+    let cx_pow = challenge_x.power(bits);
+
+    let p1 = ciphertexts.as_ref().iter().enumerate().fold(
+        Ciphertext::zero(),
+        |acc, (i, c)| {
+            let idx = binrep(i, bits as u32);
+            let multz =
+                committed_rand
+                    .iter()
+                    .enumerate()
+                    .fold(Scalar::one(), |acc, (j, zwv)| {
+                        let m = if idx[j] { zwv.z.clone() } else { challenge_x - &zwv.z };
+                        &acc * m
+                    });
+            let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
+            let mult_c = c * &cx_pow;
+            let y_pow_i = challenge_y.power(i);
+            let t = (&mult_c + &enc) * y_pow_i;
+            &acc + &t
+        },
+    );
+
+    let dsum = encrypted_coeff
+        .iter()
+        .enumerate()
+        .fold(Ciphertext::zero(), |acc, (l, d)| &acc + &(d * challenge_x.power(l)));
+
+    let zero = public_key.encrypt_with_r(&Scalar::zero(), &response);
+
+    &p1 + &dsum - zero
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scalar(IScalar);

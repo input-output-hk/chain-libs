@@ -1,5 +1,5 @@
-use crate::CRS;
 use crate::gang::{GroupElement, Scalar};
+use crate::CRS;
 use std::ops::{Add, Mul};
 
 /// Pedersen commitment
