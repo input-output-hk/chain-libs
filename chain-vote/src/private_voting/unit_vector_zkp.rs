@@ -1,13 +1,3 @@
-//! Implementation of the Unit Vector ZK argument presented by
-//! Zhang, Oliynykov and Balogum in "A Treasury System for Cryptocurrencies:
-//! Enabling Better Collaborative Intelligence"
-//! (https://www.ndss-symposium.org/wp-content/uploads/2019/02/ndss2019_02A-2_Zhang_paper.pdf)
-//!
-//! Given a common reference string formed by a pedersen commitment key,
-//! the prover generates a logarithmic proof that a tuple of encryptions
-//! corresponds to the element-wise encryption of some unit vector, without
-//! disclosing the latter.
-
 use rand_core::{CryptoRng, RngCore};
 
 use crate::commitment::{Commitment, CommitmentKey};
@@ -21,22 +11,25 @@ use crate::CRS;
 
 /// Unit vector proof. In this proof, a prover encrypts each entry of a vector e, and proves
 /// that the vector is a unit vector. In particular, it proves that it is the ith unit
-/// vector without disclosing i.
+/// vector without disclosing `i`.
 /// Common Reference String: Pedersen Commitment Key
 /// Statement: group generator g, public key pk, and ciphertexts
 /// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
 /// Witness: the unit vector e, and randomness r_i for i in [0, m-1]
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Proof {
+    /// Commitment to the proof randomness and bits of binary representaion of `i`
     ibas: Vec<Announcement>,
+    /// Encryption to the polynomial coefficients used in the proof
     ds: Vec<Ciphertext>,
+    /// Response related to the randomness committed in `ibas`
     zwvs: Vec<ResponseRandomness>,
+    /// Final response
     r: Scalar,
 }
 
 #[allow(clippy::len_without_is_empty)]
 impl Proof {
-
     pub(crate) fn prove<R: RngCore + CryptoRng>(
         rng: &mut R,
         crs: &CRS,
@@ -69,7 +62,7 @@ impl Proof {
         let mut cc = ChallengeContext::new(&ck, public_key, ciphers.as_ref());
         let cy = cc.first_challenge(&first_announcement_vec);
 
-        let (ds, rs) = {
+        let (poly_coeff_enc, rs) = {
             let pjs = generate_polys(
                 ciphers.len(),
                 &idx_binary_rep,
@@ -96,7 +89,7 @@ impl Proof {
         };
 
         // Generate second verifier challenge
-        let cx = cc.second_challenge(&ds);
+        let cx = cc.second_challenge(&poly_coeff_enc);
 
         // Compute ZWVs
         let randomness_response_vec = blinding_randomness_vec
@@ -106,37 +99,28 @@ impl Proof {
             .collect::<Vec<_>>();
 
         // Compute R
-        let r = Self::compute_response(cx, cy, &rs, cipher_randoms);
+        let response = {
+            let cx_pow = cx.power(cipher_randoms.bits());
+            let p1 = cipher_randoms
+                .iter()
+                .enumerate()
+                .fold(Scalar::zero(), |acc, (i, r)| {
+                    let el = r * &cx_pow * cy.power(i);
+                    el + acc
+                });
+            let p2 = rs.iter().enumerate().fold(Scalar::zero(), |acc, (l, r)| {
+                let el = r * cx.power(l);
+                el + acc
+            });
+            p1 + p2
+        };
 
         Proof {
             ibas: first_announcement_vec,
-            ds,
+            ds: poly_coeff_enc,
             zwvs: randomness_response_vec,
-            r,
+            r: response,
         }
-    }
-
-    /// Computes the final response
-    /// todo: detail
-    fn compute_response(
-        first_challenge: Scalar,
-        second_challenge: Scalar,
-        rs: &[Scalar],
-        cipher_randoms: PTP<Scalar>,
-    ) -> Scalar {
-        let cx_pow = first_challenge.power(cipher_randoms.bits());
-        let p1 = cipher_randoms
-            .iter()
-            .enumerate()
-            .fold(Scalar::zero(), |acc, (i, r)| {
-                let el = r * &cx_pow * second_challenge.power(i);
-                el + acc
-            });
-        let p2 = rs.iter().enumerate().fold(Scalar::zero(), |acc, (l, r)| {
-            let el = r * first_challenge.power(l);
-            el + acc
-        });
-        p1 + p2
     }
 
     pub(crate) fn verify(
@@ -162,13 +146,13 @@ impl Proof {
 
         // check commitments are 0 / 1
         for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
-            let com1 = Commitment::new(&ck, &zwv.z, &zwv.w);
+            let com1 = ck.commit(&zwv.z, &zwv.w);
             let lhs = &iba.i * &cx + &iba.b;
             if lhs != com1 {
                 return false;
             }
 
-            let com2 = Commitment::new(&ck, &Scalar::zero(), &zwv.v);
+            let com2 = ck.commit(&Scalar::zero(), &zwv.v);
             let lhs = &iba.i * (&cx - &zwv.z) + &iba.a;
             if lhs != com2 {
                 return false;
@@ -180,26 +164,27 @@ impl Proof {
             let bits = ciphertexts.bits();
             let cx_pow = cx.power(bits);
 
-            let p1 = ciphertexts
-                .as_ref()
-                .iter()
-                .enumerate()
-                .fold(Ciphertext::zero(), |acc, (i, c)| {
-                    let idx = binrep(i, bits as u32);
-                    let multz = self
-                        .zwvs
-                        .iter()
-                        .enumerate()
-                        .fold(Scalar::one(), |acc, (j, zwv)| {
-                            let m = if idx[j] { zwv.z.clone() } else { &cx - &zwv.z };
-                            &acc * m
-                        });
-                    let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
-                    let mult_c = c * &cx_pow;
-                    let y_pow_i = cy.power(i);
-                    let t = (&mult_c + &enc) * y_pow_i;
-                    &acc + &t
-                });
+            let p1 =
+                ciphertexts
+                    .as_ref()
+                    .iter()
+                    .enumerate()
+                    .fold(Ciphertext::zero(), |acc, (i, c)| {
+                        let idx = binrep(i, bits as u32);
+                        let multz =
+                            self.zwvs
+                                .iter()
+                                .enumerate()
+                                .fold(Scalar::one(), |acc, (j, zwv)| {
+                                    let m = if idx[j] { zwv.z.clone() } else { &cx - &zwv.z };
+                                    &acc * m
+                                });
+                        let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
+                        let mult_c = c * &cx_pow;
+                        let y_pow_i = cy.power(i);
+                        let t = (&mult_c + &enc) * y_pow_i;
+                        &acc + &t
+                    });
 
             let dsum = self
                 .ds
@@ -283,11 +268,7 @@ impl BlindingRandomness {
 
     /// Generate a response randomness from the `BlindingRandomness`, and a `challenge` and `index` given as
     /// input.
-    fn gen_response(
-        &self,
-        challenge: &Scalar,
-        index: &bool,
-    ) -> ResponseRandomness {
+    fn gen_response(&self, challenge: &Scalar, index: &bool) -> ResponseRandomness {
         let z = Scalar::from(*index) * challenge + &self.beta;
         let w = &self.alpha * challenge + &self.gamma;
         let v = &self.alpha * (challenge - &z) + &self.delta;
@@ -331,18 +312,17 @@ impl Announcement {
         assert!(index == &Scalar::zero() || index == &Scalar::one());
 
         // commit index bit: 0 or 1
-        let i = Commitment::new(ck, &index, &blinding_randomness.alpha);
+        let i = ck.commit(&index, &blinding_randomness.alpha);
         // commit beta
-        let b = Commitment::new(ck, &blinding_randomness.beta, &blinding_randomness.gamma);
+        let b = ck.commit(&blinding_randomness.beta, &blinding_randomness.gamma);
         // commit i * B => 0 * B = 0 or 1 * B = B
         let a = if index == &Scalar::one() {
-            Commitment::new(
-                ck,
+            ck.commit(
                 &blinding_randomness.beta.clone(),
                 &blinding_randomness.delta,
             )
         } else {
-            Commitment::new(ck, &Scalar::zero(), &blinding_randomness.delta)
+            ck.commit(&Scalar::zero(), &blinding_randomness.delta)
         };
 
         Announcement { i, b, a }

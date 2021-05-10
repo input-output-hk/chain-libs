@@ -56,7 +56,7 @@ pub type EncryptedVote = Vec<Ciphertext>;
 pub type ProofOfCorrectVote = private_voting::unit_vector_zkp::Proof;
 
 /// Common Reference String
-pub type Crs = committee::Crs;
+pub type Crs = GroupElement;
 
 /// Take a vote and encrypt it + provide a proof of correct voting
 pub fn encrypt_vote<R: RngCore + CryptoRng>(

@@ -134,8 +134,8 @@ impl ProofOfCorrectVote {
         let bits = buf.get_u8()? as usize;
         let mut ibas = Vec::with_capacity(bits);
         for _ in 0..bits {
-            let elem_buf = buf.get_slice(unit_vector_zkp::IBA::BYTES_LEN)?;
-            let iba = unit_vector_zkp::IBA::from_bytes(elem_buf)
+            let elem_buf = buf.get_slice(unit_vector_zkp::Announcement::BYTES_LEN)?;
+            let iba = unit_vector_zkp::Announcement::from_bytes(elem_buf)
                 .ok_or_else(|| ReadError::StructureInvalid("Invalid IBA component".to_string()))?;
             ibas.push(iba);
         }
@@ -149,8 +149,8 @@ impl ProofOfCorrectVote {
         }
         let mut zwvs = Vec::with_capacity(bits);
         for _ in 0..bits {
-            let elem_buf = buf.get_slice(unit_vector_zkp::ZWV::BYTES_LEN)?;
-            let zwv = unit_vector_zkp::ZWV::from_bytes(elem_buf)
+            let elem_buf = buf.get_slice(unit_vector_zkp::ResponseRandomness::BYTES_LEN)?;
+            let zwv = unit_vector_zkp::ResponseRandomness::from_bytes(elem_buf)
                 .ok_or_else(|| ReadError::StructureInvalid("Invalid ZWV component".to_string()))?;
             zwvs.push(zwv);
         }

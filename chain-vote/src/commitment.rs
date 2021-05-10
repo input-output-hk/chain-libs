@@ -1,5 +1,5 @@
+use crate::CRS;
 use crate::gang::{GroupElement, Scalar};
-use crate::committee::CRS;
 use std::ops::{Add, Mul};
 
 /// Pedersen commitment
@@ -18,16 +18,29 @@ impl CommitmentKey {
         self.h.to_bytes()
     }
 
+    /// Generate a commitment key from a seed. This function hashes the
+    /// input `buffer`, and creates a group element out of the hash.
     pub fn generate_from_seed(buffer: &mut [u8]) -> Self {
         CommitmentKey {
             h: GroupElement::from_hash(buffer),
         }
     }
+
+    /// Return a commitment with the given opening, `o`
+    pub fn commit_with_open(&self, o: &Open) -> Commitment {
+        self.commit(&o.m, &o.r)
+    }
+
+    /// Return a commitment with the given message, `m`,  and opening key, `r`
+    pub fn commit(&self, m: &Scalar, r: &Scalar) -> Commitment {
+        let c = GroupElement::generator() * m + &self.h * r;
+        Commitment { c }
+    }
 }
 
 impl From<CRS> for CommitmentKey {
     fn from(crs: CRS) -> Self {
-        CommitmentKey { h: crs}
+        CommitmentKey { h: crs }
     }
 }
 
@@ -46,19 +59,11 @@ pub struct Open {
 impl Commitment {
     pub const BYTES_LEN: usize = GroupElement::BYTES_LEN;
 
-    pub fn new_open(ck: &CommitmentKey, o: &Open) -> Self {
-        let c = GroupElement::generator() * &o.m + &ck.h * &o.r;
-        Commitment { c }
-    }
-
-    pub fn new(ck: &CommitmentKey, m: &Scalar, r: &Scalar) -> Self {
-        let c = GroupElement::generator() * m + &ck.h * r;
-        Commitment { c }
-    }
-
+    /// Verify that a given opening, `o`,  corresponds to the commitment under a
+    /// given commitment key `ck`
     pub fn verify(&self, ck: &CommitmentKey, o: &Open) -> Validity {
-        let other = GroupElement::generator() * &o.m + &ck.h * &o.r;
-        if self.c == other {
+        let other = ck.commit_with_open(o);
+        if self == &other {
             Validity::Valid
         } else {
             Validity::Invalid

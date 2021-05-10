@@ -2,12 +2,12 @@
 //! is a commitment key, and the statement consists of a public key, and the encryption of each
 //! entry of the vector.
 
+use crate::commitment::CommitmentKey;
 use crate::encryption::PublicKey;
 use crate::private_voting::Announcement;
 use crate::{Ciphertext, Scalar};
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
-use crate::commitment::CommitmentKey;
 
 pub(crate) struct ChallengeContext(Blake2b);
 
