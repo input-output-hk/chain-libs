@@ -43,7 +43,7 @@ impl Proof {
         public_key: &PublicKey,
         encrypting_vote: EncryptingVote,
     ) -> Self {
-        let ck = CommitmentKey { h: crs.clone() };
+        let ck = CommitmentKey::from(crs.clone());
         let ciphers = PTP::new(encrypting_vote.ciphertexts, Ciphertext::zero);
         let cipher_randoms = PTP::new(encrypting_vote.random_elements, Scalar::zero);
 
@@ -56,9 +56,7 @@ impl Proof {
             blinding_randomness_vec.push(BlindingRandomness::random(rng))
         }
 
-        let unit_vector = &encrypting_vote.unit_vector;
-        let idx_binary_rep = binrep(unit_vector.ith(), bits as u32);
-        assert_eq!(idx_binary_rep.len(), bits);
+        let idx_binary_rep = binrep(encrypting_vote.unit_vector.ith(), bits as u32);
 
         // Generate I, B, A commitments
         let first_announcement_vec: Vec<Announcement> = blinding_randomness_vec
@@ -66,11 +64,10 @@ impl Proof {
             .zip(idx_binary_rep.iter())
             .map(|(abcd, index)| Announcement::new(&ck, abcd, &(*index).into()))
             .collect();
-        debug_assert_eq!(first_announcement_vec.len(), bits);
 
         // Generate First verifier challenge
-        let cc = ChallengeContext::new(public_key, ciphers.as_ref(), &first_announcement_vec);
-        let cy = cc.first_challenge();
+        let mut cc = ChallengeContext::new(&ck, public_key, ciphers.as_ref());
+        let cy = cc.first_challenge(&first_announcement_vec);
 
         let (ds, rs) = {
             let pjs = generate_polys(
@@ -97,18 +94,16 @@ impl Proof {
             }
             (ds, rs)
         };
-        debug_assert_eq!(ds.len(), bits);
 
         // Generate second verifier challenge
         let cx = cc.second_challenge(&ds);
 
         // Compute ZWVs
-        let zwvs = blinding_randomness_vec
+        let randomness_response_vec = blinding_randomness_vec
             .iter()
             .zip(idx_binary_rep.iter())
             .map(|(abcd, index)| abcd.gen_response(&cx, index))
             .collect::<Vec<_>>();
-        debug_assert_eq!(zwvs.len(), bits);
 
         // Compute R
         let r = Self::compute_response(cx, cy, &rs, cipher_randoms);
@@ -116,7 +111,7 @@ impl Proof {
         Proof {
             ibas: first_announcement_vec,
             ds,
-            zwvs,
+            zwvs: randomness_response_vec,
             r,
         }
     }
@@ -150,11 +145,11 @@ impl Proof {
         public_key: &PublicKey,
         ciphertexts: &[Ciphertext],
     ) -> bool {
-        let ck = CommitmentKey { h: crs.clone() };
+        let ck = CommitmentKey::from(crs.clone());
         let ciphertexts = PTP::new(ciphertexts.to_vec(), Ciphertext::zero);
         let bits = ciphertexts.bits();
-        let cc = ChallengeContext::new(public_key, ciphertexts.as_ref(), &self.ibas);
-        let cy = cc.first_challenge();
+        let mut cc = ChallengeContext::new(&ck, public_key, ciphertexts.as_ref());
+        let cy = cc.first_challenge(&self.ibas);
         let cx = cc.second_challenge(&self.ds);
 
         if self.ibas.len() != bits {

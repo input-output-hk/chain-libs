@@ -1,4 +1,5 @@
 use crate::gang::{GroupElement, Scalar};
+use crate::committee::CRS;
 use std::ops::{Add, Mul};
 
 /// Pedersen commitment
@@ -13,10 +14,20 @@ pub struct CommitmentKey {
 }
 
 impl CommitmentKey {
+    pub fn to_bytes(&self) -> [u8; GroupElement::BYTES_LEN] {
+        self.h.to_bytes()
+    }
+
     pub fn generate_from_seed(buffer: &mut [u8]) -> Self {
         CommitmentKey {
             h: GroupElement::from_hash(buffer),
         }
+    }
+}
+
+impl From<CRS> for CommitmentKey {
+    fn from(crs: CRS) -> Self {
+        CommitmentKey { h: crs}
     }
 }
 
