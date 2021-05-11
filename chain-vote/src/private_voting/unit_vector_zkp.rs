@@ -160,11 +160,7 @@ impl Proof {
         }
 
         // check product
-        if  mega_check(&ciphertexts, public_key, &cx, &self.zwvs, &cy, &self.ds, &self.r) != Ciphertext::zero() {
-            return false;
-        }
-
-        true
+        return mega_check(&ciphertexts, public_key, &cx, &self.zwvs, &cy, &self.ds, &self.r, self.ibas)
     }
 
     /// Constructs the proof structure from constituent parts.

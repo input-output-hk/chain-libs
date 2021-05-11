@@ -36,8 +36,8 @@ pub struct Keypair {
 /// ElGamal ciphertext. Given a message M represented by a group element, and ElGamal
 /// ciphertext consists of (r * G; M + r * `PublicKey`), where r is a random `Scalar`.
 pub struct Ciphertext {
-    e1: GroupElement,
-    e2: GroupElement,
+    pub(crate) e1: GroupElement,
+    pub(crate) e2: GroupElement,
 }
 
 #[derive(Clone)]
