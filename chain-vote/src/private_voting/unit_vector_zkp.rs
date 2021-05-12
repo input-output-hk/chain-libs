@@ -207,8 +207,7 @@ impl Proof {
         mega_check == GroupElement::zero()
     }
 
-    /// Final check of the proof, that we compute in a single multiscalar
-    /// multiplication.
+    /// Final check of the proof. We do not use
     #[cfg(not(feature = "ristretto255"))]
     fn product_check(
         &self,
@@ -223,15 +222,7 @@ impl Proof {
         let p1 = ciphertexts.as_ref().iter().enumerate().fold(
             Ciphertext::zero(),
             |acc, (i, c)| {
-                let idx = binrep(i, bits as u32);
-                let multz =
-                    self.zwvs
-                        .iter()
-                        .enumerate()
-                        .fold(Scalar::one(), |acc, (j, zwv)| {
-                            let m = if idx[j] { zwv.z.clone() } else { challenge_x - &zwv.z };
-                            &acc * m
-                        });
+                let multz = powers_z_encs(&self.zwvs, challenge_x.clone(), i, bits as u32);
                 let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
                 let mult_c = c * &cx_pow;
                 let y_pow_i = challenge_y.power(i);
@@ -295,7 +286,6 @@ impl Proof {
 
 /// Computes the product of the power of `z` given an `index` and a `bit_size`
 fn powers_z_encs(z: &[ResponseRandomness], challenge_x: Scalar, index: usize, bit_size: u32) -> Scalar{
-    println!("index: {}", index);
     let idx = binrep(index, bit_size as u32);
 
     let multz =
@@ -312,7 +302,7 @@ fn powers_z_encs(z: &[ResponseRandomness], challenge_x: Scalar, index: usize, bi
 /// Provides an iterator over the encryptions of the product of the powers of `z`.
 ///
 /// This struct is created by the `powers_z_encs_iter` function.
-pub struct ZPowExp {
+struct ZPowExp {
     index: usize,
     bit_size: u32,
     z: Vec<ResponseRandomness>,
@@ -334,6 +324,7 @@ impl Iterator for ZPowExp {
 }
 
 /// Return an iterator of the powers of `ZPowExp`.
+#[allow(dead_code)] // can be removed if the default flag is ristretto instead of sec2
 fn powers_z_encs_iter(z: &[ResponseRandomness], challenge_x: &Scalar, bit_size: &u32) -> ZPowExp {
     ZPowExp { index: 0, bit_size: *bit_size,z:  z.to_vec(), challenge_x: challenge_x.clone()}
 }
