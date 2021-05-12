@@ -1,13 +1,16 @@
 use rand_core::{CryptoRng, RngCore};
 
-use crate::commitment::{Commitment, CommitmentKey};
+use crate::commitment::{CommitmentKey};
 use crate::encrypted::{EncryptingVote, PTP};
 use crate::encryption::{Ciphertext, PublicKey};
-use crate::gang::{mega_check, Scalar};
-use crate::math::Polynomial;
+use crate::gang::{Scalar, GroupElement};
 use crate::private_voting::ChallengeContext;
 use crate::unit_vector::binrep;
 use crate::CRS;
+use crate::private_voting::messages::{BlindingRandomness, ResponseRandomness, Announcement, generate_polys};
+
+#[cfg(feature = "ristretto255")]
+use std::iter;
 
 /// Unit vector proof. In this proof, a prover encrypts each entry of a vector e, and proves
 /// that the vector is a unit vector. In particular, it proves that it is the ith unit
@@ -160,7 +163,91 @@ impl Proof {
         }
 
         // check product
-        return mega_check(&ciphertexts, public_key, &cx, &self.zwvs, &cy, &self.ds, &self.r, self.ibas)
+        self.product_check(public_key, &ciphertexts, &cx, &cy)
+    }
+
+    /// Final check of the proof, that we compute in a single multiscalar
+    /// multiplication.
+    #[cfg(feature = "ristretto255")]
+    fn product_check(
+        &self,
+        public_key: &PublicKey,
+        ciphertexts: &PTP<Ciphertext>,
+        challenge_x: &Scalar,
+        challenge_y: &Scalar) -> bool {
+
+        let bits = ciphertexts.bits();
+        let length = ciphertexts.len();
+        let cx_pow = challenge_x.power(bits);
+
+        let powers_cx = challenge_x.exp_iter();
+        let powers_cy = challenge_y.exp_iter();
+
+        let powers_z_iterator = powers_z_encs_iter(&self.zwvs, challenge_x, &(bits as u32));
+
+        let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
+
+        let mega_check = GroupElement::multiscalar_multiplication(
+            powers_cy.take(length).map(|s| s * cx_pow)
+                .chain(powers_cy.take(length).map(|s| s * cx_pow))
+                .chain(powers_cy.take(length).map(|s| s))
+                .chain(powers_cx.take(bits).map(|s| s))
+                .chain(powers_cx.take(bits).map(|s| s))
+                .chain(iter::once(Scalar::one().negate()))
+                .chain(iter::once(Scalar::one().negate())),
+            ciphertexts.iter().map(|ctxt| ctxt.e2)
+                .chain(ciphertexts.iter().map(|ctxt| ctxt.e1))
+                .chain(powers_z_iterator.take(length).map(|p| p))
+                .chain(self.ds.iter().map(|ctxt| ctxt.e1))
+                .chain(self.ds.iter().map(|ctxt| ctxt.e2))
+                .chain(iter::once(zero.e1))
+                .chain(iter::once(zero.e2)),
+        );
+
+        mega_check == GroupElement::zero()
+    }
+
+    /// Final check of the proof, that we compute in a single multiscalar
+    /// multiplication.
+    #[cfg(not(feature = "ristretto255"))]
+    fn product_check(
+        &self,
+        public_key: &PublicKey,
+        ciphertexts: &PTP<Ciphertext>,
+        challenge_x: &Scalar,
+        challenge_y: &Scalar) -> bool {
+
+        let bits = ciphertexts.bits();
+        let cx_pow = challenge_x.power(bits);
+
+        let p1 = ciphertexts.as_ref().iter().enumerate().fold(
+            Ciphertext::zero(),
+            |acc, (i, c)| {
+                let idx = binrep(i, bits as u32);
+                let multz =
+                    self.zwvs
+                        .iter()
+                        .enumerate()
+                        .fold(Scalar::one(), |acc, (j, zwv)| {
+                            let m = if idx[j] { zwv.z.clone() } else { challenge_x - &zwv.z };
+                            &acc * m
+                        });
+                let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
+                let mult_c = c * &cx_pow;
+                let y_pow_i = challenge_y.power(i);
+                let t = (&mult_c + &enc) * y_pow_i;
+                &acc + &t
+            },
+        );
+
+        let dsum = self.ds
+            .iter()
+            .enumerate()
+            .fold(Ciphertext::zero(), |acc, (l, d)| &acc + &(d * challenge_x.power(l)));
+
+        let zero = public_key.encrypt_with_r(&Scalar::zero(), self.r());
+
+        &p1 + &dsum - zero == Ciphertext::zero()
     }
 
     /// Constructs the proof structure from constituent parts.
@@ -205,164 +292,52 @@ impl Proof {
     }
 }
 
-/// Randomness generated in the proof, used for the hiding property.
-struct BlindingRandomness {
-    alpha: Scalar,
-    beta: Scalar,
-    gamma: Scalar,
-    delta: Scalar,
+
+/// Computes the product of the power of `z` given an `index` and a `bit_size`
+fn powers_z_encs(z: &[ResponseRandomness], challenge_x: Scalar, index: usize, bit_size: u32) -> Scalar{
+    println!("index: {}", index);
+    let idx = binrep(index, bit_size as u32);
+
+    let multz =
+        z
+            .iter()
+            .enumerate()
+            .fold(Scalar::one(), |acc, (j, zwv)| {
+                let m = if idx[j] { zwv.z.clone() } else { &challenge_x - &zwv.z };
+                &acc * m
+            });
+    multz
 }
 
-impl BlindingRandomness {
-    /// Generate randomness
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let alpha = Scalar::random(rng);
-        let beta = Scalar::random(rng);
-        let gamma = Scalar::random(rng);
-        let delta = Scalar::random(rng);
-        BlindingRandomness {
-            alpha,
-            beta,
-            gamma,
-            delta,
-        }
-    }
-
-    /// Generate a response randomness from the `BlindingRandomness`, and a `challenge` and `index` given as
-    /// input.
-    fn gen_response(&self, challenge: &Scalar, index: &bool) -> ResponseRandomness {
-        let z = Scalar::from(*index) * challenge + &self.beta;
-        let w = &self.alpha * challenge + &self.gamma;
-        let v = &self.alpha * (challenge - &z) + &self.delta;
-        ResponseRandomness { z, w, v }
-    }
+/// Provides an iterator over the encryptions of the product of the powers of `z`.
+///
+/// This struct is created by the `powers_z_encs_iter` function.
+pub struct ZPowExp {
+    index: usize,
+    bit_size: u32,
+    z: Vec<ResponseRandomness>,
+    challenge_x: Scalar,
 }
 
-/// First announcement, formed by I, B, A commitments. These commitments
-/// contain the binary representation of the unit vector index.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct Announcement {
-    pub(crate) i: Commitment,
-    pub(crate) b: Commitment,
-    pub(crate) a: Commitment,
-}
+impl Iterator for ZPowExp {
+    type Item = GroupElement;
 
-impl Announcement {
-    pub const BYTES_LEN: usize = Commitment::BYTES_LEN * 3;
-
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != Self::BYTES_LEN {
-            return None;
-        }
-        Some(Self {
-            i: Commitment::from_bytes(&bytes[0..Commitment::BYTES_LEN])?,
-            b: Commitment::from_bytes(&bytes[Commitment::BYTES_LEN..Commitment::BYTES_LEN * 2])?,
-            a: Commitment::from_bytes(&bytes[Commitment::BYTES_LEN * 2..])?,
-        })
+    fn next(&mut self) -> Option<GroupElement> {
+        let z_pow = powers_z_encs(&self.z, self.challenge_x.clone(), self.index, self.bit_size);
+        self.index += 1;
+        Some(z_pow.negate() * GroupElement::generator())
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(Self::BYTES_LEN);
-        for component in [&self.i, &self.b, &self.a].iter() {
-            buf.extend_from_slice(&component.to_bytes());
-        }
-        debug_assert_eq!(buf.len(), Self::BYTES_LEN);
-        buf
-    }
-
-    fn new(ck: &CommitmentKey, blinding_randomness: &BlindingRandomness, index: &Scalar) -> Self {
-        assert!(index == &Scalar::zero() || index == &Scalar::one());
-
-        // commit index bit: 0 or 1
-        let i = ck.commit(&index, &blinding_randomness.alpha);
-        // commit beta
-        let b = ck.commit(&blinding_randomness.beta, &blinding_randomness.gamma);
-        // commit i * B => 0 * B = 0 or 1 * B = B
-        let a = if index == &Scalar::one() {
-            ck.commit(
-                &blinding_randomness.beta.clone(),
-                &blinding_randomness.delta,
-            )
-        } else {
-            ck.commit(&Scalar::zero(), &blinding_randomness.delta)
-        };
-
-        Announcement { i, b, a }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::MAX, None)
     }
 }
 
-/// Response encoding the bits of the private vector, and the randomness of `BlindingRandomness`.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct ResponseRandomness {
-    pub(crate) z: Scalar,
-    pub(crate) w: Scalar,
-    pub(crate) v: Scalar,
+/// Return an iterator of the powers of `ZPowExp`.
+fn powers_z_encs_iter(z: &[ResponseRandomness], challenge_x: &Scalar, bit_size: &u32) -> ZPowExp {
+    ZPowExp { index: 0, bit_size: *bit_size,z:  z.to_vec(), challenge_x: challenge_x.clone()}
 }
 
-impl ResponseRandomness {
-    pub const BYTES_LEN: usize = Scalar::BYTES_LEN * 3;
-
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != Self::BYTES_LEN {
-            return None;
-        }
-        Some(Self {
-            z: Scalar::from_bytes(&bytes[0..Scalar::BYTES_LEN])?,
-            w: Scalar::from_bytes(&bytes[Scalar::BYTES_LEN..Scalar::BYTES_LEN * 2])?,
-            v: Scalar::from_bytes(&bytes[Scalar::BYTES_LEN * 2..])?,
-        })
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(Self::BYTES_LEN);
-        for component in [&self.z, &self.w, &self.v].iter() {
-            buf.extend_from_slice(&component.to_bytes());
-        }
-        debug_assert_eq!(buf.len(), Self::BYTES_LEN);
-        buf
-    }
-}
-
-fn generate_polys(
-    ciphers_len: usize,
-    idx_binary_rep: &[bool],
-    bits: usize,
-    blinding_randomness_vec: &[BlindingRandomness],
-) -> Vec<Polynomial> {
-    // Compute polynomials pj(x)
-    let polys = idx_binary_rep
-        .iter()
-        .zip(blinding_randomness_vec.iter())
-        .map(|(ix, abcd)| {
-            let z1 = Polynomial::new(bits).set2(abcd.beta.clone(), (*ix).into());
-            let z0 = Polynomial::new(bits).set2(abcd.beta.negate(), (!ix).into());
-            (z0, z1)
-        })
-        .collect::<Vec<_>>();
-
-    let mut pjs = Vec::new();
-    for i in 0..ciphers_len {
-        let j = binrep(i, bits as u32);
-
-        let mut acc = if j[0] {
-            polys[0].1.clone()
-        } else {
-            polys[0].0.clone()
-        };
-        for k in 1..bits {
-            let t = if j[k] {
-                polys[k].1.clone()
-            } else {
-                polys[k].0.clone()
-            };
-            acc = acc * t;
-        }
-        pjs.push(acc)
-    }
-
-    assert_eq!(pjs.len(), ciphers_len);
-    pjs
-}
 
 #[cfg(test)]
 mod tests {
