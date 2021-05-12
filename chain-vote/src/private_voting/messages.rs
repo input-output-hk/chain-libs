@@ -1,6 +1,5 @@
-//! Structures sent by the prover to the verifier.
-//! todo: describe
-//!
+//! Structures used by the prover during the proof generation. We use the same
+//! notation defined in Figure 8
 
 use crate::commitment::{Commitment, CommitmentKey};
 use crate::math::Polynomial;
@@ -31,8 +30,33 @@ impl BlindingRandomness {
         }
     }
 
-    /// Generate a response randomness from the `BlindingRandomness`, and a `challenge` and `index` given as
-    /// input.
+    /// Given a commitment key `ck` and an `index`, return the announcement corresponding
+    /// to the `BlindingRandomness`
+    pub(crate) fn gen_announcement(
+        &self,
+        ck: &CommitmentKey,
+        index: &Scalar,
+    ) -> Announcement {
+        assert!(index == &Scalar::zero() || index == &Scalar::one());
+
+        // commit index bit: 0 or 1
+        let i = ck.commit(&index, &self.alpha);
+        // commit beta
+        let b = ck.commit(&self.beta, &self.gamma);
+        // commit i * B => 0 * B = 0 or 1 * B = B
+        let a = if index == &Scalar::one() {
+            ck.commit(
+                &self.beta,
+                &self.delta,
+            )
+        } else {
+            ck.commit(&Scalar::zero(), &self.delta)
+        };
+
+        Announcement { i, b, a }
+    }
+
+    /// Generate a `ResponseRandomness` from the `BlindingRandomness`, given a `challenge` and `index`.
     pub(crate) fn gen_response(&self, challenge: &Scalar, index: &bool) -> ResponseRandomness {
         let z = Scalar::from(*index) * challenge + &self.beta;
         let w = &self.alpha * challenge + &self.gamma;
@@ -72,30 +96,6 @@ impl Announcement {
         debug_assert_eq!(buf.len(), Self::BYTES_LEN);
         buf
     }
-
-    pub(crate) fn new(
-        ck: &CommitmentKey,
-        blinding_randomness: &BlindingRandomness,
-        index: &Scalar,
-    ) -> Self {
-        assert!(index == &Scalar::zero() || index == &Scalar::one());
-
-        // commit index bit: 0 or 1
-        let i = ck.commit(&index, &blinding_randomness.alpha);
-        // commit beta
-        let b = ck.commit(&blinding_randomness.beta, &blinding_randomness.gamma);
-        // commit i * B => 0 * B = 0 or 1 * B = B
-        let a = if index == &Scalar::one() {
-            ck.commit(
-                &blinding_randomness.beta.clone(),
-                &blinding_randomness.delta,
-            )
-        } else {
-            ck.commit(&Scalar::zero(), &blinding_randomness.delta)
-        };
-
-        Announcement { i, b, a }
-    }
 }
 
 /// Response encoding the bits of the private vector, and the randomness of `BlindingRandomness`.
@@ -130,6 +130,7 @@ impl ResponseRandomness {
     }
 }
 
+/// Generate the polynomials used in Step 5, of the proof generation in Figure 8.
 pub(crate) fn generate_polys(
     ciphers_len: usize,
     idx_binary_rep: &[bool],

@@ -1,4 +1,5 @@
 use rand_core::{CryptoRng, RngCore};
+use chain_core::mempack::{ReadBuf, ReadError};
 
 use crate::commitment::{CommitmentKey};
 use crate::encrypted::{EncryptingVote, PTP};
@@ -12,13 +13,6 @@ use crate::private_voting::messages::{BlindingRandomness, ResponseRandomness, An
 #[cfg(feature = "ristretto255")]
 use std::iter;
 
-/// Unit vector proof. In this proof, a prover encrypts each entry of a vector e, and proves
-/// that the vector is a unit vector. In particular, it proves that it is the ith unit
-/// vector without disclosing `i`.
-/// Common Reference String: Pedersen Commitment Key
-/// Statement: group generator g, public key pk, and ciphertexts
-/// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
-/// Witness: the unit vector e, and randomness r_i for i in [0, m-1]
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Proof {
     /// Commitment to the proof randomness and bits of binary representaion of `i`
@@ -33,6 +27,18 @@ pub struct Proof {
 
 #[allow(clippy::len_without_is_empty)]
 impl Proof {
+    /// Generate a unit vector proof. In this proof, a prover encrypts each entry of a
+    /// vector `encrypting_vote.unit_vector`, and proves
+    /// that the vector is a unit vector. In particular, it proves that it is the `i`th unit
+    /// vector without disclosing `i`.
+    /// Common Reference String (`CRS`): Pedersen Commitment Key
+    /// Statement: public key `pk`, and ciphertexts `encrypting_vote.ciphertexts`
+    /// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
+    /// Witness: the unit vector `encrypting_vote.unit_vector`, and randomness
+    /// `encrypting_vote.random_elements`.
+    ///
+    /// The proof communication complexity is logarithmic with respect to the size of
+    /// the encrypted tuple. Description of the proof available in Figure 8.
     pub(crate) fn prove<R: RngCore + CryptoRng>(
         rng: &mut R,
         crs: &CRS,
@@ -58,7 +64,7 @@ impl Proof {
         let first_announcement_vec: Vec<Announcement> = blinding_randomness_vec
             .iter()
             .zip(idx_binary_rep.iter())
-            .map(|(abcd, index)| Announcement::new(&ck, abcd, &(*index).into()))
+            .map(|(abcd, index)| abcd.gen_announcement(&ck, &(*index).into()))
             .collect();
 
         // Generate First verifier challenge
@@ -126,6 +132,13 @@ impl Proof {
         }
     }
 
+    /// Verify a unit vector proof. The verifier checks that the plaintexts encrypted in `ciphertexts`,
+    /// under `public_key` is a unit vector.
+    /// Common Reference String (`CRS`): Pedersen Commitment Key
+    /// Statement: public key `pk`, and ciphertexts `encrypting_vote.ciphertexts`
+    /// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
+    ///
+    /// Description of the verification procedure available in Figure 9.
     pub(crate) fn verify(
         &self,
         crs: &CRS,
@@ -166,7 +179,7 @@ impl Proof {
         self.product_check(public_key, &ciphertexts, &cx, &cy)
     }
 
-    /// Final check of the proof, that we compute in a single multiscalar
+    /// Final verification of the proof, that we compute in a single vartime multiscalar
     /// multiplication.
     #[cfg(feature = "ristretto255")]
     fn product_check(
@@ -207,7 +220,7 @@ impl Proof {
         mega_check == GroupElement::zero()
     }
 
-    /// Final check of the proof. We do not use
+    /// Final verification of the proof. We do not use the multiscalar optimisation when using sec2 curves.
     #[cfg(not(feature = "ristretto255"))]
     fn product_check(
         &self,
@@ -239,6 +252,41 @@ impl Proof {
         let zero = public_key.encrypt_with_r(&Scalar::zero(), self.r());
 
         &p1 + &dsum - zero == Ciphertext::zero()
+    }
+
+    /// Try to generate a `Proof` from a buffer
+    pub fn from_buffer(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let bits = buf.get_u8()? as usize;
+        let mut ibas = Vec::with_capacity(bits);
+        for _ in 0..bits {
+            let elem_buf = buf.get_slice(Announcement::BYTES_LEN)?;
+            let iba = Announcement::from_bytes(elem_buf)
+                .ok_or_else(|| ReadError::StructureInvalid("Invalid IBA component".to_string()))?;
+            ibas.push(iba);
+        }
+        let mut bs = Vec::with_capacity(bits);
+        for _ in 0..bits {
+            let elem_buf = buf.get_slice(Ciphertext::BYTES_LEN)?;
+            let ciphertext = Ciphertext::from_bytes(elem_buf).ok_or_else(|| {
+                ReadError::StructureInvalid("Invalid encoded ciphertext".to_string())
+            })?;
+            bs.push(ciphertext);
+        }
+        let mut zwvs = Vec::with_capacity(bits);
+        for _ in 0..bits {
+            let elem_buf = buf.get_slice(ResponseRandomness::BYTES_LEN)?;
+            let zwv = ResponseRandomness::from_bytes(elem_buf)
+                .ok_or_else(|| ReadError::StructureInvalid("Invalid ZWV component".to_string()))?;
+            zwvs.push(zwv);
+        }
+        let r_buf = buf.get_slice(Scalar::BYTES_LEN)?;
+        let r = Scalar::from_bytes(r_buf).ok_or_else(|| {
+            ReadError::StructureInvalid("Invalid Proof encoded R scalar".to_string())
+        })?;
+
+        Ok(Self::from_parts(
+            ibas, bs, zwvs, r,
+        ))
     }
 
     /// Constructs the proof structure from constituent parts.
@@ -284,7 +332,7 @@ impl Proof {
 }
 
 
-/// Computes the product of the power of `z` given an `index` and a `bit_size`
+/// Computes the product of the powers of `z` given the `challenge_x`, `index` and a `bit_size`
 fn powers_z_encs(z: &[ResponseRandomness], challenge_x: Scalar, index: usize, bit_size: u32) -> Scalar{
     let idx = binrep(index, bit_size as u32);
 
@@ -340,6 +388,21 @@ mod tests {
     use rand_core::SeedableRng;
 
     #[test]
+    fn from_buffer() {
+        let mut r = ChaCha20Rng::from_seed([0u8; 32]);
+        let public_key = Keypair::generate(&mut r).public_key;
+        let unit_vector = UnitVector::new(2, 0);
+        let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
+
+        let mut shared_string =
+            b"Example of a shared string. This could be the latest block hash".to_owned();
+        let crs = CRS::from_hash(&mut shared_string);
+
+        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+
+        let buffer = proof.to_bytes();
+    }
+    #[test]
     fn prove_verify1() {
         let mut r = ChaCha20Rng::from_seed([0u8; 32]);
         let public_key = Keypair::generate(&mut r).public_key;
@@ -367,5 +430,23 @@ mod tests {
 
         let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
         assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
+    }
+
+    #[test]
+    fn false_proof() {
+        let mut r = ChaCha20Rng::from_seed([0u8; 32]);
+        let public_key = Keypair::generate(&mut r).public_key;
+        let unit_vector = UnitVector::new(5, 1);
+        let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
+
+        let mut shared_string =
+            b"Example of a shared string. This could be the latest block hash".to_owned();
+        let crs = CRS::from_hash(&mut shared_string);
+
+        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+
+        let fake_unit_vector = UnitVector::new(5, 3);
+        let fake_encryption = EncryptingVote::prepare(&mut r, &public_key, &fake_unit_vector);
+        assert!(!proof.verify(&crs, &public_key, &fake_encryption.ciphertexts))
     }
 }
