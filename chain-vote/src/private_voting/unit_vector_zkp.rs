@@ -162,31 +162,16 @@ impl Proof {
             return false;
         }
 
-        // check commitments are 0 / 1
-        for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
-            let com1 = ck.commit(&zwv.z, &zwv.w);
-            let lhs = &iba.i * &cx + &iba.b;
-            if lhs != com1 {
-                return false;
-            }
-
-            let com2 = ck.commit(&Scalar::zero(), &zwv.v);
-            let lhs = &iba.i * (&cx - &zwv.z) + &iba.a;
-            if lhs != com2 {
-                return false;
-            }
-        }
-
-        // check product
-        self.product_check(public_key, &ciphertexts, &cx, &cy)
+        self.verify_statements(public_key, &ck, &ciphertexts, &cx, &cy)
     }
 
     /// Final verification of the proof, that we compute in a single vartime multiscalar
     /// multiplication.
     #[cfg(feature = "ristretto255")]
-    fn product_check(
+    fn verify_statements(
         &self,
         public_key: &PublicKey,
+        commitment_key: &CommitmentKey,
         ciphertexts: &PTP<Ciphertext>,
         challenge_x: &Scalar,
         challenge_y: &Scalar,
@@ -203,18 +188,28 @@ impl Proof {
         let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
 
         let mega_check = GroupElement::multiscalar_multiplication(
-            powers_cy
-                .take(length)
-                .map(|s| s * cx_pow)
+            self.zwvs.iter().map(|zwv| zwv.z)
+                .chain(self.zwvs.iter().map(|zwv| zwv.w))
+                .chain(iter::repeat(challenge_x.negate()).take(bits))
+                .chain(iter::repeat(Scalar::one().negate()).take(bits))
+                .chain(self.zwvs.iter().map(|zwv| zwv.v))
+                .chain(self.zwvs.iter().map(|zwv| zwv.z - challenge_x))
+                .chain(iter::repeat(Scalar::one().negate()).take(bits))
+                .chain(powers_cy.take(length).map(|s| s * cx_pow))
                 .chain(powers_cy.take(length).map(|s| s * cx_pow))
                 .chain(powers_cy.take(length).map(|s| s))
                 .chain(powers_cx.take(bits).map(|s| s))
                 .chain(powers_cx.take(bits).map(|s| s))
                 .chain(iter::once(Scalar::one().negate()))
                 .chain(iter::once(Scalar::one().negate())),
-            ciphertexts
-                .iter()
-                .map(|ctxt| ctxt.e2)
+            iter::repeat(GroupElement::generator()).take(bits)
+                .chain(iter::repeat(commitment_key.h).take(bits))
+                .chain(self.ibas.iter().map(|iba| iba.i))
+                .chain(self.ibas.iter().map(|iba| iba.b))
+                .chain(iter::repeat(commitment_key.h).take(bits))
+                .chain(self.ibas.iter().map(|iba| iba.i))
+                .chain(self.ibas.iter().map(|iba| iba.a))
+                .chain(ciphertexts.iter().map(|ctxt| ctxt.e2))
                 .chain(ciphertexts.iter().map(|ctxt| ctxt.e1))
                 .chain(powers_z_iterator.take(length).map(|p| p))
                 .chain(self.ds.iter().map(|ctxt| ctxt.e1))
@@ -228,13 +223,30 @@ impl Proof {
 
     /// Final verification of the proof. We do not use the multiscalar optimisation when using sec2 curves.
     #[cfg(not(feature = "ristretto255"))]
-    fn product_check(
+    fn verify_statements(
         &self,
         public_key: &PublicKey,
+        commitment_key: &CommitmentKey,
         ciphertexts: &PTP<Ciphertext>,
         challenge_x: &Scalar,
         challenge_y: &Scalar,
     ) -> bool {
+
+        // check commitments are 0 / 1
+        for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
+            let com1 = commitment_key.commit(&zwv.z, &zwv.w);
+            let lhs = &iba.i * challenge_x + &iba.b;
+            if lhs != com1 {
+                return false;
+            }
+
+            let com2 = commitment_key.commit(&Scalar::zero(), &zwv.v);
+            let lhs = &iba.i * (challenge_x - &zwv.z) + &iba.a;
+            if lhs != com2 {
+                return false;
+            }
+        }
+
         let bits = ciphertexts.bits();
         let cx_pow = challenge_x.power(bits);
 

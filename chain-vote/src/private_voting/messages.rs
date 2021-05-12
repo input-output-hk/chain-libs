@@ -1,11 +1,12 @@
 //! Structures used by the prover during the proof generation. We use the same
 //! notation defined in Figure 8
 
-use crate::commitment::{Commitment, CommitmentKey};
+use crate::commitment::{CommitmentKey};
 use crate::math::Polynomial;
 use crate::unit_vector::binrep;
 use crate::Scalar;
 use rand_core::{CryptoRng, RngCore};
+use crate::gang::GroupElement;
 
 /// Randomness generated in the proof, used for the hiding property.
 pub struct BlindingRandomness {
@@ -58,26 +59,26 @@ impl BlindingRandomness {
     }
 }
 
-/// First announcement, formed by I, B, A commitments. These commitments
-/// contain the binary representation of the unit vector index.
+/// First announcement, formed by I, B, A group elements. These group elements
+/// are the commitments of the binary representation of the unit vector index.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Announcement {
-    pub(crate) i: Commitment,
-    pub(crate) b: Commitment,
-    pub(crate) a: Commitment,
+    pub(crate) i: GroupElement,
+    pub(crate) b: GroupElement,
+    pub(crate) a: GroupElement,
 }
 
 impl Announcement {
-    pub const BYTES_LEN: usize = Commitment::BYTES_LEN * 3;
+    pub const BYTES_LEN: usize = GroupElement::BYTES_LEN * 3;
 
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != Self::BYTES_LEN {
             return None;
         }
         Some(Self {
-            i: Commitment::from_bytes(&bytes[0..Commitment::BYTES_LEN])?,
-            b: Commitment::from_bytes(&bytes[Commitment::BYTES_LEN..Commitment::BYTES_LEN * 2])?,
-            a: Commitment::from_bytes(&bytes[Commitment::BYTES_LEN * 2..])?,
+            i: GroupElement::from_bytes(&bytes[0..GroupElement::BYTES_LEN])?,
+            b: GroupElement::from_bytes(&bytes[GroupElement::BYTES_LEN..GroupElement::BYTES_LEN * 2])?,
+            a: GroupElement::from_bytes(&bytes[GroupElement::BYTES_LEN * 2..])?,
         })
     }
 
