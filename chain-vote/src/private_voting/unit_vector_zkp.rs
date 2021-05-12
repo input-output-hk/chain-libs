@@ -1,14 +1,16 @@
-use rand_core::{CryptoRng, RngCore};
 use chain_core::mempack::{ReadBuf, ReadError};
+use rand_core::{CryptoRng, RngCore};
 
-use crate::commitment::{CommitmentKey};
+use crate::commitment::CommitmentKey;
 use crate::encrypted::{EncryptingVote, PTP};
 use crate::encryption::{Ciphertext, PublicKey};
-use crate::gang::{Scalar, GroupElement};
+use crate::gang::{GroupElement, Scalar};
+use crate::private_voting::messages::{
+    generate_polys, Announcement, BlindingRandomness, ResponseRandomness,
+};
 use crate::private_voting::ChallengeContext;
 use crate::unit_vector::binrep;
 use crate::CRS;
-use crate::private_voting::messages::{BlindingRandomness, ResponseRandomness, Announcement, generate_polys};
 
 #[cfg(feature = "ristretto255")]
 use std::iter;
@@ -187,8 +189,8 @@ impl Proof {
         public_key: &PublicKey,
         ciphertexts: &PTP<Ciphertext>,
         challenge_x: &Scalar,
-        challenge_y: &Scalar) -> bool {
-
+        challenge_y: &Scalar,
+    ) -> bool {
         let bits = ciphertexts.bits();
         let length = ciphertexts.len();
         let cx_pow = challenge_x.power(bits);
@@ -201,14 +203,18 @@ impl Proof {
         let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
 
         let mega_check = GroupElement::multiscalar_multiplication(
-            powers_cy.take(length).map(|s| s * cx_pow)
+            powers_cy
+                .take(length)
+                .map(|s| s * cx_pow)
                 .chain(powers_cy.take(length).map(|s| s * cx_pow))
                 .chain(powers_cy.take(length).map(|s| s))
                 .chain(powers_cx.take(bits).map(|s| s))
                 .chain(powers_cx.take(bits).map(|s| s))
                 .chain(iter::once(Scalar::one().negate()))
                 .chain(iter::once(Scalar::one().negate())),
-            ciphertexts.iter().map(|ctxt| ctxt.e2)
+            ciphertexts
+                .iter()
+                .map(|ctxt| ctxt.e2)
                 .chain(ciphertexts.iter().map(|ctxt| ctxt.e1))
                 .chain(powers_z_iterator.take(length).map(|p| p))
                 .chain(self.ds.iter().map(|ctxt| ctxt.e1))
@@ -227,27 +233,31 @@ impl Proof {
         public_key: &PublicKey,
         ciphertexts: &PTP<Ciphertext>,
         challenge_x: &Scalar,
-        challenge_y: &Scalar) -> bool {
-
+        challenge_y: &Scalar,
+    ) -> bool {
         let bits = ciphertexts.bits();
         let cx_pow = challenge_x.power(bits);
 
-        let p1 = ciphertexts.as_ref().iter().enumerate().fold(
-            Ciphertext::zero(),
-            |acc, (i, c)| {
+        let p1 = ciphertexts
+            .as_ref()
+            .iter()
+            .enumerate()
+            .fold(Ciphertext::zero(), |acc, (i, c)| {
                 let multz = powers_z_encs(&self.zwvs, challenge_x.clone(), i, bits as u32);
                 let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
                 let mult_c = c * &cx_pow;
                 let y_pow_i = challenge_y.power(i);
                 let t = (&mult_c + &enc) * y_pow_i;
                 &acc + &t
-            },
-        );
+            });
 
-        let dsum = self.ds
+        let dsum = self
+            .ds
             .iter()
             .enumerate()
-            .fold(Ciphertext::zero(), |acc, (l, d)| &acc + &(d * challenge_x.power(l)));
+            .fold(Ciphertext::zero(), |acc, (l, d)| {
+                &acc + &(d * challenge_x.power(l))
+            });
 
         let zero = public_key.encrypt_with_r(&Scalar::zero(), self.r());
 
@@ -284,9 +294,7 @@ impl Proof {
             ReadError::StructureInvalid("Invalid Proof encoded R scalar".to_string())
         })?;
 
-        Ok(Self::from_parts(
-            ibas, bs, zwvs, r,
-        ))
+        Ok(Self::from_parts(ibas, bs, zwvs, r))
     }
 
     /// Constructs the proof structure from constituent parts.
@@ -331,19 +339,23 @@ impl Proof {
     }
 }
 
-
 /// Computes the product of the powers of `z` given the `challenge_x`, `index` and a `bit_size`
-fn powers_z_encs(z: &[ResponseRandomness], challenge_x: Scalar, index: usize, bit_size: u32) -> Scalar{
+fn powers_z_encs(
+    z: &[ResponseRandomness],
+    challenge_x: Scalar,
+    index: usize,
+    bit_size: u32,
+) -> Scalar {
     let idx = binrep(index, bit_size as u32);
 
-    let multz =
-        z
-            .iter()
-            .enumerate()
-            .fold(Scalar::one(), |acc, (j, zwv)| {
-                let m = if idx[j] { zwv.z.clone() } else { &challenge_x - &zwv.z };
-                &acc * m
-            });
+    let multz = z.iter().enumerate().fold(Scalar::one(), |acc, (j, zwv)| {
+        let m = if idx[j] {
+            zwv.z.clone()
+        } else {
+            &challenge_x - &zwv.z
+        };
+        &acc * m
+    });
     multz
 }
 
@@ -374,9 +386,13 @@ impl Iterator for ZPowExp {
 /// Return an iterator of the powers of `ZPowExp`.
 #[allow(dead_code)] // can be removed if the default flag is ristretto instead of sec2
 fn powers_z_encs_iter(z: &[ResponseRandomness], challenge_x: &Scalar, bit_size: &u32) -> ZPowExp {
-    ZPowExp { index: 0, bit_size: *bit_size,z:  z.to_vec(), challenge_x: challenge_x.clone()}
+    ZPowExp {
+        index: 0,
+        bit_size: *bit_size,
+        z: z.to_vec(),
+        challenge_x: challenge_x.clone(),
+    }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -387,21 +403,6 @@ mod tests {
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 
-    #[test]
-    fn from_buffer() {
-        let mut r = ChaCha20Rng::from_seed([0u8; 32]);
-        let public_key = Keypair::generate(&mut r).public_key;
-        let unit_vector = UnitVector::new(2, 0);
-        let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
-
-        let mut shared_string =
-            b"Example of a shared string. This could be the latest block hash".to_owned();
-        let crs = CRS::from_hash(&mut shared_string);
-
-        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
-
-        let buffer = proof.to_bytes();
-    }
     #[test]
     fn prove_verify1() {
         let mut r = ChaCha20Rng::from_seed([0u8; 32]);

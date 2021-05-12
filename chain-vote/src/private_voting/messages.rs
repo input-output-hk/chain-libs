@@ -32,11 +32,7 @@ impl BlindingRandomness {
 
     /// Given a commitment key `ck` and an `index`, return the announcement corresponding
     /// to the `BlindingRandomness`
-    pub(crate) fn gen_announcement(
-        &self,
-        ck: &CommitmentKey,
-        index: &Scalar,
-    ) -> Announcement {
+    pub(crate) fn gen_announcement(&self, ck: &CommitmentKey, index: &Scalar) -> Announcement {
         assert!(index == &Scalar::zero() || index == &Scalar::one());
 
         // commit index bit: 0 or 1
@@ -45,10 +41,7 @@ impl BlindingRandomness {
         let b = ck.commit(&self.beta, &self.gamma);
         // commit i * B => 0 * B = 0 or 1 * B = B
         let a = if index == &Scalar::one() {
-            ck.commit(
-                &self.beta,
-                &self.delta,
-            )
+            ck.commit(&self.beta, &self.delta)
         } else {
             ck.commit(&Scalar::zero(), &self.delta)
         };

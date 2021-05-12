@@ -1,6 +1,6 @@
 use crate::vote::Choice;
 use chain_core::mempack::{ReadBuf, ReadError};
-use chain_vote::{Ciphertext};
+use chain_vote::Ciphertext;
 use std::convert::{TryFrom, TryInto as _};
 use std::hash::Hash;
 use thiserror::Error;
@@ -130,7 +130,7 @@ impl ProofOfCorrectVote {
     }
 
     pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        chain_vote::ProofOfCorrectVote::from_buffer(buf).map_or_else(e, |proof| Ok(Self(proof)))
+        chain_vote::ProofOfCorrectVote::from_buffer(buf).map(|proof| Self(proof))
     }
 }
 
