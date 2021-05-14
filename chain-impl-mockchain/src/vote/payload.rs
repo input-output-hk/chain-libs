@@ -130,7 +130,7 @@ impl ProofOfCorrectVote {
     }
 
     pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        chain_vote::ProofOfCorrectVote::from_buffer(buf).map(|proof| Self(proof))
+        chain_vote::ProofOfCorrectVote::from_buffer(buf).map(Self)
     }
 }
 

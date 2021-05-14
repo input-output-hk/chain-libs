@@ -1,5 +1,5 @@
 use crate::gang::{GroupElement, Scalar};
-use crate::CRS;
+use crate::Crs;
 
 /// Pedersen Commitment key
 #[derive(Clone)]
@@ -42,8 +42,8 @@ impl CommitmentKey {
     }
 }
 
-impl From<CRS> for CommitmentKey {
-    fn from(crs: CRS) -> Self {
+impl From<Crs> for CommitmentKey {
+    fn from(crs: Crs) -> Self {
         CommitmentKey { h: crs }
     }
 }

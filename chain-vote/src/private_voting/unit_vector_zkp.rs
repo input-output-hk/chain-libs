@@ -2,7 +2,7 @@ use chain_core::mempack::{ReadBuf, ReadError};
 use rand_core::{CryptoRng, RngCore};
 
 use crate::commitment::CommitmentKey;
-use crate::encrypted::{EncryptingVote, PTP};
+use crate::encrypted::{EncryptingVote, Ptp};
 use crate::encryption::{Ciphertext, PublicKey};
 use crate::gang::{GroupElement, Scalar};
 use crate::private_voting::messages::{
@@ -10,7 +10,7 @@ use crate::private_voting::messages::{
 };
 use crate::private_voting::ChallengeContext;
 use crate::unit_vector::binrep;
-use crate::CRS;
+use crate::Crs;
 
 #[cfg(feature = "ristretto255")]
 use std::iter;
@@ -33,7 +33,7 @@ impl Proof {
     /// vector `encrypting_vote.unit_vector`, and proves
     /// that the vector is a unit vector. In particular, it proves that it is the `i`th unit
     /// vector without disclosing `i`.
-    /// Common Reference String (`CRS`): Pedersen Commitment Key
+    /// Common Reference String (`Crs`): Pedersen Commitment Key
     /// Statement: public key `pk`, and ciphertexts `encrypting_vote.ciphertexts`
     /// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
     /// Witness: the unit vector `encrypting_vote.unit_vector`, and randomness
@@ -43,13 +43,13 @@ impl Proof {
     /// the encrypted tuple. Description of the proof available in Figure 8.
     pub(crate) fn prove<R: RngCore + CryptoRng>(
         rng: &mut R,
-        crs: &CRS,
+        crs: &Crs,
         public_key: &PublicKey,
         encrypting_vote: EncryptingVote,
     ) -> Self {
         let ck = CommitmentKey::from(crs.clone());
-        let ciphers = PTP::new(encrypting_vote.ciphertexts, Ciphertext::zero);
-        let cipher_randoms = PTP::new(encrypting_vote.random_elements, Scalar::zero);
+        let ciphers = Ptp::new(encrypting_vote.ciphertexts, Ciphertext::zero);
+        let cipher_randoms = Ptp::new(encrypting_vote.random_elements, Scalar::zero);
 
         assert_eq!(ciphers.bits(), cipher_randoms.bits());
 
@@ -136,19 +136,19 @@ impl Proof {
 
     /// Verify a unit vector proof. The verifier checks that the plaintexts encrypted in `ciphertexts`,
     /// under `public_key` is a unit vector.
-    /// Common Reference String (`CRS`): Pedersen Commitment Key
+    /// Common Reference String (`crs`): Pedersen Commitment Key
     /// Statement: public key `pk`, and ciphertexts `encrypting_vote.ciphertexts`
     /// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
     ///
     /// Description of the verification procedure available in Figure 9.
     pub(crate) fn verify(
         &self,
-        crs: &CRS,
+        crs: &Crs,
         public_key: &PublicKey,
         ciphertexts: &[Ciphertext],
     ) -> bool {
         let ck = CommitmentKey::from(crs.clone());
-        let ciphertexts = PTP::new(ciphertexts.to_vec(), Ciphertext::zero);
+        let ciphertexts = Ptp::new(ciphertexts.to_vec(), Ciphertext::zero);
         let bits = ciphertexts.bits();
         let mut cc = ChallengeContext::new(&ck, public_key, ciphertexts.as_ref());
         let cy = cc.first_challenge(&self.ibas);
@@ -172,7 +172,7 @@ impl Proof {
         &self,
         public_key: &PublicKey,
         commitment_key: &CommitmentKey,
-        ciphertexts: &PTP<Ciphertext>,
+        ciphertexts: &Ptp<Ciphertext>,
         challenge_x: &Scalar,
         challenge_y: &Scalar,
     ) -> bool {
@@ -227,7 +227,7 @@ impl Proof {
         &self,
         public_key: &PublicKey,
         commitment_key: &CommitmentKey,
-        ciphertexts: &PTP<Ciphertext>,
+        ciphertexts: &Ptp<Ciphertext>,
         challenge_x: &Scalar,
         challenge_y: &Scalar,
     ) -> bool {
@@ -424,7 +424,7 @@ mod tests {
 
         let mut shared_string =
             b"Example of a shared string. This could be the latest block hash".to_owned();
-        let crs = CRS::from_hash(&mut shared_string);
+        let crs = Crs::from_hash(&mut shared_string);
 
         let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
         assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
@@ -439,7 +439,7 @@ mod tests {
 
         let mut shared_string =
             b"Example of a shared string. This could be the latest block hash".to_owned();
-        let crs = CRS::from_hash(&mut shared_string);
+        let crs = Crs::from_hash(&mut shared_string);
 
         let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
         assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
@@ -454,7 +454,7 @@ mod tests {
 
         let mut shared_string =
             b"Example of a shared string. This could be the latest block hash".to_owned();
-        let crs = CRS::from_hash(&mut shared_string);
+        let crs = Crs::from_hash(&mut shared_string);
 
         let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
 
