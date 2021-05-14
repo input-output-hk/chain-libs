@@ -12,14 +12,6 @@ impl CommitmentKey {
         self.h.to_bytes()
     }
 
-    /// Generate a commitment key from a seed. This function hashes the
-    /// input `buffer`, and creates a group element out of the hash.
-    pub fn generate_from_seed(buffer: &mut [u8]) -> Self {
-        CommitmentKey {
-            h: GroupElement::from_hash(buffer),
-        }
-    }
-
     /// Return a commitment with the given opening, `o`
     pub fn commit_with_open(&self, o: &Open) -> GroupElement {
         self.commit(&o.m, &o.r)
@@ -32,6 +24,7 @@ impl CommitmentKey {
     }
 
     /// Verify that a given `commitment` opens to `o` under commitment key `self`
+    #[allow(dead_code)]
     pub fn verify(&self, commitment: &GroupElement, o: &Open) -> Validity {
         let other = self.commit_with_open(o);
         if commitment == &other {
