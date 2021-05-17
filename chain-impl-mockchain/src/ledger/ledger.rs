@@ -307,10 +307,11 @@ pub enum Error {
     VotePlan(#[from] VotePlanLedgerError),
     #[error("Scripts addresses are not yet supported by the system")]
     ScriptsAddressNotAllowedYet,
-    #[error("Invalid spending counter: expected {} but got {} instead", expected.0, got.0)]
+    #[error("Invalid spending counter for account {account}: expected {} but got {} instead", expected.0, got.0)]
     InvalidSpendingCounter {
         expected: SpendingCounter,
         got: SpendingCounter,
+        account: UnspecifiedAccountIdentifier,
     },
 }
 
@@ -1728,6 +1729,7 @@ fn input_single_account_verify<'a>(
         return Err(Error::InvalidSpendingCounter {
             expected: spending_counter_ledger,
             got: spending_counter,
+            account: UnspecifiedAccountIdentifier::from_single_account(account.clone()),
         });
     }
 
@@ -1760,6 +1762,7 @@ fn input_multi_account_verify<'a>(
         return Err(Error::InvalidSpendingCounter {
             expected: spending_counter_ledger,
             got: spending_counter,
+            account: UnspecifiedAccountIdentifier::from_multi_account(account.clone()),
         });
     }
 

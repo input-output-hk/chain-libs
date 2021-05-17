@@ -1,3 +1,5 @@
+use core::fmt;
+
 use super::utxo::UtxoPointer;
 use crate::account::{Identifier, SpendingCounter};
 use crate::fragment::FragmentId;
@@ -50,6 +52,12 @@ impl AsRef<[u8]> for UnspecifiedAccountIdentifier {
 impl From<[u8; INPUT_PTR_SIZE]> for UnspecifiedAccountIdentifier {
     fn from(v: [u8; INPUT_PTR_SIZE]) -> Self {
         UnspecifiedAccountIdentifier(v)
+    }
+}
+
+impl fmt::Display for UnspecifiedAccountIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.0))
     }
 }
 
