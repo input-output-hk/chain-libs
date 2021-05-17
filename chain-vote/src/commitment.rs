@@ -14,18 +14,18 @@ impl CommitmentKey {
     }
 
     /// Return a commitment with the given opening, `o`
-    pub fn commit_with_open(&self, o: &Open) -> GroupElement {
+    pub(crate) fn commit_with_open(&self, o: &Open) -> GroupElement {
         self.commit_with_random(&o.m, &o.r)
     }
 
     /// Return a commitment with the given message, `m`,  and opening key, `r`
-    pub fn commit_with_random(&self, m: &Scalar, r: &Scalar) -> GroupElement {
+    pub(crate) fn commit_with_random(&self, m: &Scalar, r: &Scalar) -> GroupElement {
         GroupElement::generator() * m + &self.h * r
     }
 
     /// Return a commitment, and the used randomness, `r`, where the latter is computed
     /// from a `Rng + CryptoRng`
-    pub fn commit<R>(&self, m: &Scalar, rng: &mut R) -> (GroupElement, Scalar)
+    pub(crate) fn commit<R>(&self, m: &Scalar, rng: &mut R) -> (GroupElement, Scalar)
     where
         R: CryptoRng + RngCore
     {
