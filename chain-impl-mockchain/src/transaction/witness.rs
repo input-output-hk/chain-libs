@@ -98,14 +98,9 @@ impl AsRef<[u8]> for WitnessUtxoData {
 pub struct WitnessAccountData(Vec<u8>);
 
 impl WitnessAccountData {
-    pub fn new(
-        block0: &HeaderId,
-        transaction_id: &TransactionSignDataHash,
-        spending_counter: account::SpendingCounter,
-    ) -> Self {
+    pub fn new(block0: &HeaderId, transaction_id: &TransactionSignDataHash) -> Self {
         let mut v = Vec::with_capacity(69);
         witness_data_common(&mut v, WITNESS_TAG_ACCOUNT, block0, transaction_id);
-        v.extend_from_slice(&spending_counter.to_bytes());
         WitnessAccountData(v)
     }
 }
@@ -164,13 +159,12 @@ impl Witness {
     pub fn new_account<F>(
         block0: &HeaderId,
         sign_data_hash: &TransactionSignDataHash,
-        spending_counter: account::SpendingCounter,
         sign: F,
     ) -> Self
     where
         F: FnOnce(&WitnessAccountData) -> account::Witness,
     {
-        let wud = WitnessAccountData::new(block0, sign_data_hash, spending_counter);
+        let wud = WitnessAccountData::new(block0, sign_data_hash);
         let sig = sign(&wud);
         Witness::Account(sig)
     }

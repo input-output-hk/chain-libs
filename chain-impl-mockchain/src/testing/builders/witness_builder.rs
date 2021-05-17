@@ -22,12 +22,9 @@ pub fn make_witness(
     transaction_hash: &TransactionSignDataHash,
 ) -> Witness {
     match addres_data.address.kind() {
-        Kind::Account(_) => Witness::new_account(
-            block0,
-            transaction_hash,
-            addres_data.spending_counter.unwrap(),
-            |d| addres_data.private_key().sign(d),
-        ),
+        Kind::Account(_) => Witness::new_account(block0, transaction_hash, |d| {
+            addres_data.private_key().sign(d)
+        }),
         _ => Witness::new_utxo(block0, transaction_hash, |d| {
             addres_data.private_key().sign(d)
         }),

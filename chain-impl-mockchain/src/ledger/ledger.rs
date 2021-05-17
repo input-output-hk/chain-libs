@@ -1731,7 +1731,7 @@ fn input_single_account_verify<'a>(
         });
     }
 
-    let tidsc = WitnessAccountData::new(block0_hash, sign_data_hash, spending_counter);
+    let tidsc = WitnessAccountData::new(block0_hash, sign_data_hash);
     let verified = witness.verify(account.as_ref(), &tidsc);
     if verified == chain_crypto::Verification::Failed {
         return Err(Error::AccountInvalidSignature {
@@ -2763,7 +2763,6 @@ mod tests {
         let witness = Witness::new_account(
             &test_ledger.block0_hash,
             &tx_builder.get_auth_data_for_witness().hash(),
-            SpendingCounter::zero(),
             |d| faucet.private_key().sign(d),
         );
 
