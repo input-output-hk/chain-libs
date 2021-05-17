@@ -184,6 +184,22 @@ impl Scalar {
         IScalar::from_slice(slice).map(Scalar)
     }
 
+    pub fn hash_to_scalar(b: &Blake2b) -> Scalar {
+        let mut h = [0u8; 64];
+        let mut i = 0u8;
+        let mut hash = b.clone();
+        loop {
+            hash.input(&i.to_be_bytes());
+            hash.result(&mut h);
+            hash.reset();
+
+            if let Some(scalar) = Self::from_bytes(&h[..32]) {
+                break scalar;
+            }
+            i += 1;
+        }
+    }
+
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let mut r = [0u8; 32];
         loop {

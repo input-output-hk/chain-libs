@@ -1,5 +1,6 @@
 use crate::gang::{GroupElement, Scalar};
 use crate::Crs;
+use rand_core::{CryptoRng, RngCore};
 
 /// Pedersen Commitment key
 #[derive(Clone)]
@@ -14,13 +15,22 @@ impl CommitmentKey {
 
     /// Return a commitment with the given opening, `o`
     pub fn commit_with_open(&self, o: &Open) -> GroupElement {
-        self.commit(&o.m, &o.r)
+        self.commit_with_random(&o.m, &o.r)
     }
 
     /// Return a commitment with the given message, `m`,  and opening key, `r`
-    pub fn commit(&self, m: &Scalar, r: &Scalar) -> GroupElement {
+    pub fn commit_with_random(&self, m: &Scalar, r: &Scalar) -> GroupElement {
         GroupElement::generator() * m + &self.h * r
+    }
 
+    /// Return a commitment, and the used randomness, `r`, where the latter is computed
+    /// from a `Rng + CryptoRng`
+    pub fn commit<R>(&self, m: &Scalar, rng: &mut R) -> (GroupElement, Scalar)
+    where
+        R: CryptoRng + RngCore
+    {
+        let r = Scalar::random(rng);
+        (self.commit_with_random(m, &r), r)
     }
 
     /// Verify that a given `commitment` opens to `o` under commitment key `self`

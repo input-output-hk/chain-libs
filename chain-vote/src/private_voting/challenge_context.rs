@@ -11,12 +11,6 @@ use cryptoxide::digest::Digest;
 
 pub(crate) struct ChallengeContext(Blake2b);
 
-fn hash_to_scalar(b: &Blake2b) -> Scalar {
-    let mut h = [0u8; 32];
-    b.clone().result(&mut h);
-    Scalar::from_bytes(&h).unwrap()
-}
-
 impl ChallengeContext {
     /// Initialise the challenge context, by including the common reference string and the full statement
     pub(crate) fn new(
@@ -24,7 +18,7 @@ impl ChallengeContext {
         public_key: &PublicKey,
         ciphers: &[Ciphertext],
     ) -> Self {
-        let mut ctx = Blake2b::new(32);
+        let mut ctx = Blake2b::new(64);
         ctx.input(&commitment_key.to_bytes());
         ctx.input(&public_key.to_bytes());
         for c in ciphers {
@@ -43,7 +37,7 @@ impl ChallengeContext {
             self.0.input(&iba.a.to_bytes());
         }
 
-        hash_to_scalar(&self.0)
+        Scalar::hash_to_scalar(&self.0)
     }
 
     /// Generation of the `second_challenge`. This challenge is generated after the encrypted polynomial
@@ -53,6 +47,6 @@ impl ChallengeContext {
         for d in ds {
             self.0.input(&d.to_bytes())
         }
-        hash_to_scalar(&self.0)
+        Scalar::hash_to_scalar(&self.0)
     }
 }

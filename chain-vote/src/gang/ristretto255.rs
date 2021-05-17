@@ -132,6 +132,12 @@ impl Scalar {
         }
     }
 
+    pub fn hash_to_scalar(b: &Blake2b) -> Scalar {
+        let mut h = [0u8; 64];
+        b.clone().result(&mut h);
+        Scalar(IScalar::from_bytes_mod_order_wide(&h))
+    }
+
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Scalar(IScalar::random(rng))
     }

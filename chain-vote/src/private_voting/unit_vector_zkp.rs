@@ -56,18 +56,13 @@ impl Proof {
         let bits = ciphers.bits();
 
         let mut blinding_randomness_vec = Vec::with_capacity(bits);
-        for _ in 0..bits {
-            blinding_randomness_vec.push(BlindingRandomness::random(rng))
-        }
-
+        let mut first_announcement_vec = Vec::with_capacity(bits);
         let idx_binary_rep = binrep(encrypting_vote.unit_vector.ith(), bits as u32);
-
-        // Generate I, B, A commitments
-        let first_announcement_vec: Vec<Announcement> = blinding_randomness_vec
-            .iter()
-            .zip(idx_binary_rep.iter())
-            .map(|(abcd, index)| abcd.gen_announcement(&ck, &(*index).into()))
-            .collect();
+        for &i in idx_binary_rep.iter() {
+            let (b_rand, ann) = BlindingRandomness::gen_and_commit(&ck, &i.into(), rng);
+            blinding_randomness_vec.push(b_rand);
+            first_announcement_vec.push(ann);
+        }
 
         // Generate First verifier challenge
         let mut cc = ChallengeContext::new(&ck, public_key, ciphers.as_ref());
@@ -86,11 +81,10 @@ impl Proof {
             let mut ds = Vec::with_capacity(bits);
 
             for i in 0..bits {
-                let mut sum = Scalar::zero();
-                #[allow(clippy::needless_range_loop)]
-                for j in 0..ciphers.len() {
-                    sum = sum + (cy.power(j) * pjs[j].get_coefficient_at(i))
-                }
+                let sum = cy.exp_iter().zip(pjs.iter()).fold(Scalar::zero(), |sum, (c_pows, pj)| {
+                    let s = sum + c_pows * pj.get_coefficient_at(i);
+                    s
+                });
 
                 let (d, r) = public_key.encrypt_return_r(&sum, rng);
                 ds.push(d);
@@ -114,13 +108,13 @@ impl Proof {
             let cx_pow = cx.power(cipher_randoms.bits());
             let p1 = cipher_randoms
                 .iter()
-                .enumerate()
-                .fold(Scalar::zero(), |acc, (i, r)| {
-                    let el = r * &cx_pow * cy.power(i);
+                .zip(cy.exp_iter())
+                .fold(Scalar::zero(), |acc, (r, cy_pows)| {
+                    let el = r * &cx_pow * cy_pows;
                     el + acc
                 });
-            let p2 = rs.iter().enumerate().fold(Scalar::zero(), |acc, (l, r)| {
-                let el = r * cx.power(l);
+            let p2 = rs.iter().zip(cx.exp_iter()).fold(Scalar::zero(), |acc, (r, cx_pows)| {
+                let el = r * cx_pows;
                 el + acc
             });
             p1 + p2
@@ -234,13 +228,13 @@ impl Proof {
 
         // check commitments are 0 / 1
         for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
-            let com1 = commitment_key.commit(&zwv.z, &zwv.w);
+            let com1 = commitment_key.commit_with_random(&zwv.z, &zwv.w);
             let lhs = &iba.i * challenge_x + &iba.b;
             if lhs != com1 {
                 return false;
             }
 
-            let com2 = commitment_key.commit(&Scalar::zero(), &zwv.v);
+            let com2 = commitment_key.commit_with_random(&Scalar::zero(), &zwv.v);
             let lhs = &iba.i * (challenge_x - &zwv.z) + &iba.a;
             if lhs != com2 {
                 return false;
@@ -253,22 +247,22 @@ impl Proof {
         let p1 = ciphertexts
             .as_ref()
             .iter()
+            .zip(challenge_y.exp_iter())
             .enumerate()
-            .fold(Ciphertext::zero(), |acc, (i, c)| {
+            .fold(Ciphertext::zero(), |acc, (i, (c, cy_pows))| {
                 let multz = powers_z_encs(&self.zwvs, challenge_x.clone(), i, bits as u32);
                 let enc = public_key.encrypt_with_r(&multz.negate(), &Scalar::zero());
                 let mult_c = c * &cx_pow;
-                let y_pow_i = challenge_y.power(i);
-                let t = (&mult_c + &enc) * y_pow_i;
+                let t = (&mult_c + &enc) * cy_pows;
                 &acc + &t
             });
 
         let dsum = self
             .ds
             .iter()
-            .enumerate()
-            .fold(Ciphertext::zero(), |acc, (l, d)| {
-                &acc + &(d * challenge_x.power(l))
+            .zip(challenge_x.exp_iter())
+            .fold(Ciphertext::zero(), |acc, (d, cx_pows)| {
+                &acc + &(d * cx_pows)
             });
 
         let zero = public_key.encrypt_with_r(&Scalar::zero(), self.r());

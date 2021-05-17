@@ -17,37 +17,30 @@ pub struct BlindingRandomness {
 }
 
 impl BlindingRandomness {
-    /// Generate randomness
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let alpha = Scalar::random(rng);
+    /// Given a commitment key `ck` and an `index`, compute random `beta`, and return the announcement
+    /// corresponding to the commitment of the index, and of `beta`.
+    pub fn gen_and_commit<R: RngCore + CryptoRng>(ck: &CommitmentKey, index: &Scalar, rng: &mut R) -> (Self, Announcement) {
+        assert!(index == &Scalar::zero() || index == &Scalar::one());
+
+        let (i, alpha) = ck.commit(&index, rng);
         let beta = Scalar::random(rng);
-        let gamma = Scalar::random(rng);
-        let delta = Scalar::random(rng);
-        BlindingRandomness {
+        let (b, gamma) = ck.commit(&beta, rng);
+        let (a, delta) = if index == &Scalar::one() {
+            ck.commit(&beta, rng)
+        } else {
+            ck.commit(&Scalar::zero(), rng)
+        };
+        (BlindingRandomness {
             alpha,
             beta,
             gamma,
             delta,
-        }
-    }
-
-    /// Given a commitment key `ck` and an `index`, return the announcement corresponding
-    /// to the `BlindingRandomness`
-    pub(crate) fn gen_announcement(&self, ck: &CommitmentKey, index: &Scalar) -> Announcement {
-        assert!(index == &Scalar::zero() || index == &Scalar::one());
-
-        // commit index bit: 0 or 1
-        let i = ck.commit(&index, &self.alpha);
-        // commit beta
-        let b = ck.commit(&self.beta, &self.gamma);
-        // commit i * B => 0 * B = 0 or 1 * B = B
-        let a = if index == &Scalar::one() {
-            ck.commit(&self.beta, &self.delta)
-        } else {
-            ck.commit(&Scalar::zero(), &self.delta)
-        };
-
-        Announcement { i, b, a }
+        },
+         Announcement {
+            i,
+            b,
+            a
+        })
     }
 
     /// Generate a `ResponseRandomness` from the `BlindingRandomness`, given a `challenge` and `index`.

@@ -8,8 +8,6 @@ mod encrypted;
 pub mod encryption;
 mod gang;
 mod math;
-// mod challenge_ctxs;
-// pub mod shvzk;
 pub mod private_voting;
 mod unit_vector;
 
