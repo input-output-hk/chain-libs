@@ -81,10 +81,13 @@ impl Proof {
             let mut ds = Vec::with_capacity(bits);
 
             for i in 0..bits {
-                let sum = cy.exp_iter().zip(pjs.iter()).fold(Scalar::zero(), |sum, (c_pows, pj)| {
-                    let s = sum + c_pows * pj.get_coefficient_at(i);
-                    s
-                });
+                let sum =
+                    cy.exp_iter()
+                        .zip(pjs.iter())
+                        .fold(Scalar::zero(), |sum, (c_pows, pj)| {
+                            let s = sum + c_pows * pj.get_coefficient_at(i);
+                            s
+                        });
 
                 let (d, r) = public_key.encrypt_return_r(&sum, rng);
                 ds.push(d);
@@ -106,17 +109,20 @@ impl Proof {
         // Compute R
         let response = {
             let cx_pow = cx.power(cipher_randoms.bits());
-            let p1 = cipher_randoms
-                .iter()
-                .zip(cy.exp_iter())
-                .fold(Scalar::zero(), |acc, (r, cy_pows)| {
+            let p1 = cipher_randoms.iter().zip(cy.exp_iter()).fold(
+                Scalar::zero(),
+                |acc, (r, cy_pows)| {
                     let el = r * &cx_pow * cy_pows;
                     el + acc
+                },
+            );
+            let p2 = rs
+                .iter()
+                .zip(cx.exp_iter())
+                .fold(Scalar::zero(), |acc, (r, cx_pows)| {
+                    let el = r * cx_pows;
+                    el + acc
                 });
-            let p2 = rs.iter().zip(cx.exp_iter()).fold(Scalar::zero(), |acc, (r, cx_pows)| {
-                let el = r * cx_pows;
-                el + acc
-            });
             p1 + p2
         };
 
@@ -182,7 +188,9 @@ impl Proof {
         let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
 
         let mega_check = GroupElement::multiscalar_multiplication(
-            self.zwvs.iter().map(|zwv| zwv.z)
+            self.zwvs
+                .iter()
+                .map(|zwv| zwv.z)
                 .chain(self.zwvs.iter().map(|zwv| zwv.w))
                 .chain(iter::repeat(challenge_x.negate()).take(bits))
                 .chain(iter::repeat(Scalar::one().negate()).take(bits))
@@ -196,7 +204,8 @@ impl Proof {
                 .chain(powers_cx.take(bits).map(|s| s))
                 .chain(iter::once(Scalar::one().negate()))
                 .chain(iter::once(Scalar::one().negate())),
-            iter::repeat(GroupElement::generator()).take(bits)
+            iter::repeat(GroupElement::generator())
+                .take(bits)
                 .chain(iter::repeat(commitment_key.h).take(bits))
                 .chain(self.ibas.iter().map(|iba| iba.i))
                 .chain(self.ibas.iter().map(|iba| iba.b))
@@ -225,14 +234,25 @@ impl Proof {
         challenge_x: &Scalar,
         challenge_y: &Scalar,
     ) -> bool {
-
         // check commitments are 0 / 1
         for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
-            if !commitment_key.verify(&(&iba.i * challenge_x + &iba.b), &Open{ m: zwv.z.clone(), r: zwv.w.clone() }) {
+            if !commitment_key.verify(
+                &(&iba.i * challenge_x + &iba.b),
+                &Open {
+                    m: zwv.z.clone(),
+                    r: zwv.w.clone(),
+                },
+            ) {
                 return false;
             }
 
-            if !commitment_key.verify(&(&iba.i * (challenge_x - &zwv.z) + &iba.a), &Open { m: Scalar::zero(), r: zwv.v.clone() }) {
+            if !commitment_key.verify(
+                &(&iba.i * (challenge_x - &zwv.z) + &iba.a),
+                &Open {
+                    m: Scalar::zero(),
+                    r: zwv.v.clone(),
+                },
+            ) {
                 return false;
             }
         }

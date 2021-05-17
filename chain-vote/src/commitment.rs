@@ -27,7 +27,7 @@ impl CommitmentKey {
     /// from a `Rng + CryptoRng`
     pub(crate) fn commit<R>(&self, m: &Scalar, rng: &mut R) -> (GroupElement, Scalar)
     where
-        R: CryptoRng + RngCore
+        R: CryptoRng + RngCore,
     {
         let r = Scalar::random(rng);
         (self.commit_with_random(m, &r), r)
@@ -56,8 +56,8 @@ pub struct Open {
 #[cfg(tests)]
 mod tests {
     use super::*;
-    use rand_chacha::ChaCha20Rng;
     use rand_chacha::rand_core::SeedableRng;
+    use rand_chacha::ChaCha20Rng;
 
     #[test]
     fn commit_and_open() {
@@ -67,7 +67,10 @@ mod tests {
         let message = Scalar::random(&mut rng);
         let (comm, rand) = commitment_key.commit(&message, &mut rng);
 
-        let opening = Open { m: message, r: rand};
+        let opening = Open {
+            m: message,
+            r: rand,
+        };
 
         assert!(commitment_key.verify(&comm, &opening));
 

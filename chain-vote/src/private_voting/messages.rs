@@ -1,12 +1,12 @@
 //! Structures used by the prover during the proof generation. We use the same
 //! notation defined in Figure 8
 
-use crate::commitment::{CommitmentKey};
+use crate::commitment::CommitmentKey;
+use crate::gang::GroupElement;
 use crate::math::Polynomial;
 use crate::unit_vector::binrep;
 use crate::Scalar;
 use rand_core::{CryptoRng, RngCore};
-use crate::gang::GroupElement;
 
 /// Randomness generated in the proof, used for the hiding property.
 pub struct BlindingRandomness {
@@ -19,7 +19,11 @@ pub struct BlindingRandomness {
 impl BlindingRandomness {
     /// Given a commitment key `ck` and an `index`, compute random `beta`, and return the announcement
     /// corresponding to the commitment of the index, and of `beta`.
-    pub fn gen_and_commit<R: RngCore + CryptoRng>(ck: &CommitmentKey, index: &Scalar, rng: &mut R) -> (Self, Announcement) {
+    pub fn gen_and_commit<R: RngCore + CryptoRng>(
+        ck: &CommitmentKey,
+        index: &Scalar,
+        rng: &mut R,
+    ) -> (Self, Announcement) {
         assert!(index == &Scalar::zero() || index == &Scalar::one());
 
         let (i, alpha) = ck.commit(&index, rng);
@@ -30,17 +34,15 @@ impl BlindingRandomness {
         } else {
             ck.commit(&Scalar::zero(), rng)
         };
-        (BlindingRandomness {
-            alpha,
-            beta,
-            gamma,
-            delta,
-        },
-         Announcement {
-            i,
-            b,
-            a
-        })
+        (
+            BlindingRandomness {
+                alpha,
+                beta,
+                gamma,
+                delta,
+            },
+            Announcement { i, b, a },
+        )
     }
 
     /// Generate a `ResponseRandomness` from the `BlindingRandomness`, given a `challenge` and `index`.
@@ -70,7 +72,9 @@ impl Announcement {
         }
         Some(Self {
             i: GroupElement::from_bytes(&bytes[0..GroupElement::BYTES_LEN])?,
-            b: GroupElement::from_bytes(&bytes[GroupElement::BYTES_LEN..GroupElement::BYTES_LEN * 2])?,
+            b: GroupElement::from_bytes(
+                &bytes[GroupElement::BYTES_LEN..GroupElement::BYTES_LEN * 2],
+            )?,
             a: GroupElement::from_bytes(&bytes[GroupElement::BYTES_LEN * 2..])?,
         })
     }
