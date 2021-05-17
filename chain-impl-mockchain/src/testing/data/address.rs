@@ -118,7 +118,11 @@ impl AddressData {
 
     pub fn make_input(&self, value: Value, utxo: Option<Entry<Address>>) -> Input {
         match self.address.kind() {
-            Kind::Account { .. } => Input::from_account_public_key(self.public_key(), value),
+            Kind::Account { .. } => Input::from_account_public_key(
+                self.public_key(),
+                self.spending_counter.unwrap(),
+                value,
+            ),
             Kind::Single { .. } | Kind::Group { .. } => {
                 Input::from_utxo_entry(utxo.unwrap_or_else(|| {
                     panic!(

@@ -189,7 +189,7 @@ impl<Extra: Clone> AccountState<Extra> {
 /// the counter is incremented. A matching counter
 /// needs to be used in the spending phase to make
 /// sure we have non-replayability of a transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpendingCounter(pub(crate) u32);
 
 impl SpendingCounter {

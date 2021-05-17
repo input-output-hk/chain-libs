@@ -1,5 +1,5 @@
 use super::utxo::UtxoPointer;
-use crate::account::Identifier;
+use crate::account::{Identifier, SpendingCounter};
 use crate::fragment::FragmentId;
 use crate::key::SpendingPublicKey;
 use crate::utxo::Entry;
@@ -10,7 +10,7 @@ use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 use chain_crypto::PublicKey;
 
-pub const INPUT_SIZE: usize = 41;
+pub const INPUT_SIZE: usize = 45;
 
 pub const INPUT_PTR_SIZE: usize = 32;
 
@@ -22,6 +22,7 @@ impl UnspecifiedAccountIdentifier {
     pub fn to_single_account(&self) -> Option<account::Identifier> {
         PublicKey::from_binary(&self.0).map(|x| x.into()).ok()
     }
+
     pub fn to_multi_account(&self) -> multisig::Identifier {
         multisig::Identifier::from(self.0)
     }
@@ -66,6 +67,7 @@ pub enum AccountIdentifier {
 pub struct Input {
     index_or_account: u8,
     value: Value,
+    spending_counter: SpendingCounter,
     input_ptr: [u8; INPUT_PTR_SIZE],
 }
 
@@ -81,7 +83,7 @@ impl From<UnspecifiedAccountIdentifier> for [u8; INPUT_PTR_SIZE] {
 }
 
 pub enum InputEnum {
-    AccountInput(UnspecifiedAccountIdentifier, Value),
+    AccountInput(UnspecifiedAccountIdentifier, SpendingCounter, Value),
     UtxoInput(UtxoPointer),
 }
 
@@ -90,9 +92,12 @@ impl From<[u8; INPUT_SIZE]> for Input {
         use std::convert::TryFrom;
         let index_or_account = data[0];
         let value = Value::try_from(&data[1..9]).unwrap();
+        let mut spending_counter_buffer = [0u8; 4];
+        spending_counter_buffer.copy_from_slice(&data[9..13]);
+        let spending_counter = SpendingCounter(u32::from_be_bytes(spending_counter_buffer));
         let mut input_ptr = [0u8; INPUT_PTR_SIZE];
-        input_ptr.copy_from_slice(&data[9..]);
-        Input::new(index_or_account, value, input_ptr)
+        input_ptr.copy_from_slice(&data[13..]);
+        Input::new(index_or_account, value, Some(spending_counter), input_ptr)
     }
 }
 
@@ -101,14 +106,22 @@ impl Input {
         let mut out = [0u8; INPUT_SIZE];
         out[0] = self.index_or_account;
         out[1..9].copy_from_slice(&self.value.0.to_be_bytes());
-        out[9..].copy_from_slice(&self.input_ptr);
+        out[9..13].copy_from_slice(&self.spending_counter.0.to_be_bytes());
+        out[13..].copy_from_slice(&self.input_ptr);
         out
     }
 
-    pub fn new(index_or_account: u8, value: Value, input_ptr: [u8; INPUT_PTR_SIZE]) -> Self {
+    pub fn new(
+        index_or_account: u8,
+        value: Value,
+        spending_counter: Option<SpendingCounter>,
+        input_ptr: [u8; INPUT_PTR_SIZE],
+    ) -> Self {
+        let spending_counter = spending_counter.unwrap_or(SpendingCounter(0));
         Input {
             index_or_account,
             value,
+            spending_counter,
             input_ptr,
         }
     }
@@ -131,6 +144,7 @@ impl Input {
         Input {
             index_or_account: utxo_pointer.output_index,
             value: utxo_pointer.value,
+            spending_counter: SpendingCounter(0),
             input_ptr,
         }
     }
@@ -141,35 +155,54 @@ impl Input {
         Input {
             index_or_account: utxo_entry.output_index,
             value: utxo_entry.output.value,
+            spending_counter: SpendingCounter(0),
             input_ptr,
         }
     }
 
-    pub fn from_account_public_key(public_key: SpendingPublicKey, value: Value) -> Self {
+    pub fn from_account_public_key(
+        public_key: SpendingPublicKey,
+        spending_counter: SpendingCounter,
+        value: Value,
+    ) -> Self {
         Input::from_account(
             UnspecifiedAccountIdentifier::from_single_account(Identifier::from(public_key)),
+            spending_counter,
             value,
         )
     }
 
-    pub fn from_account(id: UnspecifiedAccountIdentifier, value: Value) -> Self {
+    pub fn from_account(
+        id: UnspecifiedAccountIdentifier,
+        spending_counter: SpendingCounter,
+        value: Value,
+    ) -> Self {
         let mut input_ptr = [0u8; INPUT_PTR_SIZE];
         input_ptr.copy_from_slice(&id.0);
         Input {
             index_or_account: 0xff,
             value,
+            spending_counter,
             input_ptr,
         }
     }
 
-    pub fn from_account_single(id: account::Identifier, value: Value) -> Self {
+    pub fn from_account_single(
+        id: account::Identifier,
+        spending_counter: SpendingCounter,
+        value: Value,
+    ) -> Self {
         let id = UnspecifiedAccountIdentifier::from_single_account(id);
-        Input::from_account(id, value)
+        Input::from_account(id, spending_counter, value)
     }
 
-    pub fn from_multisig_account(id: multisig::Identifier, value: Value) -> Self {
+    pub fn from_multisig_account(
+        id: multisig::Identifier,
+        spending_counter: SpendingCounter,
+        value: Value,
+    ) -> Self {
         let id = UnspecifiedAccountIdentifier::from_multi_account(id);
-        Input::from_account(id, value)
+        Input::from_account(id, spending_counter, value)
     }
 
     pub fn to_enum(&self) -> InputEnum {
@@ -177,7 +210,7 @@ impl Input {
             InputType::Account => {
                 let account_identifier = self.input_ptr;
                 let id = UnspecifiedAccountIdentifier(account_identifier);
-                InputEnum::AccountInput(id, self.value)
+                InputEnum::AccountInput(id, self.spending_counter, self.value)
             }
             InputType::Utxo => InputEnum::UtxoInput(UtxoPointer::new(
                 FragmentId::from(self.input_ptr),
@@ -189,7 +222,9 @@ impl Input {
 
     pub fn from_enum(ie: InputEnum) -> Input {
         match ie {
-            InputEnum::AccountInput(id, value) => Self::from_account(id, value),
+            InputEnum::AccountInput(id, spending_counter, value) => {
+                Self::from_account(id, spending_counter, value)
+            }
             InputEnum::UtxoInput(utxo_pointer) => Self::from_utxo(utxo_pointer),
         }
     }
@@ -218,11 +253,13 @@ impl property::Deserialize for Input {
         let mut codec = Codec::new(reader);
         let index_or_account = codec.get_u8()?;
         let value = Value::deserialize(&mut codec)?;
+        let spending_counter = SpendingCounter(codec.get_u32()?);
         let mut input_ptr = [0; INPUT_PTR_SIZE];
         codec.into_inner().read_exact(&mut input_ptr)?;
         Ok(Input {
             index_or_account,
             value,
+            spending_counter,
             input_ptr,
         })
     }
@@ -232,10 +269,12 @@ impl Readable for Input {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let index_or_account = buf.get_u8()?;
         let value = Value::read(buf)?;
+        let spending_counter = SpendingCounter(buf.get_u32()?);
         let input_ptr = <[u8; INPUT_PTR_SIZE]>::read(buf)?;
         Ok(Input {
             index_or_account,
             value,
+            spending_counter,
             input_ptr,
         })
     }

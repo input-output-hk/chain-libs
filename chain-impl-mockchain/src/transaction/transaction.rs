@@ -364,6 +364,7 @@ impl<P> Transaction<P> {
     pub fn nb_witnesses(&self) -> u8 {
         self.tstruct.nb_inputs
     }
+
     pub fn nb_outputs(&self) -> u8 {
         self.tstruct.nb_outputs
     }

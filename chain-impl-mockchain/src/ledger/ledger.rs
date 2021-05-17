@@ -6,7 +6,6 @@ use super::governance::{Governance, ParametersGovernanceAction, TreasuryGovernan
 use super::leaderlog::LeadersParticipationRecord;
 use super::pots::Pots;
 use super::reward_info::{EpochRewardsInfo, RewardsInfoParameters};
-use crate::chaineval::HeaderContentEvalContext;
 use crate::chaintypes::{ChainLength, ConsensusType, HeaderId};
 use crate::config::{self, ConfigParam};
 use crate::date::{BlockDate, Epoch};
@@ -22,6 +21,7 @@ use crate::treasury::Treasury;
 use crate::value::*;
 use crate::vote::{CommitteeId, VotePlanLedger, VotePlanLedgerError, VotePlanStatus};
 use crate::{account, certificate, legacy, multisig, setting, stake, update, utxo};
+use crate::{account::SpendingCounter, chaineval::HeaderContentEvalContext};
 use crate::{
     certificate::{PoolId, VoteAction, VotePlan},
     chaineval::ConsensusEvalContext,
@@ -307,6 +307,11 @@ pub enum Error {
     VotePlan(#[from] VotePlanLedgerError),
     #[error("Scripts addresses are not yet supported by the system")]
     ScriptsAddressNotAllowedYet,
+    #[error("Invalid spending counter: expected {} but got {} instead", expected.0, got.0)]
+    InvalidSpendingCounter {
+        expected: SpendingCounter,
+        got: SpendingCounter,
+    },
 }
 
 impl LedgerParameters {
@@ -1025,7 +1030,7 @@ impl Ledger {
                     InputEnum::UtxoInput(_) => {
                         return Err(Error::VoteCastInvalidTransaction);
                     }
-                    InputEnum::AccountInput(account_id, _value) => {
+                    InputEnum::AccountInput(account_id, _spending_counter, _value) => {
                         committee.insert(account_id.as_ref().try_into().unwrap());
                     }
                 }
@@ -1048,7 +1053,7 @@ impl Ledger {
     ) -> Result<(Self, Value), Error> {
         let sign_data_hash = tx.transaction_sign_data_hash();
 
-        let (account_id, value, witness) = {
+        let (account_id, spending_counter, value, witness) = {
             check::valid_vote_cast(tx)?;
 
             let input = tx.inputs().iter().next().unwrap();
@@ -1056,9 +1061,9 @@ impl Ledger {
                 InputEnum::UtxoInput(_) => {
                     return Err(Error::VoteCastInvalidTransaction);
                 }
-                InputEnum::AccountInput(account_id, value) => {
+                InputEnum::AccountInput(account_id, spending_counter, value) => {
                     let witness = tx.witnesses().iter().next().unwrap();
-                    (account_id, value, witness)
+                    (account_id, spending_counter, value, witness)
                 }
             }
         };
@@ -1079,6 +1084,7 @@ impl Ledger {
                     &sign_data_hash,
                     &account_id,
                     witness,
+                    spending_counter,
                     value,
                 )?;
             }
@@ -1089,6 +1095,7 @@ impl Ledger {
                     &sign_data_hash,
                     &account_id,
                     witness,
+                    spending_counter,
                     value,
                 )?;
             }
@@ -1273,7 +1280,7 @@ impl Ledger {
     ) -> Result<(Self, Value), Error> {
         let sign_data_hash = tx.transaction_sign_data_hash();
 
-        let (account_id, value, witness) = {
+        let (account_id, spending_counter, value, witness) = {
             check::valid_stake_owner_delegation_transaction(tx)?;
 
             let input = tx.inputs().iter().next().unwrap();
@@ -1281,9 +1288,9 @@ impl Ledger {
                 InputEnum::UtxoInput(_) => {
                     return Err(Error::OwnerStakeDelegationInvalidTransaction);
                 }
-                InputEnum::AccountInput(account_id, value) => {
+                InputEnum::AccountInput(account_id, spending_counter, value) => {
                     let witness = tx.witnesses().iter().next().unwrap();
-                    (account_id, value, witness)
+                    (account_id, spending_counter, value, witness)
                 }
             }
         };
@@ -1304,6 +1311,7 @@ impl Ledger {
                     &sign_data_hash,
                     &account_id,
                     witness,
+                    spending_counter,
                     value,
                 )?;
                 self.accounts = single.set_delegation(
@@ -1318,6 +1326,7 @@ impl Ledger {
                     &sign_data_hash,
                     &account_id,
                     witness,
+                    spending_counter,
                     value,
                 )?;
                 self.multisig = multi.set_delegation(
@@ -1434,7 +1443,7 @@ impl Ledger {
                 InputEnum::UtxoInput(utxo) => {
                     self = self.apply_input_to_utxo(&sign_data_hash, &utxo, &witness)?
                 }
-                InputEnum::AccountInput(account_id, value) => {
+                InputEnum::AccountInput(account_id, spending_counter, value) => {
                     match match_identifier_witness(&account_id, &witness)? {
                         MatchingIdentifierWitness::Single(account_id, witness) => {
                             self.accounts = input_single_account_verify(
@@ -1443,6 +1452,7 @@ impl Ledger {
                                 &sign_data_hash,
                                 &account_id,
                                 witness,
+                                spending_counter,
                                 value,
                             )?
                         }
@@ -1453,6 +1463,7 @@ impl Ledger {
                                 &sign_data_hash,
                                 &account_id,
                                 witness,
+                                spending_counter,
                                 value,
                             )?
                         }
@@ -1702,16 +1713,23 @@ fn match_identifier_witness<'a>(
 }
 
 fn input_single_account_verify<'a>(
-    mut ledger: account::Ledger,
+    ledger: account::Ledger,
     block0_hash: &HeaderId,
     sign_data_hash: &TransactionSignDataHash,
     account: &account::Identifier,
     witness: &'a account::Witness,
+    spending_counter: SpendingCounter,
     value: Value,
 ) -> Result<account::Ledger, Error> {
     // .remove_value() check if there's enough value and if not, returns a Err.
-    let (new_ledger, spending_counter) = ledger.remove_value(&account, value)?;
-    ledger = new_ledger;
+    let (new_ledger, spending_counter_ledger) = ledger.remove_value(&account, value)?;
+
+    if spending_counter != spending_counter_ledger {
+        return Err(Error::InvalidSpendingCounter {
+            expected: spending_counter_ledger,
+            got: spending_counter,
+        });
+    }
 
     let tidsc = WitnessAccountData::new(block0_hash, sign_data_hash, spending_counter);
     let verified = witness.verify(account.as_ref(), &tidsc);
@@ -1721,19 +1739,29 @@ fn input_single_account_verify<'a>(
             witness: Witness::Account(witness.clone()),
         });
     };
-    Ok(ledger)
+
+    Ok(new_ledger)
 }
 
 fn input_multi_account_verify<'a>(
-    mut ledger: multisig::Ledger,
+    ledger: multisig::Ledger,
     block0_hash: &HeaderId,
     sign_data_hash: &TransactionSignDataHash,
     account: &multisig::Identifier,
     witness: &'a multisig::Witness,
+    spending_counter: SpendingCounter,
     value: Value,
 ) -> Result<multisig::Ledger, Error> {
     // .remove_value() check if there's enough value and if not, returns a Err.
-    let (new_ledger, declaration, spending_counter) = ledger.remove_value(&account, value)?;
+    let (new_ledger, declaration, spending_counter_ledger) =
+        ledger.remove_value(&account, value)?;
+
+    if spending_counter != spending_counter_ledger {
+        return Err(Error::InvalidSpendingCounter {
+            expected: spending_counter_ledger,
+            got: spending_counter,
+        });
+    }
 
     let data_to_verify = WitnessMultisigData::new(&block0_hash, sign_data_hash, spending_counter);
     if !witness.verify(declaration, &data_to_verify) {
@@ -1742,8 +1770,8 @@ fn input_multi_account_verify<'a>(
             witness: Witness::Multisig(witness.clone()),
         });
     }
-    ledger = new_ledger;
-    Ok(ledger)
+
+    Ok(new_ledger)
 }
 
 #[cfg(test)]
@@ -1923,6 +1951,7 @@ mod tests {
         block0_hash: HeaderId,
         sign_data_hash: TransactionSignDataHash,
         witness: account::Witness,
+        spending_counter: SpendingCounter,
     ) -> TestResult {
         let mut account_ledger = account::Ledger::new();
         account_ledger = account_ledger
@@ -1934,6 +1963,7 @@ mod tests {
             &sign_data_hash,
             &id,
             &witness,
+            spending_counter,
             value_to_sub,
         );
 
@@ -1962,6 +1992,7 @@ mod tests {
             &sign_data_hash,
             &id,
             &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            account.spending_counter.unwrap(),
             value_to_sub,
         );
         assert!(result.is_ok())
@@ -1998,6 +2029,7 @@ mod tests {
             &sign_data_hash,
             &id,
             &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            account.spending_counter.unwrap(),
             value_to_sub,
         );
         assert!(result.is_err())
@@ -2033,6 +2065,7 @@ mod tests {
             &sign_data_hash,
             &id,
             &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            account.spending_counter.unwrap(),
             value_to_sub,
         );
         assert!(result.is_err())
@@ -2062,6 +2095,7 @@ mod tests {
             &sign_data_hash,
             &non_existing_account.public_key().into(),
             &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            account.spending_counter.unwrap(),
             value_to_sub,
         );
         assert!(result.is_err())
