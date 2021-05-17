@@ -19,7 +19,7 @@ impl CommitmentKey {
     }
 
     /// Return a commitment with the given message, `m`,  and opening key, `r`
-    pub(crate) fn commit_with_random(&self, m: &Scalar, r: &Scalar) -> GroupElement {
+    fn commit_with_random(&self, m: &Scalar, r: &Scalar) -> GroupElement {
         GroupElement::generator() * m + &self.h * r
     }
 
@@ -35,13 +35,9 @@ impl CommitmentKey {
 
     /// Verify that a given `commitment` opens to `o` under commitment key `self`
     #[allow(dead_code)]
-    pub fn verify(&self, commitment: &GroupElement, o: &Open) -> Validity {
+    pub fn verify(&self, commitment: &GroupElement, o: &Open) -> bool {
         let other = self.commit_with_open(o);
-        if commitment == &other {
-            Validity::Valid
-        } else {
-            Validity::Invalid
-        }
+        commitment == &other
     }
 }
 
@@ -51,14 +47,36 @@ impl From<Crs> for CommitmentKey {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Validity {
-    Valid,
-    Invalid,
-}
-
 #[derive(Clone)]
 pub struct Open {
-    m: Scalar,
-    r: Scalar,
+    pub m: Scalar,
+    pub r: Scalar,
+}
+
+#[cfg(tests)]
+mod tests {
+    use super::*;
+    use rand_chacha::ChaCha20Rng;
+    use rand_chacha::rand_core::SeedableRng;
+
+    #[test]
+    fn commit_and_open() {
+        let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+        let crs = Crs::from_hash(&[0u8]);
+        let commitment_key = CommitmentKey::from(crs);
+        let message = Scalar::random(&mut rng);
+        let (comm, rand) = commitment_key.commit(&message, &mut rng);
+
+        let opening = Open { m: message, r: rand};
+
+        assert!(commitment_key.verify(&comm, &opening));
+
+        let comm_with_rand = commitment_key.commit_with_random(&message, &rand);
+
+        assert_eq!(comm_with_rand, comm);
+
+        let comm_with_open = commitment_key.commit_with_open(&opening);
+
+        assert_eq!(comm_with_open, comm);
+    }
 }

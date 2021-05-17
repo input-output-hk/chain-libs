@@ -1,7 +1,7 @@
 use chain_core::mempack::{ReadBuf, ReadError};
 use rand_core::{CryptoRng, RngCore};
 
-use crate::commitment::CommitmentKey;
+use crate::commitment::{CommitmentKey, Open};
 use crate::encrypted::{EncryptingVote, Ptp};
 use crate::encryption::{Ciphertext, PublicKey};
 use crate::gang::{GroupElement, Scalar};
@@ -228,15 +228,11 @@ impl Proof {
 
         // check commitments are 0 / 1
         for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
-            let com1 = commitment_key.commit_with_random(&zwv.z, &zwv.w);
-            let lhs = &iba.i * challenge_x + &iba.b;
-            if lhs != com1 {
+            if !commitment_key.verify(&(&iba.i * challenge_x + &iba.b), &Open{ m: zwv.z.clone(), r: zwv.w.clone() }) {
                 return false;
             }
 
-            let com2 = commitment_key.commit_with_random(&Scalar::zero(), &zwv.v);
-            let lhs = &iba.i * (challenge_x - &zwv.z) + &iba.a;
-            if lhs != com2 {
+            if !commitment_key.verify(&(&iba.i * (challenge_x - &zwv.z) + &iba.a), &Open { m: Scalar::zero(), r: zwv.v.clone() }) {
                 return false;
             }
         }
