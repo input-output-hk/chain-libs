@@ -1,4 +1,5 @@
 use chain_core::mempack::{ReadBuf, ReadError};
+use rand::thread_rng;
 use rand_core::{CryptoRng, RngCore};
 
 use crate::commitment::{CommitmentKey, Open};
@@ -175,7 +176,8 @@ impl Proof {
         ciphertexts: &Ptp<Ciphertext>,
         challenge_x: &Scalar,
         challenge_y: &Scalar,
-    ) -> bool {
+    ) -> bool
+    {
         let bits = ciphertexts.bits();
         let length = ciphertexts.len();
         let cx_pow = challenge_x.power(bits);
@@ -187,21 +189,24 @@ impl Proof {
 
         let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
 
+        // Challenge value for batching statements to be verified. We need to skip the first exponantiation
+        // to avoid using `Scalar::one()`.
+        let batch_challenge_a: Vec<Scalar> = Scalar::random(&mut thread_rng()).exp_iter().take(bits + 1).skip(1).collect();
+        let batch_challenge_b: Vec<Scalar> = Scalar::random(&mut thread_rng()).exp_iter().take(bits + 1).skip(1).collect();
+
         let mega_check = GroupElement::multiscalar_multiplication(
             self.zwvs
-                .iter()
-                .map(|zwv| zwv.z)
-                .chain(self.zwvs.iter().map(|zwv| zwv.w))
-                .chain(iter::repeat(challenge_x.negate()).take(bits))
-                .chain(iter::repeat(Scalar::one().negate()).take(bits))
-                .chain(self.zwvs.iter().map(|zwv| zwv.v))
-                .chain(self.zwvs.iter().map(|zwv| zwv.z - challenge_x))
-                .chain(iter::repeat(Scalar::one().negate()).take(bits))
+                .iter().enumerate()
+                .map(|(i, zwv)| batch_challenge_a[i] * zwv.z)
+                .chain(self.zwvs.iter().enumerate().map(|(i, zwv)| batch_challenge_a[i] * zwv.w + batch_challenge_b[i] * zwv.v))
+                .chain(self.zwvs.iter().enumerate().map(|(i, zwv)| batch_challenge_b[i] * (zwv.z - challenge_x) - batch_challenge_a[i] * challenge_x))
+                .chain(batch_challenge_a.iter().map(|a| a.negate()))
+                .chain(batch_challenge_b.iter().map(|b| b.negate()))
                 .chain(powers_cy.take(length).map(|s| s * cx_pow))
                 .chain(powers_cy.take(length).map(|s| s * cx_pow))
-                .chain(powers_cy.take(length).map(|s| s))
-                .chain(powers_cx.take(bits).map(|s| s))
-                .chain(powers_cx.take(bits).map(|s| s))
+                .chain(powers_cy.take(length))
+                .chain(powers_cx.take(bits))
+                .chain(powers_cx.take(bits))
                 .chain(iter::once(Scalar::one().negate()))
                 .chain(iter::once(Scalar::one().negate())),
             iter::repeat(GroupElement::generator())
@@ -209,12 +214,10 @@ impl Proof {
                 .chain(iter::repeat(commitment_key.h).take(bits))
                 .chain(self.ibas.iter().map(|iba| iba.i))
                 .chain(self.ibas.iter().map(|iba| iba.b))
-                .chain(iter::repeat(commitment_key.h).take(bits))
-                .chain(self.ibas.iter().map(|iba| iba.i))
                 .chain(self.ibas.iter().map(|iba| iba.a))
                 .chain(ciphertexts.iter().map(|ctxt| ctxt.e2))
                 .chain(ciphertexts.iter().map(|ctxt| ctxt.e1))
-                .chain(powers_z_iterator.take(length).map(|p| p))
+                .chain(powers_z_iterator.take(length))
                 .chain(self.ds.iter().map(|ctxt| ctxt.e1))
                 .chain(self.ds.iter().map(|ctxt| ctxt.e2))
                 .chain(iter::once(zero.e1))
