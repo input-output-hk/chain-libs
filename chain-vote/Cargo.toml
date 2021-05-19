@@ -30,6 +30,6 @@ ristretto255 = ["curve25519-dalek-ng"]
 harness = false
 name = "shvzk"
 
-#[[bench]]
-#harness = false
-#name = "curve"
+[[bench]]
+harness = false
+name = "curve"

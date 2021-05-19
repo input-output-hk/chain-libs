@@ -189,48 +189,34 @@ impl Proof {
 
         let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
 
-        // Challenge value for batching statements to be verified. We need to skip the first exponantiation
-        // to avoid using `Scalar::one()`.
-        let batch_challenge_a: Vec<Scalar> = Scalar::random(&mut thread_rng())
-            .exp_iter()
-            .take(bits + 1)
-            .skip(1)
-            .collect();
-        let batch_challenge_b: Vec<Scalar> = Scalar::random(&mut thread_rng())
-            .exp_iter()
-            .take(bits + 1)
-            .skip(1)
-            .collect();
+        let batch_challenge = Scalar::random(&mut thread_rng());
+        for (zwv, iba) in self.zwvs.iter().zip(self.ibas.iter()) {
+            if GroupElement::multiscalar_multiplication(
+                iter::once(zwv.z)
+                    .chain(iter::once(zwv.w + batch_challenge * zwv.v))
+                    .chain(iter::once(batch_challenge * (zwv.z - challenge_x) - challenge_x))
+                    .chain(iter::once(Scalar::one().negate()))
+                    .chain(iter::once(batch_challenge.negate())),
+                iter::once(GroupElement::generator())
+                    .chain(iter::once(commitment_key.h))
+                    .chain(iter::once(iba.i))
+                    .chain(iter::once(iba.b))
+                    .chain(iter::once(iba.a))
+            ) != GroupElement::zero() {
+                return false
+            }
+        }
 
         let mega_check =
             GroupElement::multiscalar_multiplication(
-                self.zwvs
-                    .iter()
-                    .enumerate()
-                    .map(|(i, zwv)| batch_challenge_a[i] * zwv.z)
-                    .chain(self.zwvs.iter().enumerate().map(|(i, zwv)| {
-                        batch_challenge_a[i] * zwv.w + batch_challenge_b[i] * zwv.v
-                    }))
-                    .chain(self.zwvs.iter().enumerate().map(|(i, zwv)| {
-                        batch_challenge_b[i] * (zwv.z - challenge_x)
-                            - batch_challenge_a[i] * challenge_x
-                    }))
-                    .chain(batch_challenge_a.iter().map(|a| a.negate()))
-                    .chain(batch_challenge_b.iter().map(|b| b.negate()))
-                    .chain(powers_cy.take(length).map(|s| s * cx_pow))
+                powers_cy.take(length).map(|s| s * cx_pow)
                     .chain(powers_cy.take(length).map(|s| s * cx_pow))
                     .chain(powers_cy.take(length))
                     .chain(powers_cx.take(bits))
                     .chain(powers_cx.take(bits))
                     .chain(iter::once(Scalar::one().negate()))
                     .chain(iter::once(Scalar::one().negate())),
-                iter::repeat(GroupElement::generator())
-                    .take(bits)
-                    .chain(iter::repeat(commitment_key.h).take(bits))
-                    .chain(self.ibas.iter().map(|iba| iba.i))
-                    .chain(self.ibas.iter().map(|iba| iba.b))
-                    .chain(self.ibas.iter().map(|iba| iba.a))
-                    .chain(ciphertexts.iter().map(|ctxt| ctxt.e2))
+                ciphertexts.iter().map(|ctxt| ctxt.e2)
                     .chain(ciphertexts.iter().map(|ctxt| ctxt.e1))
                     .chain(powers_z_iterator.take(length))
                     .chain(self.ds.iter().map(|ctxt| ctxt.e1))
