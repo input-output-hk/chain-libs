@@ -2,7 +2,6 @@ use chain_vote::*;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
-use std::time::Duration;
 
 fn common(rng: &mut ChaCha20Rng) -> (EncryptingVoteKey, EncryptingVote) {
     let h = Crs::from_hash(&[0u8; 32]);

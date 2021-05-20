@@ -21,15 +21,13 @@ impl BlindingRandomness {
     /// corresponding to the commitment of the index, and of `beta`.
     pub fn gen_and_commit<R: RngCore + CryptoRng>(
         ck: &CommitmentKey,
-        index: &Scalar,
+        index: &bool,
         rng: &mut R,
     ) -> (Self, Announcement) {
-        assert!(index == &Scalar::zero() || index == &Scalar::one());
-
-        let (i, alpha) = ck.commit(&index, rng);
+        let (i, alpha) = ck.commit_bool(&index, rng);
         let beta = Scalar::random(rng);
         let (b, gamma) = ck.commit(&beta, rng);
-        let (a, delta) = if index == &Scalar::one() {
+        let (a, delta) = if *index {
             ck.commit(&beta, rng)
         } else {
             ck.commit(&Scalar::zero(), rng)

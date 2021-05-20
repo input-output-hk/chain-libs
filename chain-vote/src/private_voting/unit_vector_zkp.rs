@@ -61,7 +61,7 @@ impl Proof {
         let mut first_announcement_vec = Vec::with_capacity(bits);
         let idx_binary_rep = binrep(encrypting_vote.unit_vector.ith(), bits as u32);
         for &i in idx_binary_rep.iter() {
-            let (b_rand, ann) = BlindingRandomness::gen_and_commit(&ck, &i.into(), rng);
+            let (b_rand, ann) = BlindingRandomness::gen_and_commit(&ck, &i, rng);
             blinding_randomness_vec.push(b_rand);
             first_announcement_vec.push(ann);
         }
@@ -189,7 +189,9 @@ impl Proof {
 
         let zero = public_key.encrypt_with_r(&Scalar::zero(), &self.r);
 
+        // Challenge value for batching two equations into a single multiscalar mult.
         let batch_challenge = Scalar::random(&mut thread_rng());
+
         for (zwv, iba) in self.zwvs.iter().zip(self.ibas.iter()) {
             if GroupElement::multiscalar_multiplication(
                 iter::once(zwv.z)
@@ -475,5 +477,57 @@ mod tests {
         let fake_unit_vector = UnitVector::new(5, 3);
         let fake_encryption = EncryptingVote::prepare(&mut r, &public_key, &fake_unit_vector);
         assert!(!proof.verify(&crs, &public_key, &fake_encryption.ciphertexts))
+    }
+
+    #[test]
+    fn challenge_context() {
+        let mut r = ChaCha20Rng::from_seed([0u8; 32]);
+        let public_key = Keypair::generate(&mut r).public_key;
+        let unit_vector = UnitVector::new(5, 1);
+        let ev = EncryptingVote::prepare(&mut r, &public_key, &unit_vector);
+
+        let crs = GroupElement::from_hash(&[0u8]);
+        let ck = CommitmentKey::from(crs.clone());
+
+        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+
+        let mut cc1 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
+        let cy1 = cc1.first_challenge(&proof.ibas);
+        let cx1 = cc1.second_challenge(&proof.ds);
+
+        // if we set up a new challenge context, the results should be equal
+        let mut cc2 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
+        let cy2 = cc2.first_challenge(&proof.ibas);
+        let cx2 = cc2.second_challenge(&proof.ds);
+
+        assert_eq!(cy1, cy2);
+        assert_eq!(cx1, cx2);
+
+        // if we set up a new challenge with incorrect initialisation, results should differ
+        let crs_diff = GroupElement::from_hash(&[1u8]);
+        let ck_diff = CommitmentKey::from(crs_diff.clone());
+        let mut cc3 = ChallengeContext::new(&ck_diff, &public_key, ev.ciphertexts.as_ref());
+        let cy3 = cc3.first_challenge(&proof.ibas);
+        let cx3 = cc3.second_challenge(&proof.ds);
+
+        assert_ne!(cy1, cy3);
+        assert_ne!(cx1, cx3);
+
+        // if we generate a new challenge with different IBAs, but same Ds, both results should differ
+        let proof_diff = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        let mut cc4 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
+        let cy4 = cc4.first_challenge(&proof_diff.ibas);
+        let cx4 = cc4.second_challenge(&proof.ds);
+
+        assert_ne!(cy1, cy4);
+        assert_ne!(cx1, cx4);
+
+        // if we generate a challenge with different Ds, only the second scalar should differ
+        let mut cc5 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
+        let cy5 = cc5.first_challenge(&proof.ibas);
+        let cx5 = cc5.second_challenge(&proof_diff.ds);
+
+        assert_eq!(cy1, cy5);
+        assert_ne!(cx1, cx5);
     }
 }
