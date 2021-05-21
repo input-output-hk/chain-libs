@@ -1,22 +1,20 @@
 use chain_core::mempack::{ReadBuf, ReadError};
 use rand_core::{CryptoRng, RngCore};
 #[cfg(feature = "ristretto255")]
-use {
-    std::iter,
-    rand::thread_rng,
-};
+use {rand::thread_rng, std::iter};
 
-use crate::encrypted::{EncryptingVote, Ptp};
-use crate::encryption::{Ciphertext, PublicKey};
-use crate::gang::{GroupElement, Scalar};
-use crate::private_voting::messages::{
-    generate_polys, Announcement, BlindingRandomness, ChallengeContext, ResponseRandomness,
-};
-use crate::unit_vector::binrep;
-use crate::Crs;
 use crate::commitment::CommitmentKey;
 #[cfg(not(feature = "ristretto255"))]
 use crate::commitment::Open;
+use crate::encrypted::{EncryptingVote, Ptp};
+use crate::encryption::{Ciphertext, PublicKey};
+use crate::gang::{GroupElement, Scalar};
+use crate::private_voting::{
+    messages::{generate_polys, Announcement, BlindingRandomness, ResponseRandomness},
+    ChallengeContext,
+};
+use crate::unit_vector::binrep;
+use crate::Crs;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Proof {
@@ -197,36 +195,42 @@ impl Proof {
             if GroupElement::multiscalar_multiplication(
                 iter::once(zwv.z)
                     .chain(iter::once(zwv.w + batch_challenge * zwv.v))
-                    .chain(iter::once(batch_challenge * (zwv.z - challenge_x) - challenge_x))
+                    .chain(iter::once(
+                        batch_challenge * (zwv.z - challenge_x) - challenge_x,
+                    ))
                     .chain(iter::once(Scalar::one().negate()))
                     .chain(iter::once(batch_challenge.negate())),
                 iter::once(GroupElement::generator())
                     .chain(iter::once(commitment_key.h))
                     .chain(iter::once(iba.i))
                     .chain(iter::once(iba.b))
-                    .chain(iter::once(iba.a))
-            ) != GroupElement::zero() {
-                return false
+                    .chain(iter::once(iba.a)),
+            ) != GroupElement::zero()
+            {
+                return false;
             }
         }
 
-        let mega_check =
-            GroupElement::multiscalar_multiplication(
-                powers_cy.take(length).map(|s| s * cx_pow)
-                    .chain(powers_cy.take(length).map(|s| s * cx_pow))
-                    .chain(powers_cy.take(length))
-                    .chain(powers_cx.take(bits))
-                    .chain(powers_cx.take(bits))
-                    .chain(iter::once(Scalar::one().negate()))
-                    .chain(iter::once(Scalar::one().negate())),
-                ciphertexts.iter().map(|ctxt| ctxt.e2)
-                    .chain(ciphertexts.iter().map(|ctxt| ctxt.e1))
-                    .chain(powers_z_iterator.take(length))
-                    .chain(self.ds.iter().map(|ctxt| ctxt.e1))
-                    .chain(self.ds.iter().map(|ctxt| ctxt.e2))
-                    .chain(iter::once(zero.e1))
-                    .chain(iter::once(zero.e2)),
-            );
+        let mega_check = GroupElement::multiscalar_multiplication(
+            powers_cy
+                .take(length)
+                .map(|s| s * cx_pow)
+                .chain(powers_cy.take(length).map(|s| s * cx_pow))
+                .chain(powers_cy.take(length))
+                .chain(powers_cx.take(bits))
+                .chain(powers_cx.take(bits))
+                .chain(iter::once(Scalar::one().negate()))
+                .chain(iter::once(Scalar::one().negate())),
+            ciphertexts
+                .iter()
+                .map(|ctxt| ctxt.e2)
+                .chain(ciphertexts.iter().map(|ctxt| ctxt.e1))
+                .chain(powers_z_iterator.take(length))
+                .chain(self.ds.iter().map(|ctxt| ctxt.e1))
+                .chain(self.ds.iter().map(|ctxt| ctxt.e2))
+                .chain(iter::once(zero.e1))
+                .chain(iter::once(zero.e2)),
+        );
 
         mega_check == GroupElement::zero()
     }

@@ -36,8 +36,8 @@ impl CommitmentKey {
     /// Return a commitment of a boolean value, and the used randomness, `r`, where the latter is computed
     /// from a `Rng + CryptoRng`
     pub(crate) fn commit_bool<R>(&self, m: bool, rng: &mut R) -> (GroupElement, Scalar)
-        where
-            R: CryptoRng + RngCore,
+    where
+        R: CryptoRng + RngCore,
     {
         let r = Scalar::random(rng);
         if m {

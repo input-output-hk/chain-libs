@@ -3,10 +3,10 @@
 
 use chain_vote::debug::gang;
 use chain_vote::debug::gang::GroupElement;
+use chain_vote::Scalar;
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
-use chain_vote::Scalar;
 
 fn mul(c: &mut Criterion) {
     let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
