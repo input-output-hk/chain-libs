@@ -1,21 +1,22 @@
 use chain_core::mempack::{ReadBuf, ReadError};
-#[allow(unused_imports)] // this can be remove if ristretto255 becomes default flag
-use rand::thread_rng;
 use rand_core::{CryptoRng, RngCore};
+#[cfg(feature = "ristretto255")]
+use {
+    std::iter,
+    rand::thread_rng,
+};
 
-use crate::commitment::{CommitmentKey, Open};
 use crate::encrypted::{EncryptingVote, Ptp};
 use crate::encryption::{Ciphertext, PublicKey};
 use crate::gang::{GroupElement, Scalar};
 use crate::private_voting::messages::{
-    generate_polys, Announcement, BlindingRandomness, ResponseRandomness,
+    generate_polys, Announcement, BlindingRandomness, ChallengeContext, ResponseRandomness,
 };
-use crate::private_voting::ChallengeContext;
 use crate::unit_vector::binrep;
 use crate::Crs;
-
-#[cfg(feature = "ristretto255")]
-use std::iter;
+use crate::commitment::CommitmentKey;
+#[cfg(not(feature = "ristretto255"))]
+use crate::commitment::Open;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Proof {
@@ -61,7 +62,7 @@ impl Proof {
         let mut first_announcement_vec = Vec::with_capacity(bits);
         let idx_binary_rep = binrep(encrypting_vote.unit_vector.ith(), bits as u32);
         for &i in idx_binary_rep.iter() {
-            let (b_rand, ann) = BlindingRandomness::gen_and_commit(&ck, &i, rng);
+            let (b_rand, ann) = BlindingRandomness::gen_and_commit(&ck, i, rng);
             blinding_randomness_vec.push(b_rand);
             first_announcement_vec.push(ann);
         }
