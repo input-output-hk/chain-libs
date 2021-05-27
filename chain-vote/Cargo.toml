@@ -19,7 +19,7 @@ curve25519-dalek-ng = { version = "4.0.1", optional = true}
 rand_chacha = "0.3"
 smoke = "^0.2.1"
 
-criterion = { version = "0.3" }
+criterion = "0.3"
 
 [features]
 default = ["p256k1"]
