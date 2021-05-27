@@ -64,7 +64,7 @@ pub fn encrypt_vote<R: RngCore + CryptoRng>(
     vote: Vote,
 ) -> (EncryptedVote, ProofOfCorrectVote) {
     let ev = EncryptingVote::prepare(rng, &public_key.0, &vote);
-    let proof = private_voting::Proof::prove(rng, &crs, &public_key.0, ev.clone());
+    let proof = private_voting::Proof::generate(rng, &crs, &public_key.0, ev.clone());
     (ev.ciphertexts, proof)
 }
 

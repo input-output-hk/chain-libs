@@ -42,7 +42,7 @@ impl Proof {
     ///
     /// The proof communication complexity is logarithmic with respect to the size of
     /// the encrypted tuple. Description of the proof available in Figure 8.
-    pub(crate) fn prove<R: RngCore + CryptoRng>(
+    pub(crate) fn generate<R: RngCore + CryptoRng>(
         rng: &mut R,
         crs: &Crs,
         public_key: &PublicKey,
@@ -447,7 +447,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
         assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
     }
 
@@ -462,7 +462,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
         assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
     }
 
@@ -477,7 +477,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
 
         let fake_unit_vector = UnitVector::new(5, 3);
         let fake_encryption = EncryptingVote::prepare(&mut r, &public_key, &fake_unit_vector);
@@ -494,7 +494,7 @@ mod tests {
         let crs = GroupElement::from_hash(&[0u8]);
         let ck = CommitmentKey::from(crs.clone());
 
-        let proof = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
 
         let mut cc1 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
         let cy1 = cc1.first_challenge(&proof.ibas);
@@ -519,7 +519,7 @@ mod tests {
         assert_ne!(cx1, cx3);
 
         // if we generate a new challenge with different IBAs, but same Ds, both results should differ
-        let proof_diff = Proof::prove(&mut r, &crs, &public_key, ev.clone());
+        let proof_diff = Proof::generate(&mut r, &crs, &public_key, ev.clone());
         let mut cc4 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
         let cy4 = cc4.first_challenge(&proof_diff.ibas);
         let cx4 = cc4.second_challenge(&proof.ds);
