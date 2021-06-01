@@ -1,3 +1,11 @@
+//! Implementation of the distributed key generation (DKG)
+//! procedure presented by Gennaro, Jarecki, Krawczyk and Rabin in
+//! ["Secure distributed key generation for discrete-log based cryptosystems."](https://link.springer.com/article/10.1007/s00145-006-0347-3).
+//! The distinction with the original protocol lies in the use of hybrid
+//! encryption. We use the description and notation presented in the technical
+//! [spec](https://github.com/input-output-hk/treasury-crypto/blob/master/docs/voting_protocol_spec/Treasury_voting_protocol_spec.pdf),
+//! written by Dmytro Kaidalov.
+
 use crate::encryption::{HybridCiphertext, PublicKey, SecretKey};
 use crate::gang::{GroupElement, Scalar};
 use crate::math::Polynomial;
@@ -12,6 +20,7 @@ pub struct MemberSecretKey(pub(crate) SecretKey);
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct MemberPublicKey(pub(crate) PublicKey);
 
+/// Committee member communication private key
 #[derive(Clone)]
 pub struct MemberCommunicationKey(SecretKey);
 
@@ -41,15 +50,18 @@ pub struct MemberState {
 }
 
 impl MemberState {
-    /// Generate a new member state from random, where the number
+    /// Generate a new member state from random. This is round 1 of the protocol. Receives as
+    /// input the threshold `t`, the expected number of participants, `n`, common reference string
+    /// `crs`, `committee_pks`, and the party's index `my`. Initiates a Pedersen-VSS as a dealer.
     pub fn new<R: RngCore + CryptoRng>(
         rng: &mut R,
         t: usize,
-        h: &Crs, // TODO: document
+        n: usize,
+        crs: &Crs, // TODO: document
         committee_pks: &[MemberCommunicationPublicKey],
         my: usize,
     ) -> MemberState {
-        let n = committee_pks.len();
+        assert_eq!(committee_pks.len(), n);
         assert!(t > 0);
         assert!(t <= n);
         assert!(my < n);
@@ -62,7 +74,7 @@ impl MemberState {
 
         for (ai, bi) in pshek.get_coefficients().zip(pcomm.get_coefficients()) {
             let apub = GroupElement::generator() * ai;
-            let e = &apub + h * bi;
+            let e = &apub + crs * bi;
             apubs.push(apub);
             es.push(e);
         }
@@ -170,6 +182,10 @@ impl MemberCommunicationPublicKey {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes()
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        PublicKey::from_bytes(bytes).map(Self)
     }
 }
 
