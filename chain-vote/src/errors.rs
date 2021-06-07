@@ -6,4 +6,7 @@ pub enum DkgError {
     /// byte-array representing a scalar out of bounds.
     #[cfg_attr(feature = "std", error("Scalar out of bounds."))]
     ScalarOutOfBounds,
+    /// This error occurs when too many members misbehaved.
+    #[cfg_attr(feature = "std", error("Misbehaviours higher than threshold."))]
+    MisbehaviourHigherThreshold,
 }

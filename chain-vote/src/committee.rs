@@ -56,7 +56,7 @@ pub struct MemberState2 {
 
 type MembersFetchedState1 = (usize, HybridCiphertext, HybridCiphertext);
 // todo: third element should be a proof of misbehaviour.
-type MisbehavingPartiesState1 = (usize, DkgError, HybridCiphertext);
+type MisbehavingPartiesState1 = (usize, DkgError, usize);
 
 impl MemberState1 {
     /// Generate a new member state from random. This is round 1 of the protocol. Receives as
@@ -122,39 +122,33 @@ impl MemberState1 {
         }
     }
 
+    // todo: is vectors a correct way to handle the indexed members (e.g.: coeff_comms and pks in
+    // a vec will certainly enduce errors)?
     pub fn to_phase_2(
         &self,
-        members_state: Vec<MembersFetchedState1>,
-
-        coeff_comms: Vec<GroupElement>,
+        // todo: maybe we can simply have one type for the state--- or a struct
+        members_state: &Vec<MembersFetchedState1>,
+        coeff_comms: &Vec<GroupElement>,
     ) -> Result<MemberState2, DkgError> {
         let mut misbehaving_parties: Vec<MisbehavingPartiesState1> = Vec::new();
-        for fetched_data in members_state {
+        for (index, fetched_data) in members_state.iter().enumerate() {
             let comm_scalar = Scalar::from_bytes(&self.sk.0.hybrid_decrypt(&fetched_data.1));
             let shek_scalar = Scalar::from_bytes(&self.sk.0.hybrid_decrypt(&fetched_data.2));
 
-            if comm_scalar.is_none() {
-                // todo: generate the proofs
-                misbehaving_parties.push((fetched_data.0, DkgError::ScalarOutOfBounds, fetched_data.1));
-                continue;
+            if let (Some(comm), Some(shek)) = (comm_scalar, shek_scalar) {
+                let check_element = GroupElement::generator() * comm + &self.crs * shek;
+                if check_element != coeff_comms[index] {
+                    misbehaving_parties.push((fetched_data.0.clone(), DkgError::MisbehaviourHigherThreshold, 0));
+                }
             }
-
-            if shek_scalar.is_none() {
-                // todo: generate the proofs
-                misbehaving_parties.push((fetched_data.0, DkgError::ScalarOutOfBounds, fetched_data.2));
-                continue;
+            else {
+                // todo: handle the proofs. Might not be the most optimal way of handling these two
+                misbehaving_parties.push((fetched_data.0.clone(), DkgError::ScalarOutOfBounds, 0));
             }
-
-            let check_element = GroupElement::generator() * dec_comms[i] + self.crs * dec_sheks[i];
-            assert_eq!(GroupElement::generator() * comm_scalar + self.crs * shek_scalar, coeff_comms[i]);
         }
-        for i in 0..self.nr_members {
-            if i == self.owner_index - 1 {
-                continue;
-            } else {
-                let check_element = GroupElement::generator() * dec_comms[i] + self.crs * dec_sheks[i];
-                assert_eq!(GroupElement::generator() * dec_comms[i] + self.crs * dec_sheks[i], coeff_comms[i]);
-            }
+
+        if misbehaving_parties.len() == self.threshold {
+            return Err(DkgError::MisbehaviourHigherThreshold);
         }
 
         Ok(MemberState2{misbehaving_parties})
@@ -257,5 +251,43 @@ impl ElectionPublicKey {
     #[doc(hidden)]
     pub fn as_raw(&self) -> &PublicKey {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_chacha::ChaCha20Rng;
+    use rand_core::SeedableRng;
+
+    #[test]
+    fn test_misbehaviour() {
+        let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+
+        let mut shared_string =
+            b"Example of a shared string. This should be VotePlan.to_id()".to_owned();
+        let h = Crs::from_hash(&mut shared_string);
+
+        let mc1 = MemberCommunicationKey::new(&mut rng);
+        let mc2 = MemberCommunicationKey::new(&mut rng);
+        let mc = [mc1.to_public(), mc2.to_public()];
+
+        let threshold = 1;
+        let nr_members = 2;
+
+        let m1 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 0);
+        let m2 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 1);
+
+        // Now, party one fetches the state of the other parties, mainly party two
+        let fetched_state = vec![(1, m2.encrypted[0].0.clone(), m2.encrypted[0].1.clone())];
+        let coeff_comms = vec![m2.apubs[0].clone()];
+
+        let phase_2 = m1.to_phase_2(&fetched_state, &coeff_comms);
+
+        assert!(phase_2.is_ok());
+
+        // let phase_2_faked = m1.to_phase_2(&fetched_state, &vec![GroupElement::zero()]);
+        // // todo: we probably want to check for a particular error here
+        // assert!(phase_2_faked.is_err());
     }
 }
