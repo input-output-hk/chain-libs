@@ -5,6 +5,8 @@ use curve25519_dalek_ng::{
     traits::Identity,
 };
 
+use crate::errors::EcErrors;
+
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 
@@ -81,7 +83,7 @@ impl GroupElement {
         }
         sum
     }
-    pub fn multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
+    pub fn vartime_multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
     where
         I: IntoIterator<Item = Scalar>,
         J: IntoIterator<Item = GroupElement>,
