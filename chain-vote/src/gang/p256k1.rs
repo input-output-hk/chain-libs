@@ -148,11 +148,14 @@ impl GroupElement {
         sum
     }
 
-    pub fn vartime_multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
+    /// Non-optimised multiscalar multiplication. If we use the sec2 backend, this function could
+    /// be optimised.
+    pub fn multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
         where
             I: IntoIterator<Item = Scalar>,
             J: IntoIterator<Item = GroupElement>,
     {
+        assert_eq!(scalars.len(), points.len());
         let mut sum = GroupElement::zero();
         for (scalar, point) in scalars.into_iter().zip(points.into_iter()) {
             sum = sum + scalar * point;

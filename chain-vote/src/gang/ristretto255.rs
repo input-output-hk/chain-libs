@@ -5,8 +5,6 @@ use curve25519_dalek_ng::{
     traits::Identity,
 };
 
-use crate::errors::EcErrors;
-
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 
