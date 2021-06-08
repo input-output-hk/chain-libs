@@ -190,7 +190,14 @@ impl Arbitrary for VotePlan {
             let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
             let threshold = 1;
             let nr_members = 1;
-            let m1 = chain_vote::DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &[mc.to_public()], 0);
+            let m1 = chain_vote::DistributedKeyGeneration::init(
+                &mut rng,
+                threshold,
+                nr_members,
+                &h,
+                &[mc.to_public()],
+                0,
+            );
             keys.push(m1.public_key());
         }
 

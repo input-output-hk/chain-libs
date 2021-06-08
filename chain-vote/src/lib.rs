@@ -3,14 +3,14 @@
 #[macro_use]
 mod macros;
 mod commitment;
+mod dkg;
 mod encrypted;
 pub mod encryption;
+mod errors;
 mod gang;
 mod math;
-mod errors;
 pub mod private_voting;
 mod unit_vector;
-mod dkg;
 
 // re-export under a debug module
 #[doc(hidden)]
@@ -23,10 +23,10 @@ pub mod debug {
     }
 }
 
-pub use dkg::procedure_keys::{
-    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, MemberSecretKey
-};
 pub use dkg::committee::DistributedKeyGeneration;
+pub use dkg::procedure_keys::{
+    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, MemberSecretKey,
+};
 pub use encrypted::EncryptingVote;
 pub use encryption::Ciphertext;
 use gang::GroupElement;

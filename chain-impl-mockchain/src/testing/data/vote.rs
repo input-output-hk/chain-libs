@@ -1,8 +1,7 @@
 use crate::vote::VotePlanStatus;
 use chain_vote::{
-    MemberSecretKey, Crs, MemberCommunicationKey, MemberPublicKey,
+    Crs, DistributedKeyGeneration, MemberCommunicationKey, MemberPublicKey, MemberSecretKey,
     TallyDecryptShare,
-    DistributedKeyGeneration,
 };
 use rand_core::CryptoRng;
 use rand_core::RngCore;
@@ -33,7 +32,8 @@ impl CommitteeMembersManager {
 
         let mut members = Vec::new();
         for i in 0..members_no {
-            let state = DistributedKeyGeneration::init(rng, threshold, members_no, &crs, &public_keys, i);
+            let state =
+                DistributedKeyGeneration::init(rng, threshold, members_no, &crs, &public_keys, i);
             members.push(CommitteeMember { state })
         }
 

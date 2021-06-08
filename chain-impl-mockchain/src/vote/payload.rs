@@ -205,7 +205,8 @@ mod tests {
     impl Arbitrary for Payload {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             use chain_vote::{
-                encrypt_vote, Crs, EncryptingVoteKey, MemberCommunicationKey, DistributedKeyGeneration, Vote,
+                encrypt_vote, Crs, DistributedKeyGeneration, EncryptingVoteKey,
+                MemberCommunicationKey, Vote,
             };
             use rand_core::SeedableRng;
 
@@ -219,7 +220,14 @@ mod tests {
                     let threshold = 1;
                     let nr_members = 1;
                     let h = Crs::from_hash(&mut seed);
-                    let m = DistributedKeyGeneration::init(&mut gen, threshold, nr_members, &h, &[mc.to_public()], 0);
+                    let m = DistributedKeyGeneration::init(
+                        &mut gen,
+                        threshold,
+                        nr_members,
+                        &h,
+                        &[mc.to_public()],
+                        0,
+                    );
                     let participants = vec![m.public_key()];
                     let ek = EncryptingVoteKey::from_participants(&participants);
                     let vote_options = 3;

@@ -1,7 +1,7 @@
-use crate::encryption::{PublicKey, SecretKey, HybridCiphertext};
+use super::committee::IndexedEncryptedShares;
+use crate::encryption::{HybridCiphertext, PublicKey, SecretKey};
 use crate::gang::{GroupElement, Scalar};
 use rand_core::{CryptoRng, RngCore};
-use super::committee::IndexedEncryptedShares;
 
 /// Committee member election secret key
 #[derive(Clone)]
@@ -76,11 +76,12 @@ impl MemberCommunicationKey {
         self.0.hybrid_decrypt(ciphertext)
     }
 
-    pub(crate) fn decrypt_shares(&self, shares: IndexedEncryptedShares) -> (Option<Scalar>, Option<Scalar>) {
-        let comm_scalar = Scalar::from_bytes(
-            &self.hybrid_decrypt(&shares.1));
-        let shek_scalar = Scalar::from_bytes(
-            &self.hybrid_decrypt(&shares.2));
+    pub(crate) fn decrypt_shares(
+        &self,
+        shares: IndexedEncryptedShares,
+    ) -> (Option<Scalar>, Option<Scalar>) {
+        let comm_scalar = Scalar::from_bytes(&self.hybrid_decrypt(&shares.1));
+        let shek_scalar = Scalar::from_bytes(&self.hybrid_decrypt(&shares.2));
 
         (comm_scalar, shek_scalar)
     }
@@ -100,8 +101,8 @@ impl MemberCommunicationPublicKey {
     }
 
     pub fn hybrid_encrypt<R>(&self, message: &[u8], rng: &mut R) -> HybridCiphertext
-        where
-            R: RngCore + CryptoRng,
+    where
+        R: RngCore + CryptoRng,
     {
         self.0.hybrid_encrypt(message, rng)
     }

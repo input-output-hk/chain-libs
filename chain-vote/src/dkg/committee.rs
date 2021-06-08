@@ -6,13 +6,15 @@
 //! [spec](https://github.com/input-output-hk/treasury-crypto/blob/master/docs/voting_protocol_spec/Treasury_voting_protocol_spec.pdf),
 //! written by Dmytro Kaidalov.
 
+use super::procedure_keys::{
+    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, MemberSecretKey,
+};
 use crate::encryption::{HybridCiphertext, PublicKey, SecretKey};
+use crate::errors::DkgError;
 use crate::gang::{GroupElement, Scalar};
 use crate::math::Polynomial;
 use crate::Crs;
-use crate::errors::DkgError;
 use rand_core::{CryptoRng, RngCore};
-use super::procedure_keys::{MemberCommunicationKey, MemberPublicKey, MemberSecretKey, MemberCommunicationPublicKey};
 
 pub type DistributedKeyGeneration = MemberState1;
 
@@ -52,7 +54,7 @@ type MisbehavingPartiesState1 = (usize, DkgError, usize);
 #[derive(Clone)]
 pub struct MembersFetchedState1 {
     indexed_shares: IndexedEncryptedShares,
-    committed_coeffs: Vec<GroupElement>
+    committed_coeffs: Vec<GroupElement>,
 }
 
 impl MembersFetchedState1 {
@@ -137,31 +139,47 @@ impl MemberState1 {
     ) -> MemberState2 {
         let mut misbehaving_parties: Vec<MisbehavingPartiesState1> = Vec::new();
         for fetched_data in members_state {
-
-            if let (Some(comm), Some(shek)) = secret_key.decrypt_shares(fetched_data.indexed_shares.clone()) {
+            if let (Some(comm), Some(shek)) =
+                secret_key.decrypt_shares(fetched_data.indexed_shares.clone())
+            {
                 let index_pow = Scalar::from_u64(self.owner_index as u64)
                     .exp_iter()
                     .take(self.threshold + 1);
 
                 let check_element = GroupElement::generator() * shek + &self.crs * comm;
                 #[cfg(feature = "ristretto255")]
-                let multi_scalar = GroupElement::vartime_multiscalar_multiplication(index_pow, fetched_data.committed_coeffs.clone());
+                let multi_scalar = GroupElement::vartime_multiscalar_multiplication(
+                    index_pow,
+                    fetched_data.committed_coeffs.clone(),
+                );
                 #[cfg(not(feature = "ristretto255"))]
-                let multi_scalar = GroupElement::multiscalar_multiplication(index_pow, fetched_data.committed_coeffs.clone());
+                let multi_scalar = GroupElement::multiscalar_multiplication(
+                    index_pow,
+                    fetched_data.committed_coeffs.clone(),
+                );
 
                 if check_element != multi_scalar {
                     // todo: should we instead store the sender's index?
-                    misbehaving_parties.push((fetched_data.get_index().clone(), DkgError::ShareValidityFailed, 0));
+                    misbehaving_parties.push((
+                        fetched_data.get_index().clone(),
+                        DkgError::ShareValidityFailed,
+                        0,
+                    ));
                 }
-            }
-            else {
+            } else {
                 // todo: handle the proofs. Might not be the most optimal way of handling these two
-                misbehaving_parties.push((fetched_data.get_index().clone(), DkgError::ScalarOutOfBounds, 0));
+                misbehaving_parties.push((
+                    fetched_data.get_index().clone(),
+                    DkgError::ScalarOutOfBounds,
+                    0,
+                ));
             }
         }
 
-        MemberState2{misbehaving_parties, threshold: self.threshold}
-
+        MemberState2 {
+            misbehaving_parties,
+            threshold: self.threshold,
+        }
     }
 
     pub fn secret_key(&self) -> &MemberSecretKey {
@@ -210,10 +228,10 @@ mod tests {
         let m2 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 1);
 
         // Now, party one fetches the state of the other parties, mainly party two and three
-        let fetched_state = vec![
-            MembersFetchedState1{
-                indexed_shares: m2.encrypted_shares[0].clone(),
-                committed_coeffs: m2.coeff_comms.clone()}];
+        let fetched_state = vec![MembersFetchedState1 {
+            indexed_shares: m2.encrypted_shares[0].clone(),
+            committed_coeffs: m2.coeff_comms.clone(),
+        }];
 
         let phase_2 = m1.to_phase_2(&mc1, &fetched_state);
 
@@ -241,12 +259,14 @@ mod tests {
 
         // Now, party one fetches invalid state of the other parties, mainly party two and three
         let fetched_state = vec![
-            MembersFetchedState1{
+            MembersFetchedState1 {
                 indexed_shares: m2.encrypted_shares[0].clone(),
-                committed_coeffs: vec![GroupElement::zero(); 3]},
-            MembersFetchedState1{
+                committed_coeffs: vec![GroupElement::zero(); 3],
+            },
+            MembersFetchedState1 {
                 indexed_shares: m3.encrypted_shares[0].clone(),
-                committed_coeffs: vec![GroupElement::zero(); 3]},
+                committed_coeffs: vec![GroupElement::zero(); 3],
+            },
         ];
 
         let phase_2_faked = m1.to_phase_2(&mc1, &fetched_state);
