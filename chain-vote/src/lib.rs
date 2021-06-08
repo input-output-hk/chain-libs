@@ -3,7 +3,6 @@
 #[macro_use]
 mod macros;
 mod commitment;
-pub mod committee;
 mod encrypted;
 pub mod encryption;
 mod gang;
@@ -11,6 +10,7 @@ mod math;
 mod errors;
 pub mod private_voting;
 mod unit_vector;
+mod dkg;
 
 // re-export under a debug module
 #[doc(hidden)]
@@ -23,9 +23,10 @@ pub mod debug {
     }
 }
 
-pub use committee::{
-    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, DistributedKeyGeneration,
+pub use dkg::procedure_keys::{
+    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, MemberSecretKey
 };
+pub use dkg::committee::DistributedKeyGeneration;
 pub use encrypted::EncryptingVote;
 pub use encryption::Ciphertext;
 use gang::GroupElement;
@@ -34,10 +35,10 @@ use rand_core::{CryptoRng, RngCore};
 pub use unit_vector::UnitVector;
 
 /// Secret key for opening vote
-pub type OpeningVoteKey = committee::MemberSecretKey;
+pub type OpeningVoteKey = dkg::procedure_keys::MemberSecretKey;
 
 /// Public Key for the vote
-pub type EncryptingVoteKey = committee::ElectionPublicKey;
+pub type EncryptingVoteKey = dkg::procedure_keys::ElectionPublicKey;
 
 /// A vote is represented by a standard basis unit vector of a N dimension space
 ///

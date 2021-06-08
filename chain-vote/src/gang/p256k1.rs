@@ -155,7 +155,6 @@ impl GroupElement {
             I: IntoIterator<Item = Scalar>,
             J: IntoIterator<Item = GroupElement>,
     {
-        assert_eq!(scalars.len(), points.len());
         let mut sum = GroupElement::zero();
         for (scalar, point) in scalars.into_iter().zip(points.into_iter()) {
             sum = sum + scalar * point;
