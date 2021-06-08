@@ -147,6 +147,18 @@ impl GroupElement {
         }
         sum
     }
+
+    pub fn vartime_multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
+        where
+            I: IntoIterator<Item = Scalar>,
+            J: IntoIterator<Item = GroupElement>,
+    {
+        let mut sum = GroupElement::zero();
+        for (scalar, point) in scalars.into_iter().zip(points.into_iter()) {
+            sum = sum + scalar * point;
+        }
+        sum
+    }
 }
 
 impl Scalar {
