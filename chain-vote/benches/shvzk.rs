@@ -10,8 +10,9 @@ fn common(rng: &mut ChaCha20Rng) -> (EncryptingVoteKey, EncryptingVote) {
     let mc = [mc1.to_public()];
 
     let threshold = 1;
+    let nr_members = 1;
 
-    let m1 = MemberState::new(rng, threshold, &h, &mc, 0);
+    let m1 = DistributedKeyGeneration::init(rng, threshold, nr_members, &h, &mc, 0);
 
     let participants = vec![m1.public_key()];
     let ek = EncryptingVoteKey::from_participants(&participants);
