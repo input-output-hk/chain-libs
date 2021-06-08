@@ -135,7 +135,7 @@ impl MemberState1 {
     pub fn to_phase_2(
         &self,
         secret_key: &MemberCommunicationKey,
-        members_state: &Vec<MembersFetchedState1>,
+        members_state: &[MembersFetchedState1],
     ) -> MemberState2 {
         let mut misbehaving_parties: Vec<MisbehavingPartiesState1> = Vec::new();
         for fetched_data in members_state {
@@ -161,7 +161,7 @@ impl MemberState1 {
                 if check_element != multi_scalar {
                     // todo: should we instead store the sender's index?
                     misbehaving_parties.push((
-                        fetched_data.get_index().clone(),
+                        fetched_data.get_index(),
                         DkgError::ShareValidityFailed,
                         0,
                     ));
@@ -169,7 +169,7 @@ impl MemberState1 {
             } else {
                 // todo: handle the proofs. Might not be the most optimal way of handling these two
                 misbehaving_parties.push((
-                    fetched_data.get_index().clone(),
+                    fetched_data.get_index(),
                     DkgError::ScalarOutOfBounds,
                     0,
                 ));
