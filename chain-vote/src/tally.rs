@@ -1,57 +1,16 @@
 use crate::{
     committee::*,
-    cryptography::{Ciphertext, ProofDecrypt, VoteProof},
-    encrypted_vote::{EncryptingVote, UnitVector},
+    cryptography::{Ciphertext, ProofDecrypt},
     gang::{baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement},
 };
 use rand_core::{CryptoRng, RngCore};
+use crate::encrypted_vote::EncryptedVote;
 
 /// Secret key for opening vote
 pub type OpeningVoteKey = MemberSecretKey;
 
-/// Public Key for the vote
-pub type EncryptingVoteKey = ElectionPublicKey;
-
-/// A vote is represented by a standard basis unit vector of a N dimension space
-///
-/// Effectively each possible vote is represented by an axis, where the actual voted option
-/// is represented by a represented of this axis.
-///
-/// so given a 3 possible votes in the 0-indexed set {option 0, option 1, option 2}, then
-/// the vote "001" represent a vote for "option 2"
-pub type Vote = UnitVector;
-
-/// Encrypted vote is a unit vector where each element is encrypted with ElGamal Ciphertext to
-/// the tally opener.
-pub type EncryptedVote = Vec<Ciphertext>;
-
-pub type ProofOfCorrectVote = VoteProof;
-
 /// Common Reference String
 pub type Crs = GroupElement;
-
-/// Take a vote and encrypt it + provide a proof of correct voting
-pub fn encrypt_vote<R: RngCore + CryptoRng>(
-    rng: &mut R,
-    crs: &Crs,
-    public_key: &EncryptingVoteKey,
-    vote: Vote,
-) -> (EncryptedVote, ProofOfCorrectVote) {
-    let ev = EncryptingVote::prepare(rng, &public_key.0, &vote);
-    let proof = VoteProof::generate(rng, &crs, &public_key.0, ev.clone());
-    (ev.ciphertexts, proof)
-}
-
-/// Verify that the encrypted vote is valid without opening it
-#[allow(clippy::ptr_arg)]
-pub fn verify_vote(
-    crs: &Crs,
-    public_key: &EncryptingVoteKey,
-    vote: &EncryptedVote,
-    proof: &ProofOfCorrectVote,
-) -> bool {
-    proof.verify(&crs, &public_key.0, vote)
-}
 
 /// The encrypted tally
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -341,6 +300,7 @@ mod tests {
     use crate::cryptography::Keypair;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
+    use crate::encrypted_vote::{Vote};
 
     #[test]
     fn encdec1() {
@@ -358,14 +318,14 @@ mod tests {
         let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
 
         let participants = vec![m1.public_key()];
-        let ek = EncryptingVoteKey::from_participants(&participants);
+        let ek = ElectionPublicKey::from_participants(&participants);
 
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
@@ -413,16 +373,17 @@ mod tests {
         let m3 = MemberState::new(&mut rng, threshold, &h, &mc, 2);
 
         let participants = vec![m1.public_key(), m2.public_key(), m3.public_key()];
-        let ek = EncryptingVoteKey::from_participants(&participants);
+        let ek = ElectionPublicKey::from_participants(&participants);
 
         println!("encrypting vote");
 
         let vote_options = 2;
-        let (e1, e1_proof) = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let (e1, e1_proof) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
-        assert!(verify_vote(&h, &ek, &e1, &e1_proof));
+        assert!(e1_proof.verify(&h, &ek.0, &e1));
+            // verify_vote(&h, &ek, &e1, &e1_proof));
         println!("tallying");
 
         let mut encrypted_tally = EncryptedTally::new(vote_options);
@@ -473,12 +434,12 @@ mod tests {
         let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
 
         let participants = vec![m1.public_key()];
-        let ek = EncryptingVoteKey::from_participants(&participants);
+        let ek = ElectionPublicKey::from_participants(&participants);
 
         println!("encrypting vote");
 
         let vote_options = 2;
-        let (e1, _) = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let (e1, _) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
@@ -563,14 +524,14 @@ mod tests {
         let m3 = MemberState::new(&mut rng, threshold, &h, &mc, 2);
 
         let participants = vec![m1.public_key(), m2.public_key(), m3.public_key()];
-        let ek = EncryptingVoteKey::from_participants(&participants);
+        let ek = ElectionPublicKey::from_participants(&participants);
 
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
-        let e2 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 1));
-        let e3 = encrypt_vote(&mut rng, &h, &ek, Vote::new(vote_options, 0));
+        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         let mut encrypted_tally = EncryptedTally::new(vote_options);
         encrypted_tally.add(&e1.0, 10);

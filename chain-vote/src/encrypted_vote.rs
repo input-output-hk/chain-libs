@@ -1,8 +1,25 @@
-use crate::cryptography::{Ciphertext, PublicKey};
+use crate::cryptography::{Ciphertext, UnitVectorZkp};
 use crate::gang::Scalar;
-use rand_core::{CryptoRng, RngCore};
 
-// Power of Two Padded vector structure
+/// A vote is represented by a standard basis unit vector of a N dimension space
+///
+/// Effectively each possible vote is represented by an axis, where the actual voted option
+/// is represented by a represented of this axis.
+///
+/// so given a 3 possible votes in the 0-indexed set {option 0, option 1, option 2}, then
+/// the vote "001" represent a vote for "option 2"
+pub type Vote = UnitVector;
+
+/// Encrypted vote is a unit vector where each element is encrypted with ElGamal Ciphertext to
+/// the tally opener.
+pub type EncryptedVote = Vec<Ciphertext>;
+
+/// A proof of correct vote encryption consists of a unit vector zkp, where the voter proves that
+/// the `EncryptedVote` is indeed a unite vector, and contains a vote for a single candidate.
+pub type ProofOfCorrectVote = UnitVectorZkp;
+
+/// To achieve logarithmic communication complexity in the unit_vector ZKP, we represent
+/// votes as Power of Two Padded vector structures.
 #[derive(Clone)]
 pub struct Ptp<A> {
     pub elements: Vec<A>,
@@ -10,16 +27,20 @@ pub struct Ptp<A> {
 }
 
 impl<A: Clone> Ptp<A> {
+    /// Returns the size of the extended vector
     pub fn len(&self) -> usize {
         self.elements.len()
     }
 
+    /// Returns the bit size of the extended vector
     pub fn bits(&self) -> usize {
         let len = self.elements.len();
         assert!(len.is_power_of_two());
         len.trailing_zeros() as usize
     }
 
+    /// Generates a new `Ptp` by extending the received `vec` to the next
+    /// power of two, padded with `extended_value`.
     pub fn new<F>(mut vec: Vec<A>, extended_value: F) -> Ptp<A>
     where
         A: Clone,
@@ -36,10 +57,11 @@ impl<A: Clone> Ptp<A> {
         }
         Ptp {
             orig_len,
-            elements: vec,
+            elements: vec.clone(),
         }
     }
 
+    /// Iterates over the elements
     pub fn iter(&self) -> std::slice::Iter<'_, A> {
         self.elements.iter()
     }
@@ -49,61 +71,6 @@ impl<A> AsRef<[A]> for Ptp<A> {
     fn as_ref(&self) -> &[A] {
         &self.elements
     }
-}
-
-#[derive(Clone)]
-pub struct EncryptedVote(Vec<Ciphertext>);
-
-/// Encrypted vote is a unit vector where each element is encrypted with ElGamal Ciphertext to
-/// the tally opener.
-#[derive(Clone)]
-pub struct EncryptingVote {
-    pub(crate) unit_vector: UnitVector,
-    pub ciphertexts: Vec<Ciphertext>,
-    pub random_elements: Vec<Scalar>,
-}
-
-impl EncryptingVote {
-    pub fn prepare<R: RngCore + CryptoRng>(
-        rng: &mut R,
-        public_key: &PublicKey,
-        vote: &UnitVector,
-    ) -> Self {
-        let mut rs = Vec::new();
-        let mut ciphers = Vec::new();
-        for vote_element in vote.iter() {
-            let (cipher, r) = public_key.encrypt_return_r(&vote_element.into(), rng);
-            rs.push(r);
-            ciphers.push(cipher);
-        }
-        Self {
-            unit_vector: *vote,
-            ciphertexts: ciphers,
-            random_elements: rs,
-        }
-    }
-
-    /*
-    pub fn pad<F>(mut self, extended_value: F) -> PtpEncryptingVote
-    where
-        F: Fn() -> (Scalar, Ciphertext),
-    {
-        let orig_len = self.ciphertexts.len();
-
-        let expected_len = orig_len.next_power_of_two();
-        if orig_len < expected_len {
-            let (field_element, zero_cipher) = extended_value();
-            while self.ciphertexts.len() < expected_len {
-                self.ciphertexts.push(zero_cipher.clone());
-                self.random_elements.push(field_element);
-            }
-        }
-        PtpEncryptingVote {
-            actual_length: orig_len,
-            encrypting_vote: self,
-        }
-    }
-    */
 }
 
 #[derive(Clone, Copy)]
