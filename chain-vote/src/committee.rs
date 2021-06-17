@@ -1,7 +1,7 @@
-use crate::encryption::{HybridCiphertext, PublicKey, SecretKey};
+use crate::cryptography::{HybridCiphertext, PublicKey, SecretKey};
 use crate::gang::{GroupElement, Scalar};
 use crate::math::Polynomial;
-use crate::Crs;
+use crate::tally::Crs;
 use rand_core::{CryptoRng, RngCore};
 
 /// Committee member election secret key

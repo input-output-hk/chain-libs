@@ -3,21 +3,18 @@ use rand_core::{CryptoRng, RngCore};
 #[cfg(feature = "ristretto255")]
 use {rand::thread_rng, std::iter};
 
-use crate::commitment::CommitmentKey;
+use super::challenge_context::ChallengeContext;
+use super::messages::{generate_polys, Announcement, BlindingRandomness, ResponseRandomness};
+use crate::cryptography::CommitmentKey;
 #[cfg(not(feature = "ristretto255"))]
-use crate::commitment::Open;
-use crate::encrypted::{EncryptingVote, Ptp};
-use crate::encryption::{Ciphertext, PublicKey};
+use crate::cryptography::Open;
+use crate::cryptography::{Ciphertext, PublicKey};
+use crate::encrypted_vote::{binrep, EncryptingVote, Ptp};
 use crate::gang::{GroupElement, Scalar};
-use crate::private_voting::{
-    messages::{generate_polys, Announcement, BlindingRandomness, ResponseRandomness},
-    ChallengeContext,
-};
-use crate::unit_vector::binrep;
-use crate::Crs;
+use crate::tally::Crs;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct Proof {
+pub struct VoteProof {
     /// Commitment to the proof randomness and bits of binary representaion of `i`
     ibas: Vec<Announcement>,
     /// Encryption to the polynomial coefficients used in the proof
@@ -29,7 +26,7 @@ pub struct Proof {
 }
 
 #[allow(clippy::len_without_is_empty)]
-impl Proof {
+impl VoteProof {
     /// Generate a unit vector proof. In this proof, a prover encrypts each entry of a
     /// vector `encrypting_vote.unit_vector`, and proves
     /// that the vector is a unit vector. In particular, it proves that it is the `i`th unit
@@ -127,7 +124,7 @@ impl Proof {
             p1 + p2
         };
 
-        Proof {
+        VoteProof {
             ibas: first_announcement_vec,
             ds: poly_coeff_enc,
             zwvs: randomness_response_vec,
@@ -343,7 +340,7 @@ impl Proof {
     ) -> Self {
         assert_eq!(ibas.len(), ds.len());
         assert_eq!(ibas.len(), zwvs.len());
-        Proof { ibas, ds, zwvs, r }
+        VoteProof { ibas, ds, zwvs, r }
     }
 
     /// Returns the length of the size of the witness vector
@@ -430,9 +427,8 @@ fn powers_z_encs_iter(z: &[ResponseRandomness], challenge_x: &Scalar, bit_size: 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::encrypted::EncryptingVote;
-    use crate::encryption::Keypair;
-    use crate::unit_vector::UnitVector;
+    use crate::cryptography::Keypair;
+    use crate::encrypted_vote::{EncryptingVote, UnitVector};
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 
@@ -447,7 +443,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
+        let proof = VoteProof::generate(&mut r, &crs, &public_key, ev.clone());
         assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
     }
 
@@ -462,7 +458,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
+        let proof = VoteProof::generate(&mut r, &crs, &public_key, ev.clone());
         assert!(proof.verify(&crs, &public_key, &ev.ciphertexts))
     }
 
@@ -477,7 +473,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
+        let proof = VoteProof::generate(&mut r, &crs, &public_key, ev.clone());
 
         let fake_unit_vector = UnitVector::new(5, 3);
         let fake_encryption = EncryptingVote::prepare(&mut r, &public_key, &fake_unit_vector);
@@ -494,7 +490,7 @@ mod tests {
         let crs = GroupElement::from_hash(&[0u8]);
         let ck = CommitmentKey::from(crs.clone());
 
-        let proof = Proof::generate(&mut r, &crs, &public_key, ev.clone());
+        let proof = VoteProof::generate(&mut r, &crs, &public_key, ev.clone());
 
         let mut cc1 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
         let cy1 = cc1.first_challenge(&proof.ibas);
@@ -519,7 +515,7 @@ mod tests {
         assert_ne!(cx1, cx3);
 
         // if we generate a new challenge with different IBAs, but same Ds, both results should differ
-        let proof_diff = Proof::generate(&mut r, &crs, &public_key, ev.clone());
+        let proof_diff = VoteProof::generate(&mut r, &crs, &public_key, ev.clone());
         let mut cc4 = ChallengeContext::new(&ck, &public_key, ev.ciphertexts.as_ref());
         let cy4 = cc4.first_challenge(&proof_diff.ibas);
         let cx4 = cc4.second_challenge(&proof.ds);

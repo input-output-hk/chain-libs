@@ -10,9 +10,8 @@
 //! `(e1, e2)`, and the message, `m`. The witness, on the other hand
 //! is the secret key, `sk`.
 #![allow(clippy::many_single_char_names)]
-use super::encryption::Ciphertext;
-use super::gang::{GroupElement, Scalar};
-use crate::encryption::{PublicKey, SecretKey};
+use crate::cryptography::{Ciphertext, PublicKey, SecretKey};
+use crate::gang::{GroupElement, Scalar};
 use cryptoxide::digest::Digest;
 use cryptoxide::sha2::Sha512;
 use rand::{CryptoRng, RngCore};
@@ -25,9 +24,8 @@ pub struct ProofDecrypt {
     z: Scalar,
 }
 
-pub(crate) const PROOF_SIZE: usize = 2 * GroupElement::BYTES_LEN + Scalar::BYTES_LEN; // Scalar is 32 bytes
-
 impl ProofDecrypt {
+    pub(crate) const PROOF_SIZE: usize = 2 * GroupElement::BYTES_LEN + Scalar::BYTES_LEN; // Scalar is 32 bytes
     /// Generate a decryption zero knowledge proof
     pub fn generate<R>(c: &Ciphertext, pk: &PublicKey, sk: &SecretKey, rng: &mut R) -> Self
     where
@@ -56,14 +54,14 @@ impl ProofDecrypt {
         gz == he_a1 && c1z == de_a2
     }
 
-    pub fn to_bytes(&self) -> [u8; PROOF_SIZE] {
-        let mut output = [0u8; PROOF_SIZE];
+    pub fn to_bytes(&self) -> [u8; Self::PROOF_SIZE] {
+        let mut output = [0u8; Self::PROOF_SIZE];
         self.to_slice_mut(&mut output);
         output
     }
 
     pub fn to_slice_mut(&self, output: &mut [u8]) {
-        assert_eq!(output.len(), PROOF_SIZE);
+        assert_eq!(output.len(), Self::PROOF_SIZE);
         output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.a1.to_bytes());
         output[GroupElement::BYTES_LEN..(2 * GroupElement::BYTES_LEN)]
             .copy_from_slice(&self.a2.to_bytes());
@@ -72,7 +70,7 @@ impl ProofDecrypt {
     }
 
     pub fn from_slice(slice: &[u8]) -> Option<Self> {
-        if slice.len() != PROOF_SIZE {
+        if slice.len() != Self::PROOF_SIZE {
             return None;
         }
         let a1 = GroupElement::from_bytes(&slice[0..GroupElement::BYTES_LEN])?;
@@ -115,8 +113,8 @@ fn challenge(
 
 #[cfg(test)]
 mod tests {
-    use super::{GroupElement, ProofDecrypt};
-    use crate::encryption::Keypair;
+    use super::*;
+    use crate::cryptography::Keypair;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 

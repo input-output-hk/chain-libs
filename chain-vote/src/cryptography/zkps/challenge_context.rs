@@ -1,7 +1,6 @@
-use crate::commitment::CommitmentKey;
-use crate::encryption::PublicKey;
-use crate::private_voting::Announcement;
-use crate::{Ciphertext, Scalar};
+use super::messages::Announcement;
+use crate::cryptography::{Ciphertext, CommitmentKey, PublicKey};
+use crate::gang::Scalar;
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 
