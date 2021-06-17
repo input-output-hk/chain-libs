@@ -1,21 +1,21 @@
 use crate::cryptography::{Ciphertext, UnitVectorZkp};
 use crate::gang::Scalar;
 
-/// A vote is represented by a standard basis unit vector of a N dimension space
+/// A vote is represented by a standard basis unit vector of an N dimensional space
 ///
 /// Effectively each possible vote is represented by an axis, where the actual voted option
-/// is represented by a represented of this axis.
+/// is represented by the unit vector this axis.
 ///
-/// so given a 3 possible votes in the 0-indexed set {option 0, option 1, option 2}, then
-/// the vote "001" represent a vote for "option 2"
+/// E.g.: given a 3 possible votes in the 0-indexed set {option 0, option 1, option 2}, then
+/// the vote "001" represents a vote for "option 2"
 pub type Vote = UnitVector;
 
-/// Encrypted vote is a unit vector where each element is encrypted with ElGamal Ciphertext to
-/// the tally opener.
+/// Encrypted vote is a unit vector where each element is an ElGamal Ciphertext, encrypted with
+/// the Election Public Key.
 pub type EncryptedVote = Vec<Ciphertext>;
 
 /// A proof of correct vote encryption consists of a unit vector zkp, where the voter proves that
-/// the `EncryptedVote` is indeed a unite vector, and contains a vote for a single candidate.
+/// the `EncryptedVote` is indeed a unit vector, and contains a vote for a single candidate.
 pub type ProofOfCorrectVote = UnitVectorZkp;
 
 /// To achieve logarithmic communication complexity in the unit_vector ZKP, we represent
@@ -74,7 +74,7 @@ impl<A> AsRef<[A]> for Ptp<A> {
 }
 
 #[derive(Clone, Copy)]
-/// Represent a Unit vector which size is @size and the @ith element (0-indexed) is enabled
+/// Represents a Unit vector which size is @size and the @ith element (0-indexed) is enabled
 pub struct UnitVector {
     ith: usize,
     size: usize,

@@ -12,29 +12,31 @@ pub type OpeningVoteKey = MemberSecretKey;
 /// Common Reference String
 pub type Crs = GroupElement;
 
-/// The encrypted tally
+/// `EncryptedTally` is formed by one ciphertext per existing option
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncryptedTally {
     r: Vec<Ciphertext>,
 }
 
+/// `TallyDecryptShare` contains one `ProvenDecryptShare` per existing option. All committee
+/// members (todo: this will change once DKG is completed)
+/// need to submit a `TallyDecryptShare` in order to successfully decrypt
+/// the `EncryptedTally`.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct TallyDecryptShare {
     elements: Vec<ProvenDecryptShare>,
 }
 
+/// `ProvenDecryptShare` consists of a group element (the partial decryption), and `ProofDecrypt`,
+/// a proof of correct decryption.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ProvenDecryptShare {
     r1: GroupElement,
     pi: ProofDecrypt,
 }
 
-#[derive(Clone)]
-pub struct TallyState {
-    r2s: Vec<GroupElement>,
-}
-
-/// Decrypted tally with votes indexed per option.
+/// `Tally` represents the decrypted tally, with one `u64` result for each of the options of the
+/// election.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Tally {
     pub votes: Vec<u64>,
@@ -45,7 +47,9 @@ pub struct Tally {
 pub struct TallyError;
 
 impl EncryptedTally {
-    /// Start a new tally with N different options
+    /// Initialise a new tally with N different options. The `EncryptedTally` is computed using
+    /// the additive homomorphic property of the elgamal `Ciphertext`s, and is therefore initialised
+    /// with zero ciphertexts.
     pub fn new(options: usize) -> Self {
         let r = vec![Ciphertext::zero(); options];
         EncryptedTally { r }
@@ -54,7 +58,7 @@ impl EncryptedTally {
     /// Add an encrypted vote with a specific weight to the tally
     ///
     /// Note that the encrypted vote needs to have the exact same number of
-    /// options as the tally expect otherwise an assert will trigger
+    /// options as the initialised tally, otherwise an assert will trigger.
     #[allow(clippy::ptr_arg)]
     pub fn add(&mut self, vote: &EncryptedVote, weight: u64) {
         assert_eq!(vote.len(), self.r.len());
@@ -63,11 +67,14 @@ impl EncryptedTally {
         }
     }
 
-    pub fn finish<R: RngCore + CryptoRng>(
+    /// Given a single committee member's `secret_key`, returns a partial decryption of
+    /// the `EncryptedTally`
+    /// todo: probably we want this to only return `TallyDecryptShare`.
+    pub fn partial_decrypt<R: RngCore + CryptoRng>(
         &self,
         rng: &mut R,
         secret_key: &OpeningVoteKey,
-    ) -> (TallyState, TallyDecryptShare) {
+    ) -> TallyDecryptShare {
         let mut dshares = Vec::with_capacity(self.r.len());
         let mut r2s = Vec::with_capacity(self.r.len());
         for r in &self.r {
@@ -81,15 +88,43 @@ impl EncryptedTally {
             });
             r2s.push(r.e2.clone());
         }
-        (TallyState { r2s }, TallyDecryptShare { elements: dshares })
+        TallyDecryptShare { elements: dshares }
     }
 
-    pub fn state(&self) -> TallyState {
-        TallyState {
-            r2s: self.r.iter().map(|r| r.elements().1.clone()).collect(),
-        }
+    /// Given the shares of the committee members, returns the decryption of all the
+    /// election options in the form of `GroupElements`. To get the final results, one
+    /// needs to compute the discrete logarithm of these values, which is performed in
+    /// `decrypt_tally`.
+    fn decrypt(
+        &self,
+        decrypt_shares: &[TallyDecryptShare],
+    ) -> Vec<GroupElement> {
+        let state: Vec<GroupElement> = self.r.iter().map(|c| c.e2.clone()).collect();
+        let ris = (0..state.len())
+            .map(|i| GroupElement::sum(decrypt_shares.iter().map(|ds| &ds.elements[i].r1)));
+
+        state
+            .iter()
+            .zip(ris)
+            .map(|(r2, r1)| r2 - r1)
+            .collect::<Vec<_>>()
     }
 
+    /// Given the `decrypt_shares` of all committee members, `max_votes`, and a tally optimization
+    /// table, `decrypt_tally` first decrypts `self`, and then computes the discrete logarithm
+    /// of each resulting plaintext.
+    pub fn decrypt_tally(
+        &self,
+        max_votes: u64,
+        decrypt_shares: &[TallyDecryptShare],
+        table: &TallyOptimizationTable,
+    ) -> Result<Tally, TallyError> {
+        let r_results = self.decrypt(decrypt_shares);
+        let votes = baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
+        Ok(Tally { votes })
+    }
+
+    /// Returns a byte array with every ciphertext in the `EncryptedTally`
     pub fn to_bytes(&self) -> Vec<u8> {
         use std::io::Write;
         let mut bytes: Vec<u8> = Vec::with_capacity(Ciphertext::BYTES_LEN * self.r.len());
@@ -99,6 +134,8 @@ impl EncryptedTally {
         bytes
     }
 
+    /// Tries to generate an `EncryptedTally` out of an array of bytes. Returns `None` if the
+    /// size of the byte array is not a multiply of `Ciphertext::BYTES_LEN`.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         if bytes.len() % Ciphertext::BYTES_LEN != 0 {
             return None;
@@ -141,7 +178,22 @@ impl ProvenDecryptShare {
 }
 
 impl TallyDecryptShare {
-    /// Number of voting options this taly decrypt share structure is
+    /// Given the member's public key `MemberPublicKey`, and the `EncryptedTally`, verifies the
+    /// correctness of the `TallyDecryptShare`.
+    fn verify_decrypt_share(
+        &self,
+        encrypted_tally: &EncryptedTally,
+        pk: &MemberPublicKey,
+    ) -> bool {
+        for (element, r) in self.elements.iter().zip(encrypted_tally.r.iter()) {
+            if !element.pi.verify(&r, &(&r.e2 - &element.r1), &pk.0) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Number of voting options this tally decrypt share structure is
     /// constructed for.
     pub fn options(&self) -> usize {
         self.elements.len()
@@ -177,96 +229,12 @@ impl TallyDecryptShare {
     }
 }
 
-impl TallyState {
-    /// Size of the byte representation for tally state
-    /// with the given number of options.
-    pub fn bytes_len(options: usize) -> usize {
-        group_elements_bytes_len(options)
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        group_elements_to_bytes(&self.r2s)
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        group_elements_from_bytes(bytes).map(|r2s| Self { r2s })
-    }
-}
-
-fn group_elements_bytes_len(n: usize) -> usize {
-    GroupElement::BYTES_LEN
-        .checked_mul(n)
-        .expect("integer overflow")
-}
-
-fn group_elements_to_bytes(elements: &[GroupElement]) -> Vec<u8> {
-    use std::io::Write;
-    let mut bytes: Vec<u8> = Vec::with_capacity(group_elements_bytes_len(elements.len()));
-    for element in elements {
-        bytes.write_all(element.to_bytes().as_ref()).unwrap();
-    }
-    bytes
-}
-
-fn group_elements_from_bytes(bytes: &[u8]) -> Option<Vec<GroupElement>> {
-    if bytes.len() % GroupElement::BYTES_LEN != 0 {
-        return None;
-    }
-
-    let elements = bytes
-        .chunks(GroupElement::BYTES_LEN)
-        .map(GroupElement::from_bytes)
-        .collect::<Option<Vec<_>>>()?;
-    Some(elements)
-}
-
-fn verify_decrypt_share(
-    encrypted_tally: &EncryptedTally,
-    pk: &MemberPublicKey,
-    decrypt_share: &TallyDecryptShare,
-) -> bool {
-    for (element, r) in decrypt_share.elements.iter().zip(encrypted_tally.r.iter()) {
-        if !element.pi.verify(&r, &(&r.e2 - &element.r1), &pk.0) {
-            return false;
-        }
-    }
-    true
-}
-
-fn result_vector(
-    tally_state: &TallyState,
-    decrypt_shares: &[TallyDecryptShare],
-) -> Vec<GroupElement> {
-    let ris = (0..tally_state.r2s.len())
-        .map(|i| GroupElement::sum(decrypt_shares.iter().map(|ds| &ds.elements[i].r1)));
-
-    let results = tally_state
-        .r2s
-        .iter()
-        .zip(ris)
-        .map(|(r2, r1)| r2 - r1)
-        .collect::<Vec<_>>();
-
-    results
-}
-
-pub fn tally(
-    max_votes: u64,
-    tally_state: &TallyState,
-    decrypt_shares: &[TallyDecryptShare],
-    table: &TallyOptimizationTable,
-) -> Result<Tally, TallyError> {
-    let r_results = result_vector(tally_state, decrypt_shares);
-    let votes = baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
-    Ok(Tally { votes })
-}
-
 impl Tally {
     /// Verifies that `TallyDecryptShare` are correct decryptions of `encrypted_tally` for public
     /// keys `pks`.
     ///
     /// Verifies that the decrypted tally was correctly obtained from the given
-    /// `TallyState` and `TallyDecryptShare` parts.
+    /// `EncryptedTally` and `TallyDecryptShare` parts.
     ///
     /// This can be used for quick online validation for the tallying
     /// performed offline.
@@ -274,16 +242,15 @@ impl Tally {
         &self,
         encrypted_tally: &EncryptedTally,
         pks: &[MemberPublicKey],
-        tally_state: &TallyState,
         decrypt_shares: &[TallyDecryptShare],
     ) -> bool {
         for (pk, decrypt_share) in pks.iter().zip(decrypt_shares.iter()) {
-            if !verify_decrypt_share(encrypted_tally, pk, decrypt_share) {
+            if !decrypt_share.verify_decrypt_share(encrypted_tally, pk) {
                 return false;
             }
         }
 
-        let r_results = result_vector(tally_state, decrypt_shares);
+        let r_results = encrypted_tally.decrypt(decrypt_shares);
         let gen = GroupElement::generator();
         for (i, &w) in self.votes.iter().enumerate() {
             if &gen * w != r_results[i] {
@@ -334,7 +301,7 @@ mod tests {
         encrypted_tally.add(&e2.0, 5);
         encrypted_tally.add(&e3.0, 4);
 
-        let (ts, tds1) = encrypted_tally.finish(&mut rng, m1.secret_key());
+        let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
         let max_votes = 20;
 
@@ -342,7 +309,7 @@ mod tests {
 
         println!("resulting");
         let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
-        let tr = tally(max_votes, &ts, &shares, &table).unwrap();
+        let tr = encrypted_tally.decrypt_tally(max_votes, &shares, &table).unwrap();
 
         println!("{:?}", tr);
         assert_eq!(tr.votes.len(), vote_options);
@@ -350,7 +317,7 @@ mod tests {
         assert_eq!(tr.votes[1], 5, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &participants, &ts, &shares));
+        assert!(tr.verify(&encrypted_tally, &participants, &shares));
     }
 
     #[test]
@@ -391,13 +358,13 @@ mod tests {
         encrypted_tally.add(&e2.0, 3);
         encrypted_tally.add(&e3.0, 4);
 
-        let (_, tds1) = encrypted_tally.finish(&mut rng, m1.secret_key());
-        let (_, tds2) = encrypted_tally.finish(&mut rng, m2.secret_key());
-        let (ts, tds3) = encrypted_tally.finish(&mut rng, m3.secret_key());
+        let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
+        let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());
+        let tds3 = encrypted_tally.partial_decrypt(&mut rng, m3.secret_key());
 
         // check a mismatch parameters (m2 key with m1's share) is detected
         assert_eq!(
-            verify_decrypt_share(&encrypted_tally, &m2.public_key(), &tds1),
+            tds1.verify_decrypt_share(&encrypted_tally, &m2.public_key()),
             false
         );
 
@@ -407,7 +374,7 @@ mod tests {
 
         println!("resulting");
         let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
-        let tr = tally(max_votes, &ts, &shares, &table).unwrap();
+        let tr = encrypted_tally.decrypt_tally(max_votes, &shares, &table).unwrap();
 
         println!("{:?}", tr);
         assert_eq!(tr.votes.len(), vote_options);
@@ -415,7 +382,7 @@ mod tests {
         assert_eq!(tr.votes[1], 3, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &participants, &ts, &shares));
+        assert!(tr.verify(&encrypted_tally, &participants, &shares));
     }
 
     #[test]
@@ -446,7 +413,7 @@ mod tests {
         let mut encrypted_tally = EncryptedTally::new(vote_options);
         encrypted_tally.add(&e1, 42);
 
-        let (ts, tds1) = encrypted_tally.finish(&mut rng, m1.secret_key());
+        let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
         let max_votes = 42;
 
@@ -454,7 +421,7 @@ mod tests {
 
         println!("resulting");
         let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
-        let tr = tally(max_votes, &ts, &shares, &table).unwrap();
+        let tr = encrypted_tally.decrypt_tally(max_votes, &shares, &table).unwrap();
 
         println!("{:?}", tr);
         assert_eq!(tr.votes.len(), vote_options);
@@ -462,7 +429,7 @@ mod tests {
         assert_eq!(tr.votes[1], 0, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &participants, &ts, &shares));
+        assert!(tr.verify(&encrypted_tally, &participants, &shares));
     }
 
     #[test]
@@ -485,7 +452,7 @@ mod tests {
         println!("tallying");
 
         let encrypted_tally = EncryptedTally::new(vote_options);
-        let (ts, tds1) = encrypted_tally.finish(&mut rng, m1.secret_key());
+        let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
         let max_votes = 2;
 
@@ -493,7 +460,7 @@ mod tests {
 
         println!("resulting");
         let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
-        let tr = tally(max_votes, &ts, &shares, &table).unwrap();
+        let tr = encrypted_tally.decrypt_tally(max_votes, &shares, &table).unwrap();
 
         println!("{:?}", tr);
         assert_eq!(tr.votes.len(), vote_options);
@@ -501,7 +468,7 @@ mod tests {
         assert_eq!(tr.votes[1], 0, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &[m1.public_key()], &ts, &shares));
+        assert!(tr.verify(&encrypted_tally, &[m1.public_key()], &shares));
     }
 
     #[test]
@@ -538,9 +505,9 @@ mod tests {
         encrypted_tally.add(&e2.0, 3);
         encrypted_tally.add(&e3.0, 40);
 
-        let (_, tds1) = encrypted_tally.finish(&mut rng, m1.secret_key());
-        let (_, tds2) = encrypted_tally.finish(&mut rng, m2.secret_key());
-        let (ts, tds3) = encrypted_tally.finish(&mut rng, m3.secret_key());
+        let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
+        let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());
+        let tds3 = encrypted_tally.partial_decrypt(&mut rng, m3.secret_key());
 
         let max_votes = 4;
 
@@ -548,7 +515,7 @@ mod tests {
 
         println!("resulting");
         let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
-        let res = tally(max_votes, &ts, &shares, &table);
+        let res = encrypted_tally.decrypt_tally(max_votes, &shares, &table);
         assert!(
             res.is_err(),
             "unexpected successful tally: {:?}",
