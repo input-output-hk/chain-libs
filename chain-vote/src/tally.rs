@@ -1,10 +1,10 @@
 use crate::{
     committee::*,
     cryptography::{Ciphertext, ProofDecrypt},
+    encrypted_vote::EncryptedVote,
     gang::{baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement},
 };
 use rand_core::{CryptoRng, RngCore};
-use crate::encrypted_vote::EncryptedVote;
 use std::fmt::Error;
 
 /// Secret key for opening vote
@@ -146,6 +146,8 @@ impl EncryptedTally {
 impl std::ops::Add for EncryptedTally {
     type Output = Self;
 
+    /// Ads two `EncryptedTally`, leveraging the additive homomorphic property of the
+    /// underlying ciphertexts.
     fn add(self, rhs: Self) -> Self::Output {
         assert_eq!(self.r.len(), rhs.r.len());
         let r = self

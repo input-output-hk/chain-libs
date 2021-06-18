@@ -10,7 +10,7 @@ use rand_core::{CryptoRng, RngCore};
 #[cfg(feature = "ristretto255")]
 use {rand::thread_rng, std::iter};
 
-use super::challenge_context::ChallengeContext;
+use super::challenge_context::ChallengeContextUnitVectorZkp;
 use super::messages::{generate_polys, Announcement, BlindingRandomness, ResponseRandomness};
 use crate::cryptography::CommitmentKey;
 #[cfg(not(feature = "ristretto255"))]
@@ -72,7 +72,7 @@ impl UnitVectorZkp {
         }
 
         // Generate First verifier challenge
-        let mut cc = ChallengeContext::new(&ck, public_key, ciphers.as_ref());
+        let mut cc = ChallengeContextUnitVectorZkp::new(&ck, public_key, ciphers.as_ref());
         let cy = cc.first_challenge(&first_announcement_vec);
 
         let (poly_coeff_enc, rs) = {
@@ -157,7 +157,7 @@ impl UnitVectorZkp {
         let ck = CommitmentKey::from(crs.clone());
         let ciphertexts = Ptp::new(ciphertexts.to_vec(), Ciphertext::zero);
         let bits = ciphertexts.bits();
-        let mut cc = ChallengeContext::new(&ck, public_key, ciphertexts.as_ref());
+        let mut cc = ChallengeContextUnitVectorZkp::new(&ck, public_key, ciphertexts.as_ref());
         let cy = cc.first_challenge(&self.ibas);
         let cx = cc.second_challenge(&self.ds);
 
@@ -518,12 +518,12 @@ mod tests {
 
         let proof = UnitVectorZkp::generate(&mut r, &crs, &public_key, &unit_vector, &encryption_randomness, &ciphertexts);
 
-        let mut cc1 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
+        let mut cc1 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
         let cy1 = cc1.first_challenge(&proof.ibas);
         let cx1 = cc1.second_challenge(&proof.ds);
 
         // if we set up a new challenge context, the results should be equal
-        let mut cc2 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
+        let mut cc2 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
         let cy2 = cc2.first_challenge(&proof.ibas);
         let cx2 = cc2.second_challenge(&proof.ds);
 
@@ -533,7 +533,7 @@ mod tests {
         // if we set up a new challenge with incorrect initialisation, results should differ
         let crs_diff = GroupElement::from_hash(&[1u8]);
         let ck_diff = CommitmentKey::from(crs_diff.clone());
-        let mut cc3 = ChallengeContext::new(&ck_diff, &public_key, &ciphertexts);
+        let mut cc3 = ChallengeContextUnitVectorZkp::new(&ck_diff, &public_key, &ciphertexts);
         let cy3 = cc3.first_challenge(&proof.ibas);
         let cx3 = cc3.second_challenge(&proof.ds);
 
@@ -542,7 +542,7 @@ mod tests {
 
         // if we generate a new challenge with different IBAs, but same Ds, both results should differ
         let proof_diff = UnitVectorZkp::generate(&mut r, &crs, &public_key, &unit_vector, &encryption_randomness, &ciphertexts);
-        let mut cc4 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
+        let mut cc4 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
         let cy4 = cc4.first_challenge(&proof_diff.ibas);
         let cx4 = cc4.second_challenge(&proof.ds);
 
@@ -550,7 +550,7 @@ mod tests {
         assert_ne!(cx1, cx4);
 
         // if we generate a challenge with different Ds, only the second scalar should differ
-        let mut cc5 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
+        let mut cc5 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
         let cy5 = cc5.first_challenge(&proof.ibas);
         let cx5 = cc5.second_challenge(&proof_diff.ds);
 

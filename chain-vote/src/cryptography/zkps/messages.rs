@@ -1,5 +1,5 @@
-//! Structures used by the prover during the proof generation. We use the same
-//! notation defined in Figure 8
+//! Structures used by the prover of `unit_vector_zkp` during the proof generation. We use the
+//! same notation defined in Figure 8
 
 use crate::cryptography::CommitmentKey;
 use crate::encrypted_vote::binrep;

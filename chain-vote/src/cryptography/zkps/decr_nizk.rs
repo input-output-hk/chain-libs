@@ -12,8 +12,7 @@
 #![allow(clippy::many_single_char_names)]
 use crate::cryptography::{Ciphertext, PublicKey, SecretKey};
 use crate::gang::{GroupElement, Scalar};
-use cryptoxide::digest::Digest;
-use cryptoxide::sha2::Sha512;
+use super::challenge_context::ChallengeContextProofDecrypt;
 use rand::{CryptoRng, RngCore};
 
 /// Proof of correct decryption.
@@ -35,8 +34,9 @@ impl ProofDecrypt {
         let a1 = GroupElement::generator() * &w;
         let a2 = &c.e1 * &w;
         let d = &c.e1 * &sk.sk;
-        let e = challenge(pk, c, &d, &a1, &a2);
-        let z = &sk.sk * &e.0 + &w;
+        let mut challenge = ChallengeContextProofDecrypt::new(pk, c, &d);
+        let e = challenge.first_challenge(&a1, &a2);
+        let z = &sk.sk * &e + &w;
 
         ProofDecrypt { a1, a2, z }
     }
@@ -44,12 +44,13 @@ impl ProofDecrypt {
     /// Verify a decryption zero knowledge proof
     pub fn verify(&self, c: &Ciphertext, m: &GroupElement, pk: &PublicKey) -> bool {
         let d = &c.e2 - m;
-        let e = challenge(pk, c, &d, &self.a1, &self.a2);
+        let mut challenge = ChallengeContextProofDecrypt::new(pk, c, &d);
+        let e = challenge.first_challenge(&self.a1, &self.a2);
         let gz = GroupElement::generator() * &self.z;
-        let he = &pk.pk * &e.0;
+        let he = &pk.pk * &e;
         let he_a1 = he + &self.a1;
         let c1z = &c.e1 * &self.z;
-        let de = d * &e.0;
+        let de = d * &e;
         let de_a2 = de + &self.a2;
         gz == he_a1 && c1z == de_a2
     }
@@ -85,30 +86,6 @@ impl ProofDecrypt {
         let proof = ProofDecrypt { a1, a2, z };
         Some(proof)
     }
-}
-
-/// The challenge computation takes as input the two announcements
-/// computed in the sigma protocol, `a1` and `a2`, and the full
-/// statement.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Challenge(Scalar);
-
-fn challenge(
-    pk: &PublicKey,
-    c: &Ciphertext,
-    d: &GroupElement,
-    a1: &GroupElement,
-    a2: &GroupElement,
-) -> Challenge {
-    let mut out = [0u8; 64];
-    let mut ctx = Sha512::new();
-    ctx.input(&pk.to_bytes());
-    ctx.input(&c.to_bytes());
-    ctx.input(&d.to_bytes());
-    ctx.input(&a1.to_bytes());
-    ctx.input(&a2.to_bytes());
-    ctx.result(&mut out);
-    Challenge(Scalar::from_bytes(&out[0..32]).unwrap())
 }
 
 #[cfg(test)]
