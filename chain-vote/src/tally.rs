@@ -1,21 +1,25 @@
 use crate::{
     committee::*,
     cryptography::{Ciphertext, ProofDecrypt},
-    encrypted_vote::EncryptedVote,
+    encrypted_vote::SubmittedBallot,
     gang::{baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement},
 };
 use rand_core::{CryptoRng, RngCore};
-use std::fmt::Error;
+use crate::cryptography::PublicKey;
 
 /// Secret key for opening vote
 pub type OpeningVoteKey = MemberSecretKey;
 
+/// Submitted vote, which constists of an `EncryptedVote` and a `
 /// Common Reference String
 pub type Crs = GroupElement;
 
-/// `EncryptedTally` is formed by one ciphertext per existing option
+/// `EncryptedTally` is formed by one ciphertext per existing option, the `election_pk`, and the
+/// `crs`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncryptedTally {
+    election_pk: ElectionPublicKey,
+    crs: Crs,
     r: Vec<Ciphertext>,
 }
 
@@ -66,17 +70,24 @@ impl EncryptedTally {
     /// Initialise a new tally with N different options. The `EncryptedTally` is computed using
     /// the additive homomorphic property of the elgamal `Ciphertext`s, and is therefore initialised
     /// with zero ciphertexts.
-    pub fn new(options: usize) -> Self {
+    pub fn new(options: usize, election_pk: ElectionPublicKey, crs: Crs) -> Self {
         let r = vec![Ciphertext::zero(); options];
-        EncryptedTally { r }
+        EncryptedTally { r , election_pk, crs }
     }
 
-    /// Add an encrypted vote with a specific weight to the tally
+    /// Add a submitted `ballot`, with a specific `weight` to the tally, if
+    /// the `ballot` contains a valid proof. If the proof is invalid, it will
+    /// panic. todo: maybe we want to handle these errors?
     ///
     /// Note that the encrypted vote needs to have the exact same number of
     /// options as the initialised tally, otherwise an assert will trigger.
     #[allow(clippy::ptr_arg)]
-    pub fn add(&mut self, vote: &EncryptedVote, weight: u64) {
+    pub fn add(&mut self, ballot: &SubmittedBallot, weight: u64) {
+        let (vote, proof) = ballot;
+        if !proof.verify(&self.crs, &self.election_pk.0, vote) {
+            panic!("Invalid ballot");
+        }
+
         assert_eq!(vote.len(), self.r.len());
         for (ri, ci) in self.r.iter_mut().zip(vote.iter()) {
             *ri = &*ri + &(ci * weight);
@@ -121,10 +132,11 @@ impl EncryptedTally {
 
     /// Returns a byte array with every ciphertext in the `EncryptedTally`
     pub fn to_bytes(&self) -> Vec<u8> {
-        use std::io::Write;
-        let mut bytes: Vec<u8> = Vec::with_capacity(Ciphertext::BYTES_LEN * self.r.len());
+        let mut bytes: Vec<u8> = Vec::with_capacity(Ciphertext::BYTES_LEN * self.r.len() + GroupElement::BYTES_LEN + Crs::BYTES_LEN);
+        bytes.extend_from_slice(self.election_pk.to_bytes().as_ref());
+        bytes.extend_from_slice(self.crs.to_bytes().as_ref());
         for ri in &self.r {
-            bytes.write_all(ri.to_bytes().as_ref()).unwrap();
+            bytes.extend_from_slice(ri.to_bytes().as_ref());
         }
         bytes
     }
@@ -132,14 +144,17 @@ impl EncryptedTally {
     /// Tries to generate an `EncryptedTally` out of an array of bytes. Returns `None` if the
     /// size of the byte array is not a multiply of `Ciphertext::BYTES_LEN`.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() % Ciphertext::BYTES_LEN != 0 {
+        if (bytes.len() - (GroupElement::BYTES_LEN + Crs::BYTES_LEN)) % Ciphertext::BYTES_LEN != 0 {
             return None;
         }
-        let r = bytes
+        let election_pk = ElectionPublicKey(PublicKey::from_bytes(&bytes[..GroupElement::BYTES_LEN])?);
+        let crs = Crs::from_bytes(&bytes[GroupElement::BYTES_LEN..(GroupElement::BYTES_LEN + Crs::BYTES_LEN)])?;
+        let r = bytes[GroupElement::BYTES_LEN + Crs::BYTES_LEN..]
             .chunks(Ciphertext::BYTES_LEN)
             .map(Ciphertext::from_bytes)
             .collect::<Option<Vec<_>>>()?;
-        Some(Self { r })
+
+        Some(Self { r, election_pk, crs })
     }
 }
 
@@ -147,8 +162,11 @@ impl std::ops::Add for EncryptedTally {
     type Output = Self;
 
     /// Ads two `EncryptedTally`, leveraging the additive homomorphic property of the
-    /// underlying ciphertexts.
+    /// underlying ciphertexts. If the public keys or the crs are not equal, it panics
+    /// todo: maybe we want to handle the errors?
     fn add(self, rhs: Self) -> Self::Output {
+        assert_eq!(self.election_pk, rhs.election_pk);
+        assert_eq!(self.crs, rhs.crs);
         assert_eq!(self.r.len(), rhs.r.len());
         let r = self
             .r
@@ -156,7 +174,7 @@ impl std::ops::Add for EncryptedTally {
             .zip(rhs.r.iter())
             .map(|(left, right)| left + right)
             .collect();
-        Self { r }
+        Self { r, election_pk: self.election_pk, crs: self.crs }
     }
 }
 
@@ -325,10 +343,10 @@ mod tests {
 
         println!("tallying");
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options);
-        encrypted_tally.add(&e1.0, 6);
-        encrypted_tally.add(&e2.0, 5);
-        encrypted_tally.add(&e3.0, 4);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
+        encrypted_tally.add(&e1, 6);
+        encrypted_tally.add(&e2, 5);
+        encrypted_tally.add(&e3, 4);
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
@@ -376,18 +394,16 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let (e1, e1_proof) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
         let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
         let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
-        assert!(e1_proof.verify(&h, &ek.0, &e1));
-            // verify_vote(&h, &ek, &e1, &e1_proof));
         println!("tallying");
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
         encrypted_tally.add(&e1, 1);
-        encrypted_tally.add(&e2.0, 3);
-        encrypted_tally.add(&e3.0, 4);
+        encrypted_tally.add(&e2, 3);
+        encrypted_tally.add(&e3, 4);
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
         let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());
@@ -439,11 +455,11 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let (e1, _) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
         encrypted_tally.add(&e1, 42);
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
@@ -482,11 +498,14 @@ mod tests {
 
         let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
 
+        let participants = vec![m1.public_key()];
+        let ek = ElectionPublicKey::from_participants(&participants);
+
         let vote_options = 2;
 
         println!("tallying");
 
-        let encrypted_tally = EncryptedTally::new(vote_options);
+        let encrypted_tally = EncryptedTally::new(vote_options, ek, h);
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
         let max_votes = 2;
@@ -537,10 +556,10 @@ mod tests {
         let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
         let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options);
-        encrypted_tally.add(&e1.0, 10);
-        encrypted_tally.add(&e2.0, 3);
-        encrypted_tally.add(&e3.0, 40);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
+        encrypted_tally.add(&e1, 10);
+        encrypted_tally.add(&e2, 3);
+        encrypted_tally.add(&e3, 40);
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
         let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());
@@ -565,7 +584,9 @@ mod tests {
 
     #[test]
     fn zero_encrypted_tally_serialization_sanity() {
-        let tally = EncryptedTally::new(3);
+        let election_key = ElectionPublicKey(PublicKey { pk: GroupElement::from_hash(&[1u8]) });
+        let h = Crs::from_hash(&[1u8]);
+        let tally = EncryptedTally::new(3, election_key, h);
         let bytes = tally.to_bytes();
         let deserialized_tally = EncryptedTally::from_bytes(&bytes).unwrap();
         assert_eq!(tally, deserialized_tally);

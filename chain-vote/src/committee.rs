@@ -21,7 +21,7 @@ pub struct MemberCommunicationKey(SecretKey);
 pub struct MemberCommunicationPublicKey(PublicKey);
 
 /// The overall committee public key used for everyone to encrypt their vote to.
-#[derive(Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ElectionPublicKey(pub(crate) PublicKey);
 
 impl ElectionPublicKey {

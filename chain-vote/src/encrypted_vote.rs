@@ -18,6 +18,10 @@ pub type EncryptedVote = Vec<Ciphertext>;
 /// the `EncryptedVote` is indeed a unit vector, and contains a vote for a single candidate.
 pub type ProofOfCorrectVote = UnitVectorZkp;
 
+/// Submitted ballot, which consits of an `EncryptedVote` and a proof of correct encryption
+/// `UnitVectorZkp`.
+pub type SubmittedBallot = (EncryptedVote, UnitVectorZkp);
+
 /// To achieve logarithmic communication complexity in the unit_vector ZKP, we represent
 /// votes as Power of Two Padded vector structures.
 #[derive(Clone)]
