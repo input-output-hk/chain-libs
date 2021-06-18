@@ -192,7 +192,7 @@ impl Proof {
         let batch_challenge = Scalar::random(&mut thread_rng());
 
         for (zwv, iba) in self.zwvs.iter().zip(self.ibas.iter()) {
-            if GroupElement::multiscalar_multiplication(
+            if GroupElement::vartime_multiscalar_multiplication(
                 iter::once(zwv.z)
                     .chain(iter::once(zwv.w + batch_challenge * zwv.v))
                     .chain(iter::once(
@@ -211,7 +211,7 @@ impl Proof {
             }
         }
 
-        let mega_check = GroupElement::multiscalar_multiplication(
+        let mega_check = GroupElement::vartime_multiscalar_multiplication(
             powers_cy
                 .take(length)
                 .map(|s| s * cx_pow)

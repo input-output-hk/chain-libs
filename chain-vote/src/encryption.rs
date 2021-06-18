@@ -11,6 +11,7 @@ use std::ops::{Add, Mul, Sub};
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::chacha20::ChaCha20;
 use cryptoxide::digest::Digest;
+use std::fmt;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 /// ElGamal public key. pk = sk * G, where sk is the `SecretKey` and G is the group
@@ -46,6 +47,12 @@ pub struct HybridCiphertext {
     e1: Ciphertext,
     // Symmetric encrypted message
     e2: Box<[u8]>,
+}
+
+impl fmt::Debug for HybridCiphertext {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Point: {:?}\nBox: {:?}", self.e1.to_bytes(), self.e2)
+    }
 }
 
 /// The hybrid encryption scheme uses a group element as a

@@ -3,9 +3,10 @@
 #[macro_use]
 mod macros;
 mod commitment;
-pub mod committee;
+mod dkg;
 mod encrypted;
 pub mod encryption;
+mod errors;
 mod gang;
 mod math;
 pub mod private_voting;
@@ -22,8 +23,9 @@ pub mod debug {
     }
 }
 
-pub use committee::{
-    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, MemberState,
+pub use dkg::committee::DistributedKeyGeneration;
+pub use dkg::procedure_keys::{
+    MemberCommunicationKey, MemberCommunicationPublicKey, MemberPublicKey, MemberSecretKey,
 };
 pub use encrypted::EncryptingVote;
 pub use encryption::Ciphertext;
@@ -33,10 +35,10 @@ use rand_core::{CryptoRng, RngCore};
 pub use unit_vector::UnitVector;
 
 /// Secret key for opening vote
-pub type OpeningVoteKey = committee::MemberSecretKey;
+pub type OpeningVoteKey = dkg::procedure_keys::MemberSecretKey;
 
 /// Public Key for the vote
-pub type EncryptingVoteKey = committee::ElectionPublicKey;
+pub type EncryptingVoteKey = dkg::procedure_keys::ElectionPublicKey;
 
 /// A vote is represented by a standard basis unit vector of a N dimension space
 ///
@@ -306,8 +308,9 @@ mod tests {
         let mc = [mc1.to_public()];
 
         let threshold = 1;
+        let nr_members = 1;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
+        let m1 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 0);
 
         let participants = vec![m1.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);
@@ -359,10 +362,11 @@ mod tests {
         let mc = [mc1.to_public(), mc2.to_public(), mc3.to_public()];
 
         let threshold = 3;
+        let nr_members = 3;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
-        let m2 = MemberState::new(&mut rng, threshold, &h, &mc, 1);
-        let m3 = MemberState::new(&mut rng, threshold, &h, &mc, 2);
+        let m1 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 0);
+        let m2 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 1);
+        let m3 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 2);
 
         let participants = vec![m1.public_key(), m2.public_key(), m3.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);
@@ -415,8 +419,9 @@ mod tests {
         let mc = [mc1.to_public()];
 
         let threshold = 1;
+        let nr_members = 1;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
+        let m1 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 0);
 
         let participants = vec![m1.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);
@@ -462,8 +467,9 @@ mod tests {
         let mc = [mc1.to_public()];
 
         let threshold = 1;
+        let nr_members = 1;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
+        let m1 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 0);
 
         let vote_options = 2;
 
@@ -503,10 +509,11 @@ mod tests {
         let mc = [mc1.to_public(), mc2.to_public(), mc3.to_public()];
 
         let threshold = 3;
+        let nr_members = 3;
 
-        let m1 = MemberState::new(&mut rng, threshold, &h, &mc, 0);
-        let m2 = MemberState::new(&mut rng, threshold, &h, &mc, 1);
-        let m3 = MemberState::new(&mut rng, threshold, &h, &mc, 2);
+        let m1 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 0);
+        let m2 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 1);
+        let m3 = DistributedKeyGeneration::init(&mut rng, threshold, nr_members, &h, &mc, 2);
 
         let participants = vec![m1.public_key(), m2.public_key(), m3.public_key()];
         let ek = EncryptingVoteKey::from_participants(&participants);

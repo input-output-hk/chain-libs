@@ -81,7 +81,11 @@ impl GroupElement {
         }
         sum
     }
-    pub fn multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
+
+    /// Variable time multiscalar multiplication. Takes as input an iterator of scalar, and an
+    /// iterator over group elements, and computes a variable time multiscalar operation. Should
+    /// only be used when the scalar are not secret.
+    pub fn vartime_multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
     where
         I: IntoIterator<Item = Scalar>,
         J: IntoIterator<Item = GroupElement>,
