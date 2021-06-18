@@ -148,7 +148,7 @@ impl UnitVectorZkp {
     /// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
     ///
     /// Description of the verification procedure available in Figure 9.
-    pub(crate) fn verify(
+    pub fn verify(
         &self,
         crs: &Crs,
         public_key: &PublicKey,

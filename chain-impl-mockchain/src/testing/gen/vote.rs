@@ -10,7 +10,7 @@ use crate::{
 };
 use chain_core::property::BlockDate as BlockDateProp;
 use chain_crypto::digest::DigestOf;
-use chain_vote::Crs;
+use chain_vote::{Crs, Vote, ElectionPublicKey};
 use rand_core::{CryptoRng, RngCore};
 use typed_bytes::ByteBuilder;
 
@@ -105,14 +105,13 @@ impl VoteTestGen {
         rng: &mut R,
     ) -> Payload {
         let encrypting_key =
-            chain_vote::EncryptingVoteKey::from_participants(vote_plan.committee_public_keys());
+            ElectionPublicKey::from_participants(vote_plan.committee_public_keys());
 
         let crs = Crs::from_hash(&vote_plan.to_id().as_ref());
-        let (encrypted_vote, proof) = chain_vote::encrypt_vote(
+        let (encrypted_vote, proof) = encrypting_key.encrypt_and_prove_vote(
             rng,
             &crs,
-            &encrypting_key,
-            chain_vote::Vote::new(
+            Vote::new(
                 proposal.options().choice_range().clone().max().unwrap() as usize + 1,
                 choice.as_byte() as usize,
             ),

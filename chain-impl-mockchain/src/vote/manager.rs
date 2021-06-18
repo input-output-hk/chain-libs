@@ -257,12 +257,11 @@ impl ProposalManager {
     {
         let tally = self.tally.as_ref().ok_or(TallyError::NoEncryptedTally)?;
         let (encrypted_tally, total_stake) = tally.private_encrypted()?;
-        let state = encrypted_tally.state();
 
         let verifiable_tally = chain_vote::Tally {
             votes: decrypted_proposal.tally_result.to_vec(),
         };
-        if !verifiable_tally.verify(&encrypted_tally, committee_pks, &state, &decrypted_proposal.decrypt_shares) {
+        if !verifiable_tally.verify(&encrypted_tally, committee_pks, &decrypted_proposal.decrypt_shares) {
             return Err(TallyError::InvalidDecryption);
         }
 
@@ -594,10 +593,10 @@ impl VotePlanManager {
                 let crs = Crs::from_hash(&self.plan.as_ref().to_id().as_ref());
                 let ciphertext = encrypted_vote.as_inner();
                 self.proposal_managers.validate_vote(&cast)?;
-                let pk = chain_vote::EncryptingVoteKey::from_participants(
+                let pk = chain_vote::ElectionPublicKey::from_participants(
                     self.plan.committee_public_keys(),
                 );
-                if !chain_vote::verify_vote(&crs, &pk, ciphertext, proof.as_inner()) {
+                if !proof.verify(&crs, &pk, ciphertext) {
                     Err(VoteError::VoteVerificationError)
                 } else {
                     Ok(())

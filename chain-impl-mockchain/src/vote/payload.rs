@@ -1,6 +1,6 @@
 use crate::vote::Choice;
 use chain_core::mempack::{ReadBuf, ReadError};
-use chain_vote::Ciphertext;
+use chain_vote::{Ciphertext, Crs, ElectionPublicKey};
 use std::convert::{TryFrom, TryInto as _};
 use std::hash::Hash;
 use thiserror::Error;
@@ -132,6 +132,10 @@ impl ProofOfCorrectVote {
     pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         chain_vote::ProofOfCorrectVote::from_buffer(buf).map(Self)
     }
+
+    pub fn verify(&self, crs: &Crs, pk: &ElectionPublicKey, ciphertexts: &[Ciphertext]) -> bool {
+        self.0.verify(crs, pk.as_raw(), ciphertexts)
+    }
 }
 
 impl EncryptedVote {
@@ -205,7 +209,7 @@ mod tests {
     impl Arbitrary for Payload {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             use chain_vote::{
-                encrypt_vote, Crs, EncryptingVoteKey, MemberCommunicationKey, MemberState, Vote,
+                MemberCommunicationKey, MemberState, Vote,
             };
             use rand_core::SeedableRng;
 
@@ -220,13 +224,12 @@ mod tests {
                     let h = Crs::from_hash(&mut seed);
                     let m = MemberState::new(&mut gen, threshold, &h, &[mc.to_public()], 0);
                     let participants = vec![m.public_key()];
-                    let ek = EncryptingVoteKey::from_participants(&participants);
+                    let ek = ElectionPublicKey::from_participants(&participants);
                     let vote_options = 3;
                     let choice = g.next_u32() % vote_options;
-                    let (vote, proof) = encrypt_vote(
+                    let (vote, proof) = ek.encrypt_and_prove_vote(
                         &mut gen,
                         &h,
-                        &ek,
                         Vote::new(vote_options as usize, choice as usize),
                     );
                     Payload::private(
