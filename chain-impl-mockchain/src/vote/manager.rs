@@ -11,7 +11,7 @@ use crate::{
     transaction::UnspecifiedAccountIdentifier,
     vote::{self, CommitteeId, Options, Tally, TallyResult, VotePlanStatus, VoteProposalStatus},
 };
-use chain_vote::{Crs, EncryptedTally, committee};
+use chain_vote::{Crs, EncryptedTally, committee, ElectionPublicKey};
 use imhamt::Hamt;
 use thiserror::Error;
 
@@ -198,7 +198,7 @@ impl ProposalManager {
     }
 
     #[must_use = "Compute the PrivateTally in a new ProposalManager, does not modify self"]
-    pub fn private_tally(&self, stake: &StakeControl) -> Result<Self, VoteError> {
+    pub fn private_tally(&self, stake: &StakeControl, election_pk: &ElectionPublicKey, crs: &Crs) -> Result<Self, VoteError> {
         use rayon::prelude::*;
 
         let tally_size = self.options.choice_range().clone().max().unwrap() as usize + 1;
@@ -219,23 +219,23 @@ impl ProposalManager {
                             }
                             vote::Payload::Private {
                                 encrypted_vote,
-                                proof: _,
-                            } => return Some(Ok((encrypted_vote.as_inner(), stake.0))),
+                                proof,
+                            } => return Some(Ok(((encrypted_vote.as_inner(), proof.as_inner()), stake.0))),
                         }
                     }
                 }
                 None
             })
             .try_fold_with(
-                EncryptedTally::new(tally_size),
+                EncryptedTally::new(tally_size, election_pk, crs),
                 |mut tally, vote_with_stake| {
                     vote_with_stake.map(|(encrypted_vote, stake)| {
-                        tally.add(encrypted_vote, stake);
+                        tally.add(&encrypted_vote, stake);
                         tally
                     })
                 },
             )
-            .try_reduce(|| EncryptedTally::new(tally_size), |a, b| Ok(a + b))?;
+            .try_reduce(|| EncryptedTally::new(tally_size, election_pk, crs), |a, b| Ok(a + b))?;
 
         Ok(Self {
             votes_by_voters: self.votes_by_voters.clone(),
@@ -442,12 +442,16 @@ impl ProposalManagers {
         }
     }
 
-    pub fn start_private_tally(&self, stake: &StakeControl) -> Result<Self, VoteError> {
+    pub fn start_private_tally(&self, stake: &StakeControl, vote_plan: &VotePlan) -> Result<Self, VoteError> {
         use rayon::prelude::*;
+        let crs = Crs::from_hash(vote_plan.to_id().as_ref());
+        let election_pk = chain_vote::ElectionPublicKey::from_participants(
+            vote_plan.committee_public_keys(),
+        );
         let proposals = self
             .0
             .par_iter()
-            .map(|proposal| proposal.private_tally(stake))
+            .map(|proposal| proposal.private_tally(stake, &election_pk, &crs))
             .collect::<Result<_, _>>()?;
         Ok(Self(proposals))
     }
@@ -596,7 +600,7 @@ impl VotePlanManager {
                 let pk = chain_vote::ElectionPublicKey::from_participants(
                     self.plan.committee_public_keys(),
                 );
-                if !proof.verify(&crs, &pk, ciphertext) {
+                if !proof.verify(&crs, &pk, &ciphertext) {
                     Err(VoteError::VoteVerificationError)
                 } else {
                     Ok(())
@@ -673,7 +677,7 @@ impl VotePlanManager {
             return Err(TallyError::InvalidPrivacy.into());
         }
 
-        let proposal_managers = self.proposal_managers.start_private_tally(stake)?;
+        let proposal_managers = self.proposal_managers.start_private_tally(stake, &self.plan)?;
 
         Ok(Self {
             proposal_managers,

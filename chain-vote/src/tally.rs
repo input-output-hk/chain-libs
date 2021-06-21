@@ -70,9 +70,9 @@ impl EncryptedTally {
     /// Initialise a new tally with N different options. The `EncryptedTally` is computed using
     /// the additive homomorphic property of the elgamal `Ciphertext`s, and is therefore initialised
     /// with zero ciphertexts.
-    pub fn new(options: usize, election_pk: ElectionPublicKey, crs: Crs) -> Self {
+    pub fn new(options: usize, election_pk: &ElectionPublicKey, crs: &Crs) -> Self {
         let r = vec![Ciphertext::zero(); options];
-        EncryptedTally { r , election_pk, crs }
+        EncryptedTally { r , election_pk: election_pk.clone(), crs: crs.clone() }
     }
 
     /// Add a submitted `ballot`, with a specific `weight` to the tally, if
@@ -343,7 +343,7 @@ mod tests {
 
         println!("tallying");
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
         encrypted_tally.add(&e1, 6);
         encrypted_tally.add(&e2, 5);
         encrypted_tally.add(&e3, 4);
@@ -400,7 +400,7 @@ mod tests {
 
         println!("tallying");
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
         encrypted_tally.add(&e1, 1);
         encrypted_tally.add(&e2, 3);
         encrypted_tally.add(&e3, 4);
@@ -459,7 +459,7 @@ mod tests {
 
         println!("tallying");
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
         encrypted_tally.add(&e1, 42);
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
@@ -505,7 +505,7 @@ mod tests {
 
         println!("tallying");
 
-        let encrypted_tally = EncryptedTally::new(vote_options, ek, h);
+        let encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
         let max_votes = 2;
@@ -556,7 +556,7 @@ mod tests {
         let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
         let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
-        let mut encrypted_tally = EncryptedTally::new(vote_options, ek, h);
+        let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
         encrypted_tally.add(&e1, 10);
         encrypted_tally.add(&e2, 3);
         encrypted_tally.add(&e3, 40);
@@ -586,7 +586,7 @@ mod tests {
     fn zero_encrypted_tally_serialization_sanity() {
         let election_key = ElectionPublicKey(PublicKey { pk: GroupElement::from_hash(&[1u8]) });
         let h = Crs::from_hash(&[1u8]);
-        let tally = EncryptedTally::new(3, election_key, h);
+        let tally = EncryptedTally::new(3, &election_key, &h);
         let bytes = tally.to_bytes();
         let deserialized_tally = EncryptedTally::from_bytes(&bytes).unwrap();
         assert_eq!(tally, deserialized_tally);
