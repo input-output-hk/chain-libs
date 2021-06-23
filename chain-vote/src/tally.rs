@@ -2,7 +2,10 @@ use crate::{
     committee::*,
     cryptography::{Ciphertext, CorrectElGamalDecrZkp},
     encrypted_vote::EncryptedVote,
-    gang::{baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement},
+};
+
+use chain_crypto::ec::{
+    baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement,
 };
 use rand_core::{CryptoRng, RngCore};
 

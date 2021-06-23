@@ -56,6 +56,7 @@ impl Coordinate {
 impl GroupElement {
     /// Size of the byte representation of `GroupElement`.
     pub const BYTES_LEN: usize = 65;
+    pub const HASHMAP_BYTES_LEN: usize = Coordinate::BYTES_LEN;
 
     /// Serialized GroupElement::zero
     const BYTES_ZERO: [u8; Self::BYTES_LEN] = [0; Self::BYTES_LEN];

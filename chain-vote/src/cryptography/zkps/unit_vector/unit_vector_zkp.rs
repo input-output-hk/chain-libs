@@ -6,6 +6,7 @@
 //! written by Dmytro Kaidalov.
 
 use chain_core::mempack::{ReadBuf, ReadError};
+use chain_crypto::ec::{GroupElement, Scalar};
 use rand_core::{CryptoRng, RngCore};
 #[cfg(feature = "ristretto255")]
 use {rand::thread_rng, std::iter};
@@ -17,7 +18,6 @@ use crate::cryptography::CommitmentKey;
 use crate::cryptography::Open;
 use crate::cryptography::{Ciphertext, PublicKey};
 use crate::encrypted_vote::{binrep, Ptp, UnitVector};
-use crate::gang::{GroupElement, Scalar};
 use crate::tally::Crs;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

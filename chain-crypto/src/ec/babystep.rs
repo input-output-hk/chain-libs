@@ -143,7 +143,7 @@ mod tests {
                 a as u64,
             )
         }))
-        .into_boxed()
+            .into_boxed()
     }
 
     fn table_generator_default() -> BoxGenerator<BabyStepsTable> {

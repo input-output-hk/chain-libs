@@ -39,6 +39,7 @@ impl Hash for Scalar {
 impl GroupElement {
     /// Size of the byte representation of `GroupElement`. We always encode the compressed value
     pub const BYTES_LEN: usize = 32;
+    pub const HASHMAP_BYTES_LEN: usize = Self::BYTES_LEN;
 
     pub fn generator() -> Self {
         GroupElement(RISTRETTO_BASEPOINT_POINT)
@@ -223,35 +224,6 @@ impl From<bool> for Scalar {
             Scalar::zero()
         }
     }
-}
-
-
-macro_rules! std_ops_gen {
-    ($lty: ident, $class: ident, $rty: ident, $out: ident, $f: ident) => {
-        impl<'a> $class<$rty> for &'a $lty {
-            type Output = $out;
-
-            fn $f(self, other: $rty) -> Self::Output {
-                self.$f(&other)
-            }
-        }
-
-        impl<'b> $class<&'b $rty> for $lty {
-            type Output = $out;
-
-            fn $f(self, other: &'b $rty) -> Self::Output {
-                (&self).$f(other)
-            }
-        }
-
-        impl $class<$rty> for $lty {
-            type Output = $out;
-
-            fn $f(self, other: $rty) -> Self::Output {
-                (&self).$f(&other)
-            }
-        }
-    };
 }
 
 //////////
