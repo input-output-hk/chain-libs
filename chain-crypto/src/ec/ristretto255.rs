@@ -118,7 +118,7 @@ impl Scalar {
 
     /// Increment a
     pub fn increment(&mut self) {
-        self.0 = &self.0 + IScalar::one()
+        self.0 += IScalar::one()
     }
 
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
@@ -187,7 +187,7 @@ impl Scalar {
     pub fn exp_iter(&self) -> ScalarExp {
         let next_exp_x = Scalar::one();
         ScalarExp {
-            x: self.clone(),
+            x: *self,
             next_exp_x,
         }
     }

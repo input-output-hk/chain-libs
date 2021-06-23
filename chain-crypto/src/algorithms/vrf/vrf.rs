@@ -2,11 +2,9 @@
 //! using the 2-Hash-DH verifiable oblivious PRF
 //! defined in the Ouroboros Praos paper
 
-use crate::hash::Blake2b256;
 use crate::ec::{GroupElement, Scalar};
+use crate::hash::Blake2b256;
 use rand_core::{CryptoRng, RngCore};
-use sha2::Digest;
-use sha2::Sha512;
 use std::hash::{Hash, Hasher};
 
 use super::dleq;
@@ -35,6 +33,7 @@ impl Hash for PublicKey {
         self.as_bytes().hash(state)
     }
 }
+
 impl AsRef<[u8]> for PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
@@ -54,9 +53,9 @@ pub struct ProvenOutputSeed {
     dleq_proof: dleq::Proof,
 }
 
-pub const PROOF_SIZE: usize = 96;
-pub const SECRET_SIZE: usize = 32;
-pub const PUBLIC_SIZE: usize = 32;
+pub const PROOF_SIZE: usize = dleq::Proof::PROOF_SIZE + GroupElement::BYTES_LEN;
+pub const SECRET_SIZE: usize = Scalar::BYTES_LEN;
+pub const PUBLIC_SIZE: usize = GroupElement::BYTES_LEN;
 
 impl SecretKey {
     /// Create a new random secret key
@@ -70,7 +69,7 @@ impl SecretKey {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        &self.secret.as_bytes()
+        self.secret.as_bytes()
     }
 
     /// Serialize the secret key in binary form
@@ -94,7 +93,7 @@ impl SecretKey {
     /// The following property hold between the return values:
     ///     Point * secret = OutputSeed
     pub fn verifiable_output(&self, input: &[u8]) -> (GroupElement, OutputSeed) {
-        let m_point = make_message_hash_point(input);
+        let m_point = GroupElement::from_hash(input);
         let u = m_point * self.secret;
         (m_point, OutputSeed(u))
     }
@@ -105,7 +104,12 @@ impl SecretKey {
     /// use 'proove_simple' to use a RNG and avoid generating this random.
     ///
     /// use 'evaluate' or 'evaluate_simple' for creating the proof directly from input
-    pub fn proove(&self, r: &Scalar, m_point: GroupElement, output: OutputSeed) -> ProvenOutputSeed {
+    pub fn proove(
+        &self,
+        r: &Scalar,
+        m_point: GroupElement,
+        output: OutputSeed,
+    ) -> ProvenOutputSeed {
         let dleq = dleq::Dleq {
             g1: &GroupElement::generator(),
             h1: &self.public,
@@ -158,8 +162,8 @@ impl PublicKey {
         if input.len() != PUBLIC_SIZE {
             return Err(PublicKeyError::SizeInvalid);
         }
-        let ristretto = GroupElement::from_bytes(input);
-        match ristretto {
+        let group_element = GroupElement::from_bytes(input);
+        match group_element {
             None => Err(PublicKeyError::StructureInvalid),
             Some(pk) => Ok(PublicKey(pk, pk.to_bytes())),
         }
@@ -181,7 +185,7 @@ impl ProvenOutputSeed {
         let dleq = dleq::Dleq {
             g1: &GroupElement::generator(),
             h1: &public_key.0,
-            g2: &make_message_hash_point(input),
+            g2: &GroupElement::from_hash(&input),
             h2: &self.u.0,
         };
         dleq::verify(&dleq, &self.dleq_proof)
@@ -244,15 +248,6 @@ impl OutputSeed {
 
         Blake2b256::new(&buf)
     }
-}
-
-fn make_message_hash_point(data: &[u8]) -> GroupElement {
-    let m_hash = {
-        let mut c = Sha512::new();
-        c.update(data);
-        c
-    };
-    GroupElement::from_hash(&m_hash.finalize())
 }
 
 #[cfg(test)]

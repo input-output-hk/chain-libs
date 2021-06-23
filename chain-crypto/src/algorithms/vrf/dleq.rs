@@ -9,17 +9,18 @@ pub struct Proof {
     z: Scalar,
 }
 
-const PROOF_SIZE: usize = 64; // Scalar is 32 bytes
 
 impl Proof {
+    pub const PROOF_SIZE: usize = Scalar::BYTES_LEN * 2;
+
     pub fn to_bytes(&self, output: &mut [u8]) {
-        assert_eq!(output.len(), PROOF_SIZE);
+        assert_eq!(output.len(), Self::PROOF_SIZE);
         output[0..32].copy_from_slice(&self.c.0.to_bytes());
         output[32..64].copy_from_slice(&self.z.to_bytes());
     }
 
     pub fn from_bytes(slice: &[u8]) -> Option<Self> {
-        if slice.len() != PROOF_SIZE {
+        if slice.len() != Self::PROOF_SIZE {
             return None;
         }
         let mut c_array = [0u8; 32];
@@ -46,7 +47,12 @@ pub struct Dleq<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Challenge(Scalar);
 
-fn challenge(h1: &GroupElement, h2: &GroupElement, a1: &GroupElement, a2: &GroupElement) -> Challenge {
+fn challenge(
+    h1: &GroupElement,
+    h2: &GroupElement,
+    a1: &GroupElement,
+    a2: &GroupElement,
+) -> Challenge {
     let mut d = Blake2b::new(64);
     d.input(&h1.to_bytes());
     d.input(&h2.to_bytes());
