@@ -1,6 +1,6 @@
-use chain_crypto::ec::Scalar;
 use crate::encryption::{Ciphertext, PublicKey};
 use crate::unit_vector::UnitVector;
+use chain_crypto::ec::Scalar;
 use rand_core::{CryptoRng, RngCore};
 
 // Power of Two Padded vector structure
