@@ -49,7 +49,6 @@ impl ChallengeContextUnitVectorZkp {
     }
 }
 
-
 /// Challenge context for Decryption Zero Knowledge Proof. The common reference string
 /// is a public key, and the statement consists of a ciphertext, and a plaintext.
 /// computation takes as input the two announcements

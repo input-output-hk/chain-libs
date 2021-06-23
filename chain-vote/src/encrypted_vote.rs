@@ -61,7 +61,7 @@ impl<A: Clone> Ptp<A> {
         }
         Ptp {
             orig_len,
-            elements: vec.clone(),
+            elements: vec,
         }
     }
 
@@ -100,7 +100,7 @@ impl std::fmt::Display for UnitVector {
 // as the size will always be > 0 as enforced in new()
 #[allow(clippy::len_without_is_empty)]
 impl UnitVector {
-    /// Create a new
+    /// Create a new `ith` unit vector, with `size` greater than zero, and greater than `ith`.
     pub fn new(size: usize, ith: usize) -> Self {
         assert!(size > 0);
         assert!(ith < size);

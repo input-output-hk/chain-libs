@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::CryptoError;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
@@ -62,15 +63,12 @@ impl BabyStepsTable {
     }
 }
 
-#[derive(Debug)]
-pub struct MaxLogExceeded;
-
 // Solve the discrete log on ECC using baby step giant step algorithm
 pub fn baby_step_giant_step(
     points: Vec<GroupElement>,
     max_log: u64,
     table: &BabyStepsTable,
-) -> Result<Vec<u64>, MaxLogExceeded> {
+) -> Result<Vec<u64>, CryptoError> {
     let baby_step_size = table.baby_step_size;
     let giant_step = &table.giant_step;
     let table = &table.table;
@@ -96,7 +94,7 @@ pub fn baby_step_giant_step(
                 }
 
                 if a * baby_step_size > max_log {
-                    return Err(MaxLogExceeded);
+                    return Err(CryptoError::MaxLogExceeded);
                 }
                 point = point + giant_step;
                 a += 1;

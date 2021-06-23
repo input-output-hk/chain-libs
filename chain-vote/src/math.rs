@@ -129,7 +129,10 @@ mod tests {
         let poly_deg_4 = Polynomial::new(4).set2(Scalar::one(), Scalar::from_u64(3));
 
         assert_eq!(poly_deg_4.degree(), 4);
-        assert_eq!(poly_deg_4.evaluate(&Scalar::from_u64(3)), Scalar::from_u64(10));
+        assert_eq!(
+            poly_deg_4.evaluate(&Scalar::from_u64(3)),
+            Scalar::from_u64(10)
+        );
         assert_eq!(poly_deg_4.at_zero(), Scalar::one());
 
         let poly_deg_2 = Polynomial::new(2).set2(Scalar::from_u64(13), Scalar::from_u64(2));
@@ -137,15 +140,25 @@ mod tests {
 
         let expected_poly = Polynomial::from_vec(vec![Scalar::from_u64(14), Scalar::from_u64(5)]);
 
-        for (a,b) in added_polys.get_coefficients().zip(expected_poly.get_coefficients()) {
+        for (a, b) in added_polys
+            .get_coefficients()
+            .zip(expected_poly.get_coefficients())
+        {
             assert_eq!(a, b);
         }
 
         let mult_poly = poly_deg_4 * poly_deg_2;
 
-        let expected_mult = Polynomial::from_vec(vec![Scalar::from_u64(13), Scalar::from_u64(41), Scalar::from_u64(6)]);
+        let expected_mult = Polynomial::from_vec(vec![
+            Scalar::from_u64(13),
+            Scalar::from_u64(41),
+            Scalar::from_u64(6),
+        ]);
 
-        for (a,b) in mult_poly.get_coefficients().zip(expected_mult.get_coefficients()) {
+        for (a, b) in mult_poly
+            .get_coefficients()
+            .zip(expected_mult.get_coefficients())
+        {
             assert_eq!(a, b);
         }
     }

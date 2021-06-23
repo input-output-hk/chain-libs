@@ -3,14 +3,15 @@ mod macros;
 pub mod committee;
 mod cryptography;
 mod encrypted_vote;
+pub mod error;
 mod gang;
 mod math;
 pub mod tally;
 
 pub use crate::{
+    committee::{ElectionPublicKey, MemberCommunicationKey, MemberPublicKey, MemberState},
     cryptography::Ciphertext, //todo: why this?
-    committee::{MemberPublicKey, MemberState, MemberCommunicationKey, ElectionPublicKey},
-    encrypted_vote::{Vote, EncryptedVote, ProofOfCorrectVote},
-    gang::{BabyStepsTable as TallyOptimizationTable},
-    tally::{TallyDecryptShare, Crs, EncryptedTally, Tally,},
+    encrypted_vote::{EncryptedVote, ProofOfCorrectVote, Vote},
+    gang::BabyStepsTable as TallyOptimizationTable,
+    tally::{Crs, EncryptedTally, Tally, TallyDecryptShare},
 };

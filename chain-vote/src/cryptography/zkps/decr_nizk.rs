@@ -10,9 +10,10 @@
 //! `(e1, e2)`, and the message, `m`. The witness, on the other hand
 //! is the secret key, `sk`.
 #![allow(clippy::many_single_char_names)]
+use super::challenge_context::ChallengeContextProofDecrypt;
 use crate::cryptography::{Ciphertext, PublicKey, SecretKey};
 use crate::gang::{GroupElement, Scalar};
-use super::challenge_context::ChallengeContextProofDecrypt;
+use crate::error::CryptoError;
 use rand::{CryptoRng, RngCore};
 
 /// Proof of correct decryption.
@@ -42,7 +43,7 @@ impl ProofDecrypt {
     }
 
     /// Verify a decryption zero knowledge proof
-    pub fn verify(&self, c: &Ciphertext, m: &GroupElement, pk: &PublicKey) -> bool {
+    pub fn verify(&self, c: &Ciphertext, m: &GroupElement, pk: &PublicKey) -> Result<(), CryptoError> {
         let d = &c.e2 - m;
         let mut challenge = ChallengeContextProofDecrypt::new(pk, c, &d);
         let e = challenge.first_challenge(&self.a1, &self.a2);
@@ -52,7 +53,11 @@ impl ProofDecrypt {
         let c1z = &c.e1 * &self.z;
         let de = d * &e;
         let de_a2 = de + &self.a2;
-        gz == he_a1 && c1z == de_a2
+        if gz == he_a1 && c1z == de_a2 {
+            Ok(())
+        } else {
+            Err(CryptoError::DecryptionZkpError)
+        }
     }
 
     pub fn to_bytes(&self) -> [u8; Self::PROOF_SIZE] {
@@ -61,13 +66,16 @@ impl ProofDecrypt {
         output
     }
 
-    pub fn to_slice_mut(&self, output: &mut [u8]) {
-        assert_eq!(output.len(), Self::PROOF_SIZE);
+    pub fn to_slice_mut(&self, output: &mut [u8]) -> Option<()> {
+        if output.len() != Self::PROOF_SIZE {
+            return None;
+        }
         output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.a1.to_bytes());
         output[GroupElement::BYTES_LEN..(2 * GroupElement::BYTES_LEN)]
             .copy_from_slice(&self.a2.to_bytes());
         output[(2 * GroupElement::BYTES_LEN)..(2 * GroupElement::BYTES_LEN) + Scalar::BYTES_LEN]
             .copy_from_slice(&self.z.to_bytes());
+        Some(())
     }
 
     pub fn from_slice(slice: &[u8]) -> Option<Self> {
@@ -111,6 +119,6 @@ mod tests {
             &mut r,
         );
         let verified = proof.verify(&ciphertext, &plaintext, &keypair.public_key);
-        assert_eq!(verified, true);
+        assert!(verified.is_ok());
     }
 }

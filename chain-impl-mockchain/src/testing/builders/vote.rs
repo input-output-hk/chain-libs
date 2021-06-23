@@ -43,7 +43,9 @@ pub fn decrypt_tally(
                 .map(|member| member.secret_key())
                 .map(|secret_key| encrypted_tally.partial_decrypt(&mut thread_rng(), secret_key))
                 .collect::<Vec<_>>();
-            let validated_tally = encrypted_tally.validate_partial_decryptions(&members_pks, &decrypt_shares).expect("Invalid shares");
+            let validated_tally = encrypted_tally
+                .validate_partial_decryptions(&members_pks, &decrypt_shares)
+                .expect("Invalid shares");
             let tally = validated_tally.decrypt_tally(max_votes, &table).unwrap();
             DecryptedPrivateTallyProposal {
                 decrypt_shares: decrypt_shares.into_boxed_slice(),

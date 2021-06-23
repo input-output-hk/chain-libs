@@ -10,7 +10,7 @@ use crate::{
 };
 use chain_core::property::BlockDate as BlockDateProp;
 use chain_crypto::digest::DigestOf;
-use chain_vote::{Crs, Vote, ElectionPublicKey};
+use chain_vote::{Crs, ElectionPublicKey, Vote};
 use rand_core::{CryptoRng, RngCore};
 use typed_bytes::ByteBuilder;
 

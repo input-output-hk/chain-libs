@@ -156,6 +156,5 @@ pub(crate) fn generate_polys(
         pjs.push(acc)
     }
 
-    assert_eq!(pjs.len(), ciphers_len);
     pjs
 }

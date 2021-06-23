@@ -5,6 +5,7 @@ use std::convert::{TryFrom, TryInto as _};
 use std::hash::Hash;
 use thiserror::Error;
 use typed_bytes::{ByteArray, ByteBuilder};
+use chain_vote::error::CryptoError;
 
 /// the `PayloadType` to use for a vote plan
 ///
@@ -130,10 +131,10 @@ impl ProofOfCorrectVote {
     }
 
     pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        chain_vote::ProofOfCorrectVote::from_buffer(buf).map(Self)
+        chain_vote::ProofOfCorrectVote::from_buffer(buf).ok_or(ReadError)
     }
 
-    pub fn verify(&self, crs: &Crs, pk: &ElectionPublicKey, ciphertexts: &[Ciphertext]) -> bool {
+    pub fn verify(&self, crs: &Crs, pk: &ElectionPublicKey, ciphertexts: &[Ciphertext]) -> Result<(), CryptoError> {
         self.0.verify(crs, pk.as_raw(), ciphertexts)
     }
 }
@@ -208,9 +209,7 @@ mod tests {
 
     impl Arbitrary for Payload {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            use chain_vote::{
-                MemberCommunicationKey, MemberState, Vote,
-            };
+            use chain_vote::{MemberCommunicationKey, MemberState, Vote};
             use rand_core::SeedableRng;
 
             match PayloadType::arbitrary(g) {
