@@ -1,8 +1,6 @@
-use curve25519_dalek_ng::ristretto::RistrettoPoint;
-use curve25519_dalek_ng::scalar::Scalar;
-use sha2::{Digest, Sha512};
-
-type Point = RistrettoPoint;
+use crate::ec::{GroupElement, Scalar};
+use cryptoxide::blake2b::Blake2b;
+use cryptoxide::digest::Digest;
 
 /// Proof of discrete logarithm equivalence
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,8 +14,8 @@ const PROOF_SIZE: usize = 64; // Scalar is 32 bytes
 impl Proof {
     pub fn to_bytes(&self, output: &mut [u8]) {
         assert_eq!(output.len(), PROOF_SIZE);
-        output[0..32].copy_from_slice(self.c.0.as_bytes());
-        output[32..64].copy_from_slice(self.z.as_bytes());
+        output[0..32].copy_from_slice(&self.c.0.to_bytes());
+        output[32..64].copy_from_slice(&self.z.to_bytes());
     }
 
     pub fn from_bytes(slice: &[u8]) -> Option<Self> {
@@ -39,22 +37,22 @@ impl Proof {
 
 /// Parameters for DLEQ where g1^a = h1, h2^a = h2
 pub struct Dleq<'a> {
-    pub g1: &'a RistrettoPoint,
-    pub h1: &'a RistrettoPoint,
-    pub g2: &'a RistrettoPoint,
-    pub h2: &'a RistrettoPoint,
+    pub g1: &'a GroupElement,
+    pub h1: &'a GroupElement,
+    pub g2: &'a GroupElement,
+    pub h2: &'a GroupElement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Challenge(Scalar);
 
-fn challenge(h1: &Point, h2: &Point, a1: &Point, a2: &Point) -> Challenge {
-    let mut d = Sha512::new();
-    d.update(h1.compress().as_bytes());
-    d.update(h2.compress().as_bytes());
-    d.update(a1.compress().as_bytes());
-    d.update(a2.compress().as_bytes());
-    Challenge(Scalar::from_hash(d))
+fn challenge(h1: &GroupElement, h2: &GroupElement, a1: &GroupElement, a2: &GroupElement) -> Challenge {
+    let mut d = Blake2b::new(64);
+    d.input(&h1.to_bytes());
+    d.input(&h2.to_bytes());
+    d.input(&a1.to_bytes());
+    d.input(&a2.to_bytes());
+    Challenge(Scalar::hash_to_scalar(&d))
 }
 
 /// Generate a zero knowledge of discrete log equivalence
@@ -82,18 +80,15 @@ pub fn verify(dleq: &Dleq, proof: &Proof) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT;
-    use curve25519_dalek_ng::{ristretto::RistrettoPoint, scalar::Scalar};
     use rand_core::OsRng;
-    use sha2::Sha512;
 
-    use super::{generate, verify, Dleq};
+    use super::*;
 
     #[test]
     #[allow(non_snake_case)]
     pub fn it_works() {
-        let G = &RISTRETTO_BASEPOINT_POINT;
-        let H = RistrettoPoint::hash_from_bytes::<Sha512>(G.compress().as_bytes());
+        let G = &GroupElement::generator();
+        let H = GroupElement::from_hash(&G.to_bytes());
         let mut csprng: OsRng = OsRng;
 
         let a = Scalar::random(&mut csprng);

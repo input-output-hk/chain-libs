@@ -3,10 +3,7 @@
 //! defined in the Ouroboros Praos paper
 
 use crate::hash::Blake2b256;
-use curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT;
-use curve25519_dalek_ng::ristretto::CompressedRistretto;
-use curve25519_dalek_ng::ristretto::RistrettoPoint;
-pub use curve25519_dalek_ng::scalar::Scalar;
+use crate::ec::{GroupElement, Scalar};
 use rand_core::{CryptoRng, RngCore};
 use sha2::Digest;
 use sha2::Sha512;
@@ -15,13 +12,11 @@ use std::hash::{Hash, Hasher};
 use super::dleq;
 use crate::key::PublicKeyError;
 
-type Point = RistrettoPoint;
-
 /// VRF Secret Key
 #[derive(Clone)]
 pub struct SecretKey {
     secret: Scalar,
-    public: Point,
+    public: GroupElement,
 }
 
 impl AsRef<[u8]> for SecretKey {
@@ -32,7 +27,7 @@ impl AsRef<[u8]> for SecretKey {
 
 /// VRF Public Key
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PublicKey(Point, CompressedRistretto);
+pub struct PublicKey(GroupElement, [u8; PUBLIC_SIZE]);
 
 #[allow(clippy::derive_hash_xor_eq)]
 impl Hash for PublicKey {
@@ -50,7 +45,7 @@ impl AsRef<[u8]> for PublicKey {
 ///
 /// This is used to create an output generator tweaked by the VRF.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OutputSeed(Point);
+pub struct OutputSeed(GroupElement);
 
 /// VRF Proof of generation
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +62,7 @@ impl SecretKey {
     /// Create a new random secret key
     pub fn random<T: RngCore + CryptoRng>(mut rng: T) -> Self {
         let sk = Scalar::random(&mut rng);
-        let pk = RISTRETTO_BASEPOINT_POINT * sk;
+        let pk = GroupElement::generator() * sk;
         SecretKey {
             secret: sk,
             public: pk,
@@ -75,19 +70,19 @@ impl SecretKey {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.secret.as_bytes()
+        &self.secret.as_bytes()
     }
 
     /// Serialize the secret key in binary form
     pub fn to_bytes(&self) -> [u8; SECRET_SIZE] {
         let mut v = [0u8; SECRET_SIZE];
-        v.copy_from_slice(self.secret.as_bytes());
+        v.copy_from_slice(&self.secret.to_bytes());
         v
     }
 
     pub fn from_bytes(bytes: [u8; SECRET_SIZE]) -> Option<Self> {
         let sk = Scalar::from_canonical_bytes(bytes)?;
-        let pk = RISTRETTO_BASEPOINT_POINT * sk;
+        let pk = GroupElement::generator() * sk;
         Some(SecretKey {
             secret: sk,
             public: pk,
@@ -98,7 +93,7 @@ impl SecretKey {
     ///
     /// The following property hold between the return values:
     ///     Point * secret = OutputSeed
-    pub fn verifiable_output(&self, input: &[u8]) -> (Point, OutputSeed) {
+    pub fn verifiable_output(&self, input: &[u8]) -> (GroupElement, OutputSeed) {
         let m_point = make_message_hash_point(input);
         let u = m_point * self.secret;
         (m_point, OutputSeed(u))
@@ -110,9 +105,9 @@ impl SecretKey {
     /// use 'proove_simple' to use a RNG and avoid generating this random.
     ///
     /// use 'evaluate' or 'evaluate_simple' for creating the proof directly from input
-    pub fn proove(&self, r: &Scalar, m_point: Point, output: OutputSeed) -> ProvenOutputSeed {
+    pub fn proove(&self, r: &Scalar, m_point: GroupElement, output: OutputSeed) -> ProvenOutputSeed {
         let dleq = dleq::Dleq {
-            g1: &RISTRETTO_BASEPOINT_POINT,
+            g1: &GroupElement::generator(),
             h1: &self.public,
             g2: &m_point,
             h2: &output.0,
@@ -127,7 +122,7 @@ impl SecretKey {
     pub fn proove_simple<T: RngCore + CryptoRng>(
         &self,
         rng: &mut T,
-        m_point: Point,
+        m_point: GroupElement,
         output: OutputSeed,
     ) -> ProvenOutputSeed {
         let w = Scalar::random(rng);
@@ -154,7 +149,7 @@ impl SecretKey {
 
     /// Get the public key associated with a secret key
     pub fn public(&self) -> PublicKey {
-        PublicKey(self.public, self.public.compress())
+        PublicKey(self.public, self.public.to_bytes())
     }
 }
 
@@ -163,20 +158,20 @@ impl PublicKey {
         if input.len() != PUBLIC_SIZE {
             return Err(PublicKeyError::SizeInvalid);
         }
-        let ristretto = CompressedRistretto::from_slice(&input);
-        match ristretto.decompress() {
+        let ristretto = GroupElement::from_bytes(input);
+        match ristretto {
             None => Err(PublicKeyError::StructureInvalid),
-            Some(pk) => Ok(PublicKey(pk, ristretto)),
+            Some(pk) => Ok(PublicKey(pk, pk.to_bytes())),
         }
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.1.as_bytes()
+        &self.1
     }
 
     pub fn to_buffer(&self, output: &mut [u8]) {
         assert_eq!(output.len(), PUBLIC_SIZE);
-        output.copy_from_slice(self.0.compress().as_bytes())
+        output.copy_from_slice(&self.0.to_bytes())
     }
 }
 
@@ -184,7 +179,7 @@ impl ProvenOutputSeed {
     /// Verify a proof for a given public key and a data slice
     pub fn verify(&self, public_key: &PublicKey, input: &[u8]) -> bool {
         let dleq = dleq::Dleq {
-            g1: &RISTRETTO_BASEPOINT_POINT,
+            g1: &GroupElement::generator(),
             h1: &public_key.0,
             g2: &make_message_hash_point(input),
             h2: &self.u.0,
@@ -194,13 +189,13 @@ impl ProvenOutputSeed {
 
     pub fn to_buffer(&self, output: &mut [u8]) {
         assert_eq!(output.len(), PROOF_SIZE);
-        output[0..32].copy_from_slice(self.u.0.compress().as_bytes());
+        output[0..32].copy_from_slice(&self.u.0.to_bytes());
         self.dleq_proof.to_bytes(&mut output[32..96]);
     }
 
     pub fn bytes(&self) -> [u8; PROOF_SIZE] {
         let mut output = [0u8; PROOF_SIZE];
-        output[0..32].copy_from_slice(self.u.0.compress().as_bytes());
+        output[0..32].copy_from_slice(&self.u.0.to_bytes());
         self.dleq_proof.to_bytes(&mut output[32..96]);
         output
     }
@@ -209,7 +204,7 @@ impl ProvenOutputSeed {
         if bytes.len() != PROOF_SIZE {
             return None;
         }
-        let u = CompressedRistretto::from_slice(&bytes[0..32]).decompress()?;
+        let u = GroupElement::from_bytes(&bytes[0..32])?;
         let proof = dleq::Proof::from_bytes(&bytes[32..])?;
         Some(ProvenOutputSeed {
             u: OutputSeed(u),
@@ -244,20 +239,20 @@ impl OutputSeed {
     pub fn to_output(&self, input: &[u8], suffix: &[u8]) -> Blake2b256 {
         let mut buf = Vec::new();
         buf.extend_from_slice(input);
-        buf.extend_from_slice(self.0.compress().as_bytes());
+        buf.extend_from_slice(&self.0.to_bytes());
         buf.extend_from_slice(suffix);
 
         Blake2b256::new(&buf)
     }
 }
 
-fn make_message_hash_point(data: &[u8]) -> Point {
+fn make_message_hash_point(data: &[u8]) -> GroupElement {
     let m_hash = {
         let mut c = Sha512::new();
         c.update(data);
         c
     };
-    Point::from_hash(m_hash)
+    GroupElement::from_hash(&m_hash.finalize())
 }
 
 #[cfg(test)]
