@@ -5,10 +5,10 @@
 //! * chacha20poly1305 for symmetric encryption algorithm
 //!
 #![allow(clippy::op_ref)] // This needs to be here because the points of sec2 backend do not implement Copy
+use crate::ec::{GroupElement, Scalar};
 use cryptoxide::chacha20poly1305::ChaCha20Poly1305;
 use cryptoxide::hkdf::hkdf_expand;
 use cryptoxide::sha2;
-use crate::ec::{GroupElement, Scalar};
 use rand_core::{CryptoRng, RngCore};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,13 +20,21 @@ pub enum DecryptionError {
 
 fn shared_key_to_symmetric_key(app_level_info: &[u8], p: &GroupElement) -> ChaCha20Poly1305 {
     // use the compressed point as PRK directly
-    let prk = p.to_bytes();
-    let mut symkey = [0u8; 32 + 12];
-    hkdf_expand(sha2::Sha256::new(), &prk, app_level_info, &mut symkey);
-    ChaCha20Poly1305::new(&symkey[0..32], &symkey[32..], &[])
+    #[cfg(feature = "ristretto255")]
+    let prk = &p.to_bytes();
+    // if we work with sec2 curves, we use only the x coordinate as a key
+    #[cfg(not(feature = "ristretto255"))]
+    let prk = &p.to_bytes()[1..33];
+    let mut symkey = [0u8; GroupElement::HASHMAP_BYTES_LEN + 12];
+    hkdf_expand(sha2::Sha256::new(), prk, app_level_info, &mut symkey);
+    ChaCha20Poly1305::new(
+        &symkey[0..GroupElement::HASHMAP_BYTES_LEN],
+        &symkey[GroupElement::HASHMAP_BYTES_LEN..],
+        &[],
+    )
 }
 
-const SCHEME_OVERHEAD: usize = 48; // 32 bytes of public key + 16 bytes of tag
+const SCHEME_OVERHEAD: usize = GroupElement::BYTES_LEN + 16; // 16 bytes of tag
 
 /// Encrypt data in an assymetric lock
 ///
@@ -51,9 +59,9 @@ pub fn encrypt<R: RngCore + CryptoRng>(
 
     // encrypt the data with the context
     let mut out = vec![0u8; data.len() + SCHEME_OVERHEAD];
-    out[0..32].copy_from_slice(&pk.to_bytes());
-    let (pk_and_encrypted, tag) = out.split_at_mut(32 + data.len());
-    context.encrypt(data, &mut pk_and_encrypted[32..], tag);
+    out[0..GroupElement::BYTES_LEN].copy_from_slice(&pk.to_bytes());
+    let (pk_and_encrypted, tag) = out.split_at_mut(GroupElement::BYTES_LEN + data.len());
+    context.encrypt(data, &mut pk_and_encrypted[GroupElement::BYTES_LEN..], tag);
     out
 }
 
@@ -87,8 +95,8 @@ pub fn decrypt(
     }
     assert_eq!(data.len() - SCHEME_OVERHEAD, out.len());
 
-    let pk_data = &data[0..32];
-    let payload = &data[32..data.len() - 16];
+    let pk_data = &data[0..GroupElement::BYTES_LEN];
+    let payload = &data[GroupElement::BYTES_LEN..data.len() - 16];
     let tag = &data[data.len() - 16..];
 
     let pk = GroupElement::from_bytes(pk_data);

@@ -104,7 +104,7 @@ impl GroupElement {
         self.0.normalize()
     }
 
-    pub(super) fn compress(&self) -> Option<(Coordinate, Sign)> {
+    pub(crate) fn compress(&self) -> Option<(Coordinate, Sign)> {
         self.0.to_affine().map(|p| {
             let (x, sign) = p.compress();
             (Coordinate(x.clone()), Sign(sign))
@@ -179,10 +179,6 @@ impl Scalar {
 
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         self.0.to_bytes()
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0.to_bytes()
     }
 
     pub fn from_bytes(slice: &[u8]) -> Option<Self> {
@@ -396,6 +392,14 @@ mod test {
     use super::*;
 
     #[test]
+    fn from_bytes_overflowing() {
+        let element = [255u8; 32];
+
+        let try_group_element = GroupElement::from_bytes(&element);
+
+        assert!(try_group_element.is_none())
+    }
+    #[test]
     fn from_hash() {
         let element = GroupElement::from_hash(&[1u8]);
 
@@ -406,6 +410,6 @@ mod test {
             172, 181, 134, 49, 239, 108, 91, 149, 243, 218,
         ])
         .expect("This point is on the curve");
-        assert_eq!(element, element2)
+        assert_eq!(element, element2);
     }
 }

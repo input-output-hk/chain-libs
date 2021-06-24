@@ -10,7 +10,7 @@
 //! * 1 byte of magic set to 0x12
 //! * 1 byte of magic set to 0x34
 //! * 1 byte from the number of participants
-//! * ephemeral public key: 32 bytes
+//! * ephemeral public key: base GroupElement size bytes
 //! * recipient data (number of participants time) where each recipient is:
 //!   * recipient public key
 //!   * session key
@@ -21,10 +21,10 @@
 //! the data encrypted with a ephemeral public key in prefix and
 //! the poly1305 tag in suffix.
 #![allow(clippy::op_ref)] // This needs to be here because the points of sec2 backend do not implement Copy
+use crate::ec::{GroupElement, Scalar};
 use cryptoxide::chacha20poly1305::ChaCha20Poly1305;
 use cryptoxide::hkdf::hkdf_expand;
 use cryptoxide::sha2;
-use crate::ec::{GroupElement, Scalar};
 use rand_core::{CryptoRng, RngCore};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,9 +46,9 @@ fn shared_key_to_symmetric_key(app_level_info: &[u8], prk: &[u8]) -> ChaCha20Pol
 }
 
 const HEADER_SIZE: usize = 4;
-const EPHEMERAL_PK_SIZE: usize = 32;
+const EPHEMERAL_PK_SIZE: usize = GroupElement::BYTES_LEN;
 const TAG_SIZE: usize = 16;
-const RECIPIENT_KEY_SIZE: usize = 32;
+const RECIPIENT_KEY_SIZE: usize = GroupElement::BYTES_LEN;
 const SESSION_KEY_SIZE: usize = 16;
 
 // version 1 padding
@@ -83,7 +83,7 @@ const fn prefix_size(participants: usize) -> usize {
 }
 
 const fn scheme_overhead(participants: usize) -> usize {
-    // 32 bytes for each public keys and 16 bytes for each session keys + 16 bytes of tag
+    // base GroupElement size bytes for each public keys and 16 bytes for each session keys + 16 bytes of tag
     prefix_size(participants) + TAG_SIZE
 }
 
@@ -181,15 +181,14 @@ pub fn decrypt(
         }
     };
 
-    let pk_data = &data[4..36];
+    let pk_data = &data[4..GroupElement::BYTES_LEN + 4];
     let pk = GroupElement::from_bytes(pk_data);
     let shared = sk * pk.ok_or(DecryptionError::PointInvalid)?;
     let mut session_key = [0u8; 16];
-    for (o, (x1, x2)) in session_key.iter_mut().zip(
-        recipient_key
-            .iter()
-            .zip(shared.to_bytes().iter()),
-    ) {
+    for (o, (x1, x2)) in session_key
+        .iter_mut()
+        .zip(recipient_key.iter().zip(shared.to_bytes().iter()))
+    {
         *o = x1 ^ x2
     }
 
@@ -265,7 +264,7 @@ mod test {
         let encrypted = encrypt(&mut r, app_info, &participant_pks, msg);
         for (i, sk) in participants.iter().enumerate() {
             let mut out = vec![0; msg.len()];
-            //let pk = RISTRETTO_BASEPOINT_POINT * sk;
+            //let pk = BASEPOINT_POINT * sk;
             decrypt(app_info, &sk, &encrypted, &mut out).unwrap();
             assert_eq!(out, msg, "cannot decrypt for participant {}", i);
         }

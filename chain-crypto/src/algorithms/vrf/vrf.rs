@@ -15,6 +15,7 @@ use crate::key::PublicKeyError;
 pub struct SecretKey {
     secret: Scalar,
     public: GroupElement,
+    bytes: [u8; Scalar::BYTES_LEN],
 }
 
 impl AsRef<[u8]> for SecretKey {
@@ -63,13 +64,14 @@ impl SecretKey {
         let sk = Scalar::random(&mut rng);
         let pk = GroupElement::generator() * &sk;
         SecretKey {
-            secret: sk,
+            secret: sk.clone(),
             public: pk,
+            bytes: sk.to_bytes(),
         }
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.secret.as_bytes()
+        &self.bytes
     }
 
     /// Serialize the secret key in binary form
@@ -85,6 +87,7 @@ impl SecretKey {
         Some(SecretKey {
             secret: sk,
             public: pk,
+            bytes,
         })
     }
 

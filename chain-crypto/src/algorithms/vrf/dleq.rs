@@ -9,7 +9,6 @@ pub struct Proof {
     z: Scalar,
 }
 
-
 impl Proof {
     pub const PROOF_SIZE: usize = Scalar::BYTES_LEN * 2;
 

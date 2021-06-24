@@ -49,11 +49,11 @@ impl GroupElement {
         GroupElement(Point::identity())
     }
 
-    pub(super) fn compress(&self) -> CompressedRistretto {
+    pub(crate) fn compress(&self) -> CompressedRistretto {
         self.0.compress()
     }
 
-    pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
+    pub fn to_bytes(self) -> [u8; Self::BYTES_LEN] {
         self.compress().to_bytes()
     }
 
@@ -121,7 +121,7 @@ impl Scalar {
         self.0 += IScalar::one()
     }
 
-    pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
+    pub fn to_bytes(self) -> [u8; Self::BYTES_LEN] {
         self.0.to_bytes()
     }
 
