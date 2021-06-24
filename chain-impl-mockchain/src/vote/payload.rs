@@ -1,11 +1,10 @@
 use crate::vote::Choice;
 use chain_core::mempack::{ReadBuf, ReadError};
-use chain_vote::{Ciphertext, Crs, ElectionPublicKey};
+use chain_vote::{Ciphertext,};
 use std::convert::{TryFrom, TryInto as _};
 use std::hash::Hash;
 use thiserror::Error;
 use typed_bytes::{ByteArray, ByteBuilder};
-use chain_vote::error::CryptoError;
 
 /// the `PayloadType` to use for a vote plan
 ///
@@ -131,11 +130,7 @@ impl ProofOfCorrectVote {
     }
 
     pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        chain_vote::ProofOfCorrectVote::from_buffer(buf).ok_or(ReadError)
-    }
-
-    pub fn verify(&self, crs: &Crs, pk: &ElectionPublicKey, ciphertexts: &[Ciphertext]) -> Result<(), CryptoError> {
-        self.0.verify(crs, pk.as_raw(), ciphertexts)
+        chain_vote::ProofOfCorrectVote::from_buffer(buf).map(Self)
     }
 }
 
@@ -196,6 +191,7 @@ impl Default for PayloadType {
 mod tests {
     use super::*;
     use quickcheck::{Arbitrary, Gen};
+    use chain_vote::{Crs, ElectionPublicKey};
 
     impl Arbitrary for PayloadType {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {

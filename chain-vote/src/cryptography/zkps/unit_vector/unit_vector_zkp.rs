@@ -10,7 +10,7 @@ use rand_core::{CryptoRng, RngCore};
 #[cfg(feature = "ristretto255")]
 use {rand::thread_rng, std::iter};
 
-use super::challenge_context::ChallengeContextUnitVectorZkp;
+use super::challenge_context::ChallengeContext;
 use super::messages::{generate_polys, Announcement, BlindingRandomness, ResponseRandomness};
 use crate::cryptography::CommitmentKey;
 #[cfg(not(feature = "ristretto255"))]
@@ -19,10 +19,9 @@ use crate::cryptography::{Ciphertext, PublicKey};
 use crate::encrypted_vote::{binrep, Ptp, UnitVector};
 use crate::gang::{GroupElement, Scalar};
 use crate::tally::Crs;
-use crate::error::CryptoError;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct UnitVectorZkp {
+pub struct Zkp {
     /// Commitment to the proof randomness and bits of binary representaion of `i`
     ibas: Vec<Announcement>,
     /// Encryption to the polynomial coefficients used in the proof
@@ -34,7 +33,7 @@ pub struct UnitVectorZkp {
 }
 
 #[allow(clippy::len_without_is_empty)]
-impl UnitVectorZkp {
+impl Zkp {
     /// Generate a unit vector proof. In this proof, a prover encrypts each entry of a
     /// vector `unit_vector`, and proves
     /// that the vector is a unit vector. In particular, it proves that it is the `i`th unit
@@ -52,7 +51,7 @@ impl UnitVectorZkp {
         crs: &Crs,
         public_key: &PublicKey,
         unit_vector: &UnitVector,
-        encryption_randomness: &[Scalar],
+        encryption_randomness: &Vec<Scalar>,
         ciphertexts: &[Ciphertext],
     ) -> Self {
         let ck = CommitmentKey::from(crs.clone());
@@ -73,7 +72,7 @@ impl UnitVectorZkp {
         }
 
         // Generate First verifier challenge
-        let mut cc = ChallengeContextUnitVectorZkp::new(&ck, public_key, ciphers.as_ref());
+        let mut cc = ChallengeContext::new(&ck, public_key, ciphers.as_ref());
         let cy = cc.first_challenge(&first_announcement_vec);
 
         let (poly_coeff_enc, rs) = {
@@ -134,7 +133,7 @@ impl UnitVectorZkp {
             p1 + p2
         };
 
-        UnitVectorZkp {
+        Zkp {
             ibas: first_announcement_vec,
             ds: poly_coeff_enc,
             zwvs: randomness_response_vec,
@@ -149,20 +148,20 @@ impl UnitVectorZkp {
     /// C_0=Enc_pk(r_0; v_0), ..., C_{m-1}=Enc_pk(r_{m-1}; v_{m-1})
     ///
     /// Description of the verification procedure available in Figure 9.
-    pub fn verify(&self, crs: &Crs, public_key: &PublicKey, ciphertexts: &[Ciphertext]) -> Result<(), CryptoError> {
+    pub fn verify(&self, crs: &Crs, public_key: &PublicKey, ciphertexts: &[Ciphertext]) -> bool {
         let ck = CommitmentKey::from(crs.clone());
         let ciphertexts = Ptp::new(ciphertexts.to_vec(), Ciphertext::zero);
         let bits = ciphertexts.bits();
-        let mut cc = ChallengeContextUnitVectorZkp::new(&ck, public_key, ciphertexts.as_ref());
+        let mut cc = ChallengeContext::new(&ck, public_key, ciphertexts.as_ref());
         let cy = cc.first_challenge(&self.ibas);
         let cx = cc.second_challenge(&self.ds);
 
         if self.ibas.len() != bits {
-            CryptoError::InvalidCiphertextSize(self.ibas.len(), bits);
+            return false;
         }
 
         if self.zwvs.len() != bits {
-            CryptoError::InvalidCiphertextSize(self.zwvs.len(), bits);
+            return false;
         }
 
         self.verify_statements(public_key, &ck, &ciphertexts, &cx, &cy)
@@ -178,7 +177,7 @@ impl UnitVectorZkp {
         ciphertexts: &Ptp<Ciphertext>,
         challenge_x: &Scalar,
         challenge_y: &Scalar,
-    ) -> Result<(), CryptoError> {
+    ) -> bool {
         let bits = ciphertexts.bits();
         let length = ciphertexts.len();
         let cx_pow = challenge_x.power(bits);
@@ -209,7 +208,7 @@ impl UnitVectorZkp {
                     .chain(iter::once(iba.a)),
             ) != GroupElement::zero()
             {
-                Err(CryptoError::UnitVectorZkpError)
+                return false;
             }
         }
 
@@ -234,12 +233,7 @@ impl UnitVectorZkp {
                 .chain(iter::once(zero.e2)),
         );
 
-        if mega_check == GroupElement::zero() {
-            Ok(())
-        } else {
-            Err(CryptoError::UnitVectorZkpError)
-        }
-
+        mega_check == GroupElement::zero()
     }
 
     /// Final verification of the proof. We do not use the multiscalar optimisation when using sec2 curves.
@@ -251,7 +245,7 @@ impl UnitVectorZkp {
         ciphertexts: &Ptp<Ciphertext>,
         challenge_x: &Scalar,
         challenge_y: &Scalar,
-    ) -> Result<(), CryptoError> {
+    ) -> bool {
         // check commitments are 0 / 1
         for (iba, zwv) in self.ibas.iter().zip(self.zwvs.iter()) {
             if !commitment_key.verify(
@@ -261,7 +255,7 @@ impl UnitVectorZkp {
                     r: zwv.w.clone(),
                 },
             ) {
-                return Err(CryptoError::UnitVectorZkpError);
+                return false;
             }
 
             if !commitment_key.verify(
@@ -271,7 +265,7 @@ impl UnitVectorZkp {
                     r: zwv.v.clone(),
                 },
             ) {
-                return Err(CryptoError::UnitVectorZkpError);
+                return false;
             }
         }
 
@@ -301,29 +295,24 @@ impl UnitVectorZkp {
 
         let zero = public_key.encrypt_with_r(&Scalar::zero(), self.r());
 
-        if &p1 + &dsum - zero == Ciphertext::zero() {
-            Ok(())
-        } else {
-            return Err(CryptoError::UnitVectorZkpError);
-        }
-
+        &p1 + &dsum - zero == Ciphertext::zero()
     }
 
     /// Try to generate a `Proof` from a buffer
-    pub fn from_buffer(buf: &mut ReadBuf) -> Result<Self, CryptoError> {
+    pub fn from_buffer(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let bits = buf.get_u8()? as usize;
         let mut ibas = Vec::with_capacity(bits);
         for _ in 0..bits {
             let elem_buf = buf.get_slice(Announcement::BYTES_LEN)?;
             let iba = Announcement::from_bytes(elem_buf)
-                .ok_or_else(|| CryptoError::InvalidByteStructure("Invalid IBA component".to_string()))?;
+                .ok_or_else(|| ReadError::StructureInvalid("Invalid IBA component".to_string()))?;
             ibas.push(iba);
         }
         let mut bs = Vec::with_capacity(bits);
         for _ in 0..bits {
             let elem_buf = buf.get_slice(Ciphertext::BYTES_LEN)?;
             let ciphertext = Ciphertext::from_bytes(elem_buf).ok_or_else(|| {
-                CryptoError::InvalidByteStructure("Invalid encoded ciphertext".to_string())
+                ReadError::StructureInvalid("Invalid encoded ciphertext".to_string())
             })?;
             bs.push(ciphertext);
         }
@@ -331,15 +320,15 @@ impl UnitVectorZkp {
         for _ in 0..bits {
             let elem_buf = buf.get_slice(ResponseRandomness::BYTES_LEN)?;
             let zwv = ResponseRandomness::from_bytes(elem_buf)
-                .ok_or_else(|| CryptoError::InvalidByteStructure("Invalid ZWV component".to_string()))?;
+                .ok_or_else(|| ReadError::StructureInvalid("Invalid ZWV component".to_string()))?;
             zwvs.push(zwv);
         }
         let r_buf = buf.get_slice(Scalar::BYTES_LEN)?;
         let r = Scalar::from_bytes(r_buf).ok_or_else(|| {
-            CryptoError::InvalidByteStructure("Invalid Proof encoded R scalar".to_string())
+            ReadError::StructureInvalid("Invalid Proof encoded R scalar".to_string())
         })?;
 
-        Ok(Self::from_parts(ibas, bs, zwvs, r)?)
+        Ok(Self::from_parts(ibas, bs, zwvs, r))
     }
 
     /// Constructs the proof structure from constituent parts.
@@ -352,11 +341,10 @@ impl UnitVectorZkp {
         ds: Vec<Ciphertext>,
         zwvs: Vec<ResponseRandomness>,
         r: Scalar,
-    ) -> Result<Self, CryptoError> {
-        if ibas.len() != ds.len() || ibas.len() != zwvs.len() {
-            return Err(CryptoError::InvalidPartsSizeUnitVectorZkp);
-        }
-        Ok(UnitVectorZkp { ibas, ds, zwvs, r })
+    ) -> Self {
+        assert_eq!(ibas.len(), ds.len());
+        assert_eq!(ibas.len(), zwvs.len());
+        Zkp { ibas, ds, zwvs, r }
     }
 
     /// Returns the length of the size of the witness vector
@@ -464,7 +452,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = UnitVectorZkp::generate(
+        let proof = Zkp::generate(
             &mut r,
             &crs,
             &public_key,
@@ -472,7 +460,7 @@ mod tests {
             &encryption_randomness,
             &ciphertexts,
         );
-        assert!(proof.verify(&crs, &public_key, &ciphertexts).is_ok())
+        assert!(proof.verify(&crs, &public_key, &ciphertexts))
     }
 
     #[test]
@@ -493,7 +481,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = UnitVectorZkp::generate(
+        let proof = Zkp::generate(
             &mut r,
             &crs,
             &public_key,
@@ -501,7 +489,7 @@ mod tests {
             &encryption_randomness,
             &ciphertexts,
         );
-        assert!(proof.verify(&crs, &public_key, &ciphertexts).is_ok())
+        assert!(proof.verify(&crs, &public_key, &ciphertexts))
     }
 
     #[test]
@@ -522,7 +510,7 @@ mod tests {
             b"Example of a shared string. This could be the latest block hash".to_owned();
         let crs = Crs::from_hash(&mut shared_string);
 
-        let proof = UnitVectorZkp::generate(
+        let proof = Zkp::generate(
             &mut r,
             &crs,
             &public_key,
@@ -538,7 +526,7 @@ mod tests {
             Ciphertext::zero(),
             Ciphertext::zero(),
         ];
-        assert!(proof.verify(&crs, &public_key, &fake_encryption).is_err())
+        assert!(!proof.verify(&crs, &public_key, &fake_encryption))
     }
 
     #[test]
@@ -558,7 +546,7 @@ mod tests {
         let crs = GroupElement::from_hash(&[0u8]);
         let ck = CommitmentKey::from(crs.clone());
 
-        let proof = UnitVectorZkp::generate(
+        let proof = Zkp::generate(
             &mut r,
             &crs,
             &public_key,
@@ -567,12 +555,12 @@ mod tests {
             &ciphertexts,
         );
 
-        let mut cc1 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
+        let mut cc1 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
         let cy1 = cc1.first_challenge(&proof.ibas);
         let cx1 = cc1.second_challenge(&proof.ds);
 
         // if we set up a new challenge context, the results should be equal
-        let mut cc2 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
+        let mut cc2 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
         let cy2 = cc2.first_challenge(&proof.ibas);
         let cx2 = cc2.second_challenge(&proof.ds);
 
@@ -582,7 +570,7 @@ mod tests {
         // if we set up a new challenge with incorrect initialisation, results should differ
         let crs_diff = GroupElement::from_hash(&[1u8]);
         let ck_diff = CommitmentKey::from(crs_diff.clone());
-        let mut cc3 = ChallengeContextUnitVectorZkp::new(&ck_diff, &public_key, &ciphertexts);
+        let mut cc3 = ChallengeContext::new(&ck_diff, &public_key, &ciphertexts);
         let cy3 = cc3.first_challenge(&proof.ibas);
         let cx3 = cc3.second_challenge(&proof.ds);
 
@@ -590,7 +578,7 @@ mod tests {
         assert_ne!(cx1, cx3);
 
         // if we generate a new challenge with different IBAs, but same Ds, both results should differ
-        let proof_diff = UnitVectorZkp::generate(
+        let proof_diff = Zkp::generate(
             &mut r,
             &crs,
             &public_key,
@@ -598,7 +586,7 @@ mod tests {
             &encryption_randomness,
             &ciphertexts,
         );
-        let mut cc4 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
+        let mut cc4 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
         let cy4 = cc4.first_challenge(&proof_diff.ibas);
         let cx4 = cc4.second_challenge(&proof.ds);
 
@@ -606,7 +594,7 @@ mod tests {
         assert_ne!(cx1, cx4);
 
         // if we generate a challenge with different Ds, only the second scalar should differ
-        let mut cc5 = ChallengeContextUnitVectorZkp::new(&ck, &public_key, &ciphertexts);
+        let mut cc5 = ChallengeContext::new(&ck, &public_key, &ciphertexts);
         let cy5 = cc5.first_challenge(&proof.ibas);
         let cx5 = cc5.second_challenge(&proof_diff.ds);
 

@@ -1,4 +1,4 @@
-use crate::cryptography::{Ciphertext, HybridCiphertext, PublicKey, SecretKey, UnitVectorZkp};
+use crate::cryptography::{Ciphertext, HybridCiphertext, PublicKey, SecretKey};
 use crate::encrypted_vote::{EncryptedVote, ProofOfCorrectVote, Vote};
 use crate::gang::{GroupElement, Scalar};
 use crate::math::Polynomial;
@@ -44,7 +44,7 @@ impl ElectionPublicKey {
             .map(|(r, v)| self.as_raw().encrypt_with_r(&Scalar::from(v), r))
             .collect();
 
-        let proof = UnitVectorZkp::generate(
+        let proof = ProofOfCorrectVote::generate(
             rng,
             &crs,
             &self.0,
@@ -67,10 +67,7 @@ pub struct MemberState {
 }
 
 impl MemberState {
-    /// Generate a new member state from random, where the thresholds `t` needs to be
-    /// greater than zero and smaller or equal than the number of committee members,
-    /// `committee_pks.len()`. The committee initiating the `MemberState` must have an
-    /// index `my` smaller than the total number of committee members.
+    /// Generate a new member state from random, where the number
     pub fn new<R: RngCore + CryptoRng>(
         rng: &mut R,
         t: usize,
@@ -115,6 +112,10 @@ impl MemberState {
                 encrypted.push((ecomm, eshek));
             }
         }
+
+        assert_eq!(apubs.len(), t + 1);
+        assert_eq!(es.len(), t + 1);
+        assert_eq!(encrypted.len(), n - 1);
 
         MemberState {
             sk: MemberSecretKey(SecretKey {

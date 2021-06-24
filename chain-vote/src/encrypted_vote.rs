@@ -1,6 +1,8 @@
 use crate::cryptography::{Ciphertext, UnitVectorZkp};
 use crate::gang::Scalar;
-
+use crate::{Crs, ElectionPublicKey};
+use cryptoxide::blake2b::Blake2b;
+use cryptoxide::digest::Digest;
 /// A vote is represented by a standard basis unit vector of an N dimensional space
 ///
 /// Effectively each possible vote is represented by an axis, where the actual voted option
@@ -18,9 +20,38 @@ pub type EncryptedVote = Vec<Ciphertext>;
 /// the `EncryptedVote` is indeed a unit vector, and contains a vote for a single candidate.
 pub type ProofOfCorrectVote = UnitVectorZkp;
 
-/// Submitted ballot, which consits of an `EncryptedVote` and a proof of correct encryption
-/// `UnitVectorZkp`.
-pub type SubmittedBallot = (EncryptedVote, ProofOfCorrectVote);
+/// Submitted ballot, which contains an always verified vote.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct Ballot {
+    pub vote: EncryptedVote,
+    // to verify that crs and election pk are correct
+    pub fingerprint: [u8; 32],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("Invalid vote proof")]
+pub struct BallotVerificationError;
+
+impl Ballot {
+    pub fn try_from_vote_and_proof(
+        vote: EncryptedVote,
+        proof: ProofOfCorrectVote,
+        crs: &Crs,
+        pk: &ElectionPublicKey,
+    ) -> Result<Self, BallotVerificationError> {
+        if !proof.verify(crs, &pk.0, &vote) {
+            return Err(BallotVerificationError);
+        }
+
+        let mut hash = Blake2b::new(32);
+        hash.input(&crs.to_bytes());
+        hash.input(&pk.to_bytes());
+        let mut fingerprint = [0; 32];
+        hash.result(&mut fingerprint);
+
+        Ok(Self { vote, fingerprint })
+    }
+}
 
 /// To achieve logarithmic communication complexity in the unit_vector ZKP, we represent
 /// votes as Power of Two Padded vector structures.

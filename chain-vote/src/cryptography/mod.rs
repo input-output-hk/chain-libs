@@ -5,7 +5,7 @@ mod zkps;
 pub(crate) use self::{
     commitment::{CommitmentKey, Open},
     elgamal::{HybridCiphertext, Keypair, PublicKey, SecretKey},
-    zkps::{ProofDecrypt, UnitVectorZkp},
+    zkps::{DleqZkp, UnitVectorZkp},
 };
 
 pub use self::elgamal::Ciphertext;

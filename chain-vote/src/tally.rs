@@ -1,15 +1,20 @@
-use crate::cryptography::PublicKey;
 use crate::{
     committee::*,
-    cryptography::{Ciphertext, ProofDecrypt},
-    encrypted_vote::SubmittedBallot,
-    error::TallyError,
+    cryptography::{Ciphertext, DleqZkp},
+    encrypted_vote::Ballot,
     gang::{baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement},
 };
+use cryptoxide::blake2b::Blake2b;
+use cryptoxide::digest::Digest;
 use rand_core::{CryptoRng, RngCore};
 
 /// Secret key for opening vote
 pub type OpeningVoteKey = MemberSecretKey;
+
+/// A proof of correct decryption share consists of a dleq zkp, where the committee member proves
+/// that the `DecryptionShare` is honestly derived from the `EncryptedTally` and the committee private
+/// key correspondig to its public key without disclosing it.
+pub type ProofOfCorrectShare = DleqZkp;
 
 /// Submitted vote, which constists of an `EncryptedVote` and a `
 /// Common Reference String
@@ -19,8 +24,7 @@ pub type Crs = GroupElement;
 /// `crs`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncryptedTally {
-    election_pk: ElectionPublicKey,
-    crs: Crs,
+    fingerprint: [u8; 32],
     r: Vec<Ciphertext>,
 }
 
@@ -35,7 +39,7 @@ pub struct ValidatedTally {
     decrypt_shares: Vec<TallyDecryptShare>,
 }
 
-/// `TallyDecryptShare` contains one `ProvenDecryptShare` per existing option. All committee
+/// `TallyDecryptShare` contains one decryption share per existing option. All committee
 /// members (todo: this will change once DKG is completed)
 /// need to submit a `TallyDecryptShare` in order to successfully decrypt
 /// the `EncryptedTally`.
@@ -44,12 +48,12 @@ pub struct TallyDecryptShare {
     elements: Vec<ProvenDecryptShare>,
 }
 
-/// `ProvenDecryptShare` consists of a group element (the partial decryption), and `ProofDecrypt`,
-/// a proof of correct decryption.
+// `ProvenDecryptShare` consists of a group element (the partial decryption), and `ProofOfCorrectShare`,
+// a proof of correct decryption.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct ProvenDecryptShare {
+struct ProvenDecryptShare {
     r1: GroupElement,
-    pi: ProofDecrypt,
+    pi: ProofOfCorrectShare,
 }
 
 /// `Tally` represents the decrypted tally, with one `u64` result for each of the options of the
@@ -59,17 +63,26 @@ pub struct Tally {
     pub votes: Vec<u64>,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("invalid data for private tally")]
+pub struct TallyError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("Incorrect decryption shares")]
+pub struct DecryptionError;
+
 impl EncryptedTally {
     /// Initialise a new tally with N different options. The `EncryptedTally` is computed using
     /// the additive homomorphic property of the elgamal `Ciphertext`s, and is therefore initialised
     /// with zero ciphertexts.
     pub fn new(options: usize, election_pk: &ElectionPublicKey, crs: &Crs) -> Self {
         let r = vec![Ciphertext::zero(); options];
-        EncryptedTally {
-            r,
-            election_pk: election_pk.clone(),
-            crs: crs.clone(),
-        }
+        let mut hash = Blake2b::new(32);
+        hash.input(&crs.to_bytes());
+        hash.input(&election_pk.to_bytes());
+        let mut fingerprint = [0; 32];
+        hash.result(&mut fingerprint);
+        EncryptedTally { r, fingerprint }
     }
 
     /// Add a submitted `ballot`, with a specific `weight` to the tally, if
@@ -79,19 +92,12 @@ impl EncryptedTally {
     /// Note that the encrypted vote needs to have the exact same number of
     /// options as the initialised tally, otherwise an assert will trigger.
     #[allow(clippy::ptr_arg)]
-    pub fn add(&mut self, ballot: &SubmittedBallot, weight: u64) -> Result<(), TallyError> {
-        let (vote, proof) = ballot;
-        proof.verify(&self.crs, &self.election_pk.0, vote)?;
-
-        if vote.len() != self.r.len() {
-            return Err(TallyError::InvalidNewVoteSize);
-        }
-
-        for (ri, ci) in self.r.iter_mut().zip(vote.iter()) {
+    pub fn add(&mut self, ballot: &Ballot, weight: u64) {
+        assert_eq!(ballot.fingerprint, self.fingerprint);
+        assert_eq!(ballot.vote.len(), self.r.len());
+        for (ri, ci) in self.r.iter_mut().zip(ballot.vote.iter()) {
             *ri = &*ri + &(ci * weight);
         }
-
-        Ok(())
     }
 
     /// Given a single committee member's `secret_key`, returns a partial decryption of
@@ -107,7 +113,7 @@ impl EncryptedTally {
             // todo: we are decrypting twice, we can probably improve this
             let decrypted_share = &r.e1 * &secret_key.0.sk;
             let pk = MemberPublicKey::from(secret_key);
-            let proof = ProofDecrypt::generate(&r, &pk.0, &secret_key.0, rng);
+            let proof = ProofOfCorrectShare::generate(&r, &pk.0, &secret_key.0, rng);
             dshares.push(ProvenDecryptShare {
                 r1: decrypted_share,
                 pi: proof,
@@ -118,14 +124,16 @@ impl EncryptedTally {
     }
 
     /// Given the members `pks`, and their corresponding `decrypte_shares`, this function validates
-    /// the different shares, and returns a `ValidatedTally`, or a `TallyError`.
+    /// the different shares, and returns a `ValidatedTally`, or a `DecryptionError`.
     pub fn validate_partial_decryptions(
         &self,
         pks: &[MemberPublicKey],
         decrypt_shares: &[TallyDecryptShare],
-    ) -> Result<ValidatedTally, TallyError> {
+    ) -> Result<ValidatedTally, DecryptionError> {
         for (pk, decrypt_share) in pks.iter().zip(decrypt_shares.iter()) {
-            decrypt_share.verify_decrypt_share(self, pk)?
+            if !decrypt_share.verify_decrypt_share(self, pk) {
+                return Err(DecryptionError);
+            }
         }
         Ok(ValidatedTally {
             r: self.r.clone(),
@@ -135,11 +143,8 @@ impl EncryptedTally {
 
     /// Returns a byte array with every ciphertext in the `EncryptedTally`
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = Vec::with_capacity(
-            Ciphertext::BYTES_LEN * self.r.len() + GroupElement::BYTES_LEN + Crs::BYTES_LEN,
-        );
-        bytes.extend_from_slice(self.election_pk.to_bytes().as_ref());
-        bytes.extend_from_slice(self.crs.to_bytes().as_ref());
+        let mut bytes: Vec<u8> = Vec::with_capacity(Ciphertext::BYTES_LEN * self.r.len() + 32);
+        bytes.extend_from_slice(self.fingerprint.as_ref());
         for ri in &self.r {
             bytes.extend_from_slice(ri.to_bytes().as_ref());
         }
@@ -149,24 +154,17 @@ impl EncryptedTally {
     /// Tries to generate an `EncryptedTally` out of an array of bytes. Returns `None` if the
     /// size of the byte array is not a multiply of `Ciphertext::BYTES_LEN`.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if (bytes.len() - (GroupElement::BYTES_LEN + Crs::BYTES_LEN)) % Ciphertext::BYTES_LEN != 0 {
+        use std::convert::TryInto;
+        if (bytes.len() - 32) % Ciphertext::BYTES_LEN != 0 {
             return None;
         }
-        let election_pk =
-            ElectionPublicKey(PublicKey::from_bytes(&bytes[..GroupElement::BYTES_LEN])?);
-        let crs = Crs::from_bytes(
-            &bytes[GroupElement::BYTES_LEN..(GroupElement::BYTES_LEN + Crs::BYTES_LEN)],
-        )?;
-        let r = bytes[GroupElement::BYTES_LEN + Crs::BYTES_LEN..]
+        let fingerprint: [u8; 32] = bytes[..32].try_into().unwrap();
+        let r = bytes[32..]
             .chunks(Ciphertext::BYTES_LEN)
             .map(Ciphertext::from_bytes)
             .collect::<Option<Vec<_>>>()?;
 
-        Some(Self {
-            r,
-            election_pk,
-            crs,
-        })
+        Some(Self { fingerprint, r })
     }
 }
 
@@ -177,8 +175,7 @@ impl std::ops::Add for EncryptedTally {
     /// underlying ciphertexts. If the public keys or the crs are not equal, it panics
     /// todo: maybe we want to handle the errors?
     fn add(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.election_pk, rhs.election_pk);
-        assert_eq!(self.crs, rhs.crs);
+        assert_eq!(self.fingerprint, rhs.fingerprint);
         assert_eq!(self.r.len(), rhs.r.len());
         let r = self
             .r
@@ -188,12 +185,12 @@ impl std::ops::Add for EncryptedTally {
             .collect();
         Self {
             r,
-            election_pk: self.election_pk,
-            crs: self.crs,
+            fingerprint: self.fingerprint,
         }
     }
 }
 
+/// This is an intermediate step to force validation of shares at the typesystem level.
 impl ValidatedTally {
     /// Given the shares of the committee members, returns the decryption of all the
     /// election options in the form of `GroupElements`. To get the final results, one
@@ -220,13 +217,13 @@ impl ValidatedTally {
         table: &TallyOptimizationTable,
     ) -> Result<Tally, TallyError> {
         let r_results = self.decrypt();
-        let votes = baby_step_giant_step(r_results, max_votes, table)?;
+        let votes = baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
         Ok(Tally { votes })
     }
 }
 
 impl ProvenDecryptShare {
-    const SIZE: usize = ProofDecrypt::PROOF_SIZE + GroupElement::BYTES_LEN;
+    const SIZE: usize = ProofOfCorrectShare::PROOF_SIZE + GroupElement::BYTES_LEN;
 
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != ProvenDecryptShare::SIZE {
@@ -234,19 +231,21 @@ impl ProvenDecryptShare {
         }
 
         let r1 = GroupElement::from_bytes(&bytes[0..GroupElement::BYTES_LEN])?;
-        let proof = ProofDecrypt::from_slice(&bytes[GroupElement::BYTES_LEN..])?;
+        let proof = ProofOfCorrectShare::from_slice(&bytes[GroupElement::BYTES_LEN..])?;
         Some(ProvenDecryptShare { r1, pi: proof })
     }
 }
 
 impl TallyDecryptShare {
     /// Given the member's public key `MemberPublicKey`, and the `EncryptedTally`, verifies the
-    /// correctness of the `TallyDecryptShare`. Returns `Ok(())` or a `TallyError`.
-    fn verify_decrypt_share(&self, encrypted_tally: &EncryptedTally, pk: &MemberPublicKey) -> Result<(), TallyError> {
+    /// correctness of the `TallyDecryptShare`.
+    fn verify_decrypt_share(&self, encrypted_tally: &EncryptedTally, pk: &MemberPublicKey) -> bool {
         for (element, r) in self.elements.iter().zip(encrypted_tally.r.iter()) {
-            element.pi.verify(&r, &(&r.e2 - &element.r1), &pk.0)?
+            if !element.pi.verify(&r, &(&r.e2 - &element.r1), &pk.0) {
+                return false;
+            }
         }
-        Ok(())
+        true
     }
 
     /// Number of voting options this tally decrypt share structure is
@@ -258,7 +257,7 @@ impl TallyDecryptShare {
     /// Size of the byte representation for a tally decrypt share
     /// with the given number of options.
     pub fn bytes_len(options: usize) -> usize {
-        (ProofDecrypt::PROOF_SIZE + GroupElement::BYTES_LEN)
+        (ProofOfCorrectShare::PROOF_SIZE + GroupElement::BYTES_LEN)
             .checked_mul(options)
             .expect("integer overflow")
     }
@@ -299,24 +298,28 @@ impl Tally {
         encrypted_tally: &EncryptedTally,
         pks: &[MemberPublicKey],
         decrypt_shares: &[TallyDecryptShare],
-    ) -> Result<(), TallyError> {
-        let validated_decryptions = encrypted_tally.validate_partial_decryptions(pks, decrypt_shares)?;
+    ) -> bool {
+        let validated_decryptions =
+            match encrypted_tally.validate_partial_decryptions(pks, decrypt_shares) {
+                Ok(dec) => dec,
+                Err(_) => return false,
+            };
 
         let r_results = validated_decryptions.decrypt();
         let gen = GroupElement::generator();
         for (i, &w) in self.votes.iter().enumerate() {
             if &gen * w != r_results[i] {
-                return Err(TallyError::ComparisonError);
+                return false;
             }
         }
-        Ok(())
+        true
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cryptography::Keypair;
+    use crate::cryptography::{Keypair, PublicKey};
     use crate::encrypted_vote::Vote;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
@@ -342,16 +345,25 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
-        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
-        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e2, p2) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let (e3, p3) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 6).expect("Added vote should be valid");
-        encrypted_tally.add(&e2, 5).expect("Added vote should be valid");
-        encrypted_tally.add(&e3, 4).expect("Added vote should be valid");
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            6,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e2, p2, &h, &ek).unwrap(),
+            5,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e3, p3, &h, &ek).unwrap(),
+            4,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
@@ -373,7 +385,7 @@ mod tests {
         assert_eq!(tr.votes[1], 5, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &participants, &shares).is_ok());
+        assert!(tr.verify(&encrypted_tally, &participants, &shares));
     }
 
     #[test]
@@ -401,25 +413,32 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
-        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
-        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e2, p2) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let (e3, p3) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 1).expect("Added vote should be valid");
-        encrypted_tally.add(&e2, 3).expect("Added vote should be valid");
-        encrypted_tally.add(&e3, 4).expect("Added vote should be valid");
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            1,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e2, p2, &h, &ek).unwrap(),
+            3,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e3, p3, &h, &ek).unwrap(),
+            4,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
         let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());
         let tds3 = encrypted_tally.partial_decrypt(&mut rng, m3.secret_key());
 
         // check a mismatch parameters (m2 key with m1's share) is detected
-        assert!(
-            tds1.verify_decrypt_share(&encrypted_tally, &m2.public_key()).is_err()
-        );
+        assert!(!tds1.verify_decrypt_share(&encrypted_tally, &m2.public_key()));
 
         let max_votes = 20;
 
@@ -439,7 +458,7 @@ mod tests {
         assert_eq!(tr.votes[1], 3, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &participants, &shares).is_ok());
+        assert!(tr.verify(&encrypted_tally, &participants, &shares));
     }
 
     #[test]
@@ -463,12 +482,15 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 42).expect("Added vote should be valid");
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            42,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
@@ -490,7 +512,7 @@ mod tests {
         assert_eq!(tr.votes[1], 0, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &participants, &shares).is_ok());
+        assert!(tr.verify(&encrypted_tally, &participants, &shares));
     }
 
     #[test]
@@ -536,7 +558,7 @@ mod tests {
         assert_eq!(tr.votes[1], 0, "vote for option 1");
 
         println!("verifying");
-        assert!(tr.verify(&encrypted_tally, &[m1.public_key()], &shares).is_ok());
+        assert!(tr.verify(&encrypted_tally, &[m1.public_key()], &shares));
     }
 
     #[test]
@@ -564,14 +586,23 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
-        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
-        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e2, p2) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let (e3, p3) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 10).expect("Added vote should be valid");
-        encrypted_tally.add(&e2, 3).expect("Added vote should be valid");
-        encrypted_tally.add(&e3, 40).expect("Added vote should be valid");
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            10,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e2, p2, &h, &ek).unwrap(),
+            3,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e3, p3, &h, &ek).unwrap(),
+            40,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
         let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());
@@ -616,7 +647,7 @@ mod tests {
         let plaintext = GroupElement::from_hash(&[0u8]);
         let ciphertext = keypair.public_key.encrypt_point(&plaintext, &mut r);
 
-        let proof = ProofDecrypt::generate(
+        let proof = ProofOfCorrectShare::generate(
             &ciphertext,
             &keypair.public_key,
             &keypair.secret_key,
