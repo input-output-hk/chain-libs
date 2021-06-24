@@ -459,10 +459,10 @@ impl ProposalManagers {
         &self,
         cast: VoteCast,
         vote_plan: &VotePlan,
-    ) -> Result<ValidatedVote, VoteError> {
+    ) -> Result<(ValidatedVote, usize), VoteError> {
         let proposal_index = cast.proposal_index() as usize;
         if let Some(manager) = self.0.get(proposal_index) {
-            manager.validate_vote(cast, vote_plan)
+            Ok((manager.validate_vote(cast, vote_plan)?, proposal_index))
         } else {
             Err(VoteError::InvalidVoteProposal {
                 num_proposals: self.0.len(),
@@ -623,14 +623,13 @@ impl VotePlanManager {
             });
         }
 
-        let proposal_index = cast.proposal_index();
-        let vote = self
+        let (vote, proposal_idx) = self
             .proposal_managers
             .validate_vote(cast, &self.plan.as_ref())?;
 
-        let proposal_managers =
-            self.proposal_managers
-                .vote(identifier, proposal_index as usize, vote)?;
+        let proposal_managers = self
+            .proposal_managers
+            .vote(identifier, proposal_idx, vote)?;
 
         Ok(Self {
             proposal_managers,
