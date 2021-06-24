@@ -6,9 +6,6 @@ use rand_core::{CryptoRng, RngCore};
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Mul, Sub};
 
-#[macro_use]
-use super::macros;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scalar(IScalar);
 
@@ -182,6 +179,10 @@ impl Scalar {
 
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         self.0.to_bytes()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0.to_bytes()
     }
 
     pub fn from_bytes(slice: &[u8]) -> Option<Self> {

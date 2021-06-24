@@ -25,11 +25,11 @@ impl Proof {
         }
         let mut c_array = [0u8; 32];
         c_array.copy_from_slice(&slice[0..32]);
-        let c = Scalar::from_canonical_bytes(c_array)?;
+        let c = Scalar::from_bytes(&c_array)?;
 
         let mut z_array = [0u8; 32];
         z_array.copy_from_slice(&slice[32..64]);
-        let z = Scalar::from_canonical_bytes(z_array)?;
+        let z = Scalar::from_bytes(&z_array)?;
 
         let proof = Proof { c: Challenge(c), z };
         Some(proof)
@@ -70,16 +70,16 @@ pub fn generate(w: &Scalar, a: &Scalar, dleq: &Dleq) -> Proof {
     let a1 = dleq.g1 * w;
     let a2 = dleq.g2 * w;
     let c = challenge(&dleq.h1, &dleq.h2, &a1, &a2);
-    let z = w + a * c.0;
+    let z = w + a * &c.0;
     Proof { c, z }
 }
 
 /// Verify a zero knowledge proof of discrete log equivalence
 pub fn verify(dleq: &Dleq, proof: &Proof) -> bool {
-    let r1 = dleq.g1 * proof.z;
-    let r2 = dleq.g2 * proof.z;
-    let a1 = r1 - (dleq.h1 * proof.c.0);
-    let a2 = r2 - (dleq.h2 * proof.c.0);
+    let r1 = dleq.g1 * &proof.z;
+    let r2 = dleq.g2 * &proof.z;
+    let a1 = r1 - (dleq.h1 * &proof.c.0);
+    let a2 = r2 - (dleq.h2 * &proof.c.0);
     // no need for constant time equality because of the hash in challenge()
     challenge(&dleq.h1, &dleq.h2, &a1, &a2) == proof.c
 }
@@ -102,9 +102,9 @@ mod tests {
 
         let dleq = Dleq {
             g1: G,
-            h1: &(G * a),
+            h1: &(G * &a),
             g2: &H,
-            h2: &(H * a),
+            h2: &(&H * &a),
         };
         let proof = generate(&w, &a, &dleq);
         assert_eq!(verify(&dleq, &proof), true);
@@ -113,7 +113,7 @@ mod tests {
             g1: G,
             h1: &(G * a),
             g2: &H,
-            h2: &(H * w),
+            h2: &(&H * w),
         };
 
         assert_eq!(verify(&dleq_bad, &proof), false);

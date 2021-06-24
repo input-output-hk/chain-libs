@@ -1,3 +1,7 @@
+// These two need to be here because the points of sec2 backend do not implement Copy
+#![allow(clippy::clone_on_copy)]
+#![allow(clippy::op_ref)]
+
 mod dleq;
 #[allow(clippy::module_inception)]
 pub mod vrf;

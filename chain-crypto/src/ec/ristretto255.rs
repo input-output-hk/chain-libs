@@ -129,16 +129,13 @@ impl Scalar {
         self.0.as_bytes()
     }
 
+    /// Returns none if slice is not canonical
     pub fn from_bytes(slice: &[u8]) -> Option<Self> {
         let scalar: Result<[u8; 32], TryFromSliceError> = slice.try_into();
         match scalar {
-            Ok(e) => Some(Scalar(IScalar::from_bytes_mod_order(e))),
+            Ok(e) => Some(Scalar(IScalar::from_canonical_bytes(e)?)),
             _ => None,
         }
-    }
-
-    pub fn from_canonical_bytes(slice: [u8; Self::BYTES_LEN]) -> Option<Self> {
-        Some(Self(IScalar::from_canonical_bytes(slice)?))
     }
 
     pub fn hash_to_scalar(b: &Blake2b) -> Scalar {

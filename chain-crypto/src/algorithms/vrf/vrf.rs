@@ -61,7 +61,7 @@ impl SecretKey {
     /// Create a new random secret key
     pub fn random<T: RngCore + CryptoRng>(mut rng: T) -> Self {
         let sk = Scalar::random(&mut rng);
-        let pk = GroupElement::generator() * sk;
+        let pk = GroupElement::generator() * &sk;
         SecretKey {
             secret: sk,
             public: pk,
@@ -80,8 +80,8 @@ impl SecretKey {
     }
 
     pub fn from_bytes(bytes: [u8; SECRET_SIZE]) -> Option<Self> {
-        let sk = Scalar::from_canonical_bytes(bytes)?;
-        let pk = GroupElement::generator() * sk;
+        let sk = Scalar::from_bytes(&bytes)?;
+        let pk = GroupElement::generator() * &sk;
         Some(SecretKey {
             secret: sk,
             public: pk,
@@ -94,7 +94,7 @@ impl SecretKey {
     ///     Point * secret = OutputSeed
     pub fn verifiable_output(&self, input: &[u8]) -> (GroupElement, OutputSeed) {
         let m_point = GroupElement::from_hash(input);
-        let u = m_point * self.secret;
+        let u = &m_point * &self.secret;
         (m_point, OutputSeed(u))
     }
 
@@ -153,7 +153,7 @@ impl SecretKey {
 
     /// Get the public key associated with a secret key
     pub fn public(&self) -> PublicKey {
-        PublicKey(self.public, self.public.to_bytes())
+        PublicKey(self.public.clone(), self.public.to_bytes())
     }
 }
 
@@ -165,7 +165,7 @@ impl PublicKey {
         let group_element = GroupElement::from_bytes(input);
         match group_element {
             None => Err(PublicKeyError::StructureInvalid),
-            Some(pk) => Ok(PublicKey(pk, pk.to_bytes())),
+            Some(pk) => Ok(PublicKey(pk.clone(), pk.to_bytes())),
         }
     }
 

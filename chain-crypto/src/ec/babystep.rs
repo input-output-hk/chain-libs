@@ -46,7 +46,7 @@ impl BabyStepsTable {
         #[cfg(not(feature = "ristretto255"))]
         for i in 0..=baby_step_size / 2 {
             bs.insert(e.compress().map(|(c, _sign)| c.to_bytes()), i);
-            e = e + gen;
+            e = e + &gen;
         }
         // Not with ristretto group. the ristretto group API does not allow to use the x coordinate
         // for security properties (see [here](https://github.com/dalek-cryptography/curve25519-dalek/issues/235))
