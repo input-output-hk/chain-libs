@@ -1,9 +1,9 @@
-use crate::cryptography::{HybridCiphertext, PublicKey, SecretKey, UnitVectorZkp, Ciphertext};
+use crate::cryptography::{Ciphertext, HybridCiphertext, PublicKey, SecretKey};
+use crate::encrypted_vote::{ProofOfCorrectVote, SubmittedBallot, Vote};
 use crate::gang::{GroupElement, Scalar};
 use crate::math::Polynomial;
 use crate::tally::Crs;
 use rand_core::{CryptoRng, RngCore};
-use crate::encrypted_vote::{Vote, EncryptedVote, ProofOfCorrectVote};
 
 /// Committee member election secret key
 #[derive(Clone)]
@@ -36,17 +36,22 @@ impl ElectionPublicKey {
         rng: &mut R,
         crs: &Crs,
         vote: Vote,
-    ) -> (EncryptedVote, ProofOfCorrectVote) {
+    ) -> SubmittedBallot {
         let encryption_randomness = vec![Scalar::random(rng); vote.len()];
         let ciphertexts: Vec<Ciphertext> = encryption_randomness
             .iter()
             .zip(vote.iter())
-            .map(|(r, v)|
-                self.as_raw().encrypt_with_r(&Scalar::from(v), r)
-            )
+            .map(|(r, v)| self.as_raw().encrypt_with_r(&Scalar::from(v), r))
             .collect();
 
-        let proof = UnitVectorZkp::generate(rng, &crs, &self.0, &vote, &encryption_randomness, &ciphertexts);
+        let proof = ProofOfCorrectVote::generate(
+            rng,
+            &crs,
+            &self.0,
+            &vote,
+            &encryption_randomness,
+            &ciphertexts,
+        );
         (ciphertexts, proof)
     }
 }

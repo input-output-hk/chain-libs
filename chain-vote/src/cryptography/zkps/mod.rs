@@ -1,6 +1,5 @@
-mod challenge_context;
-mod decr_nizk;
-mod messages;
-mod unit_vector_zkp;
+mod discrete_log_eq;
+mod unit_vector;
 
-pub(crate) use self::{decr_nizk::ProofDecrypt, unit_vector_zkp::UnitVectorZkp};
+pub use discrete_log_eq::DleqZkp;
+pub use unit_vector::UnitVectorZkp;
