@@ -11,7 +11,7 @@ use crate::{
     transaction::UnspecifiedAccountIdentifier,
     vote::{self, CommitteeId, Options, Tally, TallyResult, VotePlanStatus, VoteProposalStatus},
 };
-use chain_vote::{Crs, EncryptedTally, committee, ElectionPublicKey};
+use chain_vote::{committee, Ballot, Crs, ElectionPublicKey, EncryptedTally};
 use imhamt::Hamt;
 use thiserror::Error;
 
@@ -33,12 +33,18 @@ pub struct VotePlanManager {
     proposal_managers: ProposalManagers,
 }
 
+#[derive(Clone, Eq, PartialEq)]
+pub enum ValidatedVote {
+    Public(Choice),
+    Private(Ballot),
+}
+
 #[derive(Clone, PartialEq, Eq)]
 struct ProposalManagers(Vec<ProposalManager>);
 
 #[derive(Clone, PartialEq, Eq)]
 struct ProposalManager {
-    votes_by_voters: Hamt<DefaultHasher, UnspecifiedAccountIdentifier, vote::Payload>,
+    votes_by_voters: Hamt<DefaultHasher, UnspecifiedAccountIdentifier, ValidatedVote>,
     options: Options,
     tally: Option<Tally>,
     action: VoteAction,
@@ -84,7 +90,7 @@ pub enum VoteError {
     },
 
     #[error("Invalid private vote verification")]
-    VoteVerificationError,
+    VoteVerificationError(#[from] chain_vote::BallotVerificationError),
 
     #[error("Invalid private vote size (expected {expected}, got {actual})")]
     PrivateVoteInvalidSize { actual: usize, expected: usize },
@@ -119,10 +125,8 @@ impl ProposalManager {
     pub fn vote(
         &self,
         identifier: UnspecifiedAccountIdentifier,
-        cast: VoteCast,
+        payload: ValidatedVote,
     ) -> Result<Self, VoteError> {
-        let payload = cast.into_payload();
-
         // we don't mind if we are replacing a vote
         let votes_by_voters =
             self.votes_by_voters
@@ -135,12 +139,22 @@ impl ProposalManager {
         })
     }
 
-    pub fn validate_vote(&self, cast: &VoteCast) -> Result<(), VoteError> {
-        let payload = cast.payload();
+    pub fn validate_vote(
+        &self,
+        cast: VoteCast,
+        vote_plan: &VotePlan,
+    ) -> Result<ValidatedVote, VoteError> {
+        let payload = cast.into_payload();
 
         match payload {
-            Payload::Public { .. } => Ok(()),
-            Payload::Private { encrypted_vote, .. } => {
+            Payload::Public { choice } => Ok(ValidatedVote::Public(choice)),
+            Payload::Private {
+                encrypted_vote,
+                proof,
+            } => {
+                let crs = Crs::from_hash(vote_plan.to_id().as_ref());
+                let pk = ElectionPublicKey::from_participants(&vote_plan.committee_public_keys());
+
                 let actual_size = encrypted_vote.as_inner().len();
                 let expected_size = self.options.choice_range().len();
                 if actual_size != expected_size {
@@ -149,7 +163,12 @@ impl ProposalManager {
                         actual: actual_size,
                     })
                 } else {
-                    Ok(())
+                    Ok(ValidatedVote::Private(Ballot::try_from_vote_and_proof(
+                        encrypted_vote.as_inner(),
+                        proof.as_inner(),
+                        &crs,
+                        &pk,
+                    )?))
                 }
             }
         }
@@ -171,10 +190,10 @@ impl ProposalManager {
             if let Some(account_id) = id.to_single_account() {
                 if let Some(stake) = stake.by(&account_id) {
                     match payload {
-                        vote::Payload::Public { choice } => {
+                        ValidatedVote::Public(choice) => {
                             results.add_vote(*choice, stake)?;
                         }
-                        vote::Payload::Private { .. } => {
+                        ValidatedVote::Private(_) => {
                             return Err(VoteError::InvalidPayloadType {
                                 expected: vote::PayloadType::Public,
                                 received: vote::PayloadType::Private,
@@ -198,7 +217,12 @@ impl ProposalManager {
     }
 
     #[must_use = "Compute the PrivateTally in a new ProposalManager, does not modify self"]
-    pub fn private_tally(&self, stake: &StakeControl, election_pk: &ElectionPublicKey, crs: &Crs) -> Result<Self, VoteError> {
+    pub fn private_tally(
+        &self,
+        stake: &StakeControl,
+        election_pk: &ElectionPublicKey,
+        crs: &Crs,
+    ) -> Result<Self, VoteError> {
         use rayon::prelude::*;
 
         let tally_size = self.options.choice_range().clone().max().unwrap() as usize + 1;
@@ -211,16 +235,13 @@ impl ProposalManager {
                 if let Some(account_id) = id.to_single_account() {
                     if let Some(stake) = stake.by(&account_id) {
                         match payload {
-                            vote::Payload::Public { .. } => {
+                            ValidatedVote::Public(_) => {
                                 return Some(Err(VoteError::InvalidPayloadType {
                                     expected: vote::PayloadType::Private,
                                     received: vote::PayloadType::Public,
                                 }))
                             }
-                            vote::Payload::Private {
-                                encrypted_vote,
-                                proof,
-                            } => return Some(Ok(((encrypted_vote.as_inner(), proof.as_inner()), stake.0))),
+                            ValidatedVote::Private(ballot) => return Some(Ok((ballot, stake.0))),
                         }
                     }
                 }
@@ -229,13 +250,16 @@ impl ProposalManager {
             .try_fold_with(
                 EncryptedTally::new(tally_size, election_pk, crs),
                 |mut tally, vote_with_stake| {
-                    vote_with_stake.map(|(encrypted_vote, stake)| {
-                        tally.add(&encrypted_vote, stake);
+                    vote_with_stake.map(|(ballot, stake)| {
+                        tally.add(&ballot, stake);
                         tally
                     })
                 },
             )
-            .try_reduce(|| EncryptedTally::new(tally_size, election_pk, crs), |a, b| Ok(a + b))?;
+            .try_reduce(
+                || EncryptedTally::new(tally_size, election_pk, crs),
+                |a, b| Ok(a + b),
+            )?;
 
         Ok(Self {
             votes_by_voters: self.votes_by_voters.clone(),
@@ -261,7 +285,11 @@ impl ProposalManager {
         let verifiable_tally = chain_vote::Tally {
             votes: decrypted_proposal.tally_result.to_vec(),
         };
-        if !verifiable_tally.verify(&encrypted_tally, committee_pks, &decrypted_proposal.decrypt_shares) {
+        if !verifiable_tally.verify(
+            &encrypted_tally,
+            committee_pks,
+            &decrypted_proposal.decrypt_shares,
+        ) {
             return Err(TallyError::InvalidDecryption);
         }
 
@@ -386,11 +414,11 @@ impl ProposalManagers {
     pub fn vote(
         &self,
         identifier: UnspecifiedAccountIdentifier,
-        cast: VoteCast,
+        proposal_index: usize,
+        payload: ValidatedVote,
     ) -> Result<Self, VoteError> {
-        let proposal_index = cast.proposal_index() as usize;
         if let Some(manager) = self.0.get(proposal_index) {
-            let updated_manager = manager.vote(identifier, cast)?;
+            let updated_manager = manager.vote(identifier, payload)?;
 
             // only clone the array if it does make sens to do so:
             //
@@ -404,10 +432,7 @@ impl ProposalManagers {
 
             Ok(updated)
         } else {
-            Err(VoteError::InvalidVoteProposal {
-                num_proposals: self.0.len(),
-                vote: cast,
-            })
+            unreachable!("the vote has been already validated");
         }
     }
 
@@ -430,10 +455,14 @@ impl ProposalManagers {
 
     /// validate the vote against the proposal: verify that the proposal exists
     /// and the the length of the ciphertext is correct (if applicable)
-    pub fn validate_vote(&self, cast: &VoteCast) -> Result<(), VoteError> {
+    pub fn validate_vote(
+        &self,
+        cast: VoteCast,
+        vote_plan: &VotePlan,
+    ) -> Result<ValidatedVote, VoteError> {
         let proposal_index = cast.proposal_index() as usize;
         if let Some(manager) = self.0.get(proposal_index) {
-            manager.validate_vote(cast)
+            manager.validate_vote(cast, vote_plan)
         } else {
             Err(VoteError::InvalidVoteProposal {
                 num_proposals: self.0.len(),
@@ -442,12 +471,14 @@ impl ProposalManagers {
         }
     }
 
-    pub fn start_private_tally(&self, stake: &StakeControl, vote_plan: &VotePlan) -> Result<Self, VoteError> {
+    pub fn start_private_tally(
+        &self,
+        stake: &StakeControl,
+        vote_plan: &VotePlan,
+    ) -> Result<Self, VoteError> {
         use rayon::prelude::*;
         let crs = Crs::from_hash(vote_plan.to_id().as_ref());
-        let election_pk = chain_vote::ElectionPublicKey::from_participants(
-            vote_plan.committee_public_keys(),
-        );
+        let election_pk = ElectionPublicKey::from_participants(vote_plan.committee_public_keys());
         let proposals = self
             .0
             .par_iter()
@@ -572,52 +603,41 @@ impl VotePlanManager {
         cast: VoteCast,
     ) -> Result<Self, VoteError> {
         if cast.vote_plan() != self.id() {
-            Err(VoteError::InvalidVotePlan {
+            return Err(VoteError::InvalidVotePlan {
                 expected: self.id().clone(),
                 vote: cast,
-            })
-        } else if !self.can_vote(block_date) {
-            Err(VoteError::NotVoteTime {
+            });
+        }
+
+        if !self.can_vote(block_date) {
+            return Err(VoteError::NotVoteTime {
                 start: self.plan().vote_start(),
                 end: self.plan().vote_end(),
                 vote: cast,
-            })
-        } else if self.plan().payload_type() != cast.payload().payload_type() {
-            Err(VoteError::InvalidPayloadType {
+            });
+        }
+        if self.plan().payload_type() != cast.payload().payload_type() {
+            return Err(VoteError::InvalidPayloadType {
                 expected: self.plan().payload_type(),
                 received: cast.payload().payload_type(),
-            })
-        // verify vote if private
-        } else if let Err(e) = match &cast.payload() {
-            Payload::Public { .. } => Ok(()),
-            Payload::Private {
-                encrypted_vote,
-                proof,
-            } => {
-                let crs = Crs::from_hash(&self.plan.as_ref().to_id().as_ref());
-                let ciphertext = encrypted_vote.as_inner();
-                self.proposal_managers.validate_vote(&cast)?;
-                let pk = chain_vote::ElectionPublicKey::from_participants(
-                    self.plan.committee_public_keys(),
-                );
-                if !proof.verify(&crs, &pk, &ciphertext) {
-                    Err(VoteError::VoteVerificationError)
-                } else {
-                    Ok(())
-                }
-            }
-        } {
-            Err(e)
-        } else {
-            let proposal_managers = self.proposal_managers.vote(identifier, cast)?;
-
-            Ok(Self {
-                proposal_managers,
-                plan: Arc::clone(&self.plan),
-                id: self.id.clone(),
-                committee: Arc::clone(&self.committee),
-            })
+            });
         }
+
+        let proposal_index = cast.proposal_index();
+        let vote = self
+            .proposal_managers
+            .validate_vote(cast, &self.plan.as_ref())?;
+
+        let proposal_managers =
+            self.proposal_managers
+                .vote(identifier, proposal_index as usize, vote)?;
+
+        Ok(Self {
+            proposal_managers,
+            plan: Arc::clone(&self.plan),
+            id: self.id.clone(),
+            committee: Arc::clone(&self.committee),
+        })
     }
 
     pub fn public_tally<F>(
@@ -677,7 +697,9 @@ impl VotePlanManager {
             return Err(TallyError::InvalidPrivacy.into());
         }
 
-        let proposal_managers = self.proposal_managers.start_private_tally(stake, &self.plan)?;
+        let proposal_managers = self
+            .proposal_managers
+            .start_private_tally(stake, &self.plan)?;
 
         Ok(Self {
             proposal_managers,
@@ -697,9 +719,12 @@ impl VotePlanManager {
         F: FnMut(&VoteAction),
     {
         let committee_pks = self.plan.committee_public_keys();
-        let proposal_managers =
-            self.proposal_managers
-                .finalize_private_tally(committee_pks, decrypted_tally,  governance, f)?;
+        let proposal_managers = self.proposal_managers.finalize_private_tally(
+            committee_pks,
+            decrypted_tally,
+            governance,
+            f,
+        )?;
         Ok(Self {
             proposal_managers,
             plan: Arc::clone(&self.plan),

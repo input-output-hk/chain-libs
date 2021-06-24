@@ -1,5 +1,5 @@
 use crate::cryptography::{Ciphertext, HybridCiphertext, PublicKey, SecretKey};
-use crate::encrypted_vote::{ProofOfCorrectVote, SubmittedBallot, Vote};
+use crate::encrypted_vote::{EncryptedVote, ProofOfCorrectVote, Vote};
 use crate::gang::{GroupElement, Scalar};
 use crate::math::Polynomial;
 use crate::tally::Crs;
@@ -36,7 +36,7 @@ impl ElectionPublicKey {
         rng: &mut R,
         crs: &Crs,
         vote: Vote,
-    ) -> SubmittedBallot {
+    ) -> (EncryptedVote, ProofOfCorrectVote) {
         let encryption_randomness = vec![Scalar::random(rng); vote.len()];
         let ciphertexts: Vec<Ciphertext> = encryption_randomness
             .iter()

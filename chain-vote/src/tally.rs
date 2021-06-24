@@ -2,7 +2,7 @@ use crate::cryptography::PublicKey;
 use crate::{
     committee::*,
     cryptography::{Ciphertext, DleqZkp},
-    encrypted_vote::SubmittedBallot,
+    encrypted_vote::Ballot,
     gang::{baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement},
 };
 use rand_core::{CryptoRng, RngCore};
@@ -91,14 +91,9 @@ impl EncryptedTally {
     /// Note that the encrypted vote needs to have the exact same number of
     /// options as the initialised tally, otherwise an assert will trigger.
     #[allow(clippy::ptr_arg)]
-    pub fn add(&mut self, ballot: &SubmittedBallot, weight: u64) {
-        let (vote, proof) = ballot;
-        if !proof.verify(&self.crs, &self.election_pk.0, vote) {
-            panic!("Invalid ballot");
-        }
-
-        assert_eq!(vote.len(), self.r.len());
-        for (ri, ci) in self.r.iter_mut().zip(vote.iter()) {
+    pub fn add(&mut self, ballot: &Ballot, weight: u64) {
+        //assert_eq!(vote.len(), self.r.len());
+        for (ri, ci) in self.r.iter_mut().zip(ballot.vote.iter()) {
             *ri = &*ri + &(ci * weight);
         }
     }
