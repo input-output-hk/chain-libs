@@ -230,21 +230,20 @@ fn tally_benchmark(
             .par_iter()
             .enumerate()
             .map(|(i, proposal)| {
-                let tally_state = proposal
+                proposal
                     .tally
                     .clone()
                     .unwrap()
                     .private_encrypted()
                     .unwrap()
                     .0
-                    .state();
-                chain_vote::tally(
-                    total_votes_per_proposal[i],
-                    &tally_state,
-                    &decrypt_shares[i],
-                    &table,
-                )
-                .unwrap()
+                    .validate_partial_decryptions(
+                        &vote_plan.committee_public_keys(),
+                        &decrypt_shares[i],
+                    )
+                    .unwrap()
+                    .decrypt_tally(total_votes_per_proposal[i], &table)
+                    .unwrap()
             })
             .collect::<Vec<_>>()
     };

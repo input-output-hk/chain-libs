@@ -329,7 +329,7 @@ impl Tally {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cryptography::Keypair;
+    use crate::cryptography::{Keypair, PublicKey};
     use crate::encrypted_vote::Vote;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
@@ -355,16 +355,25 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
-        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
-        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e2, p2) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let (e3, p3) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 6);
-        encrypted_tally.add(&e2, 5);
-        encrypted_tally.add(&e3, 4);
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            6,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e2, p2, &h, &ek).unwrap(),
+            5,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e3, p3, &h, &ek).unwrap(),
+            4,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
@@ -414,26 +423,32 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
-        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
-        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e2, p2) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let (e3, p3) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 1);
-        encrypted_tally.add(&e2, 3);
-        encrypted_tally.add(&e3, 4);
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            1,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e2, p2, &h, &ek).unwrap(),
+            3,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e3, p3, &h, &ek).unwrap(),
+            4,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
         let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());
         let tds3 = encrypted_tally.partial_decrypt(&mut rng, m3.secret_key());
 
         // check a mismatch parameters (m2 key with m1's share) is detected
-        assert_eq!(
-            tds1.verify_decrypt_share(&encrypted_tally, &m2.public_key()),
-            false
-        );
+        assert!(!tds1.verify_decrypt_share(&encrypted_tally, &m2.public_key()));
 
         let max_votes = 20;
 
@@ -477,12 +492,15 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         println!("tallying");
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 42);
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            42,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
 
@@ -578,14 +596,23 @@ mod tests {
         println!("encrypting vote");
 
         let vote_options = 2;
-        let e1 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
-        let e2 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
-        let e3 = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e1, p1) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
+        let (e2, p2) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 1));
+        let (e3, p3) = ek.encrypt_and_prove_vote(&mut rng, &h, Vote::new(vote_options, 0));
 
         let mut encrypted_tally = EncryptedTally::new(vote_options, &ek, &h);
-        encrypted_tally.add(&e1, 10);
-        encrypted_tally.add(&e2, 3);
-        encrypted_tally.add(&e3, 40);
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e1, p1, &h, &ek).unwrap(),
+            10,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e2, p2, &h, &ek).unwrap(),
+            3,
+        );
+        encrypted_tally.add(
+            &Ballot::try_from_vote_and_proof(e3, p3, &h, &ek).unwrap(),
+            40,
+        );
 
         let tds1 = encrypted_tally.partial_decrypt(&mut rng, m1.secret_key());
         let tds2 = encrypted_tally.partial_decrypt(&mut rng, m2.secret_key());

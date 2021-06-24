@@ -21,7 +21,7 @@ pub type EncryptedVote = Vec<Ciphertext>;
 pub type ProofOfCorrectVote = UnitVectorZkp;
 
 /// Submitted ballot, which contains an always verified vote.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Ballot {
     pub vote: EncryptedVote,
     // to verify that crs and election pk are correct
