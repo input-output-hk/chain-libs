@@ -25,7 +25,7 @@ pub type ProofOfCorrectVote = UnitVectorZkp;
 pub struct Ballot {
     pub vote: EncryptedVote,
     // to verify that crs and election pk are correct
-    fingerprint: [u8; 32],
+    pub fingerprint: [u8; 32],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

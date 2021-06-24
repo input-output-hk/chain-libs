@@ -1,10 +1,11 @@
-use crate::cryptography::PublicKey;
 use crate::{
     committee::*,
     cryptography::{Ciphertext, DleqZkp},
     encrypted_vote::Ballot,
     gang::{baby_step_giant_step, BabyStepsTable as TallyOptimizationTable, GroupElement},
 };
+use cryptoxide::blake2b::Blake2b;
+use cryptoxide::digest::Digest;
 use rand_core::{CryptoRng, RngCore};
 
 /// Secret key for opening vote
@@ -23,8 +24,7 @@ pub type Crs = GroupElement;
 /// `crs`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncryptedTally {
-    election_pk: ElectionPublicKey,
-    crs: Crs,
+    fingerprint: [u8; 32],
     r: Vec<Ciphertext>,
 }
 
@@ -77,11 +77,12 @@ impl EncryptedTally {
     /// with zero ciphertexts.
     pub fn new(options: usize, election_pk: &ElectionPublicKey, crs: &Crs) -> Self {
         let r = vec![Ciphertext::zero(); options];
-        EncryptedTally {
-            r,
-            election_pk: election_pk.clone(),
-            crs: crs.clone(),
-        }
+        let mut hash = Blake2b::new(32);
+        hash.input(&crs.to_bytes());
+        hash.input(&election_pk.to_bytes());
+        let mut fingerprint = [0; 32];
+        hash.result(&mut fingerprint);
+        EncryptedTally { r, fingerprint }
     }
 
     /// Add a submitted `ballot`, with a specific `weight` to the tally, if
@@ -92,7 +93,8 @@ impl EncryptedTally {
     /// options as the initialised tally, otherwise an assert will trigger.
     #[allow(clippy::ptr_arg)]
     pub fn add(&mut self, ballot: &Ballot, weight: u64) {
-        //assert_eq!(vote.len(), self.r.len());
+        assert_eq!(ballot.fingerprint, self.fingerprint);
+        assert_eq!(ballot.vote.len(), self.r.len());
         for (ri, ci) in self.r.iter_mut().zip(ballot.vote.iter()) {
             *ri = &*ri + &(ci * weight);
         }
@@ -141,11 +143,8 @@ impl EncryptedTally {
 
     /// Returns a byte array with every ciphertext in the `EncryptedTally`
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = Vec::with_capacity(
-            Ciphertext::BYTES_LEN * self.r.len() + GroupElement::BYTES_LEN + Crs::BYTES_LEN,
-        );
-        bytes.extend_from_slice(self.election_pk.to_bytes().as_ref());
-        bytes.extend_from_slice(self.crs.to_bytes().as_ref());
+        let mut bytes: Vec<u8> = Vec::with_capacity(Ciphertext::BYTES_LEN * self.r.len() + 32);
+        bytes.extend_from_slice(self.fingerprint.as_ref());
         for ri in &self.r {
             bytes.extend_from_slice(ri.to_bytes().as_ref());
         }
@@ -155,24 +154,17 @@ impl EncryptedTally {
     /// Tries to generate an `EncryptedTally` out of an array of bytes. Returns `None` if the
     /// size of the byte array is not a multiply of `Ciphertext::BYTES_LEN`.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if (bytes.len() - (GroupElement::BYTES_LEN + Crs::BYTES_LEN)) % Ciphertext::BYTES_LEN != 0 {
+        use std::convert::TryInto;
+        if (bytes.len() - 32) % Ciphertext::BYTES_LEN != 0 {
             return None;
         }
-        let election_pk =
-            ElectionPublicKey(PublicKey::from_bytes(&bytes[..GroupElement::BYTES_LEN])?);
-        let crs = Crs::from_bytes(
-            &bytes[GroupElement::BYTES_LEN..(GroupElement::BYTES_LEN + Crs::BYTES_LEN)],
-        )?;
-        let r = bytes[GroupElement::BYTES_LEN + Crs::BYTES_LEN..]
+        let fingerprint: [u8; 32] = bytes[..32].try_into().unwrap();
+        let r = bytes[32..]
             .chunks(Ciphertext::BYTES_LEN)
             .map(Ciphertext::from_bytes)
             .collect::<Option<Vec<_>>>()?;
 
-        Some(Self {
-            election_pk,
-            crs,
-            r,
-        })
+        Some(Self { fingerprint, r })
     }
 }
 
@@ -183,8 +175,7 @@ impl std::ops::Add for EncryptedTally {
     /// underlying ciphertexts. If the public keys or the crs are not equal, it panics
     /// todo: maybe we want to handle the errors?
     fn add(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.election_pk, rhs.election_pk);
-        assert_eq!(self.crs, rhs.crs);
+        assert_eq!(self.fingerprint, rhs.fingerprint);
         assert_eq!(self.r.len(), rhs.r.len());
         let r = self
             .r
@@ -194,8 +185,7 @@ impl std::ops::Add for EncryptedTally {
             .collect();
         Self {
             r,
-            election_pk: self.election_pk,
-            crs: self.crs,
+            fingerprint: self.fingerprint,
         }
     }
 }
