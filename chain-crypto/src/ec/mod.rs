@@ -19,12 +19,12 @@ pub use babystep::{baby_step_giant_step, BabyStepsTable};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cryptoxide::blake2b::Blake2b;
+    use cryptoxide::digest::Digest;
     use smoke::{
         generator::{self, BoxGenerator},
         Generator,
     };
-    use cryptoxide::blake2b::Blake2b;
-    use cryptoxide::digest::Digest;
 
     fn fe_generator() -> BoxGenerator<Scalar> {
         generator::Array5::new(generator::num::<u8>())
