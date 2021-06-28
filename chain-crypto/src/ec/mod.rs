@@ -23,10 +23,16 @@ mod tests {
         generator::{self, BoxGenerator},
         Generator,
     };
+    use cryptoxide::blake2b::Blake2b;
+    use cryptoxide::digest::Digest;
 
     fn fe_generator() -> BoxGenerator<Scalar> {
-        generator::Array32::new(generator::num::<u8>())
-            .map(|a| Scalar::from_bytes(&a).unwrap())
+        generator::Array5::new(generator::num::<u8>())
+            .map(|a| {
+                let mut hash = Blake2b::new(64);
+                hash.input(&a);
+                Scalar::hash_to_scalar(&mut hash)
+            })
             .into_boxed()
     }
 
