@@ -25,11 +25,11 @@ fn shared_key_to_symmetric_key(app_level_info: &[u8], p: &GroupElement) -> ChaCh
     // if we work with sec2 curves, we use only the x coordinate as a key
     #[cfg(not(feature = "ristretto255"))]
     let prk = &p.to_bytes()[1..33];
-    let mut symkey = [0u8; GroupElement::HASHMAP_BYTES_LEN + 12];
+    let mut symkey = [0u8; 32 + 12];
     hkdf_expand(sha2::Sha256::new(), prk, app_level_info, &mut symkey);
     ChaCha20Poly1305::new(
-        &symkey[0..GroupElement::HASHMAP_BYTES_LEN],
-        &symkey[GroupElement::HASHMAP_BYTES_LEN..],
+        &symkey[0..32],
+        &symkey[32..],
         &[],
     )
 }
