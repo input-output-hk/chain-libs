@@ -11,7 +11,7 @@ use super::dleq;
 use crate::key::PublicKeyError;
 
 /// VRF Secret Key
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecretKey {
     secret: Scalar,
     public: GroupElement,
@@ -104,10 +104,10 @@ impl SecretKey {
     /// Create a proof, for the given parameters; no check is made to make sure it's correct
     ///
     /// the proof is randomized, so need a freshly randomly scalar for random.
-    /// use 'proove_simple' to use a RNG and avoid generating this random.
+    /// use 'prove_simple' to use a RNG and avoid generating this random.
     ///
     /// use 'evaluate' or 'evaluate_simple' for creating the proof directly from input
-    pub fn proove(
+    pub fn prove(
         &self,
         r: &Scalar,
         m_point: GroupElement,
@@ -126,14 +126,14 @@ impl SecretKey {
         }
     }
 
-    pub fn proove_simple<T: RngCore + CryptoRng>(
+    pub fn prove_simple<T: RngCore + CryptoRng>(
         &self,
         rng: &mut T,
         m_point: GroupElement,
         output: OutputSeed,
     ) -> ProvenOutputSeed {
         let w = Scalar::random(rng);
-        self.proove(&w, m_point, output)
+        self.prove(&w, m_point, output)
     }
 
     /// Generate a Proof
@@ -142,7 +142,7 @@ impl SecretKey {
     /// use 'evaluate_simple' for normal use.
     pub fn evaluate(&self, r: &Scalar, input: &[u8]) -> ProvenOutputSeed {
         let (m_point, output) = self.verifiable_output(input);
-        self.proove(r, m_point, output)
+        self.prove(r, m_point, output)
     }
 
     pub fn evaluate_simple<T: RngCore + CryptoRng>(
@@ -151,7 +151,7 @@ impl SecretKey {
         input: &[u8],
     ) -> ProvenOutputSeed {
         let (m_point, output) = self.verifiable_output(input);
-        self.proove_simple(rng, m_point, output)
+        self.prove_simple(rng, m_point, output)
     }
 
     /// Get the public key associated with a secret key
@@ -196,14 +196,14 @@ impl ProvenOutputSeed {
 
     pub fn to_buffer(&self, output: &mut [u8]) {
         assert_eq!(output.len(), PROOF_SIZE);
-        output[0..32].copy_from_slice(&self.u.0.to_bytes());
-        self.dleq_proof.to_bytes(&mut output[32..96]);
+        output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.u.0.to_bytes());
+        self.dleq_proof.to_bytes(&mut output[GroupElement::BYTES_LEN..]);
     }
 
     pub fn bytes(&self) -> [u8; PROOF_SIZE] {
         let mut output = [0u8; PROOF_SIZE];
-        output[0..32].copy_from_slice(&self.u.0.to_bytes());
-        self.dleq_proof.to_bytes(&mut output[32..96]);
+        output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.u.0.to_bytes());
+        self.dleq_proof.to_bytes(&mut output[GroupElement::BYTES_LEN..]);
         output
     }
 
@@ -211,8 +211,8 @@ impl ProvenOutputSeed {
         if bytes.len() != PROOF_SIZE {
             return None;
         }
-        let u = GroupElement::from_bytes(&bytes[0..32])?;
-        let proof = dleq::Proof::from_bytes(&bytes[32..])?;
+        let u = GroupElement::from_bytes(&bytes[0..GroupElement::BYTES_LEN])?;
+        let proof = dleq::Proof::from_bytes(&bytes[GroupElement::BYTES_LEN..])?;
         Some(ProvenOutputSeed {
             u: OutputSeed(u),
             dleq_proof: proof,
@@ -255,7 +255,7 @@ impl OutputSeed {
 
 #[cfg(test)]
 mod tests {
-    use super::SecretKey;
+    use super::{ProvenOutputSeed, PublicKey, SecretKey, PROOF_SIZE, PUBLIC_SIZE};
     use rand_core::{OsRng, RngCore};
 
     #[test]
@@ -279,11 +279,72 @@ mod tests {
         let proof = sk.evaluate_simple(&mut csprng, &b1[..]);
 
         // make sure the test pass
-        assert_eq!(proof.verify(&pk, &b1[..]), true);
+        assert!(proof.verify(&pk, &b1[..]));
 
         // now try with false positive
-        assert_eq!(proof.verify(&pk, &b2[..]), false);
-        assert_eq!(proof.verify(&pk_other, &b1[..]), false);
-        assert_eq!(proof.verify(&pk_other, &b2[..]), false);
+        assert!(!proof.verify(&pk, &b2[..]));
+        assert!(!proof.verify(&pk_other, &b1[..]));
+        assert!(!proof.verify(&pk_other, &b2[..]));
+    }
+
+    #[test]
+    fn serialisation() {
+        let mut csprng: OsRng = OsRng;
+        let sk = SecretKey::random(&mut csprng);
+        let pk = sk.public();
+
+        let serialised_sk = sk.to_bytes();
+        let deserialised_sk = SecretKey::from_bytes(serialised_sk);
+
+        assert!(deserialised_sk.is_some());
+        assert_eq!(deserialised_sk.unwrap(), sk);
+
+        let serialised_pk = pk.as_bytes();
+        let deserialised_pk = PublicKey::from_bytes(serialised_pk);
+
+        assert!(deserialised_pk.is_ok());
+        assert_eq!(deserialised_pk.unwrap(), pk);
+
+        let mut alpha = [0u8; 10];
+        for i in alpha.iter_mut() {
+            *i = csprng.next_u32() as u8;
+        }
+
+        let proof = sk.evaluate_simple(&mut csprng, &alpha[..]);
+        let serialised_proof = proof.bytes();
+        let deserialised_proof = ProvenOutputSeed::from_bytes_unverified(&serialised_proof);
+        let verified_deserialised_proof = ProvenOutputSeed::from_bytes(&pk, &serialised_proof, &alpha);
+
+        assert!(deserialised_proof.is_some());
+        assert!(verified_deserialised_proof.is_some());
+        assert_eq!(deserialised_proof.unwrap(), proof);
+    }
+
+    #[test]
+    fn to_buffer() {
+        let mut csprng: OsRng = OsRng;
+        let sk = SecretKey::random(&mut csprng);
+        let pk = sk.public();
+
+        let mut alpha = [0u8; 10];
+        for i in alpha.iter_mut() {
+            *i = csprng.next_u32() as u8;
+        }
+
+        let proof = sk.evaluate_simple(&mut csprng, &alpha[..]);
+
+        let mut buffer = [0u8; PROOF_SIZE + PUBLIC_SIZE];
+        pk.to_buffer(&mut buffer[..PUBLIC_SIZE]);
+        proof.to_buffer(&mut buffer[PUBLIC_SIZE..]);
+
+        let deserialised_pk = PublicKey::from_bytes(&buffer[..PUBLIC_SIZE]);
+
+        assert!(deserialised_pk.is_ok());
+        assert_eq!(deserialised_pk.unwrap(), pk);
+
+        let deserialised_proof = ProvenOutputSeed::from_bytes_unverified(&buffer[PUBLIC_SIZE..]);
+
+        assert!(deserialised_proof.is_some());
+        assert!(deserialised_proof.unwrap().verify(&pk, &alpha));
     }
 }

@@ -14,20 +14,20 @@ impl Proof {
 
     pub fn to_bytes(&self, output: &mut [u8]) {
         assert_eq!(output.len(), Self::PROOF_SIZE);
-        output[0..32].copy_from_slice(&self.c.0.to_bytes());
-        output[32..64].copy_from_slice(&self.z.to_bytes());
+        output[0..Scalar::BYTES_LEN].copy_from_slice(&self.c.0.to_bytes());
+        output[Scalar::BYTES_LEN..].copy_from_slice(&self.z.to_bytes());
     }
 
     pub fn from_bytes(slice: &[u8]) -> Option<Self> {
         if slice.len() != Self::PROOF_SIZE {
             return None;
         }
-        let mut c_array = [0u8; 32];
-        c_array.copy_from_slice(&slice[0..32]);
+        let mut c_array = [0u8; Scalar::BYTES_LEN];
+        c_array.copy_from_slice(&slice[0..Scalar::BYTES_LEN]);
         let c = Scalar::from_bytes(&c_array)?;
 
-        let mut z_array = [0u8; 32];
-        z_array.copy_from_slice(&slice[32..64]);
+        let mut z_array = [0u8; Scalar::BYTES_LEN];
+        z_array.copy_from_slice(&slice[Scalar::BYTES_LEN..]);
         let z = Scalar::from_bytes(&z_array)?;
 
         let proof = Proof { c: Challenge(c), z };
@@ -106,7 +106,7 @@ mod tests {
             h2: &(&H * &a),
         };
         let proof = generate(&w, &a, &dleq);
-        assert_eq!(verify(&dleq, &proof), true);
+        assert!(verify(&dleq, &proof));
 
         let dleq_bad = Dleq {
             g1: G,
@@ -115,6 +115,31 @@ mod tests {
             h2: &(&H * w),
         };
 
-        assert_eq!(verify(&dleq_bad, &proof), false);
+        assert!(!verify(&dleq_bad, &proof));
+    }
+
+    #[test]
+    fn serialisation() {
+        let base_1 = &GroupElement::generator();
+        let base_2 = GroupElement::from_hash(&base_1.to_bytes());
+        let mut csprng: OsRng = OsRng;
+
+        let a = Scalar::random(&mut csprng);
+        let w = Scalar::random(&mut csprng);
+
+        let dleq = Dleq {
+            g1: base_1,
+            h1: &(base_1 * &a),
+            g2: &base_2,
+            h2: &(&base_2 * &a),
+        };
+        let proof = generate(&w, &a, &dleq);
+        let mut serialised_proof = [0u8; Proof::PROOF_SIZE];
+        proof.to_bytes(&mut serialised_proof);
+
+        let deserialised_proof = Proof::from_bytes(&serialised_proof);
+
+        assert!(deserialised_proof.is_some());
+        assert!(verify(&dleq, &deserialised_proof.unwrap()));
     }
 }
