@@ -107,12 +107,7 @@ impl SecretKey {
     /// use 'prove_simple' to use a RNG and avoid generating this random.
     ///
     /// use 'evaluate' or 'evaluate_simple' for creating the proof directly from input
-    pub fn prove(
-        &self,
-        r: &Scalar,
-        m_point: GroupElement,
-        output: OutputSeed,
-    ) -> ProvenOutputSeed {
+    pub fn prove(&self, r: &Scalar, m_point: GroupElement, output: OutputSeed) -> ProvenOutputSeed {
         let dleq = dleq::Dleq {
             g1: &GroupElement::generator(),
             h1: &self.public,
@@ -197,13 +192,15 @@ impl ProvenOutputSeed {
     pub fn to_buffer(&self, output: &mut [u8]) {
         assert_eq!(output.len(), PROOF_SIZE);
         output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.u.0.to_bytes());
-        self.dleq_proof.to_bytes(&mut output[GroupElement::BYTES_LEN..]);
+        self.dleq_proof
+            .to_bytes(&mut output[GroupElement::BYTES_LEN..]);
     }
 
     pub fn bytes(&self) -> [u8; PROOF_SIZE] {
         let mut output = [0u8; PROOF_SIZE];
         output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.u.0.to_bytes());
-        self.dleq_proof.to_bytes(&mut output[GroupElement::BYTES_LEN..]);
+        self.dleq_proof
+            .to_bytes(&mut output[GroupElement::BYTES_LEN..]);
         output
     }
 
@@ -313,7 +310,8 @@ mod tests {
         let proof = sk.evaluate_simple(&mut csprng, &alpha[..]);
         let serialised_proof = proof.bytes();
         let deserialised_proof = ProvenOutputSeed::from_bytes_unverified(&serialised_proof);
-        let verified_deserialised_proof = ProvenOutputSeed::from_bytes(&pk, &serialised_proof, &alpha);
+        let verified_deserialised_proof =
+            ProvenOutputSeed::from_bytes(&pk, &serialised_proof, &alpha);
 
         assert!(deserialised_proof.is_some());
         assert!(verified_deserialised_proof.is_some());
