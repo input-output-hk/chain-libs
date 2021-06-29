@@ -44,8 +44,8 @@ pub struct TallyDecryptShare {
 /// computed.
 /// This intermediate structure is particularly of interest during the distributed
 /// decryption protocol, where, in case there is a misbehaving party, one needs to
-/// perform certain actions between the verification of a vote, and its inclusion in
-/// the tally.
+/// perform certain actions between the verification of a decryption share, and its 
+/// use in the decrypted tally computation.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ValidatedTally {
     r: Vec<Ciphertext>,
