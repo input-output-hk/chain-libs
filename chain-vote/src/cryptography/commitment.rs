@@ -18,7 +18,7 @@ impl CommitmentKey {
         self.commit_with_random(&o.m, &o.r)
     }
 
-    /// Return a commitment with the given message, `m`,  and opening key, `r`
+    // Return a commitment with the given message, `m`,  and opening key, `r`
     fn commit_with_random(&self, m: &Scalar, r: &Scalar) -> GroupElement {
         GroupElement::generator() * m + &self.h * r
     }

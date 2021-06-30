@@ -26,7 +26,7 @@ impl AsRef<[u8]> for SecretKey {
 
 /// VRF Public Key
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PublicKey(GroupElement, [u8; PUBLIC_SIZE]);
+pub struct PublicKey(GroupElement, [u8; Self::BYTES_LEN]);
 
 #[allow(clippy::derive_hash_xor_eq)]
 impl Hash for PublicKey {
@@ -54,11 +54,8 @@ pub struct ProvenOutputSeed {
     dleq_proof: dleq::Proof,
 }
 
-pub const PROOF_SIZE: usize = dleq::Proof::PROOF_SIZE + GroupElement::BYTES_LEN;
-pub const SECRET_SIZE: usize = Scalar::BYTES_LEN;
-pub const PUBLIC_SIZE: usize = GroupElement::BYTES_LEN;
-
 impl SecretKey {
+    pub const BYTES_LEN: usize = Scalar::BYTES_LEN;
     /// Create a new random secret key
     pub fn random<T: RngCore + CryptoRng>(mut rng: T) -> Self {
         let sk = Scalar::random(&mut rng);
@@ -75,13 +72,13 @@ impl SecretKey {
     }
 
     /// Serialize the secret key in binary form
-    pub fn to_bytes(&self) -> [u8; SECRET_SIZE] {
-        let mut v = [0u8; SECRET_SIZE];
+    pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
+        let mut v = [0u8; Self::BYTES_LEN];
         v.copy_from_slice(&self.secret.to_bytes());
         v
     }
 
-    pub fn from_bytes(bytes: [u8; SECRET_SIZE]) -> Option<Self> {
+    pub fn from_bytes(bytes: [u8; Self::BYTES_LEN]) -> Option<Self> {
         let sk = Scalar::from_bytes(&bytes)?;
         let pk = GroupElement::generator() * &sk;
         Some(SecretKey {
@@ -156,8 +153,9 @@ impl SecretKey {
 }
 
 impl PublicKey {
+    pub const BYTES_LEN: usize = GroupElement::BYTES_LEN;
     pub fn from_bytes(input: &[u8]) -> Result<Self, PublicKeyError> {
-        if input.len() != PUBLIC_SIZE {
+        if input.len() != Self::BYTES_LEN {
             return Err(PublicKeyError::SizeInvalid);
         }
         let group_element = GroupElement::from_bytes(input);
@@ -172,12 +170,13 @@ impl PublicKey {
     }
 
     pub fn to_buffer(&self, output: &mut [u8]) {
-        assert_eq!(output.len(), PUBLIC_SIZE);
+        assert_eq!(output.len(), Self::BYTES_LEN);
         output.copy_from_slice(&self.0.to_bytes())
     }
 }
 
 impl ProvenOutputSeed {
+    pub const BYTES_LEN: usize = dleq::Proof::PROOF_SIZE + GroupElement::BYTES_LEN;
     /// Verify a proof for a given public key and a data slice
     pub fn verify(&self, public_key: &PublicKey, input: &[u8]) -> bool {
         let dleq = dleq::Dleq {
@@ -190,14 +189,14 @@ impl ProvenOutputSeed {
     }
 
     pub fn to_buffer(&self, output: &mut [u8]) {
-        assert_eq!(output.len(), PROOF_SIZE);
+        assert_eq!(output.len(), Self::BYTES_LEN);
         output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.u.0.to_bytes());
         self.dleq_proof
             .to_bytes(&mut output[GroupElement::BYTES_LEN..]);
     }
 
-    pub fn bytes(&self) -> [u8; PROOF_SIZE] {
-        let mut output = [0u8; PROOF_SIZE];
+    pub fn bytes(&self) -> [u8; Self::BYTES_LEN] {
+        let mut output = [0u8; Self::BYTES_LEN];
         output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.u.0.to_bytes());
         self.dleq_proof
             .to_bytes(&mut output[GroupElement::BYTES_LEN..]);
@@ -205,7 +204,7 @@ impl ProvenOutputSeed {
     }
 
     pub fn from_bytes_unverified(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != PROOF_SIZE {
+        if bytes.len() != Self::BYTES_LEN {
             return None;
         }
         let u = GroupElement::from_bytes(&bytes[0..GroupElement::BYTES_LEN])?;
@@ -252,7 +251,7 @@ impl OutputSeed {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProvenOutputSeed, PublicKey, SecretKey, PROOF_SIZE, PUBLIC_SIZE};
+    use super::{ProvenOutputSeed, PublicKey, SecretKey};
     use rand_core::{OsRng, RngCore};
 
     #[test]
@@ -331,16 +330,17 @@ mod tests {
 
         let proof = sk.evaluate_simple(&mut csprng, &alpha[..]);
 
-        let mut buffer = [0u8; PROOF_SIZE + PUBLIC_SIZE];
-        pk.to_buffer(&mut buffer[..PUBLIC_SIZE]);
-        proof.to_buffer(&mut buffer[PUBLIC_SIZE..]);
+        let mut buffer = [0u8; ProvenOutputSeed::BYTES_LEN + PublicKey::BYTES_LEN];
+        pk.to_buffer(&mut buffer[..PublicKey::BYTES_LEN]);
+        proof.to_buffer(&mut buffer[PublicKey::BYTES_LEN..]);
 
-        let deserialised_pk = PublicKey::from_bytes(&buffer[..PUBLIC_SIZE]);
+        let deserialised_pk = PublicKey::from_bytes(&buffer[..PublicKey::BYTES_LEN]);
 
         assert!(deserialised_pk.is_ok());
         assert_eq!(deserialised_pk.unwrap(), pk);
 
-        let deserialised_proof = ProvenOutputSeed::from_bytes_unverified(&buffer[PUBLIC_SIZE..]);
+        let deserialised_proof =
+            ProvenOutputSeed::from_bytes_unverified(&buffer[PublicKey::BYTES_LEN..]);
 
         assert!(deserialised_proof.is_some());
         assert!(deserialised_proof.unwrap().verify(&pk, &alpha));

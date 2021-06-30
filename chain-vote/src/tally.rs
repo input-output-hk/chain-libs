@@ -163,10 +163,10 @@ impl EncryptedTally {
 }
 
 impl ValidatedTally {
-    /// Given the shares of the committee members, returns the decryption of all the
-    /// election options in the form of `GroupElements`. To get the final results, one
-    /// needs to compute the discrete logarithm of these values, which is performed in
-    /// `decrypt_tally`.
+    // Given the shares of the committee members, returns the decryption of all the
+    // election options in the form of `GroupElements`. To get the final results, one
+    // needs to compute the discrete logarithm of these values, which is performed in
+    // `decrypt_tally`.
     fn decrypt(&self) -> Vec<GroupElement> {
         let state: Vec<GroupElement> = self.r.iter().map(|c| c.e2.clone()).collect();
         let ris = (0..state.len())
@@ -196,9 +196,9 @@ impl ValidatedTally {
 impl std::ops::Add for EncryptedTally {
     type Output = Self;
 
-    /// Ads two `EncryptedTally`, leveraging the additive homomorphic property of the
-    /// underlying ciphertexts. If the public keys or the crs are not equal, it panics
-    /// todo: maybe we want to handle the errors?
+    // Ads two `EncryptedTally`, leveraging the additive homomorphic property of the
+    // underlying ciphertexts. If the public keys or the crs are not equal, it panics
+    // todo: maybe we want to handle the errors?
     fn add(self, rhs: Self) -> Self::Output {
         assert_eq!(self.r.len(), rhs.r.len());
         let r = self
@@ -243,8 +243,8 @@ impl TallyDecryptShare {
         self.elements.len()
     }
 
-    /// Size of the byte representation for a tally decrypt share
-    /// with the given number of options.
+    // Size of the byte representation for a tally decrypt share
+    // with the given number of options.
     pub fn bytes_len(options: usize) -> usize {
         (ProofOfCorrectShare::PROOF_SIZE + GroupElement::BYTES_LEN)
             .checked_mul(options)
