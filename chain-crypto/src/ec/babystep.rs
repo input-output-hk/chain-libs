@@ -53,7 +53,7 @@ impl BabyStepsTable {
         #[cfg(feature = "ristretto255")]
         for i in 0..=baby_step_size {
             bs.insert(Some(e.to_bytes()), i);
-            e = e + gen;
+            e = e + &gen;
         }
         assert!(!bs.is_empty());
         assert!(baby_step_size > 0);

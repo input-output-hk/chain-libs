@@ -16,10 +16,10 @@ use curve25519_dalek_ng::traits::VartimeMultiscalarMul;
 use std::array::TryFromSliceError;
 use std::convert::TryInto;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scalar(IScalar);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupElement(Point);
 
 #[allow(clippy::derive_hash_xor_eq)]
@@ -52,7 +52,7 @@ impl GroupElement {
         self.0.compress()
     }
 
-    pub fn to_bytes(self) -> [u8; Self::BYTES_LEN] {
+    pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         self.compress().to_bytes()
     }
 
@@ -120,7 +120,7 @@ impl Scalar {
         self.0 += IScalar::one()
     }
 
-    pub fn to_bytes(self) -> [u8; Self::BYTES_LEN] {
+    pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         self.0.to_bytes()
     }
 
@@ -183,7 +183,7 @@ impl Scalar {
     pub fn exp_iter(&self) -> ScalarExp {
         let next_exp_x = Scalar::one();
         ScalarExp {
-            x: *self,
+            x: self.clone(),
             next_exp_x,
         }
     }
@@ -192,7 +192,7 @@ impl Scalar {
 /// Provides an iterator over the powers of a `Scalar`.
 ///
 /// This struct is created by the `exp_iter` function.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ScalarExp {
     x: Scalar,
     next_exp_x: Scalar,
@@ -202,8 +202,8 @@ impl Iterator for ScalarExp {
     type Item = Scalar;
 
     fn next(&mut self) -> Option<Scalar> {
-        let exp_x = self.next_exp_x;
-        self.next_exp_x = self.next_exp_x * self.x;
+        let exp_x = self.next_exp_x.clone();
+        self.next_exp_x = &self.next_exp_x * &self.x;
         Some(exp_x)
     }
 
