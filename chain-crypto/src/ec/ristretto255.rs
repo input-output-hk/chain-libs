@@ -12,7 +12,7 @@ use rand_core::{CryptoRng, RngCore};
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Mul, Sub};
 
-use curve25519_dalek_ng::traits::VartimeMultiscalarMul;
+use curve25519_dalek_ng::traits::{MultiscalarMul, VartimeMultiscalarMul};
 use std::array::TryFromSliceError;
 use std::convert::TryInto;
 
@@ -81,7 +81,19 @@ impl GroupElement {
         }
         sum
     }
+
     pub fn multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
+    where
+        I: IntoIterator<Item = Scalar>,
+        J: IntoIterator<Item = GroupElement>,
+    {
+        GroupElement(Point::multiscalar_mul(
+            scalars.into_iter().map(|s| s.0),
+            points.into_iter().map(|p| p.0),
+        ))
+    }
+
+    pub fn vartime_multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
     where
         I: IntoIterator<Item = Scalar>,
         J: IntoIterator<Item = GroupElement>,
