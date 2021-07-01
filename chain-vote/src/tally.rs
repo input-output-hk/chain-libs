@@ -243,8 +243,8 @@ impl TallyDecryptShare {
         self.elements.len()
     }
 
-    // Size of the byte representation for a tally decrypt share
-    // with the given number of options.
+    /// Size of the byte representation for a tally decrypt share
+    /// with the given number of options.
     pub fn bytes_len(options: usize) -> usize {
         (ProofOfCorrectShare::PROOF_SIZE + GroupElement::BYTES_LEN)
             .checked_mul(options)
