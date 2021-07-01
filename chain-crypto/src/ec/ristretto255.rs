@@ -82,6 +82,7 @@ impl GroupElement {
         sum
     }
 
+    /// Constant-time multiscalar multiplication using Straus algorithm
     pub fn multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
     where
         I: IntoIterator<Item = Scalar>,
@@ -93,6 +94,8 @@ impl GroupElement {
         ))
     }
 
+    /// Variable multiscalar multiplication. This function is vulnerable to side-channel attacks and
+    /// should only be used when the scalars are not secret.
     pub fn vartime_multiscalar_multiplication<I, J>(scalars: I, points: J) -> Self
     where
         I: IntoIterator<Item = Scalar>,
