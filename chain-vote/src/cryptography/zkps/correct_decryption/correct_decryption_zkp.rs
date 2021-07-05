@@ -6,53 +6,49 @@
 //!
 //! `NIZK{(pk, C, M), (sk): M = Dec_sk(C) AND pk = g^sk}`
 //!
-//! which makes the statement, the public key, `pk`, the ciphertext
-//! `(e1, e2)`, and the message, `m`. The witness, on the other hand
-//! is the secret key, `sk`.
-#![allow(clippy::many_single_char_names)]
-use super::challenge_context::ChallengeContext;
+//! This can be translated to the following proof:
+//!
+//! `NIZK{(g, pk, e1, (e2 - M)), (sk): (e2 - M) = e1^sk AND pk = g^sk}`
+//!
+//! which is a proof of discrete log equality. We can therefore proof
+//! correct decryption using a proof of discrete log equality.
 use crate::cryptography::{Ciphertext, PublicKey, SecretKey};
-use chain_crypto::ec::{GroupElement, Scalar};
+use chain_crypto::ec::GroupElement;
+use chain_crypto::zkps::dleq;
 use rand::{CryptoRng, RngCore};
 
 /// Proof of correct decryption.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Zkp {
-    a1: GroupElement,
-    a2: GroupElement,
-    z: Scalar,
+    dleq_proof: dleq::Zkp,
 }
 
 impl Zkp {
-    pub(crate) const PROOF_SIZE: usize = 2 * GroupElement::BYTES_LEN + Scalar::BYTES_LEN; // Scalar is 32 bytes
+    pub(crate) const PROOF_SIZE: usize = dleq::Zkp::BYTES_LEN;
     /// Generate a decryption zero knowledge proof
     pub fn generate<R>(c: &Ciphertext, pk: &PublicKey, sk: &SecretKey, rng: &mut R) -> Self
     where
         R: CryptoRng + RngCore,
     {
-        let w = Scalar::random(rng);
-        let a1 = GroupElement::generator() * &w;
-        let a2 = &c.e1 * &w;
-        let d = &c.e1 * &sk.sk;
-        let mut challenge = ChallengeContext::new(pk, c, &d);
-        let e = challenge.first_challenge(&a1, &a2);
-        let z = &sk.sk * &e + &w;
+        let message = sk.decrypt_point(c);
 
-        Zkp { a1, a2, z }
+        let point_2 = &c.e2 - &message;
+        let dleq_proof = dleq::Zkp::generate(
+            &GroupElement::generator(),
+            &c.e1,
+            &pk.pk,
+            &point_2,
+            &sk.sk,
+            rng,
+        );
+        Zkp { dleq_proof }
     }
 
     /// Verify a decryption zero knowledge proof
     pub fn verify(&self, c: &Ciphertext, m: &GroupElement, pk: &PublicKey) -> bool {
-        let d = &c.e2 - m;
-        let mut challenge = ChallengeContext::new(pk, c, &d);
-        let e = challenge.first_challenge(&self.a1, &self.a2);
-        let gz = GroupElement::generator() * &self.z;
-        let he = &pk.pk * &e;
-        let he_a1 = he + &self.a1;
-        let c1z = &c.e1 * &self.z;
-        let de = d * &e;
-        let de_a2 = de + &self.a2;
-        gz == he_a1 && c1z == de_a2
+        let point_2 = &c.e2 - m;
+        self.dleq_proof
+            .verify(&GroupElement::generator(), &c.e1, &pk.pk, &point_2)
     }
 
     pub fn to_bytes(&self) -> [u8; Self::PROOF_SIZE] {
@@ -63,27 +59,16 @@ impl Zkp {
 
     pub fn to_mut_slice(&self, output: &mut [u8]) {
         assert_eq!(output.len(), Self::PROOF_SIZE);
-        output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.a1.to_bytes());
-        output[GroupElement::BYTES_LEN..(2 * GroupElement::BYTES_LEN)]
-            .copy_from_slice(&self.a2.to_bytes());
-        output[(2 * GroupElement::BYTES_LEN)..(2 * GroupElement::BYTES_LEN) + Scalar::BYTES_LEN]
-            .copy_from_slice(&self.z.to_bytes());
+        self.dleq_proof.to_mut_slice(output);
     }
 
     pub fn from_slice(slice: &[u8]) -> Option<Self> {
         if slice.len() != Self::PROOF_SIZE {
             return None;
         }
-        let a1 = GroupElement::from_bytes(&slice[0..GroupElement::BYTES_LEN])?;
-        let a2 = GroupElement::from_bytes(
-            &slice[GroupElement::BYTES_LEN..(2 * GroupElement::BYTES_LEN)],
-        )?;
-        let z = Scalar::from_bytes(
-            &slice
-                [(2 * GroupElement::BYTES_LEN)..(2 * GroupElement::BYTES_LEN) + Scalar::BYTES_LEN],
-        )?;
+        let dleq_proof = dleq::Zkp::from_slice(slice)?;
 
-        let proof = Zkp { a1, a2, z };
+        let proof = Zkp { dleq_proof };
         Some(proof)
     }
 }

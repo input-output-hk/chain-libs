@@ -7,8 +7,8 @@ use crate::hash::Blake2b256;
 use rand_core::{CryptoRng, RngCore};
 use std::hash::{Hash, Hasher};
 
-use crate::zkps::dleq;
 use crate::key::PublicKeyError;
+use crate::zkps::dleq;
 
 /// VRF Secret Key
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,9 +110,16 @@ impl SecretKey {
         m_point: GroupElement,
         output: OutputSeed,
     ) -> ProvenOutputSeed {
-        let dleq_proof = dleq::Zkp::generate(&GroupElement::generator(), &m_point, &self.public, &output.0, &self.secret, rng);
+        let dleq_proof = dleq::Zkp::generate(
+            &GroupElement::generator(),
+            &m_point,
+            &self.public,
+            &output.0,
+            &self.secret,
+            rng,
+        );
         ProvenOutputSeed {
-            u: output.clone(),
+            u: output,
             dleq_proof,
         }
     }
@@ -158,7 +165,7 @@ impl PublicKey {
 }
 
 impl ProvenOutputSeed {
-    pub const BYTES_LEN: usize = dleq::Zkp::PROOF_SIZE + GroupElement::BYTES_LEN;
+    pub const BYTES_LEN: usize = dleq::Zkp::BYTES_LEN + GroupElement::BYTES_LEN;
     /// Verify a proof for a given public key and a data slice
     pub fn verify(&self, public_key: &PublicKey, input: &[u8]) -> bool {
         self.dleq_proof.verify(

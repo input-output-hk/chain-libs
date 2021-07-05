@@ -1,20 +1,22 @@
-//! Non-interactive Zero Knowledge proof for correct ElGamal
-//! decryption. We use the notation and scheme presented in
-//! Figure 5 of the Treasury voting protocol spec.
+//! Non-interactive Zero Knowledge proof of discrete logarithm
+//! equality.
 //!
 //! The proof is the following:
 //!
-//! `NIZK{(pk, C, M), (sk): M = Dec_sk(C) AND pk = g^sk}`
+//! `NIZK{(base_1, base_2, point_1, point_2), (dlog): point_1 = base_1^dlog AND point_2 = base_2^dlog}`
 //!
-//! which makes the statement, the public key, `pk`, the ciphertext
-//! `(e1, e2)`, and the message, `m`. The witness, on the other hand
-//! is the secret key, `sk`.
+//! which makes the statement, the two bases `base_1` and `base_2`, and the two
+//! points `point_1` and `point_2`. The witness, on the other hand
+//! is the discrete logarithm, `dlog`.
 #![allow(clippy::many_single_char_names)]
 use super::challenge_context::ChallengeContext;
 use crate::ec::{GroupElement, Scalar};
 use rand_core::{CryptoRng, RngCore};
 
 /// Proof of correct decryption.
+/// Note: if the goal is to reduce the size of a proof, it is better to store the challenge
+/// and the response. If on the other hand we want to allow for batch verification of
+/// proofs, we should store the announcements and the response.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Zkp {
     challenge: Scalar,
@@ -22,11 +24,18 @@ pub struct Zkp {
 }
 
 impl Zkp {
-    pub(crate) const PROOF_SIZE: usize = 2 * Scalar::BYTES_LEN;
+    pub const BYTES_LEN: usize = 2 * Scalar::BYTES_LEN;
     /// Generate a decryption zero knowledge proof
-    pub fn generate<R>(base_1: &GroupElement, base_2: &GroupElement, point_1: &GroupElement, point_2: &GroupElement, dlog: &Scalar, rng: &mut R) -> Self
-        where
-            R: CryptoRng + RngCore,
+    pub fn generate<R>(
+        base_1: &GroupElement,
+        base_2: &GroupElement,
+        point_1: &GroupElement,
+        point_2: &GroupElement,
+        dlog: &Scalar,
+        rng: &mut R,
+    ) -> Self
+    where
+        R: CryptoRng + RngCore,
     {
         let w = Scalar::random(rng);
         let announcement_1 = base_1 * &w;
@@ -35,45 +44,54 @@ impl Zkp {
         let challenge = challenge_context.first_challenge(&announcement_1, &announcement_2);
         let response = dlog * &challenge + &w;
 
-        Zkp { challenge, response }
+        Zkp {
+            challenge,
+            response,
+        }
     }
 
     /// Verify a DLEQ proof is valid
-    pub fn verify(&self, base_1: &GroupElement, base_2: &GroupElement, point_1: &GroupElement, point_2: &GroupElement) -> bool {
+    pub fn verify(
+        &self,
+        base_1: &GroupElement,
+        base_2: &GroupElement,
+        point_1: &GroupElement,
+        point_2: &GroupElement,
+    ) -> bool {
         let r1 = base_1 * &self.response;
         let r2 = base_2 * &self.response;
         let announcement_1 = r1 - (point_1 * &self.challenge);
         let announcement_2 = r2 - (point_2 * &self.challenge);
-        // no need for constant time equality because of the hash in challenge()
+
         let mut challenge_context = ChallengeContext::new(base_1, base_2, point_1, point_2);
         let challenge = challenge_context.first_challenge(&announcement_1, &announcement_2);
+        // no need for constant time equality because of the hash in challenge()
         challenge == self.challenge
     }
 
-    pub fn to_bytes(&self) -> [u8; Self::PROOF_SIZE] {
-        let mut output = [0u8; Self::PROOF_SIZE];
+    pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
+        let mut output = [0u8; Self::BYTES_LEN];
         self.to_mut_slice(&mut output);
         output
     }
 
     pub fn to_mut_slice(&self, output: &mut [u8]) {
-        assert_eq!(output.len(), Self::PROOF_SIZE);
+        assert_eq!(output.len(), Self::BYTES_LEN);
         output[0..Scalar::BYTES_LEN].copy_from_slice(&self.challenge.to_bytes());
-        output[Scalar::BYTES_LEN..]
-            .copy_from_slice(&self.response.to_bytes());
+        output[Scalar::BYTES_LEN..].copy_from_slice(&self.response.to_bytes());
     }
 
     pub fn from_slice(slice: &[u8]) -> Option<Self> {
-        if slice.len() != Self::PROOF_SIZE {
+        if slice.len() != Self::BYTES_LEN {
             return None;
         }
         let challenge = Scalar::from_bytes(&slice[..Scalar::BYTES_LEN])?;
-        let response = Scalar::from_bytes(
-            &slice
-                [Scalar::BYTES_LEN..],
-        )?;
+        let response = Scalar::from_bytes(&slice[Scalar::BYTES_LEN..])?;
 
-        let proof = Zkp { challenge, response };
+        let proof = Zkp {
+            challenge,
+            response,
+        };
         Some(proof)
     }
 }
@@ -93,14 +111,7 @@ mod tests {
         let point_1 = &base_1 * &dlog;
         let point_2 = &base_2 * &dlog;
 
-        let proof = Zkp::generate(
-            &base_1,
-            &base_2,
-            &point_1,
-            &point_2,
-            &dlog,
-            &mut r,
-        );
+        let proof = Zkp::generate(&base_1, &base_2, &point_1, &point_2, &dlog, &mut r);
 
         assert!(proof.verify(&base_1, &base_2, &point_1, &point_2));
     }
@@ -115,20 +126,15 @@ mod tests {
         let point_1 = &base_1 * &dlog;
         let point_2 = &base_2 * &dlog;
 
-        let proof = Zkp::generate(
-            &base_1,
-            &base_2,
-            &point_1,
-            &point_2,
-            &dlog,
-            &mut r,
-        );
+        let proof = Zkp::generate(&base_1, &base_2, &point_1, &point_2, &dlog, &mut r);
 
         let serialised_proof = proof.to_bytes();
         let deserialised_proof = Zkp::from_slice(&serialised_proof);
 
         assert!(deserialised_proof.is_some());
 
-        assert!(deserialised_proof.unwrap().verify(&base_1, &base_2, &point_1, &point_2));
+        assert!(deserialised_proof
+            .unwrap()
+            .verify(&base_1, &base_2, &point_1, &point_2));
     }
 }
