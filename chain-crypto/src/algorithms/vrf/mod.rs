@@ -64,7 +64,7 @@ impl VerifiableRandomFunction for Curve25519_2HashDh {
         input: &Self::Input,
         mut rng: T,
     ) -> Self::VerifiedRandomOutput {
-        secret.evaluate_simple(&mut rng, input)
+        secret.evaluate(&mut rng, input)
     }
 
     fn verify(

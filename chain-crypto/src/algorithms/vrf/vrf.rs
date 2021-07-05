@@ -100,10 +100,9 @@ impl SecretKey {
 
     /// Create a proof, for the given parameters; no check is made to make sure it's correct
     ///
-    /// the proof is randomized, so need a freshly randomly scalar for random.
-    /// use 'prove_simple' to use a RNG and avoid generating this random.
+    /// the proof is randomized, so need a secure RNG.
     ///
-    /// use 'evaluate' or 'evaluate_simple' for creating the proof directly from input
+    /// use 'evaluate' for creating the proof directly from input
     pub fn prove<T: RngCore + CryptoRng>(
         &self,
         rng: &mut T,
@@ -126,7 +125,7 @@ impl SecretKey {
 
     /// Generate a Proof
     ///
-    pub fn evaluate_simple<T: RngCore + CryptoRng>(
+    pub fn evaluate<T: RngCore + CryptoRng>(
         &self,
         rng: &mut T,
         input: &[u8],
@@ -258,7 +257,7 @@ mod tests {
             *i = csprng.next_u32() as u8;
         }
 
-        let proof = sk.evaluate_simple(&mut csprng, &b1[..]);
+        let proof = sk.evaluate(&mut csprng, &b1[..]);
 
         // make sure the test pass
         assert!(proof.verify(&pk, &b1[..]));
@@ -292,7 +291,7 @@ mod tests {
             *i = csprng.next_u32() as u8;
         }
 
-        let proof = sk.evaluate_simple(&mut csprng, &alpha[..]);
+        let proof = sk.evaluate(&mut csprng, &alpha[..]);
         let serialised_proof = proof.bytes();
         let deserialised_proof = ProvenOutputSeed::from_bytes_unverified(&serialised_proof);
         let verified_deserialised_proof =
@@ -314,7 +313,7 @@ mod tests {
             *i = csprng.next_u32() as u8;
         }
 
-        let proof = sk.evaluate_simple(&mut csprng, &alpha[..]);
+        let proof = sk.evaluate(&mut csprng, &alpha[..]);
 
         let mut buffer = [0u8; ProvenOutputSeed::BYTES_LEN + PublicKey::BYTES_LEN];
         pk.to_buffer(&mut buffer[..PublicKey::BYTES_LEN]);

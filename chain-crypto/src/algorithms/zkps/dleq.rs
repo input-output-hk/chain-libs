@@ -1,5 +1,5 @@
-//! Non-interactive Zero Knowledge proof of discrete logarithm
-//! equality.
+//! Non-interactive Zero Knowledge proof of Discrete Logarithm
+//! EQuality (DLEQ).
 //!
 //! The proof is the following:
 //!
@@ -25,7 +25,7 @@ pub struct Zkp {
 
 impl Zkp {
     pub const BYTES_LEN: usize = 2 * Scalar::BYTES_LEN;
-    /// Generate a decryption zero knowledge proof
+    /// Generate a DLEQ proof
     pub fn generate<R>(
         base_1: &GroupElement,
         base_2: &GroupElement,
@@ -50,7 +50,7 @@ impl Zkp {
         }
     }
 
-    /// Verify a DLEQ proof is valid
+    /// Verify a DLEQ proof
     pub fn verify(
         &self,
         base_1: &GroupElement,
