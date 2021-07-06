@@ -25,14 +25,12 @@ pub struct Zkp {
 
 impl Zkp {
     pub(crate) const PROOF_SIZE: usize = dleq::Zkp::BYTES_LEN;
-    /// Generate a decryption zero knowledge proof
-    pub fn generate<R>(c: &Ciphertext, pk: &PublicKey, sk: &SecretKey, rng: &mut R) -> Self
+    /// Generate a decryption zero knowledge proof.
+    pub fn generate<R>(c: &Ciphertext, pk: &PublicKey, message: &GroupElement, sk: &SecretKey, rng: &mut R) -> Self
     where
         R: CryptoRng + RngCore,
     {
-        let message = sk.decrypt_point(c);
-
-        let point_2 = &c.e2 - &message;
+        let point_2 = &c.e2 - message;
         let dleq_proof = dleq::Zkp::generate(
             &GroupElement::generator(),
             &c.e1,
@@ -89,9 +87,12 @@ mod tests {
         let plaintext = GroupElement::from_hash(&[0u8]);
         let ciphertext = keypair.public_key.encrypt_point(&plaintext, &mut r);
 
+        let decryption = keypair.secret_key.decrypt_point(&ciphertext);
+
         let proof = Zkp::generate(
             &ciphertext,
             &keypair.public_key,
+            &decryption,
             &keypair.secret_key,
             &mut r,
         );
