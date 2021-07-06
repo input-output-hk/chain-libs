@@ -125,11 +125,7 @@ impl SecretKey {
 
     /// Generate a Proof
     ///
-    pub fn evaluate<T: RngCore + CryptoRng>(
-        &self,
-        rng: &mut T,
-        input: &[u8],
-    ) -> ProvenOutputSeed {
+    pub fn evaluate<T: RngCore + CryptoRng>(&self, rng: &mut T, input: &[u8]) -> ProvenOutputSeed {
         let (m_point, output) = self.verifiable_output(input);
         self.prove(rng, m_point, output)
     }
