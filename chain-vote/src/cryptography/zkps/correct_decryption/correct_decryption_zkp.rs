@@ -26,7 +26,13 @@ pub struct Zkp {
 impl Zkp {
     pub(crate) const PROOF_SIZE: usize = dleq::Zkp::BYTES_LEN;
     /// Generate a decryption zero knowledge proof.
-    pub fn generate<R>(c: &Ciphertext, pk: &PublicKey, message: &GroupElement, sk: &SecretKey, rng: &mut R) -> Self
+    pub fn generate<R>(
+        c: &Ciphertext,
+        pk: &PublicKey,
+        message: &GroupElement,
+        sk: &SecretKey,
+        rng: &mut R,
+    ) -> Self
     where
         R: CryptoRng + RngCore,
     {

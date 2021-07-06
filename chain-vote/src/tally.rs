@@ -138,7 +138,13 @@ impl EncryptedTally {
         for r in &self.r {
             // todo: we are decrypting twice, we can probably improve this
             let decrypted_share = &r.e1 * &secret_key.0.sk;
-            let proof = CorrectShareGenerationZkp::generate(&r, &secret_key.to_public().0, &decrypted_share, &secret_key.0, rng);
+            let proof = CorrectShareGenerationZkp::generate(
+                &r,
+                &secret_key.to_public().0,
+                &decrypted_share,
+                &secret_key.0,
+                rng,
+            );
             dshares.push(ProvenDecryptShare {
                 r1: decrypted_share,
                 pi: proof,

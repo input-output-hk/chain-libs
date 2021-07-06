@@ -27,9 +27,15 @@ pub struct Zkp {
 impl Zkp {
     pub(crate) const PROOF_SIZE: usize = dleq::Zkp::BYTES_LEN;
     /// Generate a valid share zero knowledge proof.
-    pub fn generate<R>(c: &Ciphertext, pk: &PublicKey, share: &GroupElement, sk: &SecretKey, rng: &mut R) -> Self
-        where
-            R: CryptoRng + RngCore,
+    pub fn generate<R>(
+        c: &Ciphertext,
+        pk: &PublicKey,
+        share: &GroupElement,
+        sk: &SecretKey,
+        rng: &mut R,
+    ) -> Self
+    where
+        R: CryptoRng + RngCore,
     {
         let vshare_proof = dleq::Zkp::generate(
             &GroupElement::generator(),
@@ -122,6 +128,8 @@ mod tests {
         let deseriliased_proof = Zkp::from_slice(&serialised_proof);
         assert!(deseriliased_proof.is_some());
 
-        assert!(deseriliased_proof.unwrap().verify(&ciphertext, &share, &keypair.public_key));
+        assert!(deseriliased_proof
+            .unwrap()
+            .verify(&ciphertext, &share, &keypair.public_key));
     }
 }
