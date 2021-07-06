@@ -71,17 +71,17 @@ impl Zkp {
 
     pub fn to_bytes(&self) -> [u8; Self::BYTES_LEN] {
         let mut output = [0u8; Self::BYTES_LEN];
-        self.to_mut_slice(&mut output);
+        self.write_to_bytes(&mut output);
         output
     }
 
-    pub fn to_mut_slice(&self, output: &mut [u8]) {
+    pub fn write_to_bytes(&self, output: &mut [u8]) {
         assert_eq!(output.len(), Self::BYTES_LEN);
         output[0..Scalar::BYTES_LEN].copy_from_slice(&self.challenge.to_bytes());
         output[Scalar::BYTES_LEN..].copy_from_slice(&self.response.to_bytes());
     }
 
-    pub fn from_slice(slice: &[u8]) -> Option<Self> {
+    pub fn from_bytes(slice: &[u8]) -> Option<Self> {
         if slice.len() != Self::BYTES_LEN {
             return None;
         }
@@ -129,7 +129,7 @@ mod tests {
         let proof = Zkp::generate(&base_1, &base_2, &point_1, &point_2, &dlog, &mut r);
 
         let serialised_proof = proof.to_bytes();
-        let deserialised_proof = Zkp::from_slice(&serialised_proof);
+        let deserialised_proof = Zkp::from_bytes(&serialised_proof);
 
         assert!(deserialised_proof.is_some());
 

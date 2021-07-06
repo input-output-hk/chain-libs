@@ -56,20 +56,20 @@ impl Zkp {
 
     pub fn to_bytes(&self) -> [u8; Self::PROOF_SIZE] {
         let mut output = [0u8; Self::PROOF_SIZE];
-        self.to_mut_slice(&mut output);
+        self.write_to_bytes(&mut output);
         output
     }
 
-    pub fn to_mut_slice(&self, output: &mut [u8]) {
+    pub fn write_to_bytes(&self, output: &mut [u8]) {
         assert_eq!(output.len(), Self::PROOF_SIZE);
-        self.vshare_proof.to_mut_slice(output);
+        self.vshare_proof.write_to_bytes(output);
     }
 
-    pub fn from_slice(slice: &[u8]) -> Option<Self> {
+    pub fn from_bytes(slice: &[u8]) -> Option<Self> {
         if slice.len() != Self::PROOF_SIZE {
             return None;
         }
-        let vshare_proof = dleq::Zkp::from_slice(slice)?;
+        let vshare_proof = dleq::Zkp::from_bytes(slice)?;
 
         let proof = Zkp { vshare_proof };
         Some(proof)
@@ -125,7 +125,7 @@ mod tests {
         );
 
         let serialised_proof = proof.to_bytes();
-        let deseriliased_proof = Zkp::from_slice(&serialised_proof);
+        let deseriliased_proof = Zkp::from_bytes(&serialised_proof);
         assert!(deseriliased_proof.is_some());
 
         assert!(deseriliased_proof

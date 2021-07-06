@@ -1,3 +1,3 @@
-mod correct_share_generation_zkp;
+mod zkp;
 
-pub use correct_share_generation_zkp::Zkp as CorrectShareGenerationZkp;
+pub use zkp::Zkp as CorrectShareGenerationZkp;

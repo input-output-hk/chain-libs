@@ -262,7 +262,7 @@ impl ProvenDecryptShare {
         }
 
         let r1 = GroupElement::from_bytes(&bytes[0..GroupElement::BYTES_LEN])?;
-        let proof = CorrectShareGenerationZkp::from_slice(&bytes[GroupElement::BYTES_LEN..])?;
+        let proof = CorrectShareGenerationZkp::from_bytes(&bytes[GroupElement::BYTES_LEN..])?;
         Some(ProvenDecryptShare { r1, pi: proof })
     }
 }

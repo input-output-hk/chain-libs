@@ -103,7 +103,7 @@ impl SecretKey {
     /// the proof is randomized, so need a secure RNG.
     ///
     /// use 'evaluate' for creating the proof directly from input
-    pub fn prove<T: RngCore + CryptoRng>(
+    fn prove<T: RngCore + CryptoRng>(
         &self,
         rng: &mut T,
         m_point: GroupElement,
@@ -175,7 +175,7 @@ impl ProvenOutputSeed {
         assert_eq!(output.len(), Self::BYTES_LEN);
         output[0..GroupElement::BYTES_LEN].copy_from_slice(&self.u.0.to_bytes());
         self.dleq_proof
-            .to_mut_slice(&mut output[GroupElement::BYTES_LEN..]);
+            .write_to_bytes(&mut output[GroupElement::BYTES_LEN..]);
     }
 
     pub fn bytes(&self) -> [u8; Self::BYTES_LEN] {
@@ -189,7 +189,7 @@ impl ProvenOutputSeed {
             return None;
         }
         let u = GroupElement::from_bytes(&bytes[0..GroupElement::BYTES_LEN])?;
-        let proof = dleq::Zkp::from_slice(&bytes[GroupElement::BYTES_LEN..])?;
+        let proof = dleq::Zkp::from_bytes(&bytes[GroupElement::BYTES_LEN..])?;
         Some(ProvenOutputSeed {
             u: OutputSeed(u),
             dleq_proof: proof,

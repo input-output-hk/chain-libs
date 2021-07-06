@@ -57,20 +57,20 @@ impl Zkp {
 
     pub fn to_bytes(&self) -> [u8; Self::PROOF_SIZE] {
         let mut output = [0u8; Self::PROOF_SIZE];
-        self.to_mut_slice(&mut output);
+        self.write_to_bytes(&mut output);
         output
     }
 
-    pub fn to_mut_slice(&self, output: &mut [u8]) {
+    pub fn write_to_bytes(&self, output: &mut [u8]) {
         assert_eq!(output.len(), Self::PROOF_SIZE);
-        self.dleq_proof.to_mut_slice(output);
+        self.dleq_proof.write_to_bytes(output);
     }
 
-    pub fn from_slice(slice: &[u8]) -> Option<Self> {
+    pub fn from_bytes(slice: &[u8]) -> Option<Self> {
         if slice.len() != Self::PROOF_SIZE {
             return None;
         }
-        let dleq_proof = dleq::Zkp::from_slice(slice)?;
+        let dleq_proof = dleq::Zkp::from_bytes(slice)?;
 
         let proof = Zkp { dleq_proof };
         Some(proof)
