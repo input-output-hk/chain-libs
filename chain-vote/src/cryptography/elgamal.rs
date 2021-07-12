@@ -41,16 +41,19 @@ pub struct Ciphertext {
 }
 
 #[derive(Clone)]
+/// Hybrid Ciphertext (which can be found in section 2.1.3 of the Treasury spec) is defined
+/// by (g^r, AESEnd_k(m)), where k = h^r and r is taken uniformly at random from Zp. h is
+/// and `ElGamal` public key.
 pub struct HybridCiphertext {
-    // ElGamal Ciphertext
-    e1: Ciphertext,
+    // Committed randomness
+    e1: GroupElement,
     // Symmetric encrypted message
     e2: Box<[u8]>,
 }
 
 /// The hybrid encryption scheme uses a group element as a
 /// representation of the symmetric key. This facilitates
-/// its exchange using ElGamal encryption.
+/// its exchange using ElGamal keypairs.
 pub struct SymmetricKey {
     group_repr: GroupElement,
 }
@@ -129,8 +132,9 @@ impl PublicKey {
     where
         R: RngCore + CryptoRng,
     {
-        let symmetric_key = SymmetricKey::new(rng);
-        let e1 = self.encrypt_point(&symmetric_key.group_repr, rng);
+        let encryption_randomness = Scalar::random(rng);
+        let symmetric_key = SymmetricKey { group_repr: &self.pk * &encryption_randomness };
+        let e1 = encryption_randomness * GroupElement::generator();
         let e2 = symmetric_key.process(message).into_boxed_slice();
         HybridCiphertext { e1, e2 }
     }
@@ -155,6 +159,8 @@ impl SecretKey {
 
         symmetric_key.process(&ciphertext.e2)
     }
+
+    ///
 
     /// Decrypt ElGamal `Ciphertext` = (`cipher`.e1, `cipher`.e2), by computing
     /// `cipher`.e2 - `self` * `cipher`.e1. This returns the plaintext respresented
