@@ -46,16 +46,16 @@ pub struct Ciphertext {
 /// and `ElGamal` public key.
 pub struct HybridCiphertext {
     // Committed randomness
-    e1: GroupElement,
+    pub(crate) e1: GroupElement,
     // Symmetric encrypted message
-    e2: Box<[u8]>,
+    pub(crate) e2: Box<[u8]>,
 }
 
 /// The hybrid encryption scheme uses a group element as a
 /// representation of the symmetric key. This facilitates
 /// its exchange using ElGamal keypairs.
 pub struct SymmetricKey {
-    group_repr: GroupElement,
+    pub(crate) group_repr: GroupElement,
 }
 
 impl PublicKey {
@@ -133,7 +133,9 @@ impl PublicKey {
         R: RngCore + CryptoRng,
     {
         let encryption_randomness = Scalar::random(rng);
-        let symmetric_key = SymmetricKey { group_repr: &self.pk * &encryption_randomness };
+        let symmetric_key = SymmetricKey {
+            group_repr: &self.pk * &encryption_randomness,
+        };
         let e1 = encryption_randomness * GroupElement::generator();
         let e2 = symmetric_key.process(message).into_boxed_slice();
         HybridCiphertext { e1, e2 }
@@ -150,17 +152,18 @@ impl SecretKey {
         Scalar::from_bytes(bytes).map(|sk| Self { sk })
     }
 
+    pub(crate) fn generate_symmtric_key(&self, ciphertext: &HybridCiphertext) -> SymmetricKey {
+        SymmetricKey {
+            group_repr: &ciphertext.e1 * &self.sk,
+        }
+    }
+
     #[allow(dead_code)]
     /// Decrypt a message using hybrid decryption
     pub(crate) fn hybrid_decrypt(&self, ciphertext: &HybridCiphertext) -> Vec<u8> {
-        let symmetric_key = SymmetricKey {
-            group_repr: self.decrypt_point(&ciphertext.e1),
-        };
-
-        symmetric_key.process(&ciphertext.e2)
+        self.generate_symmtric_key(ciphertext)
+            .process(&ciphertext.e2)
     }
-
-    ///
 
     /// Decrypt ElGamal `Ciphertext` = (`cipher`.e1, `cipher`.e2), by computing
     /// `cipher`.e2 - `self` * `cipher`.e1. This returns the plaintext respresented
@@ -248,6 +251,21 @@ impl Ciphertext {
 
     pub fn elements(&self) -> (&GroupElement, &GroupElement) {
         (&self.e1, &self.e2)
+    }
+}
+
+impl HybridCiphertext {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut r = Vec::new();
+        r.extend_from_slice(self.e1.to_bytes().as_ref());
+        r.extend_from_slice(self.e2.as_ref());
+        r
+    }
+
+    pub fn from_bytes(slice: &[u8]) -> Option<HybridCiphertext> {
+        let e1 = GroupElement::from_bytes(&slice[..GroupElement::BYTES_LEN])?;
+        let e2 = slice[GroupElement::BYTES_LEN..].to_vec().into_boxed_slice();
+        Some(HybridCiphertext { e1, e2 })
     }
 }
 
@@ -351,6 +369,25 @@ mod tests {
 
         let encrypted = &k.public_key.hybrid_encrypt(&m, &mut rng);
         let result = &k.secret_key.hybrid_decrypt(&encrypted);
+
+        assert_eq!(&m[..], &result[..])
+    }
+
+    #[test]
+    fn hybrid_serialisation() {
+        let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
+        let k = SecretKey::generate(&mut rng);
+        let k = Keypair::from_secretkey(k);
+
+        let m = [1, 3, 4, 5, 6, 7];
+
+        let encrypted = &k.public_key.hybrid_encrypt(&m, &mut rng);
+        let serialised_ciphertext = encrypted.to_bytes();
+        let deserialised_ciphertext = HybridCiphertext::from_bytes(&serialised_ciphertext);
+        assert!(deserialised_ciphertext.is_some());
+        let result = &k
+            .secret_key
+            .hybrid_decrypt(&deserialised_ciphertext.unwrap());
 
         assert_eq!(&m[..], &result[..])
     }
