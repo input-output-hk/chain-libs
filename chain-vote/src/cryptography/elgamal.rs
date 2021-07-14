@@ -152,7 +152,7 @@ impl SecretKey {
         Scalar::from_bytes(bytes).map(|sk| Self { sk })
     }
 
-    pub(crate) fn generate_symmtric_key(&self, ciphertext: &HybridCiphertext) -> SymmetricKey {
+    pub(crate) fn recover_symmetric_key(&self, ciphertext: &HybridCiphertext) -> SymmetricKey {
         SymmetricKey {
             group_repr: &ciphertext.e1 * &self.sk,
         }
@@ -161,7 +161,7 @@ impl SecretKey {
     #[allow(dead_code)]
     /// Decrypt a message using hybrid decryption
     pub(crate) fn hybrid_decrypt(&self, ciphertext: &HybridCiphertext) -> Vec<u8> {
-        self.generate_symmtric_key(ciphertext)
+        self.recover_symmetric_key(ciphertext)
             .process(&ciphertext.e2)
     }
 
