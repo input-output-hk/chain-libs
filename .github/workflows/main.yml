@@ -212,8 +212,6 @@ jobs:
     name: Test Coverage
     needs: update_deps
     runs-on: ubuntu-latest
-    env:
-      SHA_SHORT: ${GITHUB_SHA:0:8}
     steps:
       - uses: actions/checkout@v2
 
@@ -246,10 +244,18 @@ jobs:
         with:
           out-type: Html
 
-      - run: mv tarpaulin-report.html test_coverage_$SHA_SHORT.html
+      - run: |
+          branch=$(git branch --show-current)
+          time=$(TZ=UTC git show --quiet --date='format-local:%Y%m%dT%H%M%SZ' --format="%cd")
+          sha=${GITHUB_SHA:0:8}
+          slug=$(echo ${branch}_${time}_${sha} | sed -r 's/[^[:alnum:]_-]/-/g')
+          echo "slug=$slug" >> $GITHUB_ENV
+        shell: bash
+
+      - run: mv tarpaulin-report.html test_coverage_${{ env.slug }}.html
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v2
         with:
-          name: test_coverage_$SHA_SHORT
-          path: test_coverage_$SHA_SHORT.html
+          name: test_coverage_${{ env.slug }}
+          path: test_coverage_${{ env.slug }}.html
