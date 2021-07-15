@@ -12,9 +12,9 @@
 //!
 //! which is a proof of discrete log equality. We can therefore prove
 //! correct decryption using a proof of discrete log equality.
+use crate::cryptography::zkps::dl_equality::DleqZkp;
 use crate::cryptography::{Ciphertext, PublicKey, SecretKey};
 use crate::GroupElement;
-use crate::cryptography::zkps::dl_equality::DleqZkp;
 use rand::{CryptoRng, RngCore};
 
 /// Proof of correct decryption.
@@ -128,6 +128,8 @@ mod tests {
         let deserialised_proof = Zkp::from_bytes(&serialised_proof);
         assert!(deserialised_proof.is_some());
 
-        assert!(deserialised_proof.unwrap().verify(&ciphertext, &plaintext, &keypair.public_key))
+        assert!(deserialised_proof
+            .unwrap()
+            .verify(&ciphertext, &plaintext, &keypair.public_key))
     }
 }

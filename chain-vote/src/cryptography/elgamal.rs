@@ -256,7 +256,7 @@ impl Ciphertext {
 
 impl HybridCiphertext {
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut r = Vec::new();
+        let mut r = Vec::with_capacity(GroupElement::BYTES_LEN + self.e2.len());
         r.extend_from_slice(self.e1.to_bytes().as_ref());
         r.extend_from_slice(self.e2.as_ref());
         r
