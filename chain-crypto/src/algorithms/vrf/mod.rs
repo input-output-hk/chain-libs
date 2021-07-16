@@ -84,3 +84,20 @@ impl VerifiableRandomFunction for RistrettoGroup2HashDh {
         vr.u.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// `secret_from_binary` should fail if the provided byte array does not match the public key size
+    fn vtf_size_checks() {
+        for n in 0..u8::MAX as usize {
+            let secret_key = RistrettoGroup2HashDh::secret_from_binary(&vec![0; n]);
+
+            if n != vrf::SecretKey::BYTES_LEN {
+                assert_eq!(secret_key, Err(SecretKeyError::SizeInvalid));
+            }
+        }
+    }
+}

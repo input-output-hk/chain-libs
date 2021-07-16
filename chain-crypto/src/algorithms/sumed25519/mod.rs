@@ -115,3 +115,30 @@ impl KeyEvolvingSignatureAlgorithm for SumEd25519_12 {
         sig.t() as u32
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// `public_from_binary` and `signature_from_bytes` should fail if the provided byte array does
+    /// not match the public key size
+    fn sum_ed25519_12_size_checks() {
+        for n in 0..u8::MAX as usize {
+            let public_key = SumEd25519_12::public_from_binary(&vec![0; n]);
+
+            if n != SumEd25519_12::PUBLIC_KEY_SIZE {
+                assert_eq!(public_key, Err(PublicKeyError::SizeInvalid));
+            }
+
+            let verification_algorithm = SumEd25519_12::signature_from_bytes(&vec![0; n]);
+
+            if n != SumEd25519_12::SIGNATURE_SIZE {
+                match verification_algorithm {
+                    Err(SignatureError::SizeInvalid { .. }) => {}
+                    _ => panic!("Error expected"),
+                }
+            }
+        }
+    }
+}
