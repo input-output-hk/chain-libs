@@ -85,18 +85,14 @@ mod test {
         keypair_signing_ko(input)
     }
 
-    #[test]
+    #[quickcheck]
     /// `secret_from_binary` should fail if the provided byte array does not match the public key size
-    fn vtf_size_checks() {
-        for n in 0..u8::MAX as usize {
-            let secret_key = Ed25519Extended::secret_from_binary(&vec![0; n]);
+    fn secret_from_binary_size_check(n: usize) {
+        let secret_key = Ed25519Extended::secret_from_binary(&vec![0; n]);
 
-            if n != EXTENDED_KEY_SIZE {
-                match secret_key {
-                    Err(SecretKeyError::SizeInvalid { .. }) => {}
-                    _ => panic!("Error expected"),
-                }
-            }
-        }
+        assert_eq!(
+            n != EXTENDED_KEY_SIZE,
+            matches!(secret_key, Err(SecretKeyError::SizeInvalid { .. }))
+        );
     }
 }

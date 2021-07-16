@@ -107,6 +107,7 @@ impl TestGen {
     }
 
     pub fn ledger() -> Ledger {
+        // TODO: Randomize some of the config paramaters below
         let leader_pair = TestGen::leader_pair();
         let header_id = TestGen::hash();
         let mut ie = ConfigParams::new();
@@ -115,7 +116,6 @@ impl TestGen {
         ie.push(ConfigParam::SlotDuration(10u8));
         ie.push(ConfigParam::SlotsPerEpoch(10u32));
         ie.push(ConfigParam::KesUpdateSpeed(3600));
-        ie.push(ConfigParam::Block0Date(crate::config::Block0Date(0)));
         ie.push(ConfigParam::Block0Date(crate::config::Block0Date(0)));
 
         Ledger::new(header_id, vec![&Fragment::Initial(ie)]).unwrap()
