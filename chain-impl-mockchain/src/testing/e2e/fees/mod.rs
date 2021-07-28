@@ -12,6 +12,10 @@ use chain_addr::Discrimination;
 
 use std::num::NonZeroU64;
 
+const ALICE: &str = "Alice";
+const BOB: &str = "Bob";
+const STAKE_POOL: &str = "stake_pool";
+
 #[test]
 pub fn per_certificate_fees() {
     let input_constant = 1;
@@ -47,14 +51,14 @@ pub fn per_certificate_fees() {
                 )),
         )
         .with_initials(vec![
-            wallet("Alice").with(alice_funds),
-            wallet("Bob").with(bob_funds),
+            wallet(ALICE).with(alice_funds),
+            wallet(BOB).with(bob_funds),
         ])
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet("Alice").unwrap();
-    let mut bob = controller.wallet("Bob").unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
+    let mut bob = controller.wallet(BOB).unwrap();
     let stake_pool = StakePoolBuilder::new()
         .with_owners(vec![alice.public_key()])
         .build();
@@ -158,12 +162,12 @@ pub fn owner_delegates_fee() {
                 .with_discrimination(Discrimination::Test)
                 .with_fee(LinearFee::new(1, 1, 1)),
         )
-        .with_initials(vec![wallet("Alice").with(alice_funds).owns("stake_pool")])
+        .with_initials(vec![wallet(ALICE).with(alice_funds).owns(STAKE_POOL)])
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet("Alice").unwrap();
-    let stake_pool = controller.stake_pool("stake_pool").unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
+    let stake_pool = controller.stake_pool(STAKE_POOL).unwrap();
 
     LedgerStateVerifier::new(ledger.clone().into())
         .total_value_is(&Value(expected_total_funds_before));
@@ -187,12 +191,8 @@ pub fn owner_delegates_fee() {
 /// Verifies that after a transaction in a ledger without fees, the total funds do not change and
 /// the fee pots remain empty.
 fn transaction_without_fees() {
-    const ALICE: &str = "Alice";
     const ALICE_FUNDS: u64 = 42;
-
-    const BOB: &str = "Bob";
     const BOB_FUNDS: u64 = 13;
-
     const TRANSFER: u64 = 10;
 
     let (mut ledger, controller) = prepare_scenario()
@@ -229,12 +229,8 @@ fn transaction_without_fees() {
 /// Verifies that after a transaction in a ledger with fees, the total funds do not change and the
 /// fee pots contain the fee.
 fn transaction_with_fees() {
-    const ALICE: &str = "Alice";
     const ALICE_FUNDS: u64 = 42;
-
-    const BOB: &str = "Bob";
     const BOB_FUNDS: u64 = 13;
-
     const TRANSFER: u64 = 10;
     const FEE: u64 = 7;
 
