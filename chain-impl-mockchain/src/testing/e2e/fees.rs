@@ -9,6 +9,7 @@ use crate::{
     value::Value,
 };
 use chain_addr::Discrimination;
+use quickcheck_macros::quickcheck;
 
 use std::num::NonZeroU64;
 
@@ -191,53 +192,25 @@ pub fn owner_delegates_fee() {
 /// Verifies that after a transaction in a ledger without fees, the total funds do not change and
 /// the fee pots remain empty.
 fn transaction_without_fees() {
-    const ALICE_FUNDS: u64 = 42;
-    const BOB_FUNDS: u64 = 13;
-    const TRANSFER: u64 = 10;
-
-    let (mut ledger, controller) = prepare_scenario()
-        .with_config(ConfigBuilder::new(0).with_fee(LinearFee::new(0, 0, 0)))
-        .with_initials(vec![
-            wallet(ALICE).with(ALICE_FUNDS),
-            wallet(BOB).with(BOB_FUNDS),
-        ])
-        .build()
-        .expect("Could not build scenario");
-
-    let total_funds = ledger.total_funds();
-
-    let mut alice_wallet = controller.wallet(ALICE).unwrap();
-    let bob_wallet = controller.wallet(BOB).unwrap();
-
-    controller
-        .transfer_funds(&alice_wallet, &bob_wallet, &mut ledger, TRANSFER)
-        .unwrap();
-    alice_wallet.confirm_transaction();
-
-    LedgerStateVerifier::new(ledger.clone().into())
-        .address_has_expected_balance(
-            alice_wallet.as_account_data(),
-            Value(ALICE_FUNDS - TRANSFER),
-        )
-        .address_has_expected_balance(bob_wallet.as_account_data(), Value(BOB_FUNDS + TRANSFER))
-        .total_value_is(&total_funds)
-        .pots()
-        .has_fee_equals_to(&Value(0));
+    verify_total_funds_after_transaction_with_fee(0);
 }
 
-#[test]
 /// Verifies that after a transaction in a ledger with fees, the total funds do not change and the
 /// fee pots contain the fee.
-fn transaction_with_fees() {
-    const ALICE_FUNDS: u64 = 42;
-    const BOB_FUNDS: u64 = 13;
-    const TRANSFER: u64 = 10;
-    const FEE: u64 = 7;
+#[quickcheck]
+fn transaction_with_fees(fee: u64) {
+    verify_total_funds_after_transaction_with_fee(fee);
+}
+
+fn verify_total_funds_after_transaction_with_fee(fee: u64) {
+    const BOB_FUNDS: u64 = 42;
+    let transfer = fee + 13; // The transfer should be large enough to cover the fee
+    let alice_funds = transfer + 13; // Alice should have enough funds to cover the transfer
 
     let (mut ledger, controller) = prepare_scenario()
-        .with_config(ConfigBuilder::new(0).with_fee(LinearFee::new(FEE, 0, 0)))
+        .with_config(ConfigBuilder::new(0).with_fee(LinearFee::new(fee, 0, 0)))
         .with_initials(vec![
-            wallet(ALICE).with(ALICE_FUNDS),
+            wallet(ALICE).with(alice_funds),
             wallet(BOB).with(BOB_FUNDS),
         ])
         .build()
@@ -249,20 +222,20 @@ fn transaction_with_fees() {
     let bob_wallet = controller.wallet(BOB).unwrap();
 
     controller
-        .transfer_funds(&alice_wallet, &bob_wallet, &mut ledger, TRANSFER)
+        .transfer_funds(&alice_wallet, &bob_wallet, &mut ledger, transfer)
         .unwrap();
     alice_wallet.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.clone().into())
         .address_has_expected_balance(
             alice_wallet.as_account_data(),
-            Value(ALICE_FUNDS - TRANSFER),
+            Value(alice_funds - transfer),
         )
         .address_has_expected_balance(
             bob_wallet.as_account_data(),
-            Value(BOB_FUNDS + TRANSFER - FEE),
+            Value(BOB_FUNDS + transfer - fee),
         )
         .total_value_is(&total_funds)
         .pots()
-        .has_fee_equals_to(&Value(FEE));
+        .has_fee_equals_to(&Value(fee));
 }
