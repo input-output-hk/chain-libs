@@ -15,7 +15,7 @@ cryptoxide = "0.3"
 
 [dev-dependencies]
 rand_chacha = "0.3"
-smoke = "^0.2.1"
+smoke = "^0.3.0"
 criterion = "0.3"
 
 [build-dependencies]
