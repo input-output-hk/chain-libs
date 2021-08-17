@@ -1,5 +1,4 @@
 use chain_crypto::testing::TestCryptoRng;
-use chain_impl_mockchain::testing::scenario::template::WalletTemplateBuilder;
 use chain_impl_mockchain::{
     certificate::{
         DecryptedPrivateTally, DecryptedPrivateTallyProposal, EncryptedVoteTally, VoteCast,
@@ -41,18 +40,15 @@ fn tally_benchmark(
 ) {
     let mut rng = TestCryptoRng::seed_from_u64(0);
 
-    // All wallets that are needed to be initialized in the genesis block
-    // TODO the underlying ledger constructor is not using this &mut. This should be a plain
-    // Vec<WalletTemplateBuilder>, which will greatly simplify this code.
-    let mut wallets: Vec<&mut WalletTemplateBuilder> = Vec::new();
+    let mut wallets = Vec::new();
 
     // Stake pool owner
-    let mut alice_wallet_builder = wallet(ALICE);
-    alice_wallet_builder
+    let alice_wallet_builder = wallet(ALICE)
         .with(1_000)
         .owns(STAKE_POOL)
         .committee_member();
-    wallets.push(&mut alice_wallet_builder);
+
+    wallets.push(alice_wallet_builder);
 
     // generate the required number of wallets from the distribution
     let voters_aliases: Vec<_> = (1..=voters_count)
@@ -63,17 +59,15 @@ fn tally_benchmark(
         .take(voters_count)
         .collect();
     let total_votes = voting_powers.iter().sum();
-    let mut voters_wallets: Vec<_> = voters_aliases
-        .iter()
-        .zip(voting_powers.iter())
-        .map(|(alias, voting_power)| {
-            let mut wallet_builder = WalletTemplateBuilder::new(alias);
-            wallet_builder.with(*voting_power);
-            wallet_builder
-        })
-        .collect();
+    {
+        let mut voters_wallets: Vec<_> = voters_aliases
+            .iter()
+            .zip(voting_powers.iter())
+            .map(|(alias, voting_power)| wallet(alias).with(*voting_power))
+            .collect();
 
-    wallets.append(&mut voters_wallets.iter_mut().collect());
+        wallets.append(&mut voters_wallets);
+    }
 
     // Prepare committee members keys
     let members = CommitteeMembersManager::new(&mut rng, CRS_SEED, THRESHOLD, MEMBERS_NO);
@@ -84,16 +78,16 @@ fn tally_benchmark(
         .collect();
 
     // Build the vote plan
-    let mut vote_plan_builder = vote_plan(VOTE_PLAN);
-    vote_plan_builder
+    let mut vote_plan_builder = vote_plan(VOTE_PLAN)
         .owner(ALICE)
         .consecutive_epoch_dates()
         .payload_type(PayloadType::Private)
         .committee_keys(committee_keys);
     for _ in 0..n_proposals {
-        let mut proposal_builder = proposal(VoteTestGen::external_proposal_id());
-        proposal_builder.options(3).action_off_chain();
-        vote_plan_builder.with_proposal(&mut proposal_builder);
+        let proposal_builder = proposal(VoteTestGen::external_proposal_id())
+            .options(3)
+            .action_off_chain();
+        vote_plan_builder = vote_plan_builder.with_proposal(proposal_builder);
     }
 
     // Initialize ledger
@@ -104,7 +98,7 @@ fn tally_benchmark(
                 .with_rewards(Value(1000)),
         )
         .with_initials(wallets)
-        .with_vote_plans(vec![&mut vote_plan_builder])
+        .with_vote_plans(vec![vote_plan_builder])
         .build()
         .unwrap();
 

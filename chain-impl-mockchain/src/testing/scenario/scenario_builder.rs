@@ -42,7 +42,7 @@ pub struct ScenarioBuilder {
     config: ConfigBuilder,
     initials: Option<Vec<WalletTemplateBuilder>>,
     stake_pools: Option<Vec<StakePoolDefBuilder>>,
-    vote_plans: Vec<VotePlanDefBuilder>,
+    vote_plans: Option<Vec<VotePlanDefBuilder>>,
 }
 
 pub fn prepare_scenario() -> ScenarioBuilder {
@@ -54,32 +54,32 @@ pub fn prepare_scenario() -> ScenarioBuilder {
         config: default_config_builder,
         initials: None,
         stake_pools: None,
-        vote_plans: Vec::new(),
+        vote_plans: None,
     }
 }
 
 impl ScenarioBuilder {
-    pub fn with_config(&mut self, config: ConfigBuilder) -> &mut Self {
+    pub fn with_config(mut self, config: ConfigBuilder) -> Self {
         self.config = config;
         self
     }
 
-    pub fn with_initials(&mut self, initials: Vec<&mut WalletTemplateBuilder>) -> &mut Self {
-        self.initials = Some(initials.iter().map(|x| (**x).clone()).collect());
+    pub fn with_initials(mut self, initials: Vec<WalletTemplateBuilder>) -> Self {
+        self.initials = Some(initials);
         self
     }
 
-    pub fn with_vote_plans(&mut self, vote_plans: Vec<&mut VotePlanDefBuilder>) -> &mut Self {
-        self.vote_plans = vote_plans.iter().map(|x| (**x).clone()).collect();
+    pub fn with_vote_plans(mut self, vote_plans: Vec<VotePlanDefBuilder>) -> Self {
+        self.vote_plans = Some(vote_plans);
         self
     }
 
-    pub fn with_stake_pools(&mut self, stake_pools: Vec<&mut StakePoolDefBuilder>) -> &mut Self {
-        self.stake_pools = Some(stake_pools.iter().map(|x| (**x).clone()).collect());
+    pub fn with_stake_pools(mut self, stake_pools: Vec<StakePoolDefBuilder>) -> Self {
+        self.stake_pools = Some(stake_pools);
         self
     }
 
-    pub fn build(&self) -> Result<(TestLedger, Controller), ScenarioBuilderError> {
+    pub fn build(self) -> Result<(TestLedger, Controller), ScenarioBuilderError> {
         if self.initials.is_none() {
             return Err(ScenarioBuilderError::UndefinedInitials);
         }
@@ -107,14 +107,17 @@ impl ScenarioBuilder {
         let faucets: Vec<AddressDataValue> =
             wallets.iter().cloned().map(|x| x.as_account()).collect();
 
-        let vote_plan_defs: Vec<VotePlanDef> =
-            self.vote_plans.iter().map(|x| x.clone().build()).collect();
-        let vote_plan_fragments: Vec<Fragment> = self
+        let vote_plan_defs: Vec<VotePlanDef> = self
             .vote_plans
             .iter()
+            .map(|builders| builders.into_iter())
+            .flatten()
+            .map(|x| x.clone().build())
+            .collect();
+        let vote_plan_fragments: Vec<Fragment> = vote_plan_defs
+            .iter()
             .cloned()
-            .map(|x| {
-                let vote_plan_def = x.build();
+            .map(|vote_plan_def| {
                 let owner = wallets
                     .iter()
                     .cloned()
@@ -211,9 +214,9 @@ impl ScenarioBuilder {
     }
 
     fn build_stake_pool(&self, template: StakePoolTemplate) -> StakePool {
-        let mut builder = StakePoolBuilder::new();
-        builder.with_owners(template.owners());
-        builder.with_alias(&template.alias());
+        let mut builder = StakePoolBuilder::new()
+            .with_owners(template.owners())
+            .with_alias(&template.alias());
 
         if let Some(stake_pools) = &self.stake_pools {
             let stake_pool_def_opt = stake_pools
@@ -224,12 +227,12 @@ impl ScenarioBuilder {
 
             if let Some(stake_pool_def) = stake_pool_def_opt {
                 if let Some(pool_permission) = stake_pool_def.pool_permission() {
-                    builder.with_pool_permissions(pool_permission);
+                    builder = builder.with_pool_permissions(pool_permission);
                 }
                 if let Some(tax_type) = stake_pool_def.tax_type {
-                    builder.with_tax_type(tax_type);
+                    builder = builder.with_tax_type(tax_type);
                 }
-                builder.with_reward_account(stake_pool_def.has_reward_account);
+                builder = builder.with_reward_account(stake_pool_def.has_reward_account);
             }
         }
         builder.build()
