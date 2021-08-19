@@ -98,7 +98,6 @@ pub struct ApplyBlockLedger {
     ledger: Ledger,
     ledger_params: LedgerParameters,
     chain_length: ChainLength,
-    block_date: BlockDate,
 }
 
 // Dummy implementation of Debug for Ledger
@@ -773,11 +772,13 @@ impl Ledger {
         new_ledger.updates = updates;
         new_ledger.settings = settings;
 
+        // update the block date
+        new_ledger.date = block_date;
+
         Ok(ApplyBlockLedger {
             ledger: new_ledger,
             ledger_params,
             chain_length,
-            block_date,
         })
     }
 
@@ -1555,37 +1556,28 @@ impl Ledger {
 }
 
 impl ApplyBlockLedger {
-    pub fn block_date(&self) -> BlockDate {
-        self.block_date
-    }
-
     pub fn apply_fragment(&self, fragment: &Fragment) -> Result<Self, Error> {
         let ledger = self
             .ledger
-            .apply_fragment(&self.ledger_params, fragment, self.block_date)?;
+            .apply_fragment(&self.ledger_params, fragment, self.ledger.date)?;
         Ok(ApplyBlockLedger {
             ledger,
             ..self.clone()
         })
     }
 
-    pub fn finish(self, consensus_eval_context: &ConsensusEvalContext) -> Ledger {
-        let mut new_ledger = self.ledger;
-
-        // Update the ledger metadata related to eval context
-        new_ledger.date = self.block_date;
+    pub fn finish(mut self, consensus_eval_context: &ConsensusEvalContext) -> Ledger {
         match consensus_eval_context {
             ConsensusEvalContext::Bft | ConsensusEvalContext::Genesis => {}
             ConsensusEvalContext::Praos {
                 nonce,
                 pool_creator,
             } => {
-                new_ledger.settings.consensus_nonce.hash_with(nonce);
-                new_ledger.leaders_log.increase_for(pool_creator);
+                self.ledger.settings.consensus_nonce.hash_with(nonce);
+                self.ledger.leaders_log.increase_for(pool_creator);
             }
         };
-
-        new_ledger
+        self.ledger
     }
 }
 
