@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 chain-core = { path = "../chain-core" }
 chain-addr = { path = "../chain-addr" }
 chain-crypto = { path = "../chain-crypto" }
-chain-evm = { path = "../chain-evm" }
+chain-evm = { path = "../chain-evm", optional = true }
 chain-ser = { path = "../chain-ser" }
 chain-time = { path = "../chain-time" }
 chain-vote = { path = "../chain-vote" }
@@ -33,6 +33,7 @@ rand = "0.8"
 primitive-types = "0.10.1"
 
 [features]
+evm = ["chain-evm"]
 property-test-api = [
         "chain-crypto/property-test-api",
         "chain-time/property-test-api",
