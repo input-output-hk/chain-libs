@@ -248,6 +248,28 @@ impl Arbitrary for VoteCast {
     }
 }
 
+fn arbitrary_decrypted_private_tally<G: Gen>(g: &mut G) -> DecryptedPrivateTally {
+    let proposals_n = u8::arbitrary(g);
+    let mut inner = Vec::new();
+    for _i in 0..proposals_n {
+        let n_options = NonZeroU8::arbitrary(g);
+        let mut buffer = Vec::with_capacity(TallyDecryptShare::bytes_len(n_options.get() as usize));
+
+        for _j in 0..n_options.get() {
+            buffer.extend(&GroupElement::from_hash(&u64::arbitrary(g).to_be_bytes()).to_bytes());
+            buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
+            buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
+        }
+        inner.push(DecryptedPrivateTallyProposal {
+            tally_result: (0..n_options.get())
+                .map(|_| u64::arbitrary(g))
+                .collect::<Box<[_]>>(),
+            decrypt_shares: Box::new([TallyDecryptShare::from_bytes(&buffer).unwrap()]),
+        });
+    }
+    DecryptedPrivateTally::new(inner)
+}
+
 impl Arbitrary for VoteTally {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let vote_plan_id = VotePlanId::arbitrary(g);
@@ -255,28 +277,7 @@ impl Arbitrary for VoteTally {
         let private = bool::arbitrary(g);
 
         if private {
-            let proposals_n = u8::arbitrary(g);
-            let mut inner = Vec::new();
-            for _i in 0..proposals_n {
-                let n_options = NonZeroU8::arbitrary(g);
-                let mut buffer =
-                    Vec::with_capacity(TallyDecryptShare::bytes_len(n_options.get() as usize));
-
-                for _j in 0..n_options.get() {
-                    buffer.extend(
-                        &GroupElement::from_hash(&u64::arbitrary(g).to_be_bytes()).to_bytes(),
-                    );
-                    buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
-                    buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
-                }
-                inner.push(DecryptedPrivateTallyProposal {
-                    tally_result: (0..n_options.get())
-                        .map(|_| u64::arbitrary(g))
-                        .collect::<Box<[_]>>(),
-                    decrypt_shares: Box::new([TallyDecryptShare::from_bytes(&buffer).unwrap()]),
-                });
-            }
-            Self::new_private(vote_plan_id, DecryptedPrivateTally::new(inner))
+            Self::new_private(vote_plan_id, arbitrary_decrypted_private_tally(g))
         } else {
             Self::new_public(vote_plan_id)
         }
