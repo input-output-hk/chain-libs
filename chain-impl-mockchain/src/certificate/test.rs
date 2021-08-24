@@ -4,19 +4,19 @@ use crate::block::BlockDate;
 use crate::fragment::ConfigParams;
 use crate::ledger::governance::TreasuryGovernanceAction;
 use crate::rewards::TaxType;
+use crate::testing::data::CommitteeMembersManager;
 use crate::vote;
 #[cfg(test)]
 use chain_core::mempack::{ReadBuf, Readable};
-use chain_crypto::{
-    ec::ristretto255::{GroupElement, Scalar},
-    testing, Ed25519,
-};
+use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
-use chain_vote::TallyDecryptShare;
+use chain_vote::{Crs, EncryptedTally};
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use quickcheck_macros::quickcheck;
+use rand::SeedableRng;
+use rand_chacha::ChaChaRng;
 use std::num::NonZeroU8;
 
 impl Arbitrary for PoolRetirement {
@@ -196,8 +196,6 @@ impl Arbitrary for Proposals {
 
 impl Arbitrary for VotePlan {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        use rand_core::SeedableRng;
-
         let vote_start = BlockDate::arbitrary(g);
         let vote_end = BlockDate::arbitrary(g);
         let committee_end = BlockDate::arbitrary(g);
@@ -251,23 +249,37 @@ impl Arbitrary for VoteCast {
 fn arbitrary_decrypted_private_tally<G: Gen>(g: &mut G) -> DecryptedPrivateTally {
     let proposals_n = u8::arbitrary(g);
     let mut inner = Vec::new();
-    for _i in 0..proposals_n {
-        let n_options = NonZeroU8::arbitrary(g);
-        let mut buffer = Vec::with_capacity(TallyDecryptShare::bytes_len(n_options.get() as usize));
+    let mut rng = ChaChaRng::seed_from_u64(u64::arbitrary(g));
+    let crs_seed = String::arbitrary(g).into_bytes();
+    let committee_size = (g.next_u32() % 2 + 1) as usize; // very time consuming
+    let committee_manager =
+        CommitteeMembersManager::new(&mut rng, &crs_seed, committee_size, committee_size);
 
-        for _j in 0..n_options.get() {
-            buffer.extend(&GroupElement::from_hash(&u64::arbitrary(g).to_be_bytes()).to_bytes());
-            buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
-            buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
+    for _ in 0..proposals_n {
+        let n_options = NonZeroU8::arbitrary(g);
+
+        let encrypted_tally = EncryptedTally::new(
+            n_options.get() as usize,
+            committee_manager.election_pk(),
+            Crs::from_hash(&crs_seed),
+        );
+
+        let mut decrypte_shares = Vec::new();
+        for i in 0..committee_size {
+            decrypte_shares.push(
+                encrypted_tally
+                    .partial_decrypt(&mut rng, committee_manager.members()[i].secret_key()),
+            );
         }
+
         inner.push(DecryptedPrivateTallyProposal {
             tally_result: (0..n_options.get())
                 .map(|_| u64::arbitrary(g))
                 .collect::<Box<[_]>>(),
-            decrypt_shares: Box::new([TallyDecryptShare::from_bytes(&buffer).unwrap()]),
+            decrypt_shares: decrypte_shares.into_boxed_slice(),
         });
     }
-    DecryptedPrivateTally::new(inner)
+    DecryptedPrivateTally::new(inner).unwrap()
 }
 
 impl Arbitrary for VoteTally {
