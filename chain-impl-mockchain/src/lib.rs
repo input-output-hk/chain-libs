@@ -25,6 +25,7 @@ pub mod multisig;
 pub mod multiverse;
 pub mod rewards;
 pub mod setting;
+pub mod smartcontract;
 pub mod stake;
 pub mod transaction;
 pub mod treasury;
