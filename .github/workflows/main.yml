@@ -72,6 +72,7 @@ jobs:
         toolchain: [stable]
         mode: ['', '--release']
         experimental: [false]
+        features: ['']
         include:
           - os: ubuntu-latest
             toolchain: nightly
