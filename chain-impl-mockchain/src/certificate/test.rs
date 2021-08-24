@@ -7,12 +7,17 @@ use crate::rewards::TaxType;
 use crate::vote;
 #[cfg(test)]
 use chain_core::mempack::{ReadBuf, Readable};
-use chain_crypto::{testing, Ed25519};
+use chain_crypto::{
+    ec::ristretto255::{GroupElement, Scalar},
+    testing, Ed25519,
+};
 use chain_time::DurationSeconds;
+use chain_vote::TallyDecryptShare;
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use quickcheck_macros::quickcheck;
+use std::num::NonZeroU8;
 
 impl Arbitrary for PoolRetirement {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -246,7 +251,35 @@ impl Arbitrary for VoteCast {
 impl Arbitrary for VoteTally {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let vote_plan_id = VotePlanId::arbitrary(g);
-        Self::new_public(vote_plan_id)
+
+        let private = bool::arbitrary(g);
+
+        if private {
+            let proposals_n = u8::arbitrary(g);
+            let mut inner = Vec::new();
+            for _i in 0..proposals_n {
+                let n_options = NonZeroU8::arbitrary(g);
+                let mut buffer =
+                    Vec::with_capacity(TallyDecryptShare::bytes_len(n_options.get() as usize));
+
+                for _j in 0..n_options.get() {
+                    buffer.extend(
+                        &GroupElement::from_hash(&u64::arbitrary(g).to_be_bytes()).to_bytes(),
+                    );
+                    buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
+                    buffer.extend(&Scalar::from_u64(u64::arbitrary(g)).to_bytes());
+                }
+                inner.push(DecryptedPrivateTallyProposal {
+                    tally_result: (0..n_options.get())
+                        .map(|_| u64::arbitrary(g))
+                        .collect::<Box<[_]>>(),
+                    decrypt_shares: Box::new([TallyDecryptShare::from_bytes(&buffer).unwrap()]),
+                });
+            }
+            Self::new_private(vote_plan_id, DecryptedPrivateTally::new(inner))
+        } else {
+            Self::new_public(vote_plan_id)
+        }
     }
 }
 
