@@ -1,17 +1,26 @@
 //! EVM Smart Contract transactions
 
 use chain_core::mempack::Readable;
+#[cfg(feature = "evm")]
+use chain_evm::{Configuration, Environment, GasLimit};
 
 use crate::transaction::Payload;
 
-pub struct Deployment {
-    _config: (),
-    _input: (),
-    _data: (),
-    _bytecode: (),
+pub enum Contract {
+    EVM {
+        #[cfg(feature = "evm")]
+        _config: Configuration,
+        #[cfg(feature = "evm")]
+        _environment: Environment,
+        #[cfg(feature = "evm")]
+        _gas_limit: GasLimit,
+        _input: Box<u8>,
+        _data: Box<u8>,
+        _bytecode: Box<u8>,
+    },
 }
 
-impl Readable for Deployment {
+impl Readable for Contract {
     fn read(
         _buf: &mut chain_core::mempack::ReadBuf,
     ) -> Result<Self, chain_core::mempack::ReadError> {
@@ -19,7 +28,7 @@ impl Readable for Deployment {
     }
 }
 
-impl Payload for Deployment {
+impl Payload for Contract {
     const HAS_DATA: bool = true;
     const HAS_AUTH: bool = false;
     type Auth = ();

@@ -36,7 +36,7 @@ pub enum Fragment {
     VoteCast(Transaction<certificate::VoteCast>),
     VoteTally(Transaction<certificate::VoteTally>),
     EncryptedVoteTally(Transaction<certificate::EncryptedVoteTally>),
-    SmartContract(Transaction<smartcontract::Deployment>),
+    SmartContractDeploy(Transaction<smartcontract::Contract>),
 }
 
 impl PartialEq for Fragment {
@@ -63,7 +63,7 @@ pub(super) enum FragmentTag {
     VoteCast = 11,
     VoteTally = 12,
     EncryptedVoteTally = 13,
-    SmartContract = 14,
+    SmartContractDeploy = 14,
 }
 
 impl FragmentTag {
@@ -83,7 +83,7 @@ impl FragmentTag {
             11 => Some(FragmentTag::VoteCast),
             12 => Some(FragmentTag::VoteTally),
             13 => Some(FragmentTag::EncryptedVoteTally),
-            14 => Some(FragmentTag::SmartContract),
+            14 => Some(FragmentTag::SmartContractDeploy),
             _ => None,
         }
     }
@@ -107,7 +107,7 @@ impl Fragment {
             Fragment::VoteCast(_) => FragmentTag::VoteCast,
             Fragment::VoteTally(_) => FragmentTag::VoteTally,
             Fragment::EncryptedVoteTally(_) => FragmentTag::EncryptedVoteTally,
-            Fragment::SmartContract(_) => FragmentTag::SmartContract,
+            Fragment::SmartContractDeploy(_) => FragmentTag::SmartContractDeploy,
         }
     }
 
@@ -134,7 +134,7 @@ impl Fragment {
             Fragment::VoteCast(vote_plan) => vote_plan.serialize(&mut codec).unwrap(),
             Fragment::VoteTally(vote_tally) => vote_tally.serialize(&mut codec).unwrap(),
             Fragment::EncryptedVoteTally(vote_tally) => vote_tally.serialize(&mut codec).unwrap(),
-            Fragment::SmartContract(deployment) => deployment.serialize(&mut codec).unwrap(),
+            Fragment::SmartContractDeploy(deployment) => deployment.serialize(&mut codec).unwrap(),
         }
         FragmentRaw(codec.into_inner())
     }
@@ -195,7 +195,9 @@ impl Readable for Fragment {
             Some(FragmentTag::EncryptedVoteTally) => {
                 Transaction::read(buf).map(Fragment::EncryptedVoteTally)
             }
-            Some(FragmentTag::SmartContract) => Transaction::read(buf).map(Fragment::SmartContract),
+            Some(FragmentTag::SmartContractDeploy) => {
+                Transaction::read(buf).map(Fragment::SmartContractDeploy)
+            }
             None => Err(ReadError::UnknownTag(tag as u32)),
         }
     }
