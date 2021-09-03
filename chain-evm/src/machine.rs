@@ -20,6 +20,12 @@ use primitive_types::{H160, H256, U256};
 
 use crate::state::AccountTrie;
 
+/// EVM Configuration.
+pub type Configuration = Config;
+
+/// Gas limit for EVM operations.
+pub type GasLimit = u64;
+
 /// Environment values for the machine backend.
 pub type Environment = MemoryVicinity;
 
@@ -49,7 +55,7 @@ impl VirtualMachine {
     fn executor<'backend, 'config>(
         &'backend self,
         gas_limit: u64,
-        config: &'config Config,
+        config: &'config Configuration,
     ) -> StackExecutor<'config, MemoryStackState<'backend, 'config, VirtualMachine>> {
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -63,7 +69,7 @@ impl VirtualMachine {
         code: Rc<Vec<u8>>,
         data: Rc<Vec<u8>>,
         context: RuntimeContext,
-        config: &'config Config,
+        config: &'config Configuration,
     ) -> Runtime<'config> {
         Runtime::new(code, data, context, config)
     }
@@ -214,7 +220,7 @@ mod tests {
         let vm = VirtualMachine::new(environment, state);
 
         let gas_limit = u64::max_value();
-        let config = Config::istanbul();
+        let config = Configuration::istanbul();
         let mut executor = vm.executor(gas_limit, &config);
 
         // Byte-encoded smart contract code
