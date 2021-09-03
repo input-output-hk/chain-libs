@@ -496,7 +496,7 @@ impl Ledger {
                 Fragment::EncryptedVoteTally(_) => {
                     return Err(Error::Block0(Block0Error::HasVoteTally));
                 }
-                Fragment::SmartContract(_) => todo!(),
+                Fragment::SmartContractDeploy(_) => todo!(),
             }
         }
 
@@ -986,7 +986,7 @@ impl Ledger {
                     tx.payload_auth().into_payload_auth(),
                 )?;
             }
-            Fragment::SmartContract(_deployment) => todo!(),
+            Fragment::SmartContractDeploy(_deployment) => todo!(),
         }
 
         Ok(new_ledger)
