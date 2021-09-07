@@ -1,4 +1,4 @@
 pub mod machine;
 pub mod state;
 
-pub use machine::{Configuration, Environment, GasLimit};
+pub use machine::{Config, Environment, GasLimit};
