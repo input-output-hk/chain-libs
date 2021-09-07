@@ -7,6 +7,12 @@ use chain_evm::{
     state::{AccountAddress, ByteCode},
 };
 use typed_bytes::ByteBuilder;
+
+use crate::{
+    certificate::CertificateSlice,
+    transaction::{Payload, PayloadAuthData, PayloadData},
+};
+
 /// Variants of Smart Contract deployment
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Contract {
@@ -87,22 +93,6 @@ impl Contract {
     }
 }
 
-=======
-pub enum Contract {
-    EVM {
-        #[cfg(feature = "evm")]
-        _config: Configuration,
-        #[cfg(feature = "evm")]
-        _environment: Environment,
-        #[cfg(feature = "evm")]
-        _gas_limit: GasLimit,
-        _input: Box<u8>,
-        _data: Box<u8>,
-        _bytecode: Box<u8>,
-    },
-}
-
->>>>>>> 59913ae0 (rename fragment & fragment tag to SmartContractDeploy)
 impl Readable for Contract {
     fn read(
         buf: &mut chain_core::mempack::ReadBuf,
