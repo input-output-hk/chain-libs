@@ -14,14 +14,14 @@ use std::rc::Rc;
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic, Log, MemoryVicinity},
     executor::{MemoryStackState, StackExecutor, StackSubstateMetadata},
-    Config, Context, Runtime,
+    Config as EvmConfig, Context, Runtime,
 };
 use primitive_types::{H160, H256, U256};
 
 use crate::state::AccountTrie;
 
 /// EVM Configuration.
-pub type Configuration = Config;
+pub type Config = EvmConfig;
 
 /// Gas limit for EVM operations.
 pub type GasLimit = u64;
@@ -55,7 +55,7 @@ impl VirtualMachine {
     fn executor<'backend, 'config>(
         &'backend self,
         gas_limit: u64,
-        config: &'config Configuration,
+        config: &'config Config,
     ) -> StackExecutor<'config, MemoryStackState<'backend, 'config, VirtualMachine>> {
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -69,7 +69,7 @@ impl VirtualMachine {
         code: Rc<Vec<u8>>,
         data: Rc<Vec<u8>>,
         context: RuntimeContext,
-        config: &'config Configuration,
+        config: &'config Config,
     ) -> Runtime<'config> {
         Runtime::new(code, data, context, config)
     }
@@ -220,7 +220,7 @@ mod tests {
         let vm = VirtualMachine::new(environment, state);
 
         let gas_limit = u64::max_value();
-        let config = Configuration::istanbul();
+        let config = Config::istanbul();
         let mut executor = vm.executor(gas_limit, &config);
 
         // Byte-encoded smart contract code
