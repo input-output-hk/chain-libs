@@ -7,12 +7,10 @@ use chain_evm::{Config, Environment, GasLimit};
 use crate::transaction::Payload;
 
 pub enum Contract {
+    #[cfg(feature = "evm")]
     EVM {
-        #[cfg(feature = "evm")]
         _config: Config,
-        #[cfg(feature = "evm")]
         _environment: Environment,
-        #[cfg(feature = "evm")]
         _gas_limit: GasLimit,
         _input: Box<u8>,
         _data: Box<u8>,
