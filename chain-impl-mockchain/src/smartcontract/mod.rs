@@ -2,14 +2,14 @@
 
 use chain_core::mempack::Readable;
 #[cfg(feature = "evm")]
-use chain_evm::{Configuration, Environment, GasLimit};
+use chain_evm::{Config, Environment, GasLimit};
 
 use crate::transaction::Payload;
 
 pub enum Contract {
     EVM {
         #[cfg(feature = "evm")]
-        _config: Configuration,
+        _config: Config,
         #[cfg(feature = "evm")]
         _environment: Environment,
         #[cfg(feature = "evm")]
