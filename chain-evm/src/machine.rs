@@ -71,6 +71,12 @@ pub type Gas = U256;
 /// Gas price integer for EVM operations.
 pub type GasPrice = U256;
 
+/// Gas quantity integer for EVM operations.
+pub type Gas = U256;
+
+/// Gas price integer for EVM operations.
+pub type GasPrice = U256;
+
 /// Gas limit for EVM operations.
 pub type GasLimit = U256;
 
