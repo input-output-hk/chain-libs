@@ -5,6 +5,9 @@ use primitive_types::{H160, U256};
 pub type Nonce = U256;
 pub type Balance = U256;
 
+/// Smart-contract bytecode, such as the one compiled from Solidity code, for example.
+pub type ByteCode = Box<[u8]>;
+
 /// A represantation of an EVM account.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Account {

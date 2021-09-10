@@ -23,8 +23,17 @@ use crate::state::AccountTrie;
 /// EVM Configuration.
 pub type Config = EvmConfig;
 
+/// Gas quantity integer for EVM operations.
+pub type Gas = U256;
+
+/// Gas price integer for EVM operations.
+pub type GasPrice = U256;
+
 /// Gas limit for EVM operations.
 pub type GasLimit = u64;
+
+/// Integer of the value sent with an EVM transaction.
+pub type Value = U256;
 
 /// Environment values for the machine backend.
 pub type Environment = MemoryVicinity;
