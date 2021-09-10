@@ -2,19 +2,31 @@
 
 use chain_core::mempack::Readable;
 #[cfg(feature = "evm")]
-use chain_evm::{Config, Environment, GasLimit};
+use chain_evm::{
+    machine::{Gas, GasPrice, Value},
+    state::{AccountAddress, ByteCode},
+};
 
 use crate::transaction::Payload;
 
+/// Variants of Smart Contract deployment
 pub enum Contract {
     #[cfg(feature = "evm")]
+    /// Deploys a smart contract from a given `AccountAddress`, as
+    /// perfomed by the `eth_sendTransaction` JSON-RPC method.
     EVM {
-        _config: Config,
-        _environment: Environment,
-        _gas_limit: GasLimit,
-        _input: Box<u8>,
-        _data: Box<u8>,
-        _bytecode: Box<u8>,
+        /// The address the transaction is send from.
+        from: AccountAddress,
+        /// (optional when creating new contract) The address the transaction is directed to.
+        to: Option<AccountAddress>,
+        /// (optional, default: To-Be-Determined) Integer of the gas provided for the transaction execution.
+        gas: Option<Gas>,
+        /// (optional, default: To-Be-Determined) Integer of the gasPrice used for each payed gas.
+        gas_price: Option<GasPrice>,
+        /// (optional) Integer of the value send with this transaction.
+        value: Option<Value>,
+        /// (optional) The compiled code of a contract.
+        data: Option<ByteCode>,
     },
 }
 
