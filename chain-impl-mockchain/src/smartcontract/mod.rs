@@ -50,23 +50,38 @@ impl Readable for Contract {
                     let from = AccountAddress::from_slice(buf.get_slice(20)?);
                     let to = match buf.get_u8()? {
                         0 => None,
-                        _ => Some(AccountAddress::from_slice(buf.get_slice(20)?)),
+                        1 => Some(AccountAddress::from_slice(buf.get_slice(20)?)),
+                        _ => {
+                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
+                        }
                     };
                     let gas = match buf.get_u8()? {
                         0 => None,
-                        _ => Some(Gas::from(buf.get_slice(32)?)),
+                        1 => Some(Gas::from(buf.get_slice(32)?)),
+                        _ => {
+                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
+                        }
                     };
                     let gas_price = match buf.get_u8()? {
                         0 => None,
-                        _ => Some(GasPrice::from(buf.get_slice(32)?)),
+                        1 => Some(GasPrice::from(buf.get_slice(32)?)),
+                        _ => {
+                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
+                        }
                     };
                     let value = match buf.get_u8()? {
                         0 => None,
-                        _ => Some(GasPrice::from(buf.get_slice(32)?)),
+                        1 => Some(GasPrice::from(buf.get_slice(32)?)),
+                        _ => {
+                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
+                        }
                     };
                     let data = match buf.get_u8()? {
                         0 => None,
-                        _ => Some(ByteCode::from(buf.get_slice_end())),
+                        1 => Some(ByteCode::from(buf.get_slice_end())),
+                        _ => {
+                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
+                        }
                     };
                     let contract = Contract::EVM {
                         from,
