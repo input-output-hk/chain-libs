@@ -1,6 +1,6 @@
 //! EVM Smart Contract transactions
 
-use chain_core::mempack::Readable;
+use chain_core::mempack::{ReadError, Readable};
 #[cfg(feature = "evm")]
 use chain_evm::{
     machine::{Gas, GasPrice, Value},
@@ -10,6 +10,7 @@ use chain_evm::{
 use crate::transaction::Payload;
 
 /// Variants of Smart Contract deployment
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Contract {
     #[cfg(feature = "evm")]
     /// Deploys a smart contract from a given `AccountAddress`, as
@@ -30,11 +31,59 @@ pub enum Contract {
     },
 }
 
+impl Contract {}
+
 impl Readable for Contract {
     fn read(
-        _buf: &mut chain_core::mempack::ReadBuf,
+        buf: &mut chain_core::mempack::ReadBuf,
     ) -> Result<Self, chain_core::mempack::ReadError> {
-        todo!();
+        let contract_type = buf.get_u8()?;
+        match contract_type {
+            0 => {
+                #[cfg(not(feature = "evm"))]
+                {
+                    Err(ReadError::UnknownTag(0))
+                }
+                #[cfg(feature = "evm")]
+                {
+                    // EVM Contract
+                    let from = AccountAddress::from_slice(buf.get_slice(20)?);
+                    let to = match buf.get_u8()? {
+                        0 => None,
+                        _ => Some(AccountAddress::from_slice(buf.get_slice(20)?)),
+                    };
+                    let gas = match buf.get_u8()? {
+                        0 => None,
+                        _ => Some(Gas::from(buf.get_slice(32)?)),
+                    };
+                    let gas_price = match buf.get_u8()? {
+                        0 => None,
+                        _ => Some(GasPrice::from(buf.get_slice(32)?)),
+                    };
+                    let value = match buf.get_u8()? {
+                        0 => None,
+                        _ => Some(GasPrice::from(buf.get_slice(32)?)),
+                    };
+                    let data = match buf.get_u8()? {
+                        0 => None,
+                        _ => Some(ByteCode::from(buf.get_slice_end())),
+                    };
+                    let contract = Contract::EVM {
+                        from,
+                        to,
+                        gas,
+                        gas_price,
+                        value,
+                        data,
+                    };
+                    Ok(contract)
+                }
+            }
+            n => {
+                //
+                Err(ReadError::UnknownTag(n as u32))
+            }
+        }
     }
 }
 
