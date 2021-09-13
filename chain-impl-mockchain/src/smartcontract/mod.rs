@@ -83,15 +83,19 @@ impl Readable for Contract {
                             return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
                         }
                     };
-                    let contract = Contract::EVM {
-                        from,
-                        to,
-                        gas,
-                        gas_price,
-                        value,
-                        data,
-                    };
-                    Ok(contract)
+
+                    if let Err(e) = buf.expect_end() {
+                        Err(e)
+                    } else {
+                        Ok(Contract::EVM {
+                            from,
+                            to,
+                            gas,
+                            gas_price,
+                            value,
+                            data,
+                        })
+                    }
                 }
             }
             n => {
