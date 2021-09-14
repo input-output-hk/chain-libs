@@ -105,22 +105,50 @@ impl Readable for Contract {
                 let from = AccountAddress::from_slice(buf.get_slice(20)?);
                 let to = match buf.get_u8()? {
                     0 => None,
-                    1 => Some(AccountAddress::from_slice(buf.get_slice(20)?)),
+                    1 => {
+                        let a = AccountAddress::from_slice(buf.get_slice(20)?);
+                        if a.is_zero() {
+                            None
+                        } else {
+                            Some(a)
+                        }
+                    }
                     _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
                 };
                 let gas = match buf.get_u8()? {
                     0 => None,
-                    1 => Some(Gas::from(buf.get_slice(32)?)),
+                    1 => {
+                        let g = Gas::from(buf.get_slice(32)?);
+                        if g.is_zero() {
+                            None
+                        } else {
+                            Some(g)
+                        }
+                    }
                     _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
                 };
                 let gas_price = match buf.get_u8()? {
                     0 => None,
-                    1 => Some(GasPrice::from(buf.get_slice(32)?)),
+                    1 => {
+                        let gp = GasPrice::from(buf.get_slice(32)?);
+                        if gp.is_zero() {
+                            None
+                        } else {
+                            Some(gp)
+                        }
+                    }
                     _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
                 };
                 let value = match buf.get_u8()? {
                     0 => None,
-                    1 => Some(GasPrice::from(buf.get_slice(32)?)),
+                    1 => {
+                        let val = Value::from(buf.get_slice(32)?);
+                        if val.is_zero() {
+                            None
+                        } else {
+                            Some(val)
+                        }
+                    }
                     _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
                 };
                 let data = match buf.get_u8()? {
