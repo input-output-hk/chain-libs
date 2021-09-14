@@ -39,63 +39,53 @@ impl Readable for Contract {
     ) -> Result<Self, chain_core::mempack::ReadError> {
         let contract_type = buf.get_u8()?;
         match contract_type {
+            #[cfg(feature = "evm")]
             0 => {
-                #[cfg(not(feature = "evm"))]
-                {
-                    Err(ReadError::UnknownTag(0))
-                }
-                #[cfg(feature = "evm")]
-                {
-                    // EVM Contract
-                    let from = AccountAddress::from_slice(buf.get_slice(20)?);
-                    let to = match buf.get_u8()? {
-                        0 => None,
-                        1 => Some(AccountAddress::from_slice(buf.get_slice(20)?)),
-                        _ => {
-                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
+                // EVM Contract
+                let from = AccountAddress::from_slice(buf.get_slice(20)?);
+                let to = match buf.get_u8()? {
+                    0 => None,
+                    1 => Some(AccountAddress::from_slice(buf.get_slice(20)?)),
+                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
+                };
+                let gas = match buf.get_u8()? {
+                    0 => None,
+                    1 => Some(Gas::from(buf.get_slice(32)?)),
+                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
+                };
+                let gas_price = match buf.get_u8()? {
+                    0 => None,
+                    1 => Some(GasPrice::from(buf.get_slice(32)?)),
+                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
+                };
+                let value = match buf.get_u8()? {
+                    0 => None,
+                    1 => Some(GasPrice::from(buf.get_slice(32)?)),
+                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
+                };
+                let data = match buf.get_u8()? {
+                    0 => None,
+                    1 => {
+                        if buf.is_end() {
+                            None
+                        } else {
+                            Some(ByteCode::from(buf.get_slice_end()))
                         }
-                    };
-                    let gas = match buf.get_u8()? {
-                        0 => None,
-                        1 => Some(Gas::from(buf.get_slice(32)?)),
-                        _ => {
-                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
-                        }
-                    };
-                    let gas_price = match buf.get_u8()? {
-                        0 => None,
-                        1 => Some(GasPrice::from(buf.get_slice(32)?)),
-                        _ => {
-                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
-                        }
-                    };
-                    let value = match buf.get_u8()? {
-                        0 => None,
-                        1 => Some(GasPrice::from(buf.get_slice(32)?)),
-                        _ => {
-                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
-                        }
-                    };
-                    let data = match buf.get_u8()? {
-                        0 => None,
-                        1 => Some(ByteCode::from(buf.get_slice_end())),
-                        _ => {
-                            return Err(ReadError::StructureInvalid("Invalid byte sequence".into()))
-                        }
-                    };
-
-                    if let Err(e) = buf.expect_end() {
-                        Err(e)
-                    } else {
-                        Ok(Contract::EVM {
-                            from,
-                            to,
-                            gas,
-                            gas_price,
-                            value,
-                            data,
-                        })
                     }
+                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
+                };
+
+                if let Err(e) = buf.expect_end() {
+                    Err(e)
+                } else {
+                    Ok(Contract::EVM {
+                        from,
+                        to,
+                        gas,
+                        gas_price,
+                        value,
+                        data,
+                    })
                 }
             }
             n => {
