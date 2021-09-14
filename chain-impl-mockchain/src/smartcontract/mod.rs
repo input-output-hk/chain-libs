@@ -486,9 +486,10 @@ mod tests {
     #[test]
     fn test_readable_evm_contract() {
         use super::*;
-        use chain_core::mempack::ReadBuf;
+        use chain_core::mempack::{ReadBuf, ReadError};
         use typed_bytes::{ByteArray, ByteBuilder};
 
+        // Example with contract that has no data
         let from = AccountAddress::random();
         let to = None;
         let gas: Gas = 10000.into();
@@ -529,6 +530,7 @@ mod tests {
 
         assert_eq!(contract, expected);
 
+        // Example with contract that says it has data
         let from = AccountAddress::random();
         let to = None;
         let gas: Gas = 10000.into();
@@ -569,5 +571,61 @@ mod tests {
         };
 
         assert_eq!(contract, expected);
+
+        // Example with contract that says it has data, but has no data
+        let from = AccountAddress::random();
+        let to = None;
+        let gas: Gas = 10000.into();
+        let gas_price: GasPrice = 2000.into();
+        let value = None;
+        let data = None;
+
+        let contract_type = 0; // Contract::EVM = 0
+        let has_to = 0;
+        let has_gas = 1;
+        let has_gas_price = 1;
+        let has_value = 0;
+        let has_data = 1;
+
+        let bb: ByteArray<Contract> = ByteBuilder::new()
+            .u8(contract_type)
+            .bytes(from.as_fixed_bytes())
+            .u8(has_to)
+            .u8(has_gas)
+            .bytes(&<[u8; 32]>::from(gas))
+            .u8(has_gas_price)
+            .bytes(&<[u8; 32]>::from(gas_price))
+            .u8(has_value)
+            .u8(has_data)
+            .finalize();
+
+        let mut readbuf = ReadBuf::from(bb.as_slice());
+        let contract = Contract::read(&mut readbuf).unwrap();
+
+        let expected = Contract::EVM {
+            from,
+            to,
+            gas: Some(gas),
+            gas_price: Some(gas_price),
+            value,
+            data,
+        };
+
+        assert_eq!(contract, expected);
+
+        // Example with contract with truncated byte-array
+        let contract_type = 0; // Contract::EVM = 0
+
+        let bb: ByteArray<Contract> = ByteBuilder::new()
+            .u8(contract_type)
+            .bytes(&[0, 1, 2, 3, 4])
+            .finalize();
+
+        let mut readbuf = ReadBuf::from(bb.as_slice());
+
+        assert_eq!(
+            Contract::read(&mut readbuf),
+            Err(ReadError::NotEnoughBytes(5, 20))
+        );
     }
 }
