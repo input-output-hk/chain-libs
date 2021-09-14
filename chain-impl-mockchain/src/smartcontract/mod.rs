@@ -6,8 +6,12 @@ use chain_evm::{
     machine::{Gas, GasPrice, Value},
     state::{AccountAddress, ByteCode},
 };
+use typed_bytes::ByteBuilder;
 
-use crate::transaction::Payload;
+use crate::{
+    certificate::CertificateSlice,
+    transaction::{Payload, PayloadAuthData, PayloadData},
+};
 
 /// Variants of Smart Contract deployment
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,7 +35,63 @@ pub enum Contract {
     },
 }
 
-impl Contract {}
+impl Contract {
+    /// Serialize the contract into a `ByteBuilder`.
+    pub fn serialize_in(&self, _bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
+        match self {
+            #[cfg(feature = "evm")]
+            Contract::EVM {
+                from,
+                to,
+                gas,
+                gas_price,
+                value,
+                data,
+            } => {
+                //
+                let bb = _bb.u8(0).bytes(from.as_fixed_bytes());
+                let bb = if let Some(to_addr) = to {
+                    bb.u8(1).bytes(to_addr.as_fixed_bytes())
+                } else {
+                    bb.u8(0)
+                };
+                let bb = if let Some(gas) = gas {
+                    let mut gas_bytes = [0u8; 32];
+                    gas.to_big_endian(&mut gas_bytes);
+                    bb.u8(1).bytes(&gas_bytes)
+                } else {
+                    bb.u8(0)
+                };
+                let bb = if let Some(gas_price) = gas_price {
+                    let mut gas_price_bytes = [0u8; 32];
+                    gas_price.to_big_endian(&mut gas_price_bytes);
+                    bb.u8(1).bytes(&gas_price_bytes)
+                } else {
+                    bb.u8(0)
+                };
+                let bb = if let Some(value) = value {
+                    let mut value_bytes = [0u8; 32];
+                    value.to_big_endian(&mut value_bytes);
+                    bb.u8(1).bytes(&value_bytes)
+                } else {
+                    bb.u8(0)
+                };
+                let bb = if let Some(data) = data {
+                    if !data.as_ref().is_empty() {
+                        bb.u8(1).bytes(data.as_ref())
+                    } else {
+                        bb.u8(0)
+                    }
+                } else {
+                    bb.u8(0)
+                };
+                bb
+            }
+            #[cfg(not(feature = "evm"))]
+            _ => unreachable!(),
+        }
+    }
+}
 
 impl Readable for Contract {
     fn read(
@@ -88,10 +148,7 @@ impl Readable for Contract {
                     })
                 }
             }
-            n => {
-                //
-                Err(ReadError::UnknownTag(n as u32))
-            }
+            n => Err(ReadError::UnknownTag(n as u32)),
         }
     }
 }
