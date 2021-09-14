@@ -159,15 +159,20 @@ impl Payload for Contract {
     type Auth = ();
 
     fn payload_data(&self) -> crate::transaction::PayloadData<Self> {
-        todo!();
+        PayloadData(
+            self.serialize_in(ByteBuilder::new())
+                .finalize_as_vec()
+                .into(),
+            std::marker::PhantomData,
+        )
     }
     fn payload_auth_data(_auth: &Self::Auth) -> crate::transaction::PayloadAuthData<Self> {
-        todo!();
+        PayloadAuthData(Vec::new().into(), std::marker::PhantomData)
     }
     fn payload_to_certificate_slice(
         _p: crate::transaction::PayloadSlice<'_, Self>,
-    ) -> Option<crate::certificate::CertificateSlice<'_>> {
-        todo!();
+    ) -> Option<CertificateSlice<'_>> {
+        None
     }
 }
 
