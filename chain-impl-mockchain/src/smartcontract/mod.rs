@@ -481,14 +481,13 @@ mod tests {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use typed_bytes::ByteBuilder;
 
     #[cfg(feature = "evm")]
     #[test]
     fn test_readable_evm_contract() {
+        use super::*;
         use chain_core::mempack::ReadBuf;
-        use typed_bytes::ByteArray;
+        use typed_bytes::{ByteArray, ByteBuilder};
 
         let from = AccountAddress::random();
         let to = None;
