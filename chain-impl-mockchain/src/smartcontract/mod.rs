@@ -116,14 +116,16 @@ impl Payload for Contract {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "evm")]
+    use super::*;
+    #[cfg(feature = "evm")]
+    use chain_core::mempack::{ReadBuf, ReadError};
+    #[cfg(feature = "evm")]
+    use typed_bytes::{ByteArray, ByteBuilder};
 
     #[cfg(feature = "evm")]
     #[test]
     fn test_readable_evm_contract() {
-        use super::*;
-        use chain_core::mempack::{ReadBuf, ReadError};
-        use typed_bytes::{ByteArray, ByteBuilder};
-
         // Example with contract that has no data
         let from = AccountAddress::random();
         let to = None;
@@ -165,7 +167,7 @@ mod tests {
 
         assert_eq!(contract, expected);
 
-        // Example with contract that says it has data
+        // Example with contract that has data
         let from = AccountAddress::random();
         let to = None;
         let gas: Gas = 10000.into();
@@ -261,6 +263,128 @@ mod tests {
         assert_eq!(
             Contract::read(&mut readbuf),
             Err(ReadError::NotEnoughBytes(5, 20))
+        );
+    }
+    #[cfg(feature = "evm")]
+    #[test]
+    fn test_serialize_in_evm_contract() {
+        use typed_bytes::ByteArray;
+
+        // Example with contract that has no data
+        let from = AccountAddress::random();
+        let to = None;
+        let gas: Gas = 10000.into();
+        let gas_price: GasPrice = 2000.into();
+        let value = None;
+        let data = None;
+
+        let expected: ByteArray<Contract> = ByteBuilder::new()
+            .u8(0)
+            .bytes(from.as_fixed_bytes())
+            .u8(0)
+            .u8(1)
+            .bytes(&<[u8; 32]>::from(gas))
+            .u8(1)
+            .bytes(&<[u8; 32]>::from(gas_price))
+            .u8(0)
+            .u8(0)
+            .finalize();
+
+        let contract = Contract::EVM {
+            from,
+            to,
+            gas: Some(gas),
+            gas_price: Some(gas_price),
+            value,
+            data,
+        };
+
+        assert_eq!(
+            contract.serialize_in(ByteBuilder::new()).finalize(),
+            expected
+        );
+
+        // Example with contract that says it has data
+        let from = AccountAddress::random();
+        let to = None;
+        let gas: Gas = 10000.into();
+        let gas_price: GasPrice = 2000.into();
+        let value = None;
+        let data = vec![0, 1, 2, 3];
+
+        let contract_type = 0; // Contract::EVM = 0
+        let has_to = 0;
+        let has_gas = 1;
+        let has_gas_price = 1;
+        let has_value = 0;
+        let has_data = 1;
+
+        let expected: ByteArray<Contract> = ByteBuilder::new()
+            .u8(contract_type)
+            .bytes(from.as_fixed_bytes())
+            .u8(has_to)
+            .u8(has_gas)
+            .bytes(&<[u8; 32]>::from(gas))
+            .u8(has_gas_price)
+            .bytes(&<[u8; 32]>::from(gas_price))
+            .u8(has_value)
+            .u8(has_data)
+            .bytes(&data)
+            .finalize();
+
+        let contract = Contract::EVM {
+            from,
+            to,
+            gas: Some(gas),
+            gas_price: Some(gas_price),
+            value,
+            data: Some(data.into_boxed_slice()),
+        };
+
+        assert_eq!(
+            contract.serialize_in(ByteBuilder::new()).finalize(),
+            expected
+        );
+
+        // Example with contract that says it has data, but has no data
+        let from = AccountAddress::random();
+        let to = None;
+        let gas: Gas = 10000.into();
+        let gas_price: GasPrice = 2000.into();
+        let value = None;
+        let data = Vec::new().into_boxed_slice();
+
+        let contract_type = 0; // Contract::EVM = 0
+        let has_to = 0;
+        let has_gas = 1;
+        let has_gas_price = 1;
+        let has_value = 0;
+        let has_data = 0;
+
+        let expected: ByteArray<Contract> = ByteBuilder::new()
+            .u8(contract_type)
+            .bytes(from.as_fixed_bytes())
+            .u8(has_to)
+            .u8(has_gas)
+            .bytes(&<[u8; 32]>::from(gas))
+            .u8(has_gas_price)
+            .bytes(&<[u8; 32]>::from(gas_price))
+            .u8(has_value)
+            .u8(has_data)
+            .finalize();
+
+        let contract = Contract::EVM {
+            from,
+            to,
+            gas: Some(gas),
+            gas_price: Some(gas_price),
+            value,
+            data: Some(data),
+        };
+
+        assert_eq!(
+            contract.serialize_in(ByteBuilder::new()).finalize(),
+            expected
         );
     }
 }
