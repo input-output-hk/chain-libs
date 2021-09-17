@@ -98,7 +98,11 @@ impl ConfigBuilder {
             kes_update_speed: 3600 * 12,
             block0_date: Block0Date(0),
             consensus_version: ConsensusVersion::Bft,
-            transaction_max_expiry_epochs: None,
+            transcation_max_expiry_epochs: None,
+            #[cfg(feature = "evm")]
+            evm_config: chain_evm::machine::Config::istambul(),
+            #[cfg(feature = "evm")]
+            evm_environment: chain_evm::Environment::default(),
         }
     }
 
