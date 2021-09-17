@@ -29,6 +29,14 @@ use crate::{
 };
 use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
+#[cfg(feature = "evm")]
+use chain_evm::{
+    machine::{
+        BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Config, Environment,
+        GasLimit, GasPrice, Origin,
+    },
+    state::AccountAddress,
+};
 use chain_time::TimeEra;
 use std::{
     collections::HashMap,
@@ -56,13 +64,11 @@ pub struct ConfigBuilder {
     block0_date: Block0Date,
     consensus_version: ConsensusVersion,
     pool_capping_ratio: Ratio,
-    transaction_max_expiry_epochs: Option<u8>,
-}
-
-impl Default for ConfigBuilder {
-    fn default() -> Self {
-        ConfigBuilder::new()
-    }
+    transcation_max_expiry_epochs: Option<u8>,
+    #[cfg(feature = "evm")]
+    evm_config: Config,
+    #[cfg(feature = "evm")]
+    evm_environment: Environment,
 }
 
 impl ConfigBuilder {
@@ -100,9 +106,21 @@ impl ConfigBuilder {
             consensus_version: ConsensusVersion::Bft,
             transcation_max_expiry_epochs: None,
             #[cfg(feature = "evm")]
-            evm_config: chain_evm::machine::Config::istambul(),
+            evm_config: Config::istanbul(),
             #[cfg(feature = "evm")]
-            evm_environment: chain_evm::Environment::default(),
+            evm_environment: Environment {
+                // FIXME: need to set a real price
+                gas_price: GasPrice::default(),
+                // FIXME: need to set a origin (perhaps Origin::random() ?)
+                origin: Origin::default(),
+                chain_id: ChainId::zero(),
+                block_hashes: BlockHashes::new(),
+                block_number: BlockNumber::zero(),
+                block_coinbase: AccountAddress::zero(),
+                block_timestamp: BlockTimestamp::now(),
+                block_difficulty: BlockDifficulty::from(131_072),
+                block_gas_limit: GasLimit::max_value(),
+            },
         }
     }
 
