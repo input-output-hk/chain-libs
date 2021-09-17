@@ -71,6 +71,42 @@ pub type Gas = U256;
 /// Gas price integer for EVM operations.
 pub type GasPrice = U256;
 
+/// A block's chain ID.
+pub type ChainId = U256;
+
+/// A block hash.
+pub type BlockHash = H256;
+
+/// A block hash.
+pub type BlockHashes = Vec<BlockHash>;
+
+/// A block's number.
+pub type BlockNumber = U256;
+
+/// A block's timestamp.
+pub struct BlockTimestamp;
+
+impl BlockTimestamp {
+    /// Returns the time since `UNIX_EPOCH` as `U256`
+    pub fn now() -> U256 {
+        U256::from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        )
+    }
+}
+
+/// A block's difficulty.
+pub type BlockDifficulty = U256;
+
+/// A block's gas limit.
+pub type BlockGasLimit = U256;
+
+/// A block's origin
+pub type Origin = H160;
+
 /// Gas quantity integer for EVM operations.
 pub type Gas = U256;
 
