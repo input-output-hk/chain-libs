@@ -14,14 +14,14 @@ use std::rc::Rc;
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic, Log, MemoryVicinity},
     executor::{MemoryStackState, StackExecutor, StackSubstateMetadata},
-    Config as EvmConfig, Context, Runtime,
+    Context, Runtime,
 };
 use primitive_types::{H160, H256, U256};
 
 use crate::state::AccountTrie;
 
 /// EVM Configuration.
-pub type Config = EvmConfig;
+pub use evm::Config;
 
 /// Gas quantity integer for EVM operations.
 pub type Gas = U256;
