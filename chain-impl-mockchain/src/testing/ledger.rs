@@ -7,7 +7,7 @@ use crate::{
     block::Block,
     certificate::PoolId,
     chaintypes::{ChainLength, ConsensusType, ConsensusVersion, HeaderId},
-    config::{Block0Date, ConfigParam, RewardParams},
+    config::{Block0Date, ConfigParam, EvmConfigParams, RewardParams},
     date::BlockDate,
     fee::{LinearFee, PerCertificateFee, PerVoteCertificateFee},
     fragment::{config::ConfigParams, Fragment, FragmentId},
