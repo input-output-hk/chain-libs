@@ -15,7 +15,7 @@ use std::{
 };
 
 use evm::{
-    backend::{Apply, ApplyBackend, Backend, Basic, Log, MemoryVicinity},
+    backend::{Apply, ApplyBackend, Backend, Basic, Log},
     executor::{MemoryStackState, StackExecutor, StackSubstateMetadata},
     Context, Runtime,
 };
@@ -23,8 +23,7 @@ use primitive_types::{H160, H256, U256};
 
 use crate::state::AccountTrie;
 
-/// EVM Configuration.
-pub use evm::Config;
+pub use evm::{backend::MemoryVicinity as Environment, Config};
 
 /// A block's chain ID.
 pub type ChainId = U256;
@@ -74,8 +73,14 @@ pub type GasLimit = U256;
 /// Integer of the value sent with an EVM transaction.
 pub type Value = U256;
 
-/// Environment values for the machine backend.
-pub type Environment = MemoryVicinity;
+#[derive(Clone, Debug)]
+/// EVM Configuration parameters needed for execution.
+pub struct EvmConfigParams {
+    /// EVM Block Configuration.
+    pub config: Config,
+    /// EVM Block Environment.
+    pub environment: Environment,
+}
 
 /// The context of the EVM runtime
 pub type RuntimeContext = Context;
@@ -83,43 +88,52 @@ pub type RuntimeContext = Context;
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
 pub struct VirtualMachine {
+    /// EVM Block Configuration.
+    config: Config,
     environment: Environment,
     state: AccountTrie,
     logs: Vec<Log>,
 }
 
 impl VirtualMachine {
-    /// Creates a new `VirtualMachine` given environment values and account storage.
-    pub fn new(environment: Environment, state: AccountTrie) -> Self {
+    /// Creates a new `VirtualMachine` given configuration parameters.
+    pub fn new(config: Config, environment: Environment) -> Self {
         Self {
+            config,
+            environment,
+            state: Default::default(),
+            logs: Default::default(),
+        }
+    }
+
+    /// Creates a new `VirtualMachine` given configuration params and a given account storage.
+    pub fn new_with_state(config: Config, environment: Environment, state: AccountTrie) -> Self {
+        Self {
+            config,
             environment,
             state,
             logs: Default::default(),
         }
     }
 
-    #[allow(dead_code)]
     /// Returns an initialized instance of `evm::executor::StackExecutor`.
-    fn executor<'backend, 'config>(
-        &'backend self,
+    pub fn executor(
+        &self,
         gas_limit: u64,
-        config: &'config Config,
-    ) -> StackExecutor<'config, MemoryStackState<'backend, 'config, VirtualMachine>> {
-        let metadata = StackSubstateMetadata::new(gas_limit, config);
+    ) -> StackExecutor<'_, MemoryStackState<'_, '_, VirtualMachine>> {
+        let metadata = StackSubstateMetadata::new(gas_limit, &self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
-        StackExecutor::new(memory_stack_state, config)
+        StackExecutor::new(memory_stack_state, &self.config)
     }
 
-    #[allow(dead_code)]
     /// Returns an initialized instance of `evm::Runtime`.
-    fn runtime<'config>(
+    pub fn runtime(
         &self,
         code: Rc<Vec<u8>>,
         data: Rc<Vec<u8>>,
         context: RuntimeContext,
-        config: &'config Config,
-    ) -> Runtime<'config> {
-        Runtime::new(code, data, context, config)
+    ) -> Runtime<'_> {
+        Runtime::new(code, data, context, &self.config)
     }
 }
 
@@ -252,6 +266,7 @@ mod tests {
 
     #[test]
     fn code_to_execute_evm_runtime_with_defaults_and_no_code_no_data() {
+        let config = Config::istanbul();
         let environment = Environment {
             gas_price: Default::default(),
             origin: Default::default(),
@@ -263,13 +278,11 @@ mod tests {
             block_difficulty: Default::default(),
             block_gas_limit: Default::default(),
         };
-        let state = AccountTrie::default();
 
-        let vm = VirtualMachine::new(environment, state);
+        let vm = VirtualMachine::new(config, environment);
 
         let gas_limit = u64::max_value();
-        let config = Config::istanbul();
-        let mut executor = vm.executor(gas_limit, &config);
+        let mut executor = vm.executor(gas_limit);
 
         // Byte-encoded smart contract code
         let code = Rc::new(Vec::new());
@@ -282,7 +295,7 @@ mod tests {
             apparent_value: Default::default(),
         };
         // Handle for the EVM runtime
-        let mut runtime = vm.runtime(code, data, context, &config);
+        let mut runtime = vm.runtime(code, data, context);
 
         let exit_reason = runtime.run(&mut executor);
 
