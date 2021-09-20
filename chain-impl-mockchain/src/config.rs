@@ -117,6 +117,26 @@ pub struct EvmConfigParams {
 }
 
 #[cfg(feature = "evm")]
+impl Default for EvmConfigParams {
+    fn default() -> Self {
+        EvmConfigParams {
+            config: Box::new(Config::istanbul()),
+            environment: Environment {
+                gas_price: Default::default(),
+                origin: Default::default(),
+                chain_id: Default::default(),
+                block_hashes: Default::default(),
+                block_number: Default::default(),
+                block_coinbase: Default::default(),
+                block_timestamp: Default::default(),
+                block_difficulty: Default::default(),
+                block_gas_limit: Default::default(),
+            },
+        }
+    }
+}
+
+#[cfg(feature = "evm")]
 impl Eq for EvmConfigParams {}
 
 #[cfg(feature = "evm")]
