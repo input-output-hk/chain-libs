@@ -239,6 +239,10 @@ impl Settings {
                 ConfigParam::TransactionMaxExpiryEpochs(max_expiry_epochs) => {
                     new_state.transaction_max_expiry_epochs = *max_expiry_epochs;
                 }
+                #[cfg(feature = "evm")]
+                ConfigParam::EvmParams(_config_params) => {
+                    todo!("add config params to settings struct");
+                }
             }
         }
 
