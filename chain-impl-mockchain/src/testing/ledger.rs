@@ -67,7 +67,7 @@ pub struct ConfigBuilder {
     block0_date: Block0Date,
     consensus_version: ConsensusVersion,
     pool_capping_ratio: Ratio,
-    transcation_max_expiry_epochs: Option<u8>,
+    transaction_max_expiry_epochs: Option<u8>,
     #[cfg(feature = "evm")]
     evm_params: EvmConfigParams,
 }
@@ -105,7 +105,7 @@ impl ConfigBuilder {
             kes_update_speed: 3600 * 12,
             block0_date: Block0Date(0),
             consensus_version: ConsensusVersion::Bft,
-            transcation_max_expiry_epochs: None,
+            transaction_max_expiry_epochs: None,
             #[cfg(feature = "evm")]
             evm_params: EvmConfigParams {
                 config: Box::new(Config::istanbul()),
