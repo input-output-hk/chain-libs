@@ -1,6 +1,8 @@
 //! define the Blockchain settings
 //!
 
+#[cfg(feature = "evm")]
+use crate::config::EvmConfigParams;
 use crate::fragment::{config::ConfigParams, BlockContentSize};
 use crate::milli::Milli;
 use crate::update;
@@ -42,6 +44,8 @@ pub struct Settings {
     pub pool_participation_capping: Option<(NonZeroU32, NonZeroU32)>,
     pub committees: Arc<[CommitteeId]>,
     pub transaction_max_expiry_epochs: u8,
+    #[cfg(feature = "evm")]
+    pub evm_config_params: EvmConfigParams,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -129,6 +133,8 @@ impl Settings {
             pool_participation_capping: None,
             committees: Arc::new([]),
             transaction_max_expiry_epochs: 1,
+            #[cfg(feature = "evm")]
+            evm_config_params: EvmConfigParams::default(),
         }
     }
 
