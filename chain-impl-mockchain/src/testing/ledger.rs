@@ -72,6 +72,12 @@ pub struct ConfigBuilder {
     evm_params: EvmConfigParams,
 }
 
+impl Default for ConfigBuilder {
+    fn default() -> Self {
+        ConfigBuilder::new()
+    }
+}
+
 impl ConfigBuilder {
     pub fn new() -> Self {
         ConfigBuilder {
