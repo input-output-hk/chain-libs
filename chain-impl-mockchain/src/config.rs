@@ -86,9 +86,7 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
-    Evm(Config),
-    #[cfg(feature = "evm")]
-    EvmEnvironment(Environment),
+    EvmParams(EvmConfigParams),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -105,6 +103,64 @@ pub enum RewardParams {
         epoch_start: Epoch,
         epoch_rate: NonZeroU32,
     },
+}
+
+#[cfg(feature = "evm")]
+#[derive(Clone, Debug)]
+/// EVM Configuration parameters needed for execution.
+pub struct EvmConfigParams {
+    /// EVM Block Configuration. It is boxed to reduce
+    /// size difference when used in enum variants
+    pub config: Box<Config>,
+    /// EVM Block Environment.
+    pub environment: Environment,
+}
+
+#[cfg(feature = "evm")]
+impl Eq for EvmConfigParams {}
+
+#[cfg(feature = "evm")]
+impl PartialEq for EvmConfigParams {
+    fn eq(&self, other: &Self) -> bool {
+        fn compare_configs(a: &Config, b: &Config) -> bool {
+            a.gas_ext_code == b.gas_ext_code
+                && a.gas_ext_code_hash == b.gas_ext_code_hash
+                && a.gas_sstore_set == b.gas_sstore_set
+                && a.gas_sstore_reset == b.gas_sstore_reset
+                && a.refund_sstore_clears == b.refund_sstore_clears
+                && a.gas_balance == b.gas_balance
+                && a.gas_sload == b.gas_sload
+                && a.gas_suicide == b.gas_suicide
+                && a.gas_suicide_new_account == b.gas_suicide_new_account
+                && a.gas_call == b.gas_call
+                && a.gas_expbyte == b.gas_expbyte
+                && a.gas_transaction_create == b.gas_transaction_create
+                && a.gas_transaction_call == b.gas_transaction_call
+                && a.gas_transaction_zero_data == b.gas_transaction_zero_data
+                && a.gas_transaction_non_zero_data == b.gas_transaction_non_zero_data
+                && a.sstore_gas_metering == b.sstore_gas_metering
+                && a.sstore_revert_under_stipend == b.sstore_revert_under_stipend
+                && a.err_on_call_with_more_gas == b.err_on_call_with_more_gas
+                && a.call_l64_after_gas == b.call_l64_after_gas
+                && a.empty_considered_exists == b.empty_considered_exists
+                && a.create_increase_nonce == b.create_increase_nonce
+                && a.stack_limit == b.stack_limit
+                && a.memory_limit == b.memory_limit
+                && a.call_stack_limit == b.call_stack_limit
+                && a.create_contract_limit == b.create_contract_limit
+                && a.call_stipend == b.call_stipend
+                && a.has_delegate_call == b.has_delegate_call
+                && a.has_create2 == b.has_create2
+                && a.has_revert == b.has_revert
+                && a.has_return_data == b.has_return_data
+                && a.has_bitwise_shifting == b.has_bitwise_shifting
+                && a.has_chain_id == b.has_chain_id
+                && a.has_self_balance == b.has_self_balance
+                && a.has_ext_code_hash == b.has_ext_code_hash
+                && a.estimate == b.estimate
+        }
+        compare_configs(&self.config, &other.config) && self.environment == other.environment
+    }
 }
 
 // Discriminants can NEVER be 1024 or higher
