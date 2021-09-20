@@ -13,6 +13,8 @@ use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::packer::Codec;
 use chain_core::property;
 use chain_crypto::PublicKey;
+#[cfg(feature = "evm")]
+use chain_evm::machine::{Config, Environment};
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Write};
 use std::num::{NonZeroU32, NonZeroU64};
@@ -83,6 +85,10 @@ pub enum ConfigParam {
     RemoveCommitteeId(CommitteeId),
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
+    #[cfg(feature = "evm")]
+    Evm(Config),
+    #[cfg(feature = "evm")]
+    EvmEnvironment(Environment),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
