@@ -1,11 +1,13 @@
 use quickcheck::{Arbitrary, Gen};
 
+#[cfg(feature = "evm")]
+use crate::config::EvmConfigParams;
 use crate::{
     account::Ledger as AccountLedger,
     block::Block,
     certificate::PoolId,
     chaintypes::{ChainLength, ConsensusType, ConsensusVersion, HeaderId},
-    config::{Block0Date, ConfigParam, EvmConfigParams, RewardParams},
+    config::{Block0Date, ConfigParam, RewardParams},
     date::BlockDate,
     fee::{LinearFee, PerCertificateFee, PerVoteCertificateFee},
     fragment::{config::ConfigParams, Fragment, FragmentId},
