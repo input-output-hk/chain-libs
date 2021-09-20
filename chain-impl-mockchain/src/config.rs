@@ -218,6 +218,9 @@ pub enum Tag {
     PerVoteCertificateFees = 28,
     #[strum(to_string = "transaction-maximum-expiry-epochs")]
     TransactionMaxExpiryEpochs = 29,
+    #[cfg(feature = "evm")]
+    #[strum(to_string = "evm-config-params")]
+    EvmParams = 30,
 }
 
 impl Tag {
@@ -249,6 +252,8 @@ impl Tag {
             27 => Some(Tag::RemoveCommitteeId),
             28 => Some(Tag::PerVoteCertificateFees),
             29 => Some(Tag::TransactionMaxExpiryEpochs),
+            #[cfg(feature = "evm")]
+            30 => Some(Tag::EvmParams),
             _ => None,
         }
     }
@@ -285,6 +290,8 @@ impl<'a> From<&'a ConfigParam> for Tag {
             ConfigParam::RemoveCommitteeId(..) => Tag::RemoveCommitteeId,
             ConfigParam::PerVoteCertificateFees(..) => Tag::PerVoteCertificateFees,
             ConfigParam::TransactionMaxExpiryEpochs(..) => Tag::TransactionMaxExpiryEpochs,
+            #[cfg(feature = "evm")]
+            ConfigParam::EvmParams(_) => Tag::EvmParams,
         }
     }
 }
@@ -368,6 +375,8 @@ impl Readable for ConfigParam {
             Tag::TransactionMaxExpiryEpochs => {
                 ConfigParamVariant::from_payload(bytes).map(ConfigParam::TransactionMaxExpiryEpochs)
             }
+            #[cfg(feature = "evm")]
+            Tag::EvmParams => ConfigParamVariant::from_payload(bytes).map(ConfigParam::EvmParams),
         }
         .map_err(Into::into)
     }
@@ -405,6 +414,8 @@ impl property::Serialize for ConfigParam {
             ConfigParam::RemoveCommitteeId(data) => data.to_payload(),
             ConfigParam::PerVoteCertificateFees(data) => data.to_payload(),
             ConfigParam::TransactionMaxExpiryEpochs(data) => data.to_payload(),
+            #[cfg(feature = "evm")]
+            ConfigParam::EvmParams(data) => data.to_payload(),
         };
         let taglen = TagLen::new(tag, bytes.len()).ok_or_else(|| {
             io::Error::new(
@@ -810,6 +821,17 @@ impl ConfigParamVariant for CommitteeId {
     }
 }
 
+#[cfg(feature = "evm")]
+impl ConfigParamVariant for EvmConfigParams {
+    fn to_payload(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn from_payload(_payload: &[u8]) -> Result<Self, Error> {
+        todo!()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TagLen(u16);
 
@@ -927,6 +949,13 @@ mod test {
         }
     }
 
+    #[cfg(feature = "evm")]
+    impl Arbitrary for EvmConfigParams {
+        fn arbitrary<G: Gen>(_g: &mut G) -> Self {
+            todo!();
+        }
+    }
+
     impl Arbitrary for ConfigParam {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             match u8::arbitrary(g) % 30 {
@@ -966,6 +995,8 @@ mod test {
                 27 => ConfigParam::RemoveCommitteeId(Arbitrary::arbitrary(g)),
                 28 => ConfigParam::PerCertificateFees(Arbitrary::arbitrary(g)),
                 29 => ConfigParam::TransactionMaxExpiryEpochs(Arbitrary::arbitrary(g)),
+                #[cfg(feature = "evm")]
+                30 => ConfigParam::EvmParams(Arbitrary::arbitrary(g)),
                 _ => unreachable!(),
             }
         }
