@@ -45,7 +45,7 @@ pub struct Settings {
     pub committees: Arc<[CommitteeId]>,
     pub transaction_max_expiry_epochs: u8,
     #[cfg(feature = "evm")]
-    pub evm_config_params: EvmConfigParams,
+    pub evm_params: EvmConfigParams,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -134,7 +134,7 @@ impl Settings {
             committees: Arc::new([]),
             transaction_max_expiry_epochs: 1,
             #[cfg(feature = "evm")]
-            evm_config_params: EvmConfigParams::default(),
+            evm_params: EvmConfigParams::default(),
         }
     }
 
@@ -246,8 +246,8 @@ impl Settings {
                     new_state.transaction_max_expiry_epochs = *max_expiry_epochs;
                 }
                 #[cfg(feature = "evm")]
-                ConfigParam::EvmParams(_config_params) => {
-                    todo!("add config params to settings struct");
+                ConfigParam::EvmParams(evm_config_params) => {
+                    new_state.evm_params = evm_config_params.clone();
                 }
             }
         }
@@ -293,6 +293,8 @@ impl Settings {
             Some(p) => params.push(ConfigParam::TreasuryParams(*p)),
             None => (),
         };
+        #[cfg(feature = "evm")]
+        params.push(ConfigParam::EvmParams(self.evm_params.clone()));
 
         debug_assert_eq!(self, &Settings::new().apply(&params).unwrap());
 
