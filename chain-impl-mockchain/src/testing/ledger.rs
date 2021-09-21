@@ -34,8 +34,8 @@ use chain_crypto::*;
 #[cfg(feature = "evm")]
 use chain_evm::{
     machine::{
-        BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Config, Environment,
-        GasLimit, GasPrice, Origin,
+        BlockCoinBase, BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Config,
+        Environment, GasLimit, GasPrice, Origin,
     },
     state::AccountAddress,
 };
@@ -122,7 +122,7 @@ impl ConfigBuilder {
                     chain_id: ChainId::zero(),
                     block_hashes: BlockHashes::new(),
                     block_number: BlockNumber::zero(),
-                    block_coinbase: AccountAddress::zero(),
+                    block_coinbase: BlockCoinBase::zero(),
                     block_timestamp: BlockTimestamp::now(),
                     block_difficulty: BlockDifficulty::from(131_072),
                     // FIXME: need to set a real limit
