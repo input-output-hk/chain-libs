@@ -33,12 +33,9 @@ use crate::{
 use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
 #[cfg(feature = "evm")]
-use chain_evm::{
-    machine::{
-        BlockCoinBase, BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Config,
-        Environment, GasLimit, GasPrice, Origin,
-    },
-    state::AccountAddress,
+use chain_evm::machine::{
+    BlockCoinBase, BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Config,
+    Environment, GasLimit, GasPrice, Origin,
 };
 use chain_time::TimeEra;
 use std::{
