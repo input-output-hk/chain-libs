@@ -911,8 +911,90 @@ impl ConfigParamVariant for EvmConfigParams {
         bb.finalize_as_vec()
     }
 
-    fn from_payload(_payload: &[u8]) -> Result<Self, Error> {
-        todo!()
+    fn from_payload(payload: &[u8]) -> Result<Self, Error> {
+        let mut rb = ReadBuf::from(payload);
+        // Read Config
+        let gas_ext_code = rb.get_u64()?;
+        let gas_ext_code_hash = rb.get_u64()?;
+        let gas_sstore_set = rb.get_u64()?;
+        let gas_sstore_reset = rb.get_u64()?;
+        let refund_sstore_clears: i64 = rb.get_u64()?.try_into().unwrap();
+        let gas_balance = rb.get_u64()?;
+        let gas_sload = rb.get_u64()?;
+        let gas_suicide = rb.get_u64()?;
+        let gas_suicide_new_account = rb.get_u64()?;
+        let gas_call = rb.get_u64()?;
+        let gas_expbyte = rb.get_u64()?;
+        let gas_transaction_create = rb.get_u64()?;
+        let gas_transaction_call = rb.get_u64()?;
+        let gas_transaction_zero_data = rb.get_u64()?;
+        let gas_transaction_non_zero_data = rb.get_u64()?;
+        let sstore_gas_metering = rb.get_u8()? != 0;
+        let sstore_revert_under_stipend = rb.get_u8()? != 0;
+        let err_on_call_with_more_gas = rb.get_u8()? != 0;
+        let call_l64_after_gas = rb.get_u8()? != 0;
+        let empty_considered_exists = rb.get_u8()? != 0;
+        let create_increase_nonce = rb.get_u8()? != 0;
+        let stack_limit = rb.get_u64()? as usize;
+        let memory_limit = rb.get_u64()? as usize;
+        let call_stack_limit = rb.get_u64()? as usize;
+
+        // Check if create contract limit is set
+        let create_contract_limit = if rb.get_u8()? != 0 {
+            Some(rb.get_u64()? as usize)
+        } else {
+            None
+        };
+        let call_stipend = rb.get_u64()?;
+        let has_delegate_call = rb.get_u8()? != 0;
+        let has_create2 = rb.get_u8()? != 0;
+        let has_revert = rb.get_u8()? != 0;
+        let has_return_data = rb.get_u8()? != 0;
+        let has_bitwise_shifting = rb.get_u8()? != 0;
+        let has_chain_id = rb.get_u8()? != 0;
+        let has_self_balance = rb.get_u8()? != 0;
+        let has_ext_code_hash = rb.get_u8()? != 0;
+        let estimate = rb.get_u8()? != 0;
+
+        let config = Config {
+            gas_ext_code,
+            gas_ext_code_hash,
+            gas_sstore_set,
+            gas_sstore_reset,
+            refund_sstore_clears,
+            gas_balance,
+            gas_sload,
+            gas_suicide,
+            gas_suicide_new_account,
+            gas_call,
+            gas_expbyte,
+            gas_transaction_create,
+            gas_transaction_call,
+            gas_transaction_zero_data,
+            gas_transaction_non_zero_data,
+            sstore_gas_metering,
+            sstore_revert_under_stipend,
+            err_on_call_with_more_gas,
+            call_l64_after_gas,
+            empty_considered_exists,
+            create_increase_nonce,
+            stack_limit,
+            memory_limit,
+            call_stack_limit,
+            create_contract_limit,
+            call_stipend,
+            has_delegate_call,
+            has_create2,
+            has_revert,
+            has_return_data,
+            has_bitwise_shifting,
+            has_chain_id,
+            has_self_balance,
+            has_ext_code_hash,
+            estimate,
+        };
+        // Read Enviroment
+        todo!();
     }
 }
 
