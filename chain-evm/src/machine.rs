@@ -62,6 +62,9 @@ pub type BlockGasLimit = U256;
 /// A block's origin
 pub type Origin = H160;
 
+/// A block's coinbase
+pub type BlockCoinBase = H160;
+
 /// Gas quantity integer for EVM operations.
 pub type Gas = U256;
 

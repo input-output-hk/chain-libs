@@ -14,7 +14,7 @@ use chain_core::packer::Codec;
 use chain_core::property;
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
-use chain_evm::machine::{Config, Environment};
+use chain_evm::machine::{BlockCoinBase, BlockHash, Config, Environment, Origin};
 #[cfg(feature = "evm")]
 use std::convert::TryInto;
 use std::{
@@ -993,8 +993,40 @@ impl ConfigParamVariant for EvmConfigParams {
             has_ext_code_hash,
             estimate,
         };
+
         // Read Enviroment
-        todo!();
+        let gas_price = rb.get_slice(32)?.into();
+        let origin = Origin::from_slice(rb.get_slice(20)?);
+        let chain_id = rb.get_slice(32)?.into();
+
+        let block_hashes = match rb.get_u64()? {
+            0 => Vec::new(),
+            n => (0..n)
+                .map(|_| BlockHash::from_slice(rb.get_slice(32).unwrap()))
+                .collect(),
+        };
+        let block_number = rb.get_slice(32)?.into();
+        let block_coinbase = BlockCoinBase::from_slice(rb.get_slice(20)?);
+        let block_timestamp = rb.get_slice(32)?.into();
+        let block_difficulty = rb.get_slice(32)?.into();
+        let block_gas_limit = rb.get_slice(32)?.into();
+
+        let environment = Environment {
+            gas_price,
+            origin,
+            chain_id,
+            block_hashes,
+            block_number,
+            block_coinbase,
+            block_timestamp,
+            block_difficulty,
+            block_gas_limit,
+        };
+
+        Ok(EvmConfigParams {
+            config: Box::new(config),
+            environment,
+        })
     }
 }
 
