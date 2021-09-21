@@ -1061,6 +1061,15 @@ mod test {
     use quickcheck::{Arbitrary, Gen};
     use strum::IntoEnumIterator;
 
+    #[cfg(feature = "evm")]
+    #[test]
+    fn to_and_from_payload_evm_config_params() {
+        let evm_params = EvmConfigParams::default();
+        let payload = evm_params.to_payload();
+        let other_evm = EvmConfigParams::from_payload(&payload).unwrap();
+        assert_eq!(evm_params, other_evm);
+    }
+
     quickcheck! {
         fn tag_len_computation_correct(tag: Tag, len: usize) -> TestResult {
             let len = len % MAXIMUM_LEN;
