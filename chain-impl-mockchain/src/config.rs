@@ -15,9 +15,13 @@ use chain_core::property;
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
 use chain_evm::machine::{Config, Environment};
-use std::fmt::{self, Display, Formatter};
-use std::io::{self, Cursor, Write};
-use std::num::{NonZeroU32, NonZeroU64};
+#[cfg(feature = "evm")]
+use std::convert::TryInto;
+use std::{
+    fmt::{self, Display, Formatter},
+    io::{self, Cursor, Write},
+    num::{NonZeroU32, NonZeroU64},
+};
 use strum_macros::{AsRefStr, EnumIter, EnumString};
 use typed_bytes::ByteBuilder;
 
@@ -844,7 +848,67 @@ impl ConfigParamVariant for CommitteeId {
 #[cfg(feature = "evm")]
 impl ConfigParamVariant for EvmConfigParams {
     fn to_payload(&self) -> Vec<u8> {
-        todo!()
+        let bb: ByteBuilder<EvmConfigParams> = ByteBuilder::new()
+            .u64(self.config.gas_ext_code)
+            .u64(self.config.gas_ext_code_hash)
+            .u64(self.config.gas_sstore_set)
+            .u64(self.config.gas_sstore_reset)
+            .u64(self.config.refund_sstore_clears.try_into().unwrap())
+            .u64(self.config.gas_balance)
+            .u64(self.config.gas_sload)
+            .u64(self.config.gas_suicide)
+            .u64(self.config.gas_suicide_new_account)
+            .u64(self.config.gas_call)
+            .u64(self.config.gas_expbyte)
+            .u64(self.config.gas_transaction_create)
+            .u64(self.config.gas_transaction_call)
+            .u64(self.config.gas_transaction_zero_data)
+            .u64(self.config.gas_transaction_non_zero_data)
+            .u8(self.config.sstore_gas_metering as u8)
+            .u8(self.config.sstore_revert_under_stipend as u8)
+            .u8(self.config.err_on_call_with_more_gas as u8)
+            .u8(self.config.call_l64_after_gas as u8)
+            .u8(self.config.empty_considered_exists as u8)
+            .u8(self.config.create_increase_nonce as u8)
+            .u64(self.config.stack_limit as u64)
+            .u64(self.config.memory_limit as u64)
+            .u64(self.config.call_stack_limit as u64);
+        let bb = if let Some(limit) = self.config.create_contract_limit {
+            bb.u8(1).u64(limit as u64)
+        } else {
+            bb.u8(0)
+        };
+        let bb = bb
+            .u64(self.config.call_stipend as u64)
+            .u8(self.config.has_delegate_call as u8)
+            .u8(self.config.has_create2 as u8)
+            .u8(self.config.has_revert as u8)
+            .u8(self.config.has_return_data as u8)
+            .u8(self.config.has_bitwise_shifting as u8)
+            .u8(self.config.has_chain_id as u8)
+            .u8(self.config.has_self_balance as u8)
+            .u8(self.config.has_ext_code_hash as u8)
+            .u8(self.config.estimate as u8);
+        let bb = bb
+            .bytes(&<[u8; 32]>::from(self.environment.gas_price))
+            .bytes(self.environment.origin.as_fixed_bytes())
+            .bytes(&<[u8; 32]>::from(self.environment.chain_id));
+        let bb = if self.environment.block_hashes.is_empty() {
+            bb.u64(0)
+        } else {
+            let bb = bb.u64(self.environment.block_hashes.len().try_into().unwrap());
+            self.environment
+                .block_hashes
+                .iter()
+                .fold(bb, |b, h| b.bytes(h.as_fixed_bytes()))
+        };
+        let bb = bb
+            .bytes(&<[u8; 32]>::from(self.environment.block_number))
+            .bytes(self.environment.block_coinbase.as_fixed_bytes())
+            .bytes(&<[u8; 32]>::from(self.environment.block_timestamp))
+            .bytes(&<[u8; 32]>::from(self.environment.block_difficulty))
+            .bytes(&<[u8; 32]>::from(self.environment.block_gas_limit));
+        bb.finalize_as_vec()
     }
 
     fn from_payload(_payload: &[u8]) -> Result<Self, Error> {
