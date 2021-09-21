@@ -1149,8 +1149,57 @@ mod test {
 
     #[cfg(feature = "evm")]
     impl Arbitrary for EvmConfigParams {
-        fn arbitrary<G: Gen>(_g: &mut G) -> Self {
-            todo!();
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            Self {
+                config: Box::new(Config {
+                    gas_ext_code: Arbitrary::arbitrary(g),
+                    gas_ext_code_hash: Arbitrary::arbitrary(g),
+                    gas_sstore_set: Arbitrary::arbitrary(g),
+                    gas_sstore_reset: Arbitrary::arbitrary(g),
+                    refund_sstore_clears: Arbitrary::arbitrary(g),
+                    gas_balance: Arbitrary::arbitrary(g),
+                    gas_sload: Arbitrary::arbitrary(g),
+                    gas_suicide: Arbitrary::arbitrary(g),
+                    gas_suicide_new_account: Arbitrary::arbitrary(g),
+                    gas_call: Arbitrary::arbitrary(g),
+                    gas_expbyte: Arbitrary::arbitrary(g),
+                    gas_transaction_create: Arbitrary::arbitrary(g),
+                    gas_transaction_call: Arbitrary::arbitrary(g),
+                    gas_transaction_zero_data: Arbitrary::arbitrary(g),
+                    gas_transaction_non_zero_data: Arbitrary::arbitrary(g),
+                    sstore_gas_metering: Arbitrary::arbitrary(g),
+                    sstore_revert_under_stipend: Arbitrary::arbitrary(g),
+                    err_on_call_with_more_gas: Arbitrary::arbitrary(g),
+                    call_l64_after_gas: Arbitrary::arbitrary(g),
+                    empty_considered_exists: Arbitrary::arbitrary(g),
+                    create_increase_nonce: Arbitrary::arbitrary(g),
+                    stack_limit: Arbitrary::arbitrary(g),
+                    memory_limit: Arbitrary::arbitrary(g),
+                    call_stack_limit: Arbitrary::arbitrary(g),
+                    create_contract_limit: Arbitrary::arbitrary(g),
+                    call_stipend: Arbitrary::arbitrary(g),
+                    has_delegate_call: Arbitrary::arbitrary(g),
+                    has_create2: Arbitrary::arbitrary(g),
+                    has_revert: Arbitrary::arbitrary(g),
+                    has_return_data: Arbitrary::arbitrary(g),
+                    has_bitwise_shifting: Arbitrary::arbitrary(g),
+                    has_chain_id: Arbitrary::arbitrary(g),
+                    has_self_balance: Arbitrary::arbitrary(g),
+                    has_ext_code_hash: Arbitrary::arbitrary(g),
+                    estimate: Arbitrary::arbitrary(g),
+                }),
+                environment: Environment {
+                    gas_price: u64::arbitrary(g).into(),
+                    origin: Origin::random(),
+                    chain_id: u64::arbitrary(g).into(),
+                    block_hashes: Vec::new(),
+                    block_number: u64::arbitrary(g).into(),
+                    block_coinbase: BlockCoinBase::random(),
+                    block_timestamp: u64::arbitrary(g).into(),
+                    block_difficulty: u64::arbitrary(g).into(),
+                    block_gas_limit: u64::arbitrary(g).into(),
+                },
+            }
         }
     }
 
