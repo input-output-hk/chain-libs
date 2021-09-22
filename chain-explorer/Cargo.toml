@@ -1,0 +1,22 @@
+[package]
+name = "chain-explorer"
+version = "0.1.0"
+authors = ["dev@iohk.io"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/input-output-hk/chain-libs"
+
+[dependencies]
+thiserror = "1.0.20"
+tracing = "0.1"
+rand = "0.8.3"
+rand_chacha = "0.3.1"
+sanakirja = "1.2.5"
+zerocopy = "0.5.0"
+byteorder = "1.4.3"
+hex = "0.4.3"
+
+chain-core = { path = "../chain-core" }
+chain-addr = { path = "../chain-addr" }
+chain-crypto = { path = "../chain-crypto" }
+chain-impl-mockchain = { path = "../chain-impl-mockchain" }
