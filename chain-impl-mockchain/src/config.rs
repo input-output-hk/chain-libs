@@ -914,6 +914,13 @@ impl ConfigParamVariant for EvmConfigParams {
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
+        fn check_bool(b: u8) -> Result<bool, Error> {
+            match b {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(Error::BoolInvalid),
+            }
+        }
         let mut rb = ReadBuf::from(payload);
         // Read Config
         let gas_ext_code = rb.get_u64()?;
@@ -931,92 +938,31 @@ impl ConfigParamVariant for EvmConfigParams {
         let gas_transaction_call = rb.get_u64()?;
         let gas_transaction_zero_data = rb.get_u64()?;
         let gas_transaction_non_zero_data = rb.get_u64()?;
-        let sstore_gas_metering = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let sstore_revert_under_stipend = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let err_on_call_with_more_gas = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let call_l64_after_gas = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let empty_considered_exists = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let create_increase_nonce = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
+        let sstore_gas_metering = check_bool(rb.get_u8()?)?;
+        let sstore_revert_under_stipend = check_bool(rb.get_u8()?)?;
+        let err_on_call_with_more_gas = check_bool(rb.get_u8()?)?;
+        let call_l64_after_gas = check_bool(rb.get_u8()?)?;
+        let empty_considered_exists = check_bool(rb.get_u8()?)?;
+        let create_increase_nonce = check_bool(rb.get_u8()?)?;
         let stack_limit = rb.get_u64()? as usize;
         let memory_limit = rb.get_u64()? as usize;
         let call_stack_limit = rb.get_u64()? as usize;
-
-        // Check if create contract limit is set
+        // `create_contract_limit` option
         let create_contract_limit = match rb.get_u8()? {
             0 => None,
             1 => Some(rb.get_u64()? as usize),
             _ => return Err(Error::BoolInvalid),
         };
         let call_stipend = rb.get_u64()?;
-        let has_delegate_call = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let has_create2 = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let has_revert = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let has_return_data = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let has_bitwise_shifting = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let has_chain_id = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let has_self_balance = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let has_ext_code_hash = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
-        let estimate = match rb.get_u8()? {
-            0 => false,
-            1 => true,
-            _ => return Err(Error::BoolInvalid),
-        };
+        let has_delegate_call = check_bool(rb.get_u8()?)?;
+        let has_create2 = check_bool(rb.get_u8()?)?;
+        let has_revert = check_bool(rb.get_u8()?)?;
+        let has_return_data = check_bool(rb.get_u8()?)?;
+        let has_bitwise_shifting = check_bool(rb.get_u8()?)?;
+        let has_chain_id = check_bool(rb.get_u8()?)?;
+        let has_self_balance = check_bool(rb.get_u8()?)?;
+        let has_ext_code_hash = check_bool(rb.get_u8()?)?;
+        let estimate = check_bool(rb.get_u8()?)?;
 
         let config = Config {
             gas_ext_code,
