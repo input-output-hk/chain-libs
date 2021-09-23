@@ -1041,23 +1041,23 @@ impl ConfigParamVariant for EvmConfigParams {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TagLen(u16);
 
-const MAXIMUM_LEN: usize = 64;
+const MAXIMUM_LEN: usize = 512;
 
 impl TagLen {
     pub fn new(tag: Tag, len: usize) -> Option<Self> {
         if len < MAXIMUM_LEN {
-            Some(TagLen((tag as u16) << 6 | len as u16))
+            Some(TagLen((tag as u16) << 9 | len as u16))
         } else {
             None
         }
     }
 
     pub fn get_len(self) -> usize {
-        (self.0 & 0b11_1111) as usize
+        (self.0 & 0b1_1111_1111) as usize
     }
 
     pub fn get_tag(self) -> Result<Tag, Error> {
-        Tag::from_u16(self.0 >> 6).ok_or(Error::InvalidTag)
+        Tag::from_u16(self.0 >> 9).ok_or(Error::InvalidTag)
     }
 }
 
