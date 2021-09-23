@@ -848,6 +848,13 @@ impl ConfigParamVariant for EvmConfigParams {
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
+        fn check_bool(b: u8) -> Result<bool, Error> {
+            match b {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(Error::BoolInvalid),
+            }
+        }
         let mut rb = ReadBuf::from(payload);
 
         // Read EvmConfig and match hard fork variant
