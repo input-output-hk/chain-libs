@@ -14,7 +14,7 @@ use chain_core::packer::Codec;
 use chain_core::property;
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
-use chain_evm::machine::{BlockCoinBase, BlockHash, Config, Environment, Origin};
+use chain_evm::machine::{BlockCoinBase, BlockHash, Environment, Origin};
 #[cfg(feature = "evm")]
 use std::convert::TryInto;
 use std::{
@@ -110,21 +110,29 @@ pub enum RewardParams {
 }
 
 #[cfg(feature = "evm")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 /// EVM Configuration parameters needed for execution.
 pub struct EvmConfigParams {
     /// EVM Block Configuration. It is boxed to reduce
     /// size difference when used in enum variants
-    pub config: Box<Config>,
+    pub config: EvmConfig,
     /// EVM Block Environment.
     pub environment: Environment,
+}
+
+#[cfg(feature = "evm")]
+#[derive(Clone, Copy, Debug, PartialEq)]
+/// EVM Configuration parameters needed for execution.
+pub enum EvmConfig {
+    /// Configuration for the `Istanbul` fork.
+    Istanbul = 0,
 }
 
 #[cfg(feature = "evm")]
 impl Default for EvmConfigParams {
     fn default() -> Self {
         EvmConfigParams {
-            config: Box::new(Config::istanbul()),
+            config: EvmConfig::Istanbul,
             environment: Environment {
                 gas_price: Default::default(),
                 origin: Default::default(),
@@ -142,50 +150,6 @@ impl Default for EvmConfigParams {
 
 #[cfg(feature = "evm")]
 impl Eq for EvmConfigParams {}
-
-#[cfg(feature = "evm")]
-impl PartialEq for EvmConfigParams {
-    fn eq(&self, other: &Self) -> bool {
-        fn compare_configs(a: &Config, b: &Config) -> bool {
-            a.gas_ext_code == b.gas_ext_code
-                && a.gas_ext_code_hash == b.gas_ext_code_hash
-                && a.gas_sstore_set == b.gas_sstore_set
-                && a.gas_sstore_reset == b.gas_sstore_reset
-                && a.refund_sstore_clears == b.refund_sstore_clears
-                && a.gas_balance == b.gas_balance
-                && a.gas_sload == b.gas_sload
-                && a.gas_suicide == b.gas_suicide
-                && a.gas_suicide_new_account == b.gas_suicide_new_account
-                && a.gas_call == b.gas_call
-                && a.gas_expbyte == b.gas_expbyte
-                && a.gas_transaction_create == b.gas_transaction_create
-                && a.gas_transaction_call == b.gas_transaction_call
-                && a.gas_transaction_zero_data == b.gas_transaction_zero_data
-                && a.gas_transaction_non_zero_data == b.gas_transaction_non_zero_data
-                && a.sstore_gas_metering == b.sstore_gas_metering
-                && a.sstore_revert_under_stipend == b.sstore_revert_under_stipend
-                && a.err_on_call_with_more_gas == b.err_on_call_with_more_gas
-                && a.call_l64_after_gas == b.call_l64_after_gas
-                && a.empty_considered_exists == b.empty_considered_exists
-                && a.create_increase_nonce == b.create_increase_nonce
-                && a.stack_limit == b.stack_limit
-                && a.memory_limit == b.memory_limit
-                && a.call_stack_limit == b.call_stack_limit
-                && a.create_contract_limit == b.create_contract_limit
-                && a.call_stipend == b.call_stipend
-                && a.has_delegate_call == b.has_delegate_call
-                && a.has_create2 == b.has_create2
-                && a.has_revert == b.has_revert
-                && a.has_return_data == b.has_return_data
-                && a.has_bitwise_shifting == b.has_bitwise_shifting
-                && a.has_chain_id == b.has_chain_id
-                && a.has_self_balance == b.has_self_balance
-                && a.has_ext_code_hash == b.has_ext_code_hash
-                && a.estimate == b.estimate
-        }
-        compare_configs(&self.config, &other.config) && self.environment == other.environment
-    }
-}
 
 // Discriminants can NEVER be 1024 or higher
 #[derive(AsRefStr, Clone, Copy, Debug, EnumIter, EnumString, PartialEq)]
@@ -848,49 +812,7 @@ impl ConfigParamVariant for CommitteeId {
 #[cfg(feature = "evm")]
 impl ConfigParamVariant for EvmConfigParams {
     fn to_payload(&self) -> Vec<u8> {
-        let cfg = &self.config;
-        let refund_sstore_clears = cfg.refund_sstore_clears.try_into().unwrap();
-        let bb: ByteBuilder<EvmConfigParams> = ByteBuilder::new()
-            .u64(cfg.gas_ext_code)
-            .u64(cfg.gas_ext_code_hash)
-            .u64(cfg.gas_sstore_set)
-            .u64(cfg.gas_sstore_reset)
-            .u64(refund_sstore_clears)
-            .u64(cfg.gas_balance)
-            .u64(cfg.gas_sload)
-            .u64(cfg.gas_suicide)
-            .u64(cfg.gas_suicide_new_account)
-            .u64(cfg.gas_call)
-            .u64(cfg.gas_expbyte)
-            .u64(cfg.gas_transaction_create)
-            .u64(cfg.gas_transaction_call)
-            .u64(cfg.gas_transaction_zero_data)
-            .u64(cfg.gas_transaction_non_zero_data)
-            .u8(cfg.sstore_gas_metering as u8)
-            .u8(cfg.sstore_revert_under_stipend as u8)
-            .u8(cfg.err_on_call_with_more_gas as u8)
-            .u8(cfg.call_l64_after_gas as u8)
-            .u8(cfg.empty_considered_exists as u8)
-            .u8(cfg.create_increase_nonce as u8)
-            .u64(cfg.stack_limit as u64)
-            .u64(cfg.memory_limit as u64)
-            .u64(cfg.call_stack_limit as u64);
-        let bb = if let Some(limit) = cfg.create_contract_limit {
-            bb.u8(1).u64(limit as u64)
-        } else {
-            bb.u8(0)
-        };
-        let bb = bb
-            .u64(cfg.call_stipend as u64)
-            .u8(cfg.has_delegate_call as u8)
-            .u8(cfg.has_create2 as u8)
-            .u8(cfg.has_revert as u8)
-            .u8(cfg.has_return_data as u8)
-            .u8(cfg.has_bitwise_shifting as u8)
-            .u8(cfg.has_chain_id as u8)
-            .u8(cfg.has_self_balance as u8)
-            .u8(cfg.has_ext_code_hash as u8)
-            .u8(cfg.estimate as u8);
+        let bb: ByteBuilder<EvmConfigParams> = ByteBuilder::new().u8(self.config as u8);
         let env = &self.environment;
         let bb = bb
             .bytes(&<[u8; 32]>::from(env.gas_price))
@@ -914,92 +836,11 @@ impl ConfigParamVariant for EvmConfigParams {
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
-        fn check_bool(b: u8) -> Result<bool, Error> {
-            match b {
-                0 => Ok(false),
-                1 => Ok(true),
-                _ => Err(Error::BoolInvalid),
-            }
-        }
         let mut rb = ReadBuf::from(payload);
         // Read Config
-        let gas_ext_code = rb.get_u64()?;
-        let gas_ext_code_hash = rb.get_u64()?;
-        let gas_sstore_set = rb.get_u64()?;
-        let gas_sstore_reset = rb.get_u64()?;
-        let refund_sstore_clears = rb.get_u64()?.try_into().map_err(|_| Error::SizeInvalid)?;
-        let gas_balance = rb.get_u64()?;
-        let gas_sload = rb.get_u64()?;
-        let gas_suicide = rb.get_u64()?;
-        let gas_suicide_new_account = rb.get_u64()?;
-        let gas_call = rb.get_u64()?;
-        let gas_expbyte = rb.get_u64()?;
-        let gas_transaction_create = rb.get_u64()?;
-        let gas_transaction_call = rb.get_u64()?;
-        let gas_transaction_zero_data = rb.get_u64()?;
-        let gas_transaction_non_zero_data = rb.get_u64()?;
-        let sstore_gas_metering = check_bool(rb.get_u8()?)?;
-        let sstore_revert_under_stipend = check_bool(rb.get_u8()?)?;
-        let err_on_call_with_more_gas = check_bool(rb.get_u8()?)?;
-        let call_l64_after_gas = check_bool(rb.get_u8()?)?;
-        let empty_considered_exists = check_bool(rb.get_u8()?)?;
-        let create_increase_nonce = check_bool(rb.get_u8()?)?;
-        let stack_limit = rb.get_u64()? as usize;
-        let memory_limit = rb.get_u64()? as usize;
-        let call_stack_limit = rb.get_u64()? as usize;
-        // `create_contract_limit` option
-        let create_contract_limit = match rb.get_u8()? {
-            0 => None,
-            1 => Some(rb.get_u64()? as usize),
-            _ => return Err(Error::BoolInvalid),
-        };
-        let call_stipend = rb.get_u64()?;
-        let has_delegate_call = check_bool(rb.get_u8()?)?;
-        let has_create2 = check_bool(rb.get_u8()?)?;
-        let has_revert = check_bool(rb.get_u8()?)?;
-        let has_return_data = check_bool(rb.get_u8()?)?;
-        let has_bitwise_shifting = check_bool(rb.get_u8()?)?;
-        let has_chain_id = check_bool(rb.get_u8()?)?;
-        let has_self_balance = check_bool(rb.get_u8()?)?;
-        let has_ext_code_hash = check_bool(rb.get_u8()?)?;
-        let estimate = check_bool(rb.get_u8()?)?;
-
-        let config = Config {
-            gas_ext_code,
-            gas_ext_code_hash,
-            gas_sstore_set,
-            gas_sstore_reset,
-            refund_sstore_clears,
-            gas_balance,
-            gas_sload,
-            gas_suicide,
-            gas_suicide_new_account,
-            gas_call,
-            gas_expbyte,
-            gas_transaction_create,
-            gas_transaction_call,
-            gas_transaction_zero_data,
-            gas_transaction_non_zero_data,
-            sstore_gas_metering,
-            sstore_revert_under_stipend,
-            err_on_call_with_more_gas,
-            call_l64_after_gas,
-            empty_considered_exists,
-            create_increase_nonce,
-            stack_limit,
-            memory_limit,
-            call_stack_limit,
-            create_contract_limit,
-            call_stipend,
-            has_delegate_call,
-            has_create2,
-            has_revert,
-            has_return_data,
-            has_bitwise_shifting,
-            has_chain_id,
-            has_self_balance,
-            has_ext_code_hash,
-            estimate,
+        let config = match rb.get_u8()? {
+            n if n == EvmConfig::Istanbul as u8 => EvmConfig::Istanbul,
+            _ => return Err(Error::InvalidTag),
         };
 
         // Read Enviroment
@@ -1032,7 +873,7 @@ impl ConfigParamVariant for EvmConfigParams {
         };
 
         Ok(EvmConfigParams {
-            config: Box::new(config),
+            config,
             environment,
         })
     }
@@ -1168,43 +1009,7 @@ mod test {
     impl Arbitrary for EvmConfigParams {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             Self {
-                config: Box::new(Config {
-                    gas_ext_code: Arbitrary::arbitrary(g),
-                    gas_ext_code_hash: Arbitrary::arbitrary(g),
-                    gas_sstore_set: Arbitrary::arbitrary(g),
-                    gas_sstore_reset: Arbitrary::arbitrary(g),
-                    refund_sstore_clears: Arbitrary::arbitrary(g),
-                    gas_balance: Arbitrary::arbitrary(g),
-                    gas_sload: Arbitrary::arbitrary(g),
-                    gas_suicide: Arbitrary::arbitrary(g),
-                    gas_suicide_new_account: Arbitrary::arbitrary(g),
-                    gas_call: Arbitrary::arbitrary(g),
-                    gas_expbyte: Arbitrary::arbitrary(g),
-                    gas_transaction_create: Arbitrary::arbitrary(g),
-                    gas_transaction_call: Arbitrary::arbitrary(g),
-                    gas_transaction_zero_data: Arbitrary::arbitrary(g),
-                    gas_transaction_non_zero_data: Arbitrary::arbitrary(g),
-                    sstore_gas_metering: Arbitrary::arbitrary(g),
-                    sstore_revert_under_stipend: Arbitrary::arbitrary(g),
-                    err_on_call_with_more_gas: Arbitrary::arbitrary(g),
-                    call_l64_after_gas: Arbitrary::arbitrary(g),
-                    empty_considered_exists: Arbitrary::arbitrary(g),
-                    create_increase_nonce: Arbitrary::arbitrary(g),
-                    stack_limit: Arbitrary::arbitrary(g),
-                    memory_limit: Arbitrary::arbitrary(g),
-                    call_stack_limit: Arbitrary::arbitrary(g),
-                    create_contract_limit: Arbitrary::arbitrary(g),
-                    call_stipend: Arbitrary::arbitrary(g),
-                    has_delegate_call: Arbitrary::arbitrary(g),
-                    has_create2: Arbitrary::arbitrary(g),
-                    has_revert: Arbitrary::arbitrary(g),
-                    has_return_data: Arbitrary::arbitrary(g),
-                    has_bitwise_shifting: Arbitrary::arbitrary(g),
-                    has_chain_id: Arbitrary::arbitrary(g),
-                    has_self_balance: Arbitrary::arbitrary(g),
-                    has_ext_code_hash: Arbitrary::arbitrary(g),
-                    estimate: Arbitrary::arbitrary(g),
-                }),
+                config: EvmConfig::Istanbul,
                 environment: Environment {
                     gas_price: u64::arbitrary(g).into(),
                     origin: Origin::random(),

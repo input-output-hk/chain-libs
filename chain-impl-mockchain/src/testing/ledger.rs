@@ -1,7 +1,7 @@
 use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "evm")]
-use crate::config::EvmConfigParams;
+use crate::config::{EvmConfig, EvmConfigParams};
 use crate::{
     account::Ledger as AccountLedger,
     block::Block,
@@ -34,8 +34,8 @@ use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
 #[cfg(feature = "evm")]
 use chain_evm::machine::{
-    BlockCoinBase, BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Config,
-    Environment, GasLimit, GasPrice, Origin,
+    BlockCoinBase, BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Environment,
+    GasLimit, GasPrice, Origin,
 };
 use chain_time::TimeEra;
 use std::{
@@ -111,7 +111,7 @@ impl ConfigBuilder {
             transaction_max_expiry_epochs: None,
             #[cfg(feature = "evm")]
             evm_params: EvmConfigParams {
-                config: Box::new(Config::istanbul()),
+                config: EvmConfig::Istanbul,
                 environment: Environment {
                     // FIXME: need to set a real price
                     gas_price: GasPrice::default(),
