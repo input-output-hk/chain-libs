@@ -11,6 +11,14 @@ impl Ledger {
     pub fn new() -> Self {
         Default::default()
     }
+    #[cfg(feature = "evm")]
+    pub fn virtual_machine<'runtime>(
+        &self,
+        config: &'runtime Config,
+        environment: &'runtime Environment,
+    ) -> VirtualMachine<'runtime> {
+        VirtualMachine::new_with_state(config, environment, self.accounts.clone())
+    }
 }
 
 #[cfg(not(feature = "evm"))]
