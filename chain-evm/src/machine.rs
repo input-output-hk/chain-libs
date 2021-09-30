@@ -82,17 +82,17 @@ pub type RuntimeContext = Context;
 
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
-pub struct VirtualMachine {
+pub struct VirtualMachine<'runtime> {
     /// EVM Block Configuration.
-    config: Config,
-    environment: Environment,
+    config: &'runtime Config,
+    environment: &'runtime Environment,
     state: AccountTrie,
     logs: Vec<Log>,
 }
 
-impl VirtualMachine {
+impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
-    pub fn new(config: Config, environment: Environment) -> Self {
+    pub fn new(config: &'runtime Config, environment: &'runtime Environment) -> Self {
         Self {
             config,
             environment,
@@ -102,7 +102,11 @@ impl VirtualMachine {
     }
 
     /// Creates a new `VirtualMachine` given configuration params and a given account storage.
-    pub fn new_with_state(config: Config, environment: Environment, state: AccountTrie) -> Self {
+    pub fn new_with_state(
+        config: &'runtime Config,
+        environment: &'runtime Environment,
+        state: AccountTrie,
+    ) -> Self {
         Self {
             config,
             environment,
@@ -116,7 +120,7 @@ impl VirtualMachine {
         &self,
         gas_limit: u64,
     ) -> StackExecutor<'_, MemoryStackState<'_, '_, VirtualMachine>> {
-        let metadata = StackSubstateMetadata::new(gas_limit, &self.config);
+        let metadata = StackSubstateMetadata::new(gas_limit, self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
         StackExecutor::new(memory_stack_state, &self.config)
     }
@@ -128,11 +132,11 @@ impl VirtualMachine {
         data: Rc<Vec<u8>>,
         context: RuntimeContext,
     ) -> Runtime<'_> {
-        Runtime::new(code, data, context, &self.config)
+        Runtime::new(code, data, context, self.config)
     }
 }
 
-impl Backend for VirtualMachine {
+impl<'runtime> Backend for VirtualMachine<'runtime> {
     fn gas_price(&self) -> U256 {
         self.environment.gas_price
     }
@@ -197,7 +201,7 @@ impl Backend for VirtualMachine {
     }
 }
 
-impl ApplyBackend for VirtualMachine {
+impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
     fn apply<A, I, L>(&mut self, values: A, logs: L, delete_empty: bool)
     where
         A: IntoIterator<Item = Apply<I>>,
@@ -274,7 +278,7 @@ mod tests {
             block_gas_limit: Default::default(),
         };
 
-        let vm = VirtualMachine::new(config, environment);
+        let vm = VirtualMachine::new(&config, &environment);
 
         let gas_limit = u64::max_value();
         let mut executor = vm.executor(gas_limit);
