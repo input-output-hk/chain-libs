@@ -843,7 +843,7 @@ impl ConfigParamVariant for EvmConfigParams {
             _ => return Err(Error::InvalidTag),
         };
 
-        // Read Enviroment
+        // Read Environment
         let gas_price = rb.get_slice(32)?.into();
         let origin = Origin::from_slice(rb.get_slice(20)?);
         let chain_id = rb.get_slice(32)?.into();
