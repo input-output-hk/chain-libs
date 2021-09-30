@@ -496,7 +496,21 @@ impl Ledger {
                 Fragment::EncryptedVoteTally(_) => {
                     return Err(Error::Block0(Block0Error::HasVoteTally));
                 }
-                Fragment::SmartContractDeploy(_) => todo!(),
+                Fragment::SmartContractDeploy(_contract) => {
+                    #[cfg(feature = "evm")]
+                    {
+                        // WIP: deploying contract
+                        // 1. get settings in ledger
+                        // 2. declare config, and block environment
+                        // 3. instantiate virtual machine with a clone of the ledger state
+                        let config = ledger.settings.evm_params.config.into();
+                        let environment = &ledger.settings.evm_params.environment;
+                        let _vm = ledger.evm.virtual_machine(&config, environment);
+                        // 4. deploy contract
+                        // 5. update ledger state with the VM state,
+                        todo!("execute the contract and update ledger.evm.accounts");
+                    }
+                }
             }
         }
 

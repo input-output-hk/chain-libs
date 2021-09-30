@@ -1,5 +1,8 @@
 #[cfg(feature = "evm")]
-use chain_evm::state::{AccountTrie, Balance};
+use chain_evm::{
+    machine::{Config, Environment, VirtualMachine},
+    state::{AccountTrie, Balance},
+};
 
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct Ledger {

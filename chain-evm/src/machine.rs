@@ -122,7 +122,7 @@ impl<'runtime> VirtualMachine<'runtime> {
     ) -> StackExecutor<'_, MemoryStackState<'_, '_, VirtualMachine>> {
         let metadata = StackSubstateMetadata::new(gas_limit, self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
-        StackExecutor::new(memory_stack_state, &self.config)
+        StackExecutor::new(memory_stack_state, self.config)
     }
 
     /// Returns an initialized instance of `evm::Runtime`.
