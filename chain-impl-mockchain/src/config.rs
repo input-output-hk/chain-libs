@@ -14,7 +14,7 @@ use chain_core::packer::Codec;
 use chain_core::property;
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
-use chain_evm::machine::{BlockCoinBase, BlockHash, Environment, Origin};
+use chain_evm::machine::{BlockCoinBase, BlockHash, Config, Environment, Origin};
 #[cfg(feature = "evm")]
 use std::convert::TryInto;
 use std::{
@@ -126,6 +126,15 @@ pub struct EvmConfigParams {
 pub enum EvmConfig {
     /// Configuration for the `Istanbul` fork.
     Istanbul = 0,
+}
+
+#[cfg(feature = "evm")]
+impl From<EvmConfig> for Config {
+    fn from(other: EvmConfig) -> Config {
+        match other {
+            EvmConfig::Istanbul => Config::istanbul(),
+        }
+    }
 }
 
 #[cfg(feature = "evm")]
