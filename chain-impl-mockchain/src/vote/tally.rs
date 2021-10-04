@@ -241,7 +241,7 @@ mod tests {
         vote::{Choice, Options},
     };
     use proptest::prelude::*;
-    use quickcheck::TestResult;
+
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 

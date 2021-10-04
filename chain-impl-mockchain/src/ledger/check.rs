@@ -196,7 +196,7 @@ pub fn valid_transaction_date(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::TestResult;
+
     use test_strategy::proptest;
 
     fn test_valid_block0_transaction_no_inputs_for<P: Payload>(tx: Transaction<P>) {

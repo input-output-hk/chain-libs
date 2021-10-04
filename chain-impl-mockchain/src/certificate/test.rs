@@ -10,7 +10,6 @@ use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
 use proptest::prelude::*;
 #[cfg(test)]
-use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 

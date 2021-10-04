@@ -13,7 +13,6 @@ use crate::{
 use chain_core::property::{Block as _, Deserialize, HasHeader as _, Serialize};
 use proptest::prelude::*;
 #[cfg(test)]
-use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 

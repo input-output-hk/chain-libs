@@ -229,7 +229,7 @@ mod tests {
     use crate::{
         account::{Identifier, Ledger},
         certificate::{PoolId, PoolRegistration},
-        testing::{arbitrary::utils as arbitrary_utils, arbitrary::AverageValue, TestGen},
+        testing::TestGen,
         value::Value,
     };
 
@@ -238,8 +238,7 @@ mod tests {
         prelude::*,
         sample::select,
     };
-    use std::collections::HashSet;
-    use std::iter;
+
     use test_strategy::proptest;
 
     impl proptest::arbitrary::Arbitrary for Ledger {
@@ -279,23 +278,25 @@ mod tests {
                         delegations,
                     )
                 })
-                .prop_map(|(arbitrary_accounts, arbitrary_stake_pools, delegations)| {
-                    // TODO proptest arbitrary_stake_pools -- check the original implementation
-                    let mut ledger = Ledger::new();
+                .prop_map(
+                    |(arbitrary_accounts, _arbitrary_stake_pools, delegations)| {
+                        // TODO proptest arbitrary_stake_pools -- check the original implementation
+                        let mut ledger = Ledger::new();
 
-                    // Add all arbitrary accounts
-                    for (account_id, value) in arbitrary_accounts {
-                        ledger = ledger.add_account(&account_id, value, ()).unwrap();
-                    }
+                        // Add all arbitrary accounts
+                        for (account_id, value) in arbitrary_accounts {
+                            ledger = ledger.add_account(&account_id, value, ()).unwrap();
+                        }
 
-                    for (delegator, delegatee) in delegations {
-                        ledger = ledger
-                            .set_delegation(&delegator, &DelegationType::Full(delegatee))
-                            .unwrap();
-                    }
+                        for (delegator, delegatee) in delegations {
+                            ledger = ledger
+                                .set_delegation(&delegator, &DelegationType::Full(delegatee))
+                                .unwrap();
+                        }
 
-                    ledger
-                })
+                        ledger
+                    },
+                )
                 .boxed()
         }
     }

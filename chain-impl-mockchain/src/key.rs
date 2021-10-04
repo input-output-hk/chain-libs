@@ -433,8 +433,7 @@ mod tests {
     use chain_crypto::{testing, PublicKey, RistrettoGroup2HashDh, SecretKey, SumEd25519_12};
     use lazy_static::lazy_static;
     #[cfg(test)]
-    use quickcheck::TestResult;
-    use quickcheck::{quickcheck, Arbitrary, Gen};
+    use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 
     impl Arbitrary for Hash {

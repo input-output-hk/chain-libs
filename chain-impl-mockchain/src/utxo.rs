@@ -292,7 +292,7 @@ mod tests {
     };
     use chain_addr::{Address, Discrimination};
     use proptest::{collection::hash_map, prelude::*};
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck::{Arbitrary, Gen};
     use std::collections::HashMap;
     use std::iter;
     use test_strategy::proptest;
@@ -324,7 +324,7 @@ mod tests {
         pub fn fill(&self, mut ledger: Ledger<Address>) -> Ledger<Address> {
             for (key, value) in self.0.iter() {
                 let utxo = value.to_vec();
-                ledger = ledger.add(&key, &utxo.as_slice()).unwrap();
+                ledger = ledger.add(key, utxo.as_slice()).unwrap();
             }
             ledger
         }
@@ -391,7 +391,7 @@ mod tests {
 
             for (key, value) in arbitrary_utxos.0 {
                 let utxo = value.to_vec();
-                ledger = ledger.add(&key, &utxo.as_slice()).unwrap();
+                ledger = ledger.add(&key, utxo.as_slice()).unwrap();
             }
             ledger
         }
@@ -408,7 +408,7 @@ mod tests {
                         .0
                         .into_iter()
                         .fold(Ledger::new(), |ledger, (key, value)| {
-                            ledger.add(&key, &value.to_vec().as_slice()).unwrap()
+                            ledger.add(&key, value.to_vec().as_slice()).unwrap()
                         })
                 })
                 .boxed()
@@ -436,7 +436,7 @@ mod tests {
                 );
             }
             (Ok(_), false) => panic!("Element removed, while it should not"),
-            (Err(err), true) => panic!(format!("Unexpected error {}", err)),
+            (Err(err), true) => panic!("Unexpected error {}", err),
             (Err(_), false) => {}
         }
     }

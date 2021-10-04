@@ -1708,7 +1708,6 @@ mod tests {
         //reward::RewardParams,
         setting::{FeesGoesTo, Settings},
         testing::{
-            address::ArbitraryAddressDataValueVec,
             builders::{
                 witness_builder::{make_witness, make_witnesses},
                 TestTx, TestTxBuilder,
@@ -1860,8 +1859,8 @@ mod tests {
             .set_ios(&[input], &[]);
 
         let witness = make_witness(
-            &block0_hash,
-            &address_data,
+            block0_hash,
+            address_data,
             &tx_builder.get_auth_data_for_witness().hash(),
         );
         let witnesses = vec![witness];
@@ -1929,7 +1928,7 @@ mod tests {
             &block0_hash,
             &sign_data_hash,
             &id,
-            &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
             value_to_sub,
         );
         assert!(result.is_ok())
@@ -1938,7 +1937,7 @@ mod tests {
     fn account_ledger_with_initials(initials: &[(Identifier, Value)]) -> account::Ledger {
         let mut account_ledger = account::Ledger::new();
         for (id, initial_value) in initials {
-            account_ledger = account_ledger.add_account(&id, *initial_value, ()).unwrap();
+            account_ledger = account_ledger.add_account(id, *initial_value, ()).unwrap();
         }
         account_ledger
     }
@@ -1965,7 +1964,7 @@ mod tests {
             &wrong_block0_hash,
             &sign_data_hash,
             &id,
-            &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
             value_to_sub,
         );
         assert!(result.is_err())
@@ -2000,7 +1999,7 @@ mod tests {
             &wrong_block0_hash,
             &sign_data_hash,
             &id,
-            &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
             value_to_sub,
         );
         assert!(result.is_err())
@@ -2029,7 +2028,7 @@ mod tests {
             &wrong_block0_hash,
             &sign_data_hash,
             &non_existing_account.public_key().into(),
-            &to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
+            to_account_witness(&signed_tx.witnesses().iter().next().unwrap()),
             value_to_sub,
         );
         assert!(result.is_err())

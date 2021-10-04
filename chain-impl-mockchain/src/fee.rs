@@ -179,7 +179,6 @@ mod test {
     use crate::certificate::{Certificate, CertificatePayload};
     use proptest::prelude::*;
     #[cfg(test)]
-    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 

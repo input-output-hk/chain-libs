@@ -13,7 +13,6 @@ use chain_addr::Address;
 use chain_crypto::{testing::arbitrary_secret_key, Ed25519, SecretKey, Signature};
 use proptest::prelude::*;
 #[cfg(test)]
-use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 
@@ -141,9 +140,7 @@ impl proptest::arbitrary::Arbitrary for Input {
     type Strategy = proptest::strategy::BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        any::<UtxoPointer>()
-            .prop_map(|utxo_pointer| Self::from_utxo(utxo_pointer))
-            .boxed()
+        any::<UtxoPointer>().prop_map(Self::from_utxo).boxed()
     }
 }
 

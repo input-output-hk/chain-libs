@@ -116,7 +116,7 @@ mod tests {
     use crate::chaintypes::ConsensusType;
     use crate::header::{AnyBlockVersion, BlockVersion};
     use proptest::prelude::*;
-    use quickcheck::TestResult;
+
     use test_strategy::proptest;
 
     #[test]
@@ -160,7 +160,7 @@ mod tests {
 
     #[proptest]
     fn conversion_u16(block_version: AnyBlockVersion) {
-        let bytes: u16 = block_version.clone().into();
+        let bytes: u16 = block_version.into();
         let new_block_version: AnyBlockVersion = AnyBlockVersion::from(bytes);
         prop_assert_eq!(block_version, new_block_version);
     }

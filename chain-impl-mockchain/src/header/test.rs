@@ -12,7 +12,6 @@ use chain_crypto::{
 use lazy_static::lazy_static;
 use proptest::prelude::*;
 #[cfg(test)]
-use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 

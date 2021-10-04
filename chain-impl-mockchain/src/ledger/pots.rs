@@ -184,7 +184,7 @@ mod tests {
     use super::*;
     use crate::value::Value;
     use proptest::prelude::*;
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 
     impl Arbitrary for Pots {

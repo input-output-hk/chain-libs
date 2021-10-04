@@ -1,6 +1,6 @@
 use chain_core::mempack::{ReadBuf, Readable};
 use chain_core::property::{Deserialize, Serialize};
-use quickcheck::{Arbitrary, TestResult};
+use quickcheck::Arbitrary;
 use std::fmt::Debug;
 
 /// test that any arbitrary given object can serialize and deserialize

@@ -184,7 +184,7 @@ mod tests {
         fragment::FragmentId,
         rewards::Ratio,
         stake::Stake,
-        testing::{data::AddressData, utxo::ArbitaryLedgerUtxo, TestGen},
+        testing::{data::AddressData, TestGen},
         utxo::Ledger,
         value::Value,
     };

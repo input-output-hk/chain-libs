@@ -47,7 +47,7 @@ pub struct DelegationRatio {
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
-fn delegation_ratio_strategy(parts: u8) -> impl Strategy<Value = Box<[(PoolId, u8)]>> {
+fn delegation_ratio_strategy(_parts: u8) -> impl Strategy<Value = Box<[(PoolId, u8)]>> {
     Just(Vec::new().into_boxed_slice()) // TODO proptest
 }
 
@@ -265,7 +265,7 @@ mod tests {
         accounting::account::LedgerError, certificate::PoolId, testing::builders::StakePoolBuilder,
         value::Value,
     };
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    use quickcheck::{Arbitrary, Gen};
     use std::iter;
 
     use proptest::prelude::*;
@@ -442,8 +442,8 @@ mod tests {
                     match (should_fail, account_state.add(value)) {
                         (false, Ok(account_state)) => account_state,
                         (true, Err(_)) => account_state,
-                        (false,  Err(err)) => panic!(format!("Operation {}: unexpected add operation failure. Expected success but got: {:?}",counter,err)),
-                        (true, Ok(account_state)) => panic!(format!("Operation {}: unexpected add operation success. Expected failure but got: success. AccountState: {:?}",counter, &account_state)),
+                        (false,  Err(err)) => panic!("Operation {}: unexpected add operation failure. Expected success but got: {:?}",counter,err),
+                        (true, Ok(account_state)) => panic!("Operation {}: unexpected add operation success. Expected failure but got: success. AccountState: {:?}",counter, &account_state),
                     }
                 }
                 ArbitraryAccountStateOp::Sub(value) => {
@@ -463,8 +463,8 @@ mod tests {
                             }
                         }
                         (true, Err(_)) => account_state,
-                        (false,  Err(err)) => panic!(format!("Operation {}: unexpected sub operation failure. Expected success but got: {:?}",counter,err)),
-                        (true, Ok(account_state)) => panic!(format!("Operation {}: unexpected sub operation success. Expected failure but got: success. AccountState: {:?}",counter, &account_state)),
+                        (false,  Err(err)) => panic!("Operation {}: unexpected sub operation failure. Expected success but got: {:?}",counter,err),
+                        (true, Ok(account_state)) => panic!("Operation {}: unexpected sub operation success. Expected failure but got: success. AccountState: {:?}",counter, &account_state),
                     }
                 }
                 ArbitraryAccountStateOp::Delegate(stake_pool_id) => {

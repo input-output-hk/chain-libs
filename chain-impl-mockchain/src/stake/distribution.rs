@@ -229,9 +229,9 @@ mod tests {
     use super::*;
     use crate::account;
     use crate::accounting::account::DelegationType;
-    use crate::stake::{delegation::PoolsState, Stake};
+    use crate::stake::Stake;
     use crate::{
-        account::{AccountAlg, DelegationRatio, Identifier},
+        account::{DelegationRatio, Identifier},
         certificate::PoolRegistration,
         fragment::FragmentId,
         testing::{
@@ -241,13 +241,11 @@ mod tests {
             TestGen,
         },
         transaction::{Output, TransactionIndex},
-        utxo,
         value::Value,
     };
-    use chain_addr::{Address, Kind};
-    use chain_crypto::PublicKey;
-    use proptest::prelude::*;
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    use chain_addr::Address;
+
+    use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 
     /// Holds all possible cases of distribution source

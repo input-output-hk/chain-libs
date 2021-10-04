@@ -437,7 +437,6 @@ mod tests {
     use chain_addr::Discrimination;
     use proptest::prelude::*;
     #[cfg(test)]
-    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
     use std::iter;
     use test_strategy::proptest;
@@ -517,7 +516,7 @@ mod tests {
             .with_proposer_id(proposer.leader_id.clone())
             .build();
 
-        update_state.apply_proposal(proposal_id, &signed_update_proposal, &settings, block_date)
+        update_state.apply_proposal(proposal_id, &signed_update_proposal, settings, block_date)
     }
 
     #[cfg(test)]
@@ -532,7 +531,7 @@ mod tests {
             .with_voter_id(proposer.id())
             .build();
 
-        update_state.apply_vote(&signed_update_vote, &settings)
+        update_state.apply_vote(&signed_update_vote, settings)
     }
 
     #[proptest]

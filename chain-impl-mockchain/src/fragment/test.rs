@@ -4,7 +4,6 @@ use crate::config::ConfigParam;
 use crate::testing::serialization::{serialization_bijection, serialization_bijection_r};
 use proptest::prelude::*;
 #[cfg(test)]
-use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 

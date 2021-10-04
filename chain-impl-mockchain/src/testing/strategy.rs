@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     convert::TryFrom,
     fmt::Debug,
     num::{NonZeroU32, NonZeroU64},

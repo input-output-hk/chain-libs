@@ -33,7 +33,7 @@ fn ledger_adopt_settings_from_update_proposal(update_proposal_data: UpdatePropos
 
     // apply votes
     for vote in update_proposal_data.votes.iter() {
-        ledger = ledger.apply_update_vote(&vote).unwrap();
+        ledger = ledger.apply_update_vote(vote).unwrap();
     }
 
     // trigger proposal process (build block)

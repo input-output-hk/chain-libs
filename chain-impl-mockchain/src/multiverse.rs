@@ -326,7 +326,7 @@ mod test {
         let block_ver = BlockVersion::Ed25519Signed;
         let contents = Contents::empty();
         let header = HeaderBuilderNew::new(block_ver, &contents)
-            .set_parent(&parent, chain_length)
+            .set_parent(parent, chain_length)
             .set_date(date)
             .into_bft_builder()
             .unwrap()

@@ -280,7 +280,7 @@ pub enum SignedCertificate {
 mod tests {
     use super::*;
     use proptest::prelude::*;
-    use quickcheck::TestResult;
+
     use test_strategy::proptest;
 
     #[proptest]
