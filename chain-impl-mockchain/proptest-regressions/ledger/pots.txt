@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 24cfaf93ff3cb9cbfd3da49403bce08b74535932f91dc059c2121f2f380c8d0f # shrinks to input = _TreasuryAddArgs { pots: Pots { fees: Value(0), treasury: Treasury(Value(13107457562879298199)), rewards: Value(0) }, value: Value(5339286510830253417) }

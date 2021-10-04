@@ -1,4 +1,6 @@
 use core::ops::Range;
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::*;
 use thiserror::Error;
 
 /// error that may occur when creating a new `Options` using
@@ -17,7 +19,12 @@ pub struct InvalidOptionsLength {
 /// currently this is a 4bits structure, allowing up to 16 choices
 /// however we may allow more complex object to be set in
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Options {
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy((1..=Options::NUM_CHOICES_MAX).prop_map(|choices| 0..choices)))]
     options_range: Range<u8>,
 }
 
@@ -26,6 +33,10 @@ pub struct Options {
 /// A `Choice` is a representation of a choice that has been made and must
 /// be compliant with the `Options`. A way to validate it is with `Options::validate`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Choice(u8);
 
 impl Options {
@@ -96,8 +107,8 @@ mod property {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+
+    use test_strategy::proptest;
 
     fn validate_choices<I>(options: &Options, choices: I, expected: bool)
     where
@@ -130,15 +141,15 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn vote_options_max(num_choices: u8) -> TestResult {
+    #[proptest]
+    fn vote_options_max(num_choices: u8) {
         let options = Options::new_length(num_choices);
 
         if num_choices == 0 || num_choices > Options::NUM_CHOICES_MAX {
-            TestResult::from_bool(options.is_err())
+            prop_assert!(options.is_err());
         } else {
             let options = options.expect("non `0` options should always be valid");
-            TestResult::from_bool(options.as_byte() == num_choices)
+            prop_assert_eq!(options.as_byte(), num_choices);
         }
     }
 }

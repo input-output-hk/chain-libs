@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx e09a705689b01a3d9614cffcb42fa70a56c61c1b3386beebc1c7c54edefffab8 # shrinks to input = _AddRewardsArgs { account_state_no_reward: AccountState { counter: SpendingCounter(0), delegation: NonDelegated, value: Value(0), last_rewards: LastRewards { epoch: 1, reward: Value(1) }, extra: () }, value: Value(0) }
+xx 447db2634032facedd7577335b8c534572638ee886279f92103b000438b56f3d # shrinks to input = _AccountStateIsConsistentArgs { account_state: AccountState { counter: SpendingCounter(0), delegation: NonDelegated, value: Value(0), last_rewards: LastRewards { epoch: 0, reward: Value(1) }, extra: () }, operations: ArbitraryOperationChain([]) }

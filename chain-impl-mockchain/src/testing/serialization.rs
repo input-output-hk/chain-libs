@@ -1,42 +1,29 @@
 use chain_core::mempack::{ReadBuf, Readable};
 use chain_core::property::{Deserialize, Serialize};
 use quickcheck::{Arbitrary, TestResult};
+use std::fmt::Debug;
 
 /// test that any arbitrary given object can serialize and deserialize
 /// back into itself (i.e. it is a bijection,  or a one to one match
 /// between the serialized bytes and the object)
-pub fn serialization_bijection<T>(t: T) -> TestResult
+pub fn serialization_bijection<T>(t: T)
 where
-    T: Arbitrary + Serialize + Deserialize + Eq,
+    T: Arbitrary + Serialize + Deserialize + Eq + Debug,
 {
-    let vec = match t.serialize_as_vec() {
-        Err(error) => return TestResult::error(format!("serialization: {}", error)),
-        Ok(v) => v,
-    };
-    let decoded_t = match T::deserialize(&vec[..]) {
-        Err(error) => return TestResult::error(format!("deserialization: {}", error)),
-        Ok(v) => v,
-    };
-    TestResult::from_bool(decoded_t == t)
+    let vec = t.serialize_as_vec().unwrap();
+    let decoded_t = T::deserialize(&vec[..]).unwrap();
+    assert_eq!(decoded_t, t);
 }
 
 /// test that any arbitrary given object can serialize and deserialize
 /// back into itself (i.e. it is a bijection,  or a one to one match
 /// between the serialized bytes and the object)
-pub fn serialization_bijection_r<T>(t: T) -> TestResult
+pub fn serialization_bijection_r<T>(t: T)
 where
-    T: Arbitrary + Serialize + Readable + Eq,
+    T: Arbitrary + Serialize + Readable + Eq + Debug,
 {
-    let vec = match t.serialize_as_vec() {
-        Err(error) => return TestResult::error(format!("serialization: {}", error)),
-        Ok(v) => v,
-    };
+    let vec = t.serialize_as_vec().unwrap();
     let mut buf = ReadBuf::from(&vec);
-    let decoded_t = match T::read(&mut buf) {
-        Err(error) => {
-            return TestResult::error(format!("deserialization: {:?}\n{}", error, buf.debug()))
-        }
-        Ok(v) => v,
-    };
-    TestResult::from_bool(buf.expect_end().is_ok() && decoded_t == t)
+    let decoded_t = T::read(&mut buf).unwrap();
+    assert!(buf.expect_end().is_ok() && decoded_t == t);
 }

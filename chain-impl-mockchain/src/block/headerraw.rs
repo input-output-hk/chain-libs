@@ -2,7 +2,14 @@ use chain_core::property;
 
 /// Block Header Bytes
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HeaderRaw(pub(super) Vec<u8>);
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
+pub struct HeaderRaw(
+    #[cfg_attr(any(test, feature = "property-test-api"), any(proptest::collection::size_range(..65536).lift()))]
+    pub(super) Vec<u8>,
+);
 
 impl AsRef<[u8]> for HeaderRaw {
     fn as_ref(&self) -> &[u8] {

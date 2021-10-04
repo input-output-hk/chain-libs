@@ -34,6 +34,10 @@ pub type VotePlanId = DigestOf<Blake2b256, VotePlan>;
 /// is the committee supposed to reveal the results.
 ///
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct VotePlan {
     /// the vote start validity
     vote_start: BlockDate,
@@ -48,10 +52,36 @@ pub struct VotePlan {
     /// vote payload type
     payload_type: vote::PayloadType,
     /// encrypting votes public keys
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(committee_public_keys_strategy())
+    )]
     committee_public_keys: Vec<chain_vote::MemberPublicKey>,
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
+fn committee_public_keys_strategy(
+) -> impl proptest::strategy::Strategy<Value = Vec<chain_vote::MemberPublicKey>> {
+    use chain_crypto::testing::TestCryptoGen;
+    use proptest::prelude::*;
+
+    let h = chain_vote::Crs::from_hash(&[0u8; 32]);
+    let threshold = 1;
+
+    let keys = any::<(TestCryptoGen, u32)>().prop_map(move |(gen, idx)| {
+        let mut rng = gen.get_rng(idx);
+        let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
+        let m1 = chain_vote::MemberState::new(&mut rng, threshold, &h, &[mc.to_public()], 0);
+        m1.public_key()
+    });
+    proptest::collection::vec(keys, 1..16)
+}
+
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct VotePlanProof {
     pub id: vote::CommitteeId,
     pub signature: SingleAccountBindingSignature,
@@ -61,19 +91,27 @@ pub struct VotePlanProof {
 ///
 ///
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum VoteAction {
     /// the action if off chain or not relevant to the blockchain
     OffChain,
     /// control the treasury
     Treasury { action: TreasuryGovernanceAction },
     /// control the parameters
-    Parameters { action: ParametersGovernanceAction },
+    LedgerParameters { action: ParametersGovernanceAction },
 }
 
 /// a collection of proposals
 ///
 /// there may not be more than 255 proposal
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Proposals {
     proposals: Vec<Proposal>,
 }
@@ -84,6 +122,10 @@ pub struct Proposals {
 /// for the proposal to be operated.
 ///
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Proposal {
     external_id: ExternalProposalId,
     options: vote::Options,
@@ -116,7 +158,7 @@ impl Proposal {
                 // OffChain passes acceptance as it does not require governance
                 return true;
             }
-            VoteAction::Parameters { action } => governance
+            VoteAction::LedgerParameters { action } => governance
                 .parameters
                 .acceptance_criteria_for(action.to_type()),
             VoteAction::Treasury { action } => governance
@@ -151,7 +193,7 @@ impl VoteAction {
         match self {
             Self::OffChain => bb.u8(0),
             Self::Treasury { action } => bb.u8(1).sub(|bb| action.serialize_in(bb)),
-            Self::Parameters { action } => bb.u8(2).sub(|bb| action.serialize_in(bb)),
+            Self::LedgerParameters { action } => bb.u8(2).sub(|bb| action.serialize_in(bb)),
         }
     }
 }
@@ -213,7 +255,7 @@ impl VotePlan {
             .iter()
             .any(|proposal| match proposal.action() {
                 VoteAction::OffChain => false,
-                VoteAction::Parameters { .. } | VoteAction::Treasury { .. } => true,
+                VoteAction::LedgerParameters { .. } | VoteAction::Treasury { .. } => true,
             })
     }
 
@@ -392,7 +434,8 @@ impl Readable for VoteAction {
         match buf.get_u8()? {
             0 => Ok(Self::OffChain),
             1 => TreasuryGovernanceAction::read(buf).map(|action| Self::Treasury { action }),
-            2 => ParametersGovernanceAction::read(buf).map(|action| Self::Parameters { action }),
+            2 => ParametersGovernanceAction::read(buf)
+                .map(|action| Self::LedgerParameters { action }),
             t => Err(ReadError::UnknownTag(t as u32)),
         }
     }
@@ -467,10 +510,11 @@ mod tests {
     use crate::block::BlockDate;
     use crate::testing::VoteTestGen;
     use chain_core::property::BlockDate as BlockDateProp;
-    use quickcheck_macros::quickcheck;
+    use proptest::prelude::*;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    fn serialize_deserialize(vote_plan: VotePlan) -> bool {
+    #[proptest]
+    fn serialize_deserialize(vote_plan: VotePlan) {
         let serialized = vote_plan.serialize();
 
         let mut buf = ReadBuf::from(serialized.as_ref());
@@ -478,7 +522,7 @@ mod tests {
 
         let decoded = result.expect("can decode encoded vote plan");
 
-        decoded == vote_plan
+        prop_assert_eq!(decoded, vote_plan);
     }
 
     #[test]

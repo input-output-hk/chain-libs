@@ -6,7 +6,6 @@ use crate::{
     accounting::account::DelegationType,
     ledger::{Block0Error, Error::Block0},
     testing::{
-        arbitrary::address::ArbitraryAddressDataValueVec,
         create_initial_stake_pool_owner_delegation, create_initial_transaction,
         data::AddressDataValue,
         data::Wallet,
@@ -17,21 +16,18 @@ use crate::{
 };
 use chain_addr::Discrimination;
 use chain_core::property::Fragment as _;
-use quickcheck::TestResult;
-use quickcheck_macros::quickcheck;
+use test_strategy::proptest;
 
-#[quickcheck]
-pub fn ledger_verifies_value_of_initial_funds(
-    arbitrary_faucets: ArbitraryAddressDataValueVec,
-) -> TestResult {
+#[proptest]
+fn ledger_verifies_value_of_initial_funds(
+    #[any(proptest::collection::size_range(..10).lift())] arbitrary_faucets: Vec<AddressDataValue>,
+) {
     let config = ConfigBuilder::new().with_discrimination(Discrimination::Test);
 
-    TestResult::from_bool(
-        LedgerBuilder::from_config(config)
-            .initial_funds(&arbitrary_faucets.values())
-            .build()
-            .is_ok(),
-    )
+    LedgerBuilder::from_config(config)
+        .initial_funds(&arbitrary_faucets)
+        .build()
+        .unwrap();
 }
 
 #[test]

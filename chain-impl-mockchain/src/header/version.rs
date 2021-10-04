@@ -3,6 +3,10 @@ use crate::chaintypes::ConsensusType;
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum AnyBlockVersion {
     Supported(BlockVersion),
     Unsupported(u16),
@@ -51,6 +55,10 @@ impl From<BlockVersion> for AnyBlockVersion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum BlockVersion {
     Genesis,
     Ed25519Signed,
@@ -107,8 +115,9 @@ mod tests {
 
     use crate::chaintypes::ConsensusType;
     use crate::header::{AnyBlockVersion, BlockVersion};
+    use proptest::prelude::*;
     use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     #[test]
     pub fn try_into_block_version() {
@@ -149,18 +158,18 @@ mod tests {
         assert!(AnyBlockVersion::Unsupported(0) != BlockVersion::KesVrfproof);
     }
 
-    #[quickcheck]
-    pub fn conversion_u16(block_version: AnyBlockVersion) -> TestResult {
+    #[proptest]
+    fn conversion_u16(block_version: AnyBlockVersion) {
         let bytes: u16 = block_version.clone().into();
         let new_block_version: AnyBlockVersion = AnyBlockVersion::from(bytes);
-        TestResult::from_bool(block_version == new_block_version)
+        prop_assert_eq!(block_version, new_block_version);
     }
 
-    #[quickcheck]
-    pub fn from_block_version(block_version: BlockVersion) -> TestResult {
+    #[proptest]
+    fn from_block_version(block_version: BlockVersion) {
         let right_version = AnyBlockVersion::Supported(block_version);
         let left_version: AnyBlockVersion = block_version.into();
-        TestResult::from_bool(left_version == right_version)
+        prop_assert_eq!(left_version, right_version);
     }
 
     #[test]

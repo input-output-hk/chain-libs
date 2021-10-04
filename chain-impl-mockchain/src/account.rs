@@ -15,7 +15,14 @@ pub type Witness = Signature<WitnessAccountData, AccountAlg>;
 
 /// Account Identifier (also used as Public Key)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Identifier(PublicKey<AccountAlg>);
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
+pub struct Identifier(
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(chain_crypto::testing::public_key_strategy::<AccountAlg>()))]
+     PublicKey<AccountAlg>,
+);
 
 impl From<PublicKey<AccountAlg>> for Identifier {
     fn from(pk: PublicKey<AccountAlg>) -> Self {

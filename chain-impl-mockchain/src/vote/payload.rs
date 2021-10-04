@@ -17,6 +17,10 @@ use typed_bytes::{ByteArray, ByteBuilder};
 /// ```
 ///
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 #[repr(u8)]
 pub enum PayloadType {
     Public = 1,
@@ -190,7 +194,9 @@ impl Default for PayloadType {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    use chain_crypto::testing::TestCryptoGen;
     use chain_vote::{Crs, ElectionPublicKey};
+    use proptest::prelude::*;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for PayloadType {
@@ -233,6 +239,47 @@ mod tests {
                     )
                 }
             }
+        }
+    }
+
+    pub(crate) fn private_vote_strategy() -> impl Strategy<Value = Payload> {
+        any::<(TestCryptoGen, [u8; 32], u32)>().prop_map(|(gen, seed, choice)| {
+            use chain_vote::{MemberCommunicationKey, MemberState, Vote};
+
+            let mut gen = gen.get_rng(0);
+            let mc = MemberCommunicationKey::new(&mut gen);
+            let threshold = 1;
+            let h = Crs::from_hash(&seed);
+            let m = MemberState::new(&mut gen, threshold, &h, &[mc.to_public()], 0);
+            let participants = vec![m.public_key()];
+            let ek = ElectionPublicKey::from_participants(&participants);
+            let vote_options = 3;
+            let choice = choice % vote_options;
+            let (vote, proof) = ek.encrypt_and_prove_vote(
+                &mut gen,
+                &h,
+                Vote::new(vote_options as usize, choice as usize),
+            );
+            Payload::private(
+                EncryptedVote::from_inner(vote),
+                ProofOfCorrectVote::from_inner(proof),
+            )
+        })
+    }
+
+    impl proptest::arbitrary::Arbitrary for Payload {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            any::<PayloadType>()
+                .prop_flat_map(|payload_type| match payload_type {
+                    PayloadType::Public => any::<Choice>()
+                        .prop_map(|choice| Payload::Public { choice })
+                        .boxed(),
+                    PayloadType::Private => private_vote_strategy().boxed(),
+                })
+                .boxed()
         }
     }
 }

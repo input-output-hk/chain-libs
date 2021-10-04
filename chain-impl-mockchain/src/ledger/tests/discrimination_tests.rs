@@ -3,28 +3,27 @@
 use crate::{
     date::BlockDate,
     testing::{
-        arbitrary::KindTypeWithoutMultisig,
         builders::TestTxBuilder,
         data::AddressDataValue,
         ledger::{ConfigBuilder, LedgerBuilder},
+        strategy::kind_type_without_multisig,
     },
     value::Value,
 };
-use chain_addr::Discrimination;
-use quickcheck::TestResult;
-use quickcheck_macros::quickcheck;
+use chain_addr::{Discrimination, KindType};
+use test_strategy::proptest;
 
-#[quickcheck]
-pub fn ledger_verifies_faucet_discrimination(
+#[proptest]
+fn ledger_verifies_faucet_discrimination(
     arbitrary_faucet_disc: Discrimination,
-    arbitrary_faucet_address_kind: KindTypeWithoutMultisig,
+    #[strategy(kind_type_without_multisig())] arbitrary_faucet_address_kind: KindType,
     arbitrary_ledger_disc: Discrimination,
 ) {
     let config = ConfigBuilder::new().with_discrimination(arbitrary_ledger_disc);
 
     let faucet = AddressDataValue::from_discrimination_and_kind_type(
         arbitrary_faucet_disc,
-        arbitrary_faucet_address_kind.0,
+        arbitrary_faucet_address_kind,
         Value(1000),
     );
 
@@ -34,32 +33,32 @@ pub fn ledger_verifies_faucet_discrimination(
         are_discriminations_unified,
         LedgerBuilder::from_config(config).faucet(&faucet).build(),
     ) {
-        (true, Ok(_)) => TestResult::passed(),
+        (true, Ok(_)) => {}
         (false, Ok(_)) => {
-            TestResult::error("Ledger should reject transaction with mixed discriminations")
+            panic!("Ledger should reject transaction with mixed discriminations")
         }
         (true, Err(_)) => {
-            TestResult::error("Ledger should accept transaction with unified discriminations")
+            panic!("Ledger should accept transaction with unified discriminations")
         }
-        (false, Err(_)) => TestResult::passed(),
+        (false, Err(_)) => {}
     };
 }
 
-#[quickcheck]
-pub fn ledger_verifies_transaction_discrimination(
+#[proptest]
+fn ledger_verifies_transaction_discrimination(
     arbitrary_input_disc: Discrimination,
     arbitrary_output_disc: Discrimination,
-    arbitrary_input_address_kind: KindTypeWithoutMultisig,
-    arbitrary_output_address_kind: KindTypeWithoutMultisig,
-) -> TestResult {
+    #[strategy(kind_type_without_multisig())] arbitrary_input_address_kind: KindType,
+    #[strategy(kind_type_without_multisig())] arbitrary_output_address_kind: KindType,
+) {
     let faucet = AddressDataValue::from_discrimination_and_kind_type(
         arbitrary_input_disc,
-        arbitrary_input_address_kind.kind_type(),
+        arbitrary_input_address_kind,
         Value(100),
     );
     let receiver = AddressDataValue::from_discrimination_and_kind_type(
         arbitrary_output_disc,
-        arbitrary_output_address_kind.kind_type(),
+        arbitrary_output_address_kind,
         Value(100),
     );
 
@@ -77,14 +76,14 @@ pub fn ledger_verifies_transaction_discrimination(
     let actual_result = ledger.apply_transaction(fragment, BlockDate::first());
 
     match (are_discriminations_unified, actual_result) {
-        (true, Ok(_)) => TestResult::passed(),
+        (true, Ok(_)) => {}
         (false, Ok(_)) => {
-            TestResult::error("Ledger should reject transaction with mixed discriminations")
+            panic!("Ledger should reject transaction with mixed discriminations")
         }
-        (true, Err(err)) => TestResult::error(format!(
+        (true, Err(err)) => panic!(
             "Ledger should accept transaction with unified discriminations. Err: {}",
             err
-        )),
-        (false, Err(_)) => TestResult::passed(),
+        ),
+        (false, Err(_)) => {}
     }
 }

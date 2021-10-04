@@ -2,10 +2,11 @@ use super::*;
 use crate::config::ConfigParam;
 #[cfg(test)]
 use crate::testing::serialization::{serialization_bijection, serialization_bijection_r};
+use proptest::prelude::*;
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
-use quickcheck_macros::quickcheck;
+use test_strategy::proptest;
 
 impl Arbitrary for Fragment {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -29,21 +30,20 @@ impl Arbitrary for Fragment {
     }
 }
 
-#[quickcheck]
-fn fragment_raw_bijection(b: Fragment) -> TestResult {
+#[proptest]
+fn fragment_raw_bijection(b: Fragment) {
     let b_got = Fragment::from_raw(&b.to_raw()).unwrap();
-    TestResult::from_bool(b == b_got)
+    prop_assert_eq!(b, b_got);
 }
 
-#[quickcheck]
-fn fragment_serialization_bijection(b: Fragment) -> TestResult {
-    serialization_bijection(b)
+#[proptest]
+fn fragment_serialization_bijection(b: Fragment) {
+    serialization_bijection(b);
 }
 
-quickcheck! {
-    fn initial_ents_serialization_bijection(config_params: ConfigParams) -> TestResult {
-        serialization_bijection_r(config_params)
-    }
+#[proptest]
+fn initial_ents_serialization_bijection(config_params: ConfigParams) {
+    serialization_bijection_r(config_params)
 }
 
 impl Arbitrary for ConfigParams {

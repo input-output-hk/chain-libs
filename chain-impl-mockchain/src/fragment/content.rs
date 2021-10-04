@@ -6,11 +6,21 @@ use std::slice;
 pub type BlockContentHash = Hash;
 pub type BlockContentSize = u32;
 
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::{collection::vec, prelude::*};
+
 /// Block Contents
 ///
 /// To create this structure, make a ContentsBuilder and use into()
 #[derive(Debug, Clone)]
-pub struct Contents(pub(super) Box<[Fragment]>);
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
+pub struct Contents(
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(vec(any::<Fragment>(), ..12).prop_map(|vec| vec.into_boxed_slice())))]
+    pub(super) Box<[Fragment]>,
+);
 
 impl PartialEq for Contents {
     fn eq(&self, rhs: &Self) -> bool {

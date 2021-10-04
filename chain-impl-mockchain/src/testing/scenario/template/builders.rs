@@ -361,7 +361,7 @@ impl ProposalDefBuilder {
     }
 
     pub fn action_transfer_to_rewards(&mut self, value: u64) -> &mut Self {
-        self.action_type = VoteAction::Parameters {
+        self.action_type = VoteAction::LedgerParameters {
             action: ParametersGovernanceAction::RewardAdd {
                 value: Value(value),
             },
@@ -370,7 +370,7 @@ impl ProposalDefBuilder {
     }
 
     pub fn action_parameters_no_op(&mut self) -> &mut Self {
-        self.action_type = VoteAction::Parameters {
+        self.action_type = VoteAction::LedgerParameters {
             action: ParametersGovernanceAction::NoOp,
         };
         self

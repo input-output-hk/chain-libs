@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 282ba5a0bd548585b46e68632d5ca4dbc017bf3ddf5508f7de77c50e9a4c5431 # shrinks to input = _LedgerAdoptSettingsFromUpdateProposalArgs { update_proposal_data: UpdateProposalData { leaders: [BftLeaderId(2e5d30506528a9d2499eec72f80c52f29683d952ebda0b37124b1706344b0a73)], proposal: SignedUpdateProposal { proposal: UpdateProposalWithProposer { proposal: UpdateProposal { changes: ConfigParams([]) }, proposer_id: BftLeaderId(2e5d30506528a9d2499eec72f80c52f29683d952ebda0b37124b1706344b0a73) } }, proposal_id: Hash(Blake2b256(0xd85f698bb43038619b209676144afd82675fae79a64af03b80eb9719c02c70ec)), votes: [] } }

@@ -23,14 +23,11 @@ use crate::{
 };
 
 use chain_addr::Discrimination;
-use quickcheck::TestResult;
-use quickcheck_macros::quickcheck;
+use proptest::prelude::*;
+use test_strategy::proptest;
 
-#[quickcheck]
-pub fn ledger_accepts_correct_transaction(
-    faucet: AddressDataValue,
-    receiver: AddressDataValue,
-) -> TestResult {
+#[proptest]
+fn ledger_accepts_correct_transaction(faucet: AddressDataValue, receiver: AddressDataValue) {
     let mut ledger = LedgerBuilder::from_config(ConfigBuilder::new())
         .initial_fund(&faucet)
         .build()
@@ -39,26 +36,17 @@ pub fn ledger_accepts_correct_transaction(
         .move_funds(&mut ledger, &faucet, &receiver, faucet.value)
         .get_fragment();
     let total_funds_before = ledger.total_funds();
-    let result = ledger.apply_transaction(fragment, BlockDate::first());
 
-    if result.is_err() {
-        return TestResult::error(format!("Error from ledger: {}", result.err().unwrap()));
-    }
+    ledger
+        .apply_transaction(fragment, BlockDate::first())
+        .unwrap();
+
     let total_funds_after = ledger.total_funds();
-    if total_funds_before == total_funds_after {
-        TestResult::passed()
-    } else {
-        TestResult::error(format!(
-            "Total funds in ledger before and after transaction is not equal {} <> {} ",
-            total_funds_before, total_funds_after
-        ))
-    }
+    prop_assert_eq!(total_funds_before, total_funds_after);
 }
 
-#[quickcheck]
-pub fn total_funds_are_const_in_ledger(
-    transaction_data: ArbitraryValidTransactionData,
-) -> TestResult {
+#[proptest]
+fn total_funds_are_const_in_ledger(transaction_data: ArbitraryValidTransactionData) {
     let config = ConfigBuilder::new()
         .with_discrimination(Discrimination::Test)
         .with_fee(transaction_data.fee);
@@ -73,36 +61,23 @@ pub fn total_funds_are_const_in_ledger(
         &transaction_data.output_addresses,
     );
     let total_funds_before = ledger.total_funds();
-    let result = ledger.apply_transaction(signed_tx.get_fragment(), BlockDate::first());
-
-    if result.is_err() {
-        return TestResult::error(format!("Error from ledger: {:?}", result.err()));
-    }
+    ledger
+        .apply_transaction(signed_tx.get_fragment(), BlockDate::first())
+        .unwrap();
 
     let total_funds_after = ledger.total_funds();
 
-    if total_funds_before != total_funds_after {
-        return TestResult::error(format!(
-            "Total funds in ledger before and after transaction is not equal {} <> {}",
-            total_funds_before, total_funds_after
-        ));
-    }
+    prop_assert_eq!(
+        total_funds_before,
+        total_funds_after,
+        "Total funds in ledger before and after transaction is not equal"
+    );
 
     let utxo_verifier = UtxoVerifier::new(transaction_data.clone());
-    let utxo_verification_result = utxo_verifier.verify(&ledger);
-    if utxo_verification_result.is_err() {
-        return TestResult::error(format!("{}", utxo_verification_result.err().unwrap()));
-    }
+    utxo_verifier.verify(&ledger).unwrap();
 
     let account_state_verifier = AccountStatesVerifier::new(transaction_data);
-    let account_state_verification_result = account_state_verifier.verify(ledger.accounts());
-    if account_state_verification_result.is_err() {
-        return TestResult::error(format!(
-            "{}",
-            account_state_verification_result.err().unwrap()
-        ));
-    }
-    TestResult::passed()
+    account_state_verifier.verify(ledger.accounts()).unwrap();
 }
 
 #[test]
@@ -366,16 +341,19 @@ pub fn ledger_new_no_bft_leader() {
     );
 }
 
-#[quickcheck]
-pub fn wrong_fragment_at_block0(fragment: Fragment) -> TestResult {
-    match fragment {
-        Fragment::OldUtxoDeclaration(_) => return TestResult::discard(),
-        Fragment::Transaction(_) => return TestResult::discard(),
-        Fragment::StakeDelegation(_) => return TestResult::discard(),
-        Fragment::PoolRegistration(_) => return TestResult::discard(),
-        Fragment::VotePlan(_) => return TestResult::discard(),
-        _ => (),
-    };
+#[proptest]
+fn wrong_fragment_at_block0(fragment: Fragment) {
+    fn filter_fragments(fragment: &Fragment) -> bool {
+        match fragment {
+            Fragment::OldUtxoDeclaration(_) => false,
+            Fragment::Transaction(_) => false,
+            Fragment::StakeDelegation(_) => false,
+            Fragment::PoolRegistration(_) => false,
+            Fragment::VotePlan(_) => false,
+            _ => true,
+        }
+    }
+    prop_assume!(filter_fragments(&fragment));
 
     let header_id = TestGen::hash();
     let mut ie = ConfigParams::new();
@@ -387,5 +365,5 @@ pub fn wrong_fragment_at_block0(fragment: Fragment) -> TestResult {
     ie.push(ConfigParam::SlotsPerEpoch(10u32));
     ie.push(ConfigParam::KesUpdateSpeed(3600));
 
-    TestResult::from_bool(Ledger::new(header_id, vec![&Fragment::Initial(ie), &fragment]).is_err())
+    prop_assert!(Ledger::new(header_id, vec![&Fragment::Initial(ie), &fragment]).is_err())
 }

@@ -9,9 +9,10 @@ use crate::{
     value::Value,
 };
 use chain_addr::Discrimination;
-use quickcheck_macros::quickcheck;
 
 use std::num::NonZeroU64;
+
+use test_strategy::proptest;
 
 const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
@@ -197,7 +198,7 @@ fn transaction_without_fees() {
 
 /// Verifies that after a transaction in a ledger with fees, the total funds do not change and the
 /// fee pots contain the fee.
-#[quickcheck]
+#[proptest]
 fn transaction_with_fees(fee: u64) {
     verify_total_funds_after_transaction_with_fee(fee);
 }

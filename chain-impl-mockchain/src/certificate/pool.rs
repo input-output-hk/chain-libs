@@ -14,6 +14,11 @@ use chain_time::{DurationSeconds, TimeOffsetSeconds};
 use std::marker::PhantomData;
 use typed_bytes::{ByteArray, ByteBuilder};
 
+#[cfg(any(test, feature = "property-test-api"))]
+use chain_crypto::testing::public_key_strategy;
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::*;
+
 /// Pool ID
 pub type PoolId = PoolRegistrationHash;
 
@@ -28,6 +33,10 @@ pub type IndexSignatures = Vec<(u8, SingleAccountBindingSignature)>;
 
 /// Pool information
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolRegistration {
     /// A random value, for user purpose similar to a UUID.
     /// it may not be unique over a blockchain, so shouldn't be used a unique identifier
@@ -37,14 +46,28 @@ pub struct PoolRegistration {
     pub start_validity: TimeOffsetSeconds,
     /// Permission system for this pool
     /// * Management threshold for owners, this need to be <= #owners and > 0.
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(proptest::strategy::Just(PoolPermissions::new(1)))
+    )]
     pub permissions: PoolPermissions,
     /// Owners of this pool
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(proptest::collection::vec(public_key_strategy::<Ed25519>(), 0..32)))]
     pub owners: Vec<PublicKey<Ed25519>>,
     /// Operators of this pool
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(proptest::collection::vec(public_key_strategy::<Ed25519>(), 0..4).prop_map(Vec::into_boxed_slice)))]
     pub operators: Box<[PublicKey<Ed25519>]>,
     /// Rewarding
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(proptest::strategy::Just(TaxType::zero()))
+    )]
     pub rewards: TaxType,
     /// Reward account
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(proptest::strategy::Just(None))
+    )]
     pub reward_account: Option<AccountIdentifier>,
     /// Genesis Praos keys
     pub keys: GenesisPraosLeader,
@@ -83,6 +106,10 @@ impl PoolPermissions {
 
 /// Updating info for a pool
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolUpdate {
     pub pool_id: PoolId,
     pub last_pool_reg_hash: PoolRegistrationHash,
@@ -91,12 +118,20 @@ pub struct PoolUpdate {
 
 /// Retirement info for a pool
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolRetirement {
     pub pool_id: PoolId,
     pub retirement_time: TimeOffsetSeconds,
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum PoolSignature {
     Operator(SingleAccountBindingSignature),
     Owners(PoolOwnersSignature),
@@ -104,8 +139,30 @@ pub enum PoolSignature {
 
 /// Representant of a structure signed by a pool's owners
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolOwnersSignature {
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(pool_owners_signatures_strategy())
+    )]
     pub signatures: IndexSignatures,
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+fn pool_owners_signatures_strategy(
+) -> impl Strategy<Value = Vec<(u8, SingleAccountBindingSignature)>> {
+    use proptest::collection::vec;
+
+    vec(any::<SingleAccountBindingSignature>(), 1..=32).prop_map(|signatures| {
+        signatures
+            .into_iter()
+            .enumerate()
+            .map(|(i, sig)| (i as u8, sig))
+            .collect::<Vec<_>>()
+    })
 }
 
 pub type PoolOwnersSigned = PoolOwnersSignature;

@@ -6,6 +6,10 @@ use std::fmt::Debug;
 
 /// Special pots of money
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Pots {
     pub(crate) fees: Value,
     pub(crate) treasury: Treasury,
@@ -179,8 +183,9 @@ impl Pots {
 mod tests {
     use super::*;
     use crate::value::Value;
+    use proptest::prelude::*;
     use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for Pots {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -200,69 +205,75 @@ mod tests {
         assert_eq!(pots.rewards, Value::zero());
     }
 
-    #[quickcheck]
-    pub fn entries(pots: Pots) -> TestResult {
+    #[proptest]
+    fn entries(pots: Pots) {
         for item in pots.entries() {
             match item {
                 Entry::Fees(fees) => {
-                    assert_eq!(pots.fees, fees);
+                    prop_assert_eq!(pots.fees, fees);
                 }
                 Entry::Treasury(treasury) => {
-                    assert_eq!(pots.treasury.value(), treasury);
+                    prop_assert_eq!(pots.treasury.value(), treasury);
                 }
                 Entry::Rewards(rewards) => {
-                    assert_eq!(pots.rewards, rewards);
+                    prop_assert_eq!(pots.rewards, rewards);
                 }
             }
         }
-        TestResult::passed()
     }
 
-    #[quickcheck]
-    pub fn append_fees(mut pots: Pots, value: Value) -> TestResult {
-        if (value + pots.fees).is_err() {
-            return TestResult::discard();
-        }
+    #[proptest]
+    fn append_fees(mut pots: Pots, value: Value) {
+        // TODO test-strategy needs to be fixed, it removes mut modifier from argument bindings
+        let mut pots = pots;
+        prop_assume!((value + pots.fees).is_ok());
         let before = pots.fees;
         pots.append_fees(value).unwrap();
-        TestResult::from_bool((before + value).unwrap() == pots.fees)
+        prop_assert_eq!((before + value).unwrap(), pots.fees);
     }
 
-    #[quickcheck]
-    pub fn siphon_fees(mut pots: Pots) -> TestResult {
+    #[proptest]
+    fn siphon_fees(mut pots: Pots) {
         let before_siphon = pots.fees;
+        // TODO test-strategy needs to be fixed, it removes mut modifier from argument bindings
+        let mut pots = pots;
         let siphoned = pots.siphon_fees();
-        if siphoned != before_siphon {
-            TestResult::error(format!("{} is not equal to {}", siphoned, before_siphon));
-        }
-        TestResult::from_bool(pots.fees == Value::zero())
+        prop_assert_eq!(
+            siphoned,
+            before_siphon,
+            "{} is not equal to {}",
+            siphoned,
+            before_siphon
+        );
+        prop_assert_eq!(pots.fees, Value::zero())
     }
 
-    #[quickcheck]
-    pub fn draw_reward(mut pots: Pots, expected_reward: Value) -> TestResult {
-        if (expected_reward + pots.rewards).is_err() {
-            return TestResult::discard();
-        }
-
+    #[proptest]
+    fn draw_reward(mut pots: Pots, expected_reward: Value) {
+        // TODO test-strategy needs to be fixed, it removes mut modifier from argument bindings
+        let mut pots = pots;
+        prop_assume!((expected_reward + pots.rewards).is_ok());
         let before_reward = pots.rewards;
         let to_draw = pots.draw_reward(expected_reward);
         let draw_reward = cmp::min(before_reward, expected_reward);
-        if to_draw != draw_reward {
-            TestResult::error(format!(
-                "{} is not equal to smallest of pair({},{})",
-                to_draw, before_reward, expected_reward
-            ));
-        }
-        TestResult::from_bool(pots.rewards == (before_reward - to_draw).unwrap())
+        prop_assert_eq!(
+            to_draw,
+            draw_reward,
+            "{} is not equal to smallest of pair({},{})",
+            to_draw,
+            before_reward,
+            expected_reward
+        );
+        prop_assert_eq!(pots.rewards, (before_reward - to_draw).unwrap())
     }
 
-    #[quickcheck]
-    pub fn treasury_add(mut pots: Pots, value: Value) -> TestResult {
-        if (value + pots.rewards).is_err() {
-            return TestResult::discard();
-        }
+    #[proptest]
+    fn treasury_add(mut pots: Pots, value: Value) {
+        // TODO test-strategy needs to be fixed, it removes mut modifier from argument bindings
+        let mut pots = pots;
+        prop_assume!((value + pots.rewards).is_ok());
         let before_add = pots.treasury.value();
         pots.treasury_add(value).unwrap();
-        TestResult::from_bool(pots.treasury.value() == (before_add + value).unwrap())
+        prop_assert_eq!(pots.treasury.value(), (before_add + value).unwrap());
     }
 }

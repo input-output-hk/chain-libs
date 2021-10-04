@@ -4,6 +4,10 @@ use std::{fmt, iter};
 const MILLI_MULTIPLIER: u64 = 1000;
 
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Milli(u64);
 
 impl Milli {

@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx df8b322ea4a7e4ccf2bcf7660d070a40b57bd7305d30ac987c586bb539feeba2 # shrinks to input = _LedgerVerifiesFaucetDiscriminationArgs { arbitrary_faucet_disc: Production, arbitrary_faucet_address_kind: Script, arbitrary_ledger_disc: Production }
+xx d44a0cf703cc32fdd0c0980c964286088e936d6e8bbc811330a8222dc6f0faa8 # shrinks to input = _LedgerVerifiesTransactionDiscriminationArgs { arbitrary_input_disc: Production, arbitrary_output_disc: Production, arbitrary_input_address_kind: Single, arbitrary_output_address_kind: Script }

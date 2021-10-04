@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx d60c59631a4d512ed4aead7831583a4f1a6729ee20e7f4fa13b98c0d442d6615 # shrinks to input = _TestInternalApplyTransactionFundsWereTransferedArgs { sender_address: AddressData { public_key: ec612c23485d5afa5a9cd700416e1d09f12747dcf970812c47de8befb2c256b8, spending_counter: None, address: Address(Test, Single(ec612c23485d5afa5a9cd700416e1d09f12747dcf970812c47de8befb2c256b8)) }, reciever_address: AddressData { public_key: ec612c23485d5afa5a9cd700416e1d09f12747dcf970812c47de8befb2c256b8, spending_counter: None, address: Address(Test, Single(ec612c23485d5afa5a9cd700416e1d09f12747dcf970812c47de8befb2c256b8)) } }

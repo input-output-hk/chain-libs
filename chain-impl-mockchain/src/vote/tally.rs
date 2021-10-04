@@ -12,10 +12,18 @@ use thiserror::Error;
 /// it is often associated to the `stake`. when the tally is counted,
 /// each vote will have the associated weight encoded in.
 #[derive(Debug, Default, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Weight(u64);
 
 /// the tally results
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct TallyResult {
     results: Box<[Weight]>,
 
@@ -232,9 +240,10 @@ mod tests {
         stake::Stake,
         vote::{Choice, Options},
     };
+    use proptest::prelude::*;
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for TallyResult {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -288,9 +297,9 @@ mod tests {
         assert_eq!(*tally_result.options(), options);
     }
 
-    #[quickcheck]
-    pub fn tally(tally_result: TallyResult) -> TestResult {
+    #[proptest]
+    fn tally(tally_result: TallyResult) {
         let tally = Tally::new_public(tally_result.clone());
-        TestResult::from_bool(tally.is_public() && (*tally.result().unwrap()) == tally_result)
+        prop_assert!(tally.is_public() && (*tally.result().unwrap()) == tally_result)
     }
 }

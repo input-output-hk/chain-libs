@@ -12,12 +12,20 @@ use chain_crypto::Verification;
 use typed_bytes::{ByteArray, ByteBuilder};
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct EncryptedVoteTallyProof {
     pub id: CommitteeId,
     pub signature: SingleAccountBindingSignature,
 }
 
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct EncryptedVoteTally {
     id: VotePlanId,
 }

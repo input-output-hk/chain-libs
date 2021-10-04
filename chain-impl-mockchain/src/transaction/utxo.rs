@@ -5,6 +5,10 @@ pub type TransactionIndex = u8;
 
 /// Unspent transaction pointer.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct UtxoPointer {
     /// the transaction identifier where the unspent output is
     pub transaction_id: FragmentId,

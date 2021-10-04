@@ -8,7 +8,12 @@ use chain_core::property;
 use chain_crypto::{Ed25519, PublicKey};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct UtxoDeclaration {
+    #[cfg_attr(any(test, feature = "property-test-api"), any(proptest::collection::size_range(..256).lift()))]
     pub addrs: Vec<(OldAddress, Value)>,
 }
 

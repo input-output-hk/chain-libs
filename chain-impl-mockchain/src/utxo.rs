@@ -285,20 +285,23 @@ impl<OutAddress: Clone>
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
         key::Hash, testing::arbitrary::AverageValue, testing::data::AddressData, testing::TestGen,
         value::Value,
     };
     use chain_addr::{Address, Discrimination};
+    use proptest::{collection::hash_map, prelude::*};
     use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
     use std::collections::HashMap;
     use std::iter;
+    use test_strategy::proptest;
 
-    #[derive(Clone, Debug)]
-    pub struct ArbitraryUtxos(HashMap<FragmentId, ArbitraryTransactionOutputs>);
+    #[derive(Clone, Debug, test_strategy::Arbitrary)]
+    pub struct ArbitraryUtxos(
+        #[strategy(hash_map(any::<FragmentId>(), any::<ArbitraryTransactionOutputs>(), 1..=10))]
+        HashMap<FragmentId, ArbitraryTransactionOutputs>,
+    );
 
     impl Arbitrary for ArbitraryUtxos {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -327,10 +330,25 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, test_strategy::Arbitrary)]
     pub struct ArbitraryTransactionOutputs {
+        #[strategy(utxos_strategy())]
         pub utxos: HashMap<TransactionIndex, Output<Address>>,
         pub idx_to_remove: TransactionIndex,
+    }
+
+    fn utxos_strategy() -> impl Strategy<Value = HashMap<TransactionIndex, Output<Address>>> {
+        proptest::collection::vec(
+            any::<AddressData>()
+                .prop_flat_map(|ad| any::<Value>().prop_map(move |value| ad.make_output(value))), // TODO proptest make something similar to AverageValue
+            1..=50,
+        )
+        .prop_map(|vec| {
+            vec.into_iter()
+                .enumerate()
+                .map(|(i, item)| (i as u8, item))
+                .collect()
+        })
     }
 
     impl Arbitrary for ArbitraryTransactionOutputs {
@@ -379,8 +397,26 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn transaction_unspent_remove(outputs: ArbitraryTransactionOutputs) -> TestResult {
+    impl proptest::arbitrary::Arbitrary for Ledger<Address> {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            any::<ArbitraryUtxos>()
+                .prop_map(|arbitrary_utxos| {
+                    arbitrary_utxos
+                        .0
+                        .into_iter()
+                        .fold(Ledger::new(), |ledger, (key, value)| {
+                            ledger.add(&key, &value.to_vec().as_slice()).unwrap()
+                        })
+                })
+                .boxed()
+        }
+    }
+
+    #[proptest]
+    fn transaction_unspent_remove(outputs: ArbitraryTransactionOutputs) {
         let transaction_unspent = TransactionUnspents::from_outputs(outputs.to_vec().as_slice());
         let is_index_correct = transaction_unspent.0.contains_key(outputs.idx_to_remove);
         match (
@@ -388,25 +424,25 @@ mod tests {
             is_index_correct,
         ) {
             (Ok((transaction_unspent, output)), true) => {
-                if transaction_unspent.0.contains_key(outputs.idx_to_remove) {
-                    return TestResult::error("Element not removed");
-                }
+                prop_assert!(
+                    !transaction_unspent.0.contains_key(outputs.idx_to_remove),
+                    "Element not removed"
+                );
 
-                assert_eq!(
+                prop_assert_eq!(
                     output,
                     outputs.utxos.get(&outputs.idx_to_remove).unwrap().clone(),
                     "Outputs are different"
                 );
-                TestResult::passed()
             }
-            (Ok(_), false) => TestResult::error("Element removed, while it should not"),
-            (Err(err), true) => TestResult::error(format!("Unexpected error {}", err)),
-            (Err(_), false) => TestResult::passed(),
+            (Ok(_), false) => panic!("Element removed, while it should not"),
+            (Err(err), true) => panic!(format!("Unexpected error {}", err)),
+            (Err(_), false) => {}
         }
     }
 
-    #[quickcheck]
-    pub fn ledger_iter_values_correctly(initial_utxos: ArbitraryUtxos) -> TestResult {
+    #[proptest]
+    fn ledger_iter_values_correctly(initial_utxos: ArbitraryUtxos) {
         let mut ledger = Ledger::new();
         ledger = initial_utxos.fill(ledger);
 
@@ -416,15 +452,14 @@ mod tests {
                 let condition = !ledger.iter().any(|x| {
                     x.fragment_id == key && x.output_index == id && x.output.clone() == output
                 });
-                if condition {
-                    return TestResult::error(format!(
-                        "Cannot find item using iter: {:?},{:?}",
-                        key, id
-                    ));
-                }
+                prop_assert!(
+                    !condition,
+                    "Cannot find item using iter: {:?},{:?}",
+                    key,
+                    id
+                );
             }
         }
-        TestResult::passed()
     }
 
     #[test]

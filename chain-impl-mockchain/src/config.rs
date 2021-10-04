@@ -56,6 +56,10 @@ impl From<Error> for ReadError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ConfigParam {
     Block0Date(Block0Date),
     Discrimination(Discrimination),
@@ -78,7 +82,10 @@ pub enum ConfigParam {
     FeesInTreasury(bool),
     RewardLimitNone,
     RewardLimitByAbsoluteStake(Ratio),
-    PoolRewardParticipationCapping((NonZeroU32, NonZeroU32)),
+    PoolRewardParticipationCapping(
+        #[cfg_attr(any(test, feature = "property-test-api"), strategy((crate::testing::strategy::non_zero_u32(), crate::testing::strategy::non_zero_u32())))]
+         (NonZeroU32, NonZeroU32),
+    ),
     AddCommitteeId(CommitteeId),
     RemoveCommitteeId(CommitteeId),
     PerVoteCertificateFees(PerVoteCertificateFee),
@@ -86,17 +93,23 @@ pub enum ConfigParam {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum RewardParams {
     Linear {
         constant: u64,
         ratio: Ratio,
         epoch_start: Epoch,
+        #[cfg_attr(any(test, feature = "property-test-api"), strategy(proptest::strategy::Just(NonZeroU32::new(20).unwrap())))]
         epoch_rate: NonZeroU32,
     },
     Halving {
         constant: u64,
         ratio: Ratio,
         epoch_start: Epoch,
+        #[cfg_attr(any(test, feature = "property-test-api"), strategy(proptest::strategy::Just(NonZeroU32::new(20).unwrap())))]
         epoch_rate: NonZeroU32,
     },
 }
@@ -390,6 +403,10 @@ trait ConfigParamVariant: Clone + Eq + PartialEq {
 
 /// Seconds elapsed since 1-Jan-1970 (unix time)
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Block0Date(pub u64);
 
 impl ConfigParamVariant for Block0Date {

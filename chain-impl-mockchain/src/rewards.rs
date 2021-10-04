@@ -5,6 +5,9 @@ use chain_core::mempack::{ReadBuf, ReadError};
 use std::num::{NonZeroU32, NonZeroU64};
 use typed_bytes::ByteBuilder;
 
+#[cfg(any(test, feature = "property-test-api"))]
+use crate::testing::strategy;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompoundingType {
     Linear,
@@ -12,8 +15,16 @@ pub enum CompoundingType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Ratio {
     pub numerator: u64,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(strategy::non_zero_u64())
+    )]
     pub denominator: NonZeroU64,
 }
 
@@ -44,12 +55,20 @@ impl Ratio {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct TaxType {
     // what get subtracted as fixed value
     pub fixed: Value,
     // Ratio of tax after fixed amout subtracted
     pub ratio: Ratio,
     // Max limit of tax
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(strategy::optional_non_zero_u64())
+    )]
     pub max_limit: Option<NonZeroU64>,
 }
 
@@ -270,26 +289,28 @@ pub fn tax_cut(v: Value, tax_type: &TaxType) -> Result<TaxDistribution, ValueErr
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
     #[cfg(test)]
-    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    fn tax_cut_fully_accounted(v: Value, treasury_tax: TaxType) -> TestResult {
+    #[proptest]
+    fn tax_cut_fully_accounted(v: Value, treasury_tax: TaxType) {
         match tax_cut(v, &treasury_tax) {
             Ok(td) => {
                 let sum = (td.taxed + td.after_tax).unwrap();
-                if sum == v {
-                    TestResult::passed()
-                } else {
-                    TestResult::error(format!(
-                        "mismatch taxed={} remaining={} expected={} got={} for {:?}",
-                        td.taxed, td.after_tax, v, sum, treasury_tax
-                    ))
-                }
+                prop_assert_eq!(
+                    sum,
+                    v,
+                    "mismatch taxed={} remaining={} expected={} got={} for {:?}",
+                    td.taxed,
+                    td.after_tax,
+                    v,
+                    sum,
+                    treasury_tax
+                );
             }
-            Err(_) => TestResult::discard(),
+            Err(_) => prop_assume!(false),
         }
     }
 

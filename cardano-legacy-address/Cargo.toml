@@ -22,9 +22,13 @@ chain-ser = {path = "../chain-ser"}
 
 criterion = { version = "0.3.0", optional = true }
 
+proptest = { git = "https://github.com/input-output-hk/proptest.git", optional = true }
+test-strategy = { version = "0.1", optional = true }
+
 [features]
 default = []
 with-bench = ["criterion"]
+property-test-api = ["proptest", "test-strategy"]
 
 [[bench]]
 harness = false

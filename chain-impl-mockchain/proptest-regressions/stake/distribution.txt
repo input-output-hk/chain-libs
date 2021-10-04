@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 08e03ada52d9d3683cc429541c2d8b1c8750903779325aa4b559777a4abb8f8e # shrinks to input = _AssignAccountValueIsConsitentWithStakeDistributionArgs { account_identifier: Identifier(ec612c23485d5afa5a9cd700416e1d09f12747dcf970812c47de8befb2c256b8), delegation_type: Ratio(DelegationRatio { parts: 8, pools: [] }), value: Stake(1) }

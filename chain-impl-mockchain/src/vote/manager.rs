@@ -376,7 +376,7 @@ impl ProposalManager {
 
                 self.check_governance_criteria(total, acceptance, results)
             }
-            VoteAction::Parameters { action } => {
+            VoteAction::LedgerParameters { action } => {
                 let t = action.to_type();
                 let acceptance = governance.parameters.acceptance_criteria_for(t);
 
@@ -859,13 +859,15 @@ impl VotePlanManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::block::BlockDate;
     use crate::certificate::TallyProof;
-
     use crate::testing::{TestGen, VoteTestGen};
+
     use chain_core::property::BlockDate as BlockDateProp;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+
+    use proptest::prelude::*;
+    use test_strategy::proptest;
 
     #[test]
     pub fn proposal_manager_insert_vote() {
@@ -1304,9 +1306,11 @@ mod tests {
         let _ = proposals.push(VoteTestGen::proposal_with_action(VoteAction::Treasury {
             action: TreasuryGovernanceAction::TransferToRewards { value: Value(30) },
         }));
-        let _ = proposals.push(VoteTestGen::proposal_with_action(VoteAction::Parameters {
-            action: ParametersGovernanceAction::RewardAdd { value: Value(30) },
-        }));
+        let _ = proposals.push(VoteTestGen::proposal_with_action(
+            VoteAction::LedgerParameters {
+                action: ParametersGovernanceAction::RewardAdd { value: Value(30) },
+            },
+        ));
 
         let vote_plan = VotePlan::new(
             BlockDate::from_epoch_slot_id(1, 0),
@@ -1539,20 +1543,22 @@ mod tests {
         );
     }
 
-    #[quickcheck]
-    pub fn vote_plan_manager_can_vote(vote_plan: VotePlan, date: BlockDate) -> TestResult {
+    #[proptest]
+    fn vote_plan_manager_can_vote(vote_plan: VotePlan, date: BlockDate) {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
-        TestResult::from_bool(
-            should_be_in_vote_time(&vote_plan, date) == vote_plan_manager.can_vote(date),
-        )
+        prop_assert_eq!(
+            should_be_in_vote_time(&vote_plan, date),
+            vote_plan_manager.can_vote(date)
+        );
     }
 
-    #[quickcheck]
-    pub fn vote_plan_manager_can_committee(vote_plan: VotePlan, date: BlockDate) -> TestResult {
+    #[proptest]
+    fn vote_plan_manager_can_committee(vote_plan: VotePlan, date: BlockDate) {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
-        TestResult::from_bool(
-            should_be_in_committee_time(&vote_plan, date) == vote_plan_manager.can_committee(date),
-        )
+        prop_assert_eq!(
+            should_be_in_committee_time(&vote_plan, date),
+            vote_plan_manager.can_committee(date)
+        );
     }
 
     fn should_be_in_vote_time(vote_plan: &VotePlan, date: BlockDate) -> bool {
@@ -1569,13 +1575,13 @@ mod tests {
         date >= vote_finish_date && date < comittee_end_date
     }
 
-    #[quickcheck]
-    pub fn vote_plan_manager_plan_elapsed(vote_plan: VotePlan, date: BlockDate) -> TestResult {
+    #[proptest]
+    fn vote_plan_manager_plan_elapsed(vote_plan: VotePlan, date: BlockDate) {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
         let committee_end_date = vote_plan.committee_end();
 
         let vote_plan_elapsed = committee_end_date < date;
-        TestResult::from_bool(vote_plan_elapsed == vote_plan_manager.vote_plan_elapsed(date))
+        prop_assert_eq!(vote_plan_elapsed, vote_plan_manager.vote_plan_elapsed(date))
     }
 
     #[test]

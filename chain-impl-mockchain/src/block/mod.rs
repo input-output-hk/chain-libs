@@ -11,6 +11,8 @@ mod headerraw;
 
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test;
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::*;
 
 //pub use self::builder::BlockBuilder;
 pub use crate::fragment::{BlockContentHash, BlockContentSize, Contents, ContentsBuilder};
@@ -30,9 +32,21 @@ pub use crate::date::{BlockDate, BlockDateParseError, Epoch, SlotId};
 /// transaction and a reference to the parent block. Alongside
 /// with the position of that block in the chain.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Block {
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(header_from_contents_strategy(#contents)))]
     pub header: Header,
+    #[cfg_attr(any(test, feature = "property-test-api"), by_ref)]
     pub contents: Contents,
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+fn header_from_contents_strategy(contents: &Contents) -> impl Strategy<Value = Header> {
+    let (parent_hash, content_size) = contents.compute_hash_size();
+    crate::header::test::header_strategy(parent_hash, content_size)
 }
 
 impl PartialEq for Block {

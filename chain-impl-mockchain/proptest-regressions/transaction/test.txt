@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 22277a863c8ded231683e5858674bc85f6670fa064c33c59a6cf0d47d80d7cee # shrinks to input = _StakeOwnerDelegationTxEncodeDecodeArgs { transaction: Transaction { payload: [8, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], nb_inputs: 0, nb_outputs: 0, valid_until: BlockDate { epoch: 1, slot_id: 0 }, nb_witnesses: 0, total_input_value: Ok(Value(0)), total_output_value: Ok(Value(0)) } }

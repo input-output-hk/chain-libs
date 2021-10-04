@@ -28,6 +28,10 @@ pub(super) type MessageTag = FragmentTag;
 
 /// All possible messages recordable in the content
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum Fragment {
     Initial(ConfigParams),
     OldUtxoDeclaration(legacy::UtxoDeclaration),

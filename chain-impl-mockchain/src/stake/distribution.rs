@@ -246,8 +246,9 @@ mod tests {
     };
     use chain_addr::{Address, Kind};
     use chain_crypto::PublicKey;
+    use proptest::prelude::*;
     use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     /// Holds all possible cases of distribution source
     #[derive(Clone, Debug)]
@@ -389,119 +390,106 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn stake_distribution_is_consistent_with_total_value(
-        stake_distribution_data: StakeDistributionArbitraryData,
-    ) -> TestResult {
-        let mut accounts = account::Ledger::new();
-        let mut dstate = PoolsState::new();
-        let mut utxos = utxo::Ledger::new();
+    // TODO proptest
+    // #[proptest]
+    // fn stake_distribution_is_consistent_with_total_value(
+    //     stake_distribution_data: StakeDistributionArbitraryData,
+    // ) {
+    //     let mut accounts = account::Ledger::new();
+    //     let mut dstate = PoolsState::new();
+    //     let mut utxos = utxo::Ledger::new();
 
-        // create two stake pools, one active and one inactive
-        let id_active_pool = stake_distribution_data.active_stake_pool.to_id();
-        dstate = dstate
-            .register_stake_pool(stake_distribution_data.active_stake_pool.clone())
-            .unwrap();
-        let id_retired_pool = stake_distribution_data.retired_stake_pool.to_id();
+    //     // create two stake pools, one active and one inactive
+    //     let id_active_pool = stake_distribution_data.active_stake_pool.to_id();
+    //     dstate = dstate
+    //         .register_stake_pool(stake_distribution_data.active_stake_pool.clone())
+    //         .unwrap();
+    //     let id_retired_pool = stake_distribution_data.retired_stake_pool.to_id();
 
-        // add utxos
-        for (fragment_id, tx_index, output) in stake_distribution_data.utxos.iter().cloned() {
-            utxos = utxos.add(&fragment_id, &[(tx_index, output)]).unwrap();
-        }
+    //     // add utxos
+    //     for (fragment_id, tx_index, output) in stake_distribution_data.utxos.iter().cloned() {
+    //         utxos = utxos.add(&fragment_id, &[(tx_index, output)]).unwrap();
+    //     }
 
-        // add delegation addresses with all accounts delegated to active stake pool
-        for (fragment_id, tx_index, output) in stake_distribution_data.groups.iter().cloned() {
-            utxos = utxos
-                .add(&fragment_id, &[(tx_index, output.clone())])
-                .unwrap();
-            let account_public_key: PublicKey<AccountAlg> = match output.address.kind() {
-                Kind::Group(_, delegation_key) => delegation_key.clone(),
-                _ => panic!("delegation utxo should have Kind::Group type"),
-            };
-            accounts = accounts
-                .add_account(
-                    &Identifier::from(account_public_key.clone()),
-                    Value::zero(),
-                    (),
-                )
-                .unwrap();
-            accounts = accounts
-                .set_delegation(
-                    &Identifier::from(account_public_key.clone()),
-                    &DelegationType::Full(id_active_pool.clone()),
-                )
-                .unwrap();
-        }
+    //     // add delegation addresses with all accounts delegated to active stake pool
+    //     for (fragment_id, tx_index, output) in stake_distribution_data.groups.iter().cloned() {
+    //         utxos = utxos
+    //             .add(&fragment_id, &[(tx_index, output.clone())])
+    //             .unwrap();
+    //         let account_public_key: PublicKey<AccountAlg> = match output.address.kind() {
+    //             Kind::Group(_, delegation_key) => delegation_key.clone(),
+    //             _ => panic!("delegation utxo should have Kind::Group type"),
+    //         };
+    //         accounts = accounts
+    //             .add_account(
+    //                 &Identifier::from(account_public_key.clone()),
+    //                 Value::zero(),
+    //                 (),
+    //             )
+    //             .unwrap();
+    //         accounts = accounts
+    //             .set_delegation(
+    //                 &Identifier::from(account_public_key.clone()),
+    //                 &DelegationType::Full(id_active_pool.clone()),
+    //             )
+    //             .unwrap();
+    //     }
 
-        // add delegation addresses which point to single account with delegation
-        for (fragment_id, tx_index, output) in stake_distribution_data
-            .groups_single_account
-            .iter()
-            .cloned()
-        {
-            utxos = utxos.add(&fragment_id, &[(tx_index, output)]).unwrap();
-        }
+    //     // add delegation addresses which point to single account with delegation
+    //     for (fragment_id, tx_index, output) in stake_distribution_data
+    //         .groups_single_account
+    //         .iter()
+    //         .cloned()
+    //     {
+    //         utxos = utxos.add(&fragment_id, &[(tx_index, output)]).unwrap();
+    //     }
 
-        // add accounts without delegation
-        for (id, value) in stake_distribution_data.unassigned_accounts.iter().cloned() {
-            accounts = accounts.add_account(&id, value, ()).unwrap();
-        }
+    //     // add accounts without delegation
+    //     for (id, value) in stake_distribution_data.unassigned_accounts.iter().cloned() {
+    //         accounts = accounts.add_account(&id, value, ()).unwrap();
+    //     }
 
-        // add accounts with delegation
-        for (id, value) in stake_distribution_data.assigned_accounts.iter().cloned() {
-            accounts = accounts.add_account(&id, value, ()).unwrap();
-            accounts = accounts
-                .set_delegation(&id, &DelegationType::Full(id_active_pool.clone()))
-                .unwrap();
-        }
+    //     // add accounts with delegation
+    //     for (id, value) in stake_distribution_data.assigned_accounts.iter().cloned() {
+    //         accounts = accounts.add_account(&id, value, ()).unwrap();
+    //         accounts = accounts
+    //             .set_delegation(&id, &DelegationType::Full(id_active_pool.clone()))
+    //             .unwrap();
+    //     }
 
-        // add accounts with delegation as a target for delegation addresses
-        let single_account = stake_distribution_data.single_account.clone();
-        accounts = accounts
-            .add_account(&single_account.0, single_account.1, ())
-            .unwrap();
-        accounts = accounts
-            .set_delegation(&single_account.0, &DelegationType::Full(id_active_pool))
-            .unwrap();
+    //     // add accounts with delegation as a target for delegation addresses
+    //     let single_account = stake_distribution_data.single_account.clone();
+    //     accounts = accounts
+    //         .add_account(&single_account.0, single_account.1, ())
+    //         .unwrap();
+    //     accounts = accounts
+    //         .set_delegation(&single_account.0, &DelegationType::Full(id_active_pool))
+    //         .unwrap();
 
-        // add accounts with retired stake pool
-        for (id, value) in stake_distribution_data.dangling_accounts.iter().cloned() {
-            accounts = accounts.add_account(&id, value, ()).unwrap();
-            accounts = accounts
-                .set_delegation(&id, &DelegationType::Full(id_retired_pool.clone()))
-                .unwrap();
-        }
+    //     // add accounts with retired stake pool
+    //     for (id, value) in stake_distribution_data.dangling_accounts.iter().cloned() {
+    //         accounts = accounts.add_account(&id, value, ()).unwrap();
+    //         accounts = accounts
+    //             .set_delegation(&id, &DelegationType::Full(id_retired_pool.clone()))
+    //             .unwrap();
+    //     }
 
-        // verify
-        let distribution = super::get_distribution(&accounts, &dstate, &utxos);
+    //     // verify
+    //     let distribution = super::get_distribution(&accounts, &dstate, &utxos);
 
-        if distribution.unassigned != stake_distribution_data.calculate_unassigned() {
-            return TestResult::error(format!(
-                "Wrong Unassigned value. expected: {} but got {}",
-                stake_distribution_data.calculate_unassigned(),
-                &distribution.unassigned
-            ));
-        }
+    //     prop_assert_eq!(
+    //         stake_distribution_data.calculate_unassigned(),
+    //         distribution.unassigned
+    //     );
+    //     prop_assert_eq!(
+    //         stake_distribution_data.calculate_dangling(),
+    //         distribution.dangling
+    //     );
 
-        if distribution.dangling != stake_distribution_data.calculate_dangling() {
-            return TestResult::error(format!(
-                "Wrong Unassigned value. expected: {} but got {}",
-                stake_distribution_data.calculate_unassigned(),
-                &distribution.unassigned
-            ));
-        }
-
-        let pools_total_stake: Stake =
-            Stake::sum(distribution.to_pools.values().map(|x| x.stake.total));
-        if pools_total_stake != stake_distribution_data.pools_total() {
-            return TestResult::error(format!(
-                "Wrong Unassigned value. expected: {} but got {}",
-                stake_distribution_data.pools_total(),
-                pools_total_stake
-            ));
-        }
-        TestResult::passed()
-    }
+    //     let pools_total_stake: Stake =
+    //         Stake::sum(distribution.to_pools.values().map(|x| x.stake.total));
+    //     prop_assert_eq!(stake_distribution_data.pools_total(), pools_total_stake);
+    // }
 
     #[derive(Clone, Debug)]
     pub struct CorrectDelegationType(DelegationType);
@@ -561,21 +549,43 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn assign_account_value_is_consitent_with_stake_distribution(
+    #[proptest]
+    fn assign_account_value_is_consitent_with_stake_distribution(
         account_identifier: account::Identifier,
-        delegation_type: CorrectDelegationType,
+        delegation_type: DelegationType,
         value: Stake,
-    ) -> TestResult {
+    ) {
         let mut stake_distribution = StakeDistribution::empty();
-        stake_distribution.to_pools = delegation_type.get_pools();
+        stake_distribution.to_pools = match &delegation_type {
+            DelegationType::NonDelegated => HashMap::new(),
+            DelegationType::Full(pool_id) => {
+                let mut pools = HashMap::new();
+                let information = PoolStakeInformation {
+                    registration: None,
+                    stake: PoolStakeDistribution::new(),
+                };
+                pools.insert(pool_id.clone(), information);
+                pools
+            }
+            DelegationType::Ratio(delegation_ratio) => {
+                let mut pools = HashMap::new();
+                for pool_id in delegation_ratio.pools().iter().cloned().map(|x| x.0) {
+                    let information = PoolStakeInformation {
+                        registration: None,
+                        stake: PoolStakeDistribution::new(),
+                    };
+                    pools.insert(pool_id.clone(), information);
+                }
+                pools
+            }
+        };
         assign_account_value(
             &mut stake_distribution,
             &account_identifier,
-            &delegation_type.0,
+            &delegation_type,
             value,
         );
-        match delegation_type.0 {
+        match delegation_type {
             DelegationType::NonDelegated => {
                 assert_distribution(stake_distribution, value, Stake::zero(), Stake::zero())
             }
@@ -593,27 +603,10 @@ mod tests {
         unassigned: Stake,
         dangling: Stake,
         pools: Stake,
-    ) -> TestResult {
-        if stake_distribution.unassigned != unassigned {
-            return TestResult::error(&format!(
-                "wrong unassigned {} vs {}",
-                stake_distribution.unassigned, unassigned
-            ));
-        }
-        if stake_distribution.dangling != dangling {
-            return TestResult::error(&format!(
-                "wrong dangling {} vs {}",
-                stake_distribution.dangling, dangling
-            ));
-        }
-        if stake_distribution.total_stake() != pools {
-            return TestResult::error(&format!(
-                "wrong to_pools {} vs {}",
-                stake_distribution.total_stake(),
-                pools
-            ));
-        }
-        TestResult::passed()
+    ) {
+        assert_eq!(stake_distribution.unassigned, unassigned);
+        assert_eq!(stake_distribution.dangling, dangling);
+        assert_eq!(stake_distribution.total_stake(), pools);
     }
 
     #[test]

@@ -181,12 +181,18 @@ mod tests {
     use super::StakeControl;
     use crate::{
         account::{self, Identifier},
+        fragment::FragmentId,
         rewards::Ratio,
         stake::Stake,
-        testing::{utxo::ArbitaryLedgerUtxo, TestGen},
+        testing::{data::AddressData, utxo::ArbitaryLedgerUtxo, TestGen},
+        utxo::Ledger,
+        value::Value,
     };
-    use quickcheck_macros::quickcheck;
+    use chain_addr::{Address, Discrimination};
+    use proptest::prelude::*;
+    use proptest::{collection::hash_map, strategy::Strategy};
     use std::num::NonZeroU64;
+    use test_strategy::proptest;
 
     fn create_stake_control_from(
         assigned: &[(Identifier, Stake)],
@@ -413,12 +419,31 @@ mod tests {
         assert_eq!(stake_control.ratio_by(&second_identifier), expected_ratio);
     }
 
-    #[quickcheck]
-    pub fn stake_control_from_ledger(accounts: account::Ledger, utxos: ArbitaryLedgerUtxo) {
-        let stake_control = StakeControl::new_with(&accounts, &utxos.0);
+    fn utxo_ledger_strategy() -> impl Strategy<Value = Ledger<Address>> {
+        let output_strategy = any::<Value>().prop_map(|value| {
+            (
+                0,
+                AddressData::utxo(Discrimination::Test).make_output(value),
+            )
+        }); // TODO proptest AverageValue
+        hash_map(any::<FragmentId>(), output_strategy, 1..=50).prop_map(|utxos| {
+            utxos
+                .into_iter()
+                .fold(Ledger::new(), |ledger, (key, value)| {
+                    ledger.add(&key, &[value]).unwrap()
+                })
+        })
+    }
+
+    #[proptest]
+    fn stake_control_from_ledger(
+        accounts: account::Ledger,
+        #[strategy(utxo_ledger_strategy())] utxos: Ledger<Address>,
+    ) {
+        let stake_control = StakeControl::new_with(&accounts, &utxos);
         //verify sum
         let accounts = accounts.get_total_value().unwrap();
-        let utxo_or_group = utxos.0.values().map(|x| x.value).sum();
+        let utxo_or_group = utxos.values().map(|x| x.value).sum();
         let expected_sum = accounts
             .checked_add(utxo_or_group)
             .expect("cannot calculate expected total");

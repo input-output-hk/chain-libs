@@ -174,6 +174,10 @@ impl<'a> From<&'a Certificate> for CertificatePayload {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum Certificate {
     StakeDelegation(StakeDelegation),
     OwnerStakeDelegation(OwnerStakeDelegation),
@@ -275,11 +279,12 @@ pub enum SignedCertificate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
     use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    pub fn need_auth(certificate: Certificate) -> TestResult {
+    #[proptest]
+    fn need_auth(certificate: Certificate) {
         let expected_result = match certificate {
             Certificate::PoolRegistration(_) => true,
             Certificate::PoolUpdate(_) => true,
@@ -291,6 +296,6 @@ mod tests {
             Certificate::VoteTally(_) => true,
             Certificate::EncryptedVoteTally(_) => true,
         };
-        TestResult::from_bool(certificate.need_auth() == expected_result)
+        prop_assert_eq!(certificate.need_auth(), expected_result);
     }
 }

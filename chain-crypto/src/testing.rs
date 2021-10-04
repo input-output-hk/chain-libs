@@ -163,3 +163,44 @@ pub fn public_key_strategy<A: AsymmetricKey>() -> impl Strategy<Value = PublicKe
     any::<(TestCryptoGen, u32)>()
         .prop_map(|(gen, idx)| SecretKey::<A>::generate(gen.get_rng(idx)).to_public())
 }
+
+impl<H: digest::DigestAlg, T> proptest::arbitrary::Arbitrary for digest::DigestOf<H, T> {
+    type Strategy = BoxedStrategy<digest::DigestOf<H, T>>;
+    type Parameters = ();
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        any::<Vec<u8>>()
+            .prop_map(|bytes| digest::DigestOf::<H, Vec<u8>>::digest(&bytes).coerce())
+            .boxed()
+    }
+}
+
+impl proptest::arbitrary::Arbitrary for Blake2b256 {
+    type Strategy = BoxedStrategy<Self>;
+    type Parameters = ();
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        any::<[u8; Self::HASH_SIZE]>()
+            .prop_map(|bytes| Self::try_from_slice(&bytes).unwrap())
+            .boxed()
+    }
+}
+
+impl<T, A> proptest::arbitrary::Arbitrary for Signature<T, A>
+where
+    A: VerificationAlgorithm + 'static,
+    A::Signature: Send,
+    T: Send + 'static,
+{
+    type Strategy = BoxedStrategy<Self>;
+    type Parameters = ();
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        use proptest::collection::vec;
+        // generic parameters may not be used in const operations
+        // type parameters may not be used in const expressions
+        vec(any::<u8>(), A::SIGNATURE_SIZE)
+            .prop_map(|bytes| Self::from_binary(&bytes).unwrap())
+            .boxed()
+    }
+}

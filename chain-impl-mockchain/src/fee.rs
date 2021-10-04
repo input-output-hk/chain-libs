@@ -3,9 +3,16 @@ use crate::transaction as tx;
 use crate::value::Value;
 use std::num::NonZeroU64;
 
+#[cfg(any(test, feature = "property-test-api"))]
+use crate::testing::strategy::optional_non_zero_u64;
+
 /// Linear fee using the basic affine formula
 /// `COEFFICIENT * bytes(COUNT(tx.inputs) + COUNT(tx.outputs)) + CONSTANT + CERTIFICATE*COUNT(certificates)`.
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct LinearFee {
     pub constant: u64,
     pub coefficient: u64,
@@ -15,15 +22,43 @@ pub struct LinearFee {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Default)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PerCertificateFee {
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(optional_non_zero_u64())
+    )]
     pub certificate_pool_registration: Option<NonZeroU64>,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(optional_non_zero_u64())
+    )]
     pub certificate_stake_delegation: Option<NonZeroU64>,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(optional_non_zero_u64())
+    )]
     pub certificate_owner_stake_delegation: Option<NonZeroU64>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Default)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PerVoteCertificateFee {
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(optional_non_zero_u64())
+    )]
     pub certificate_vote_plan: Option<NonZeroU64>,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(optional_non_zero_u64())
+    )]
     pub certificate_vote_cast: Option<NonZeroU64>,
 }
 
@@ -142,10 +177,11 @@ mod test {
     use super::*;
     #[cfg(test)]
     use crate::certificate::{Certificate, CertificatePayload};
+    use proptest::prelude::*;
     #[cfg(test)]
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for PerCertificateFee {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -178,28 +214,29 @@ mod test {
         }
     }
 
-    #[quickcheck]
-    pub fn linear_fee_certificate_calculation(
+    #[proptest]
+    fn linear_fee_certificate_calculation(
         certificate: Certificate,
         inputs: u8,
         outputs: u8,
         mut fee: LinearFee,
         per_certificate_fees: PerCertificateFee,
         per_vote_certificate_fees: PerVoteCertificateFee,
-    ) -> TestResult {
+    ) {
+        // TODO test-strategy needs to be fixed, it removes mut modifier from argument bindings
+        let mut fee = fee;
         fee.per_certificate_fees(per_certificate_fees);
         fee.per_vote_certificate_fees(per_vote_certificate_fees);
         let per_certificate_fees = fee.per_certificate_fees;
-        if per_certificate_fees.certificate_pool_registration.is_none()
-            || per_certificate_fees.certificate_stake_delegation.is_none()
-            || per_certificate_fees
-                .certificate_owner_stake_delegation
-                .is_none()
-            || per_vote_certificate_fees.certificate_vote_plan.is_none()
-            || per_vote_certificate_fees.certificate_vote_cast.is_none()
-        {
-            return TestResult::discard();
-        }
+        prop_assume!(
+            per_certificate_fees.certificate_pool_registration.is_some()
+                && per_certificate_fees.certificate_stake_delegation.is_some()
+                && per_certificate_fees
+                    .certificate_owner_stake_delegation
+                    .is_some()
+                && per_vote_certificate_fees.certificate_vote_plan.is_some()
+                && per_vote_certificate_fees.certificate_vote_cast.is_some()
+        );
 
         let certificate_payload: CertificatePayload = (&certificate).into();
         let fee_value = fee.calculate(Some(certificate_payload.as_slice()), inputs, outputs);
@@ -210,11 +247,7 @@ mod test {
                 + fee.constant,
         );
 
-        if fee_value == expected_value {
-            TestResult::passed()
-        } else {
-            TestResult::error(format!("Wrong fee: {} vs {}", fee_value, expected_value))
-        }
+        prop_assert_eq!(fee_value, expected_value);
     }
 
     #[cfg(test)]

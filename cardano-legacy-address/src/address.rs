@@ -162,7 +162,11 @@ fn hash_spending_data(xpub: &XPub, attrs: &Attributes) -> [u8; 28] {
 
 /// A valid cardano Address that is displayed in base58
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
-pub struct Addr(Vec<u8>);
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
+pub struct Addr(#[cfg_attr(any(test, feature = "property-test-api"), any(proptest::collection::size_range(ed25519_bip32::XPUB_SIZE).lift()))] Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressMatchXPub {

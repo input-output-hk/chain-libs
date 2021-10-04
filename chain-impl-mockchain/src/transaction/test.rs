@@ -1,6 +1,7 @@
 use super::{
     element::SingleAccountBindingSignature, AccountBindingSignature, AccountIdentifier, Input,
-    NoExtra, Payload, Transaction, TxBuilder, UnspecifiedAccountIdentifier, UtxoPointer, Witness,
+    NoExtra, Output, Payload, Transaction, TxBuilder, UnspecifiedAccountIdentifier, UtxoPointer,
+    Witness,
 };
 #[cfg(test)]
 use crate::certificate::OwnerStakeDelegation;
@@ -8,27 +9,33 @@ use crate::date::BlockDate;
 use crate::key::{EitherEd25519SecretKey, SpendingSignature};
 #[cfg(test)]
 use crate::testing::serialization::serialization_bijection_r;
+use chain_addr::Address;
 use chain_crypto::{testing::arbitrary_secret_key, Ed25519, SecretKey, Signature};
+use proptest::prelude::*;
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
-use quickcheck_macros::quickcheck;
+use test_strategy::proptest;
 
-quickcheck! {
-    fn transaction_encode_decode(transaction: Transaction<NoExtra>) -> TestResult {
-        serialization_bijection_r(transaction)
-    }
-    fn stake_owner_delegation_tx_encode_decode(transaction: Transaction<OwnerStakeDelegation>) -> TestResult {
-        serialization_bijection_r(transaction)
-    }
-    /*
-    fn certificate_tx_encode_decode(transaction: Transaction<Address, Certificate>) -> TestResult {
-        chain_core::property::testing::serialization_bijection_r(transaction)
-    }
-    */
-    fn signed_transaction_encode_decode(transaction: Transaction<NoExtra>) -> TestResult {
-        serialization_bijection_r(transaction)
-    }
+#[proptest]
+fn transaction_encode_decode(transaction: Transaction<NoExtra>) {
+    serialization_bijection_r(transaction)
+}
+
+#[proptest]
+fn stake_owner_delegation_tx_encode_decode(transaction: Transaction<OwnerStakeDelegation>) {
+    serialization_bijection_r(transaction)
+}
+
+/*
+fn certificate_tx_encode_decode(transaction: Transaction<Address, Certificate>) -> TestResult {
+    chain_core::property::testing::serialization_bijection_r(transaction)
+}
+*/
+
+#[proptest]
+fn signed_transaction_encode_decode(transaction: Transaction<NoExtra>) {
+    serialization_bijection_r(transaction)
 }
 
 #[cfg(test)]
@@ -46,10 +53,10 @@ where
     }
 }
 
-#[quickcheck]
-pub fn check_transaction_accessor_consistent(tx: Transaction<NoExtra>) -> TestResult {
+#[proptest]
+fn check_transaction_accessor_consistent(tx: Transaction<NoExtra>) {
     let slice = tx.as_slice();
-    let res = check_eq(
+    check_eq(
         "tx",
         tx.nb_inputs(),
         "tx-slice",
@@ -109,11 +116,8 @@ pub fn check_transaction_accessor_consistent(tx: Transaction<NoExtra>) -> TestRe
             slice.witnesses().iter().count(),
             "witnesses",
         )
-    });
-    match res {
-        Ok(()) => TestResult::passed(),
-        Err(e) => TestResult::error(e),
-    }
+    })
+    .unwrap();
 }
 
 impl Arbitrary for UtxoPointer {
@@ -132,9 +136,51 @@ impl Arbitrary for Input {
     }
 }
 
+impl proptest::arbitrary::Arbitrary for Input {
+    type Parameters = ();
+    type Strategy = proptest::strategy::BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        any::<UtxoPointer>()
+            .prop_map(|utxo_pointer| Self::from_utxo(utxo_pointer))
+            .boxed()
+    }
+}
+
 impl Arbitrary for NoExtra {
     fn arbitrary<G: Gen>(_: &mut G) -> Self {
         Self
+    }
+}
+
+impl<Extra> proptest::arbitrary::Arbitrary for Transaction<Extra>
+where
+    Extra: proptest::arbitrary::Arbitrary + Payload + 'static,
+    Extra::Auth: proptest::arbitrary::Arbitrary + 'static,
+{
+    type Parameters = ();
+    type Strategy = proptest::strategy::BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        use proptest::collection::vec;
+
+        (
+            any::<Extra>(),
+            any::<Extra::Auth>(),
+            vec(any::<(Input, Witness)>(), ..16),
+            vec(any::<Output<Address>>(), ..16),
+        )
+            .prop_map(|(payload, payload_auth, inputs_and_witnesses, outputs)| {
+                let (inputs, witnesses): (Vec<_>, Vec<_>) =
+                    inputs_and_witnesses.into_iter().unzip();
+                TxBuilder::new()
+                    .set_payload(&payload)
+                    .set_expiry_date(BlockDate::first().next_epoch())
+                    .set_ios(&inputs, &outputs)
+                    .set_witnesses(&witnesses)
+                    .set_payload_auth(&payload_auth)
+            })
+            .boxed()
     }
 }
 

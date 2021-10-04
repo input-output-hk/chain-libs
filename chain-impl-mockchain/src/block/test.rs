@@ -11,62 +11,70 @@ use crate::{
 };
 #[cfg(test)]
 use chain_core::property::{Block as _, Deserialize, HasHeader as _, Serialize};
+use proptest::prelude::*;
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
+use test_strategy::proptest;
 
-quickcheck! {
-    fn headerraw_serialization_bijection(b: HeaderRaw) -> TestResult {
-        serialization_bijection(b)
-    }
+#[proptest]
+fn headerraw_serialization_bijection(b: HeaderRaw) {
+    serialization_bijection(b)
+}
 
-    fn header_serialization_bijection(b: Header) -> TestResult {
-        serialization_bijection_r(b)
-    }
+#[proptest]
+fn header_serialization_bijection(b: Header) {
+    serialization_bijection_r(b)
+}
 
-    fn block_serialization_bijection(b: Block) -> TestResult {
-        serialization_bijection(b)
-    }
+#[proptest]
+fn block_serialization_bijection(b: Block) {
+    serialization_bijection(b)
+}
 
-    fn block_serialization_bijection_r(b: Block) -> TestResult {
-        serialization_bijection_r(b)
-    }
+#[proptest]
+fn block_serialization_bijection_r(b: Block) {
+    serialization_bijection_r(b)
+}
 
-    fn block_properties(block: Block) -> TestResult {
+#[proptest]
+fn block_properties(block: Block) {
+    let vec = block.serialize_as_vec().unwrap();
+    let new_block = Block::deserialize(&vec[..]).unwrap();
 
-        let vec = block.serialize_as_vec().unwrap();
-        let new_block = Block::deserialize(&vec[..]).unwrap();
+    prop_assert_eq!(block.is_consistent(), new_block.is_consistent());
+    prop_assert!(block.fragments().eq(new_block.fragments()));
+    prop_assert_eq!(block.header(), new_block.header());
+    prop_assert_eq!(block.id(), new_block.id());
+    prop_assert_eq!(block.parent_id(), new_block.parent_id());
+    prop_assert_eq!(block.date(), new_block.date());
+    prop_assert_eq!(block.version(), new_block.version());
 
-        assert_eq!(block.is_consistent(),new_block.is_consistent());
-        assert!(block.fragments().eq(new_block.fragments()));
-        assert_eq!(block.header(),new_block.header());
-        assert_eq!(block.id(),new_block.id());
-        assert_eq!(block.parent_id(),new_block.parent_id());
-        assert_eq!(block.date(),new_block.date());
-        assert_eq!(block.version(),new_block.version());
+    prop_assert_eq!(block.chain_length(), new_block.chain_length());
+}
 
-        TestResult::from_bool(block.chain_length() == new_block.chain_length())
-    }
+#[proptest]
+fn header_properties(block: Block) {
+    use chain_core::property::Header as Prop;
+    let header = block.header.clone();
+    prop_assert_eq!(header.hash(), block.id());
+    prop_assert_eq!(header.id(), block.id());
+    prop_assert_eq!(header.parent_id(), block.parent_id());
+    prop_assert_eq!(header.date(), block.date());
+    prop_assert_eq!(header.version(), block.version());
 
-    fn header_properties(block: Block) -> TestResult {
-        use chain_core::property::Header as Prop;
-        let header = block.header.clone();
-        assert_eq!(header.hash(),block.id());
-        assert_eq!(header.id(),block.id());
-        assert_eq!(header.parent_id(),block.parent_id());
-        assert_eq!(header.date(),block.date());
-        assert_eq!(header.version(),block.version());
+    prop_assert_eq!(header.get_bft_leader_id(), block.header.get_bft_leader_id());
+    prop_assert_eq!(header.get_stakepool_id(), block.header.get_stakepool_id());
+    prop_assert_eq!(header.common(), block.header.common());
+    prop_assert_eq!(header.to_raw(), block.header.to_raw());
+    prop_assert_eq!(header.as_auth_slice(), block.header.as_auth_slice());
+    prop_assert!(are_desc_equal(
+        header.description(),
+        block.header.description()
+    ));
+    prop_assert_eq!(header.size(), block.header.size());
 
-        assert_eq!(header.get_bft_leader_id(),block.header.get_bft_leader_id());
-        assert_eq!(header.get_stakepool_id(),block.header.get_stakepool_id());
-        assert_eq!(header.common(),block.header.common());
-        assert_eq!(header.to_raw(),block.header.to_raw());
-        assert_eq!(header.as_auth_slice(),block.header.as_auth_slice());
-        assert!(are_desc_equal(header.description(),block.header.description()));
-        assert_eq!(header.size(),block.header.size());
-
-        TestResult::from_bool(header.chain_length() == block.chain_length())
-    }
+    prop_assert_eq!(header.chain_length(), block.chain_length());
 }
 
 #[cfg(test)]

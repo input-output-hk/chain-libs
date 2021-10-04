@@ -17,14 +17,21 @@ use chain_crypto::{Ed25519, PublicKey, Signature};
 /// It's important that witness works with opaque structures
 /// and may not know the contents of the internal transaction.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum Witness {
     Utxo(SpendingSignature<WitnessUtxoData>),
     Account(account::Witness),
     OldUtxo(
-        PublicKey<Ed25519>,
-        [u8; 32],
+        #[cfg_attr(any(test, feature = "property-test-api"), strategy(chain_crypto::testing::public_key_strategy::<Ed25519>()))]
+         PublicKey<Ed25519>,
+        #[cfg_attr(any(test, feature = "property-test-api"), strategy(proptest::strategy::Just([0u8; 32])))]
+         [u8; 32],
         Signature<WitnessUtxoData, Ed25519>,
     ),
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     Multisig(multisig::Witness),
 }
 

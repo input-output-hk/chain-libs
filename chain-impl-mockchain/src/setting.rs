@@ -336,6 +336,7 @@ impl Default for Settings {
 #[cfg(test)]
 mod tests {
     use super::{FeesGoesTo, Settings};
+    use proptest::prelude::*;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for FeesGoesTo {
@@ -351,6 +352,15 @@ mod tests {
     impl Arbitrary for Settings {
         fn arbitrary<G: Gen>(_: &mut G) -> Self {
             Settings::new()
+        }
+    }
+
+    impl proptest::arbitrary::Arbitrary for Settings {
+        type Parameters = ();
+        type Strategy = Just<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            Just(Self::new())
         }
     }
 }

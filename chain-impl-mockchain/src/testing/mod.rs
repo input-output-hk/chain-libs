@@ -13,3 +13,4 @@ pub use data::KeysDb;
 pub use gen::{TestGen, VoteTestGen};
 pub use ledger::{ConfigBuilder, LedgerBuilder, TestLedger, UtxoDb};
 pub mod serialization;
+pub mod strategy;

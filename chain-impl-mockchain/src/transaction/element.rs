@@ -29,6 +29,10 @@ pub type TransactionSignDataHash = DigestOf<Blake2b256, TransactionSignData>;
 pub struct TransactionBindingAuthDataPhantom();
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct SingleAccountBindingSignature(
     pub(crate) Signature<TransactionBindingAuthDataPhantom, Ed25519>,
 );
@@ -66,8 +70,13 @@ impl Readable for SingleAccountBindingSignature {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum AccountBindingSignature {
     Single(SingleAccountBindingSignature),
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     Multi(u32), // TODO
 }
 

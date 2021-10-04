@@ -195,45 +195,38 @@ pub fn valid_transaction_date(
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
-    fn test_valid_block0_transaction_no_inputs_for<P: Payload>(tx: Transaction<P>) -> TestResult {
+    fn test_valid_block0_transaction_no_inputs_for<P: Payload>(tx: Transaction<P>) {
         let has_valid_inputs = tx.nb_inputs() == 0 && tx.nb_witnesses() == 0;
         let result = valid_block0_transaction_no_inputs(&tx.as_slice());
         to_quickchek_result(result, has_valid_inputs)
     }
 
-    #[quickcheck]
-    pub fn test_valid_block0_transaction_no_inputs(
-        tx: Transaction<certificate::OwnerStakeDelegation>,
-    ) -> TestResult {
+    #[proptest]
+    fn test_valid_block0_transaction_no_inputs(tx: Transaction<certificate::OwnerStakeDelegation>) {
         test_valid_block0_transaction_no_inputs_for(tx)
     }
 
-    #[quickcheck]
-    pub fn test_valid_block0_transaction_outputs(
-        tx: Transaction<certificate::OwnerStakeDelegation>,
-    ) -> TestResult {
+    #[proptest]
+    fn test_valid_block0_transaction_outputs(tx: Transaction<certificate::OwnerStakeDelegation>) {
         let has_valid_ios = tx.nb_inputs() == 0 && tx.nb_outputs() == 0;
 
         let result = valid_block0_cert_transaction(&tx.as_slice());
         to_quickchek_result(result, has_valid_ios)
     }
 
-    #[quickcheck]
-    pub fn test_valid_output_value(output: Output<Address>) -> TestResult {
+    #[proptest]
+    fn test_valid_output_value(output: Output<Address>) {
         let is_valid_output = output.value != Value::zero();
         let result = valid_output_value(&output);
         to_quickchek_result(result, is_valid_output)
     }
 
-    #[quickcheck]
-    pub fn test_valid_pool_registration_certificate(
-        pool_registration: certificate::PoolRegistration,
-    ) -> TestResult {
+    #[proptest]
+    fn test_valid_pool_registration_certificate(pool_registration: certificate::PoolRegistration) {
         let is_valid = pool_registration.management_threshold() > 0
             && (pool_registration.management_threshold() as usize)
                 <= pool_registration.owners.len()
@@ -243,26 +236,26 @@ mod tests {
         to_quickchek_result(result, is_valid)
     }
 
-    #[quickcheck]
-    pub fn test_valid_stake_owner_delegation_transaction(
+    #[proptest]
+    fn test_valid_stake_owner_delegation_transaction(
         tx: Transaction<certificate::OwnerStakeDelegation>,
-    ) -> TestResult {
+    ) {
         let is_valid = tx.nb_witnesses() == 1 && tx.nb_inputs() == 1 && tx.nb_outputs() == 0;
         let result = valid_stake_owner_delegation_transaction(&tx.as_slice());
         to_quickchek_result(result, is_valid)
     }
 
     /*
-    #[quickcheck]
-    pub fn test_valid_pool_retirement_certificate(
+    #[proptest]
+    fn test_valid_pool_retirement_certificate(
         cert: certificate::PoolOwnersSigned<T>,
     ) -> TestResult {
         let is_valid = cert.signatures.len() > 0 && cert.signatures.len() < 256;
         let result = valid_pool_retirement_certificate(&cert);
         to_quickchek_result(result, is_valid)
     }
-    #[quickcheck]
-    pub fn test_valid_pool_update_certificate(
+    #[proptest]
+    fn test_valid_pool_update_certificate(
         cert: certificate::PoolOwnersSigned<certificate::PoolUpdate>,
     ) -> TestResult {
         let is_valid = cert.signatures.len() > 0 && cert.signatures.len() < 256;
@@ -271,12 +264,12 @@ mod tests {
     }
     */
 
-    fn to_quickchek_result(result: LedgerCheck, should_succeed: bool) -> TestResult {
-        match (result, should_succeed) {
-            (Ok(_), true) => TestResult::passed(),
-            (Ok(_), false) => TestResult::failed(),
-            (Err(_), true) => TestResult::failed(),
-            (Err(_), false) => TestResult::passed(),
+    fn to_quickchek_result(result: LedgerCheck, should_succeed: bool) {
+        match (&result, should_succeed) {
+            (Ok(_), true) => {}
+            (Ok(_), false) => panic!("should fail"),
+            (Err(_), true) => result.unwrap(),
+            (Err(_), false) => {}
         }
     }
 }

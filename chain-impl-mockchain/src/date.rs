@@ -8,6 +8,10 @@ use std::{error, fmt, num::ParseIntError, str};
 /// blockchain. There may be many transactions related to the same
 /// `SlotId`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct BlockDate {
     pub epoch: Epoch,
     pub slot_id: SlotId,

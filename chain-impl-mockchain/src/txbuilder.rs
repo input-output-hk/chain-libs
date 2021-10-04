@@ -323,10 +323,9 @@ mod tests {
     use crate::transaction::{Input, INPUT_PTR_SIZE};
     use chain_addr::Address;
     use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
     use std::iter;
 
-    #[quickcheck]
+    #[proptest]
     fn tx_builder_never_creates_unbalanced_tx(
         inputs: ArbitraryInputs,
         outputs: ArbitraryOutputs,
@@ -465,7 +464,7 @@ mod tests {
         u64::arbitrary(gen) % (range + 1)
     }
 
-    #[quickcheck]
+    #[proptest]
     fn split_value_splits_whole_value(split_value: ArbitrarySplitValue) -> () {
         assert_eq!(
             split_value.parts,
@@ -503,8 +502,8 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn cert_builder_never_creates_unbalanced_tx(
+    #[proptest]
+    fn cert_builder_never_creates_unbalanced_tx(
         input: Input,
         fee: LinearFee,
         certificate: Certificate,

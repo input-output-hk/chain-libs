@@ -15,8 +15,16 @@ use chain_vote::TallyDecryptShare;
 use typed_bytes::{ByteArray, ByteBuilder};
 
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct VoteTally {
     id: VotePlanId,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(proptest::strategy::Just(VoteTallyPayload::Public))
+    )]
     payload: VoteTallyPayload,
 }
 
@@ -27,6 +35,10 @@ pub enum VoteTallyPayload {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum TallyProof {
     Public {
         id: CommitteeId,

@@ -9,13 +9,11 @@ use crate::{
     testing::{ConfigBuilder, LedgerBuilder},
 };
 use chain_crypto::{Ed25519, SecretKey};
-use quickcheck::TestResult;
-use quickcheck_macros::quickcheck;
+use proptest::prelude::*;
+use test_strategy::proptest;
 
-#[quickcheck]
-pub fn ledger_adopt_settings_from_update_proposal(
-    update_proposal_data: UpdateProposalData,
-) -> TestResult {
+#[proptest]
+fn ledger_adopt_settings_from_update_proposal(update_proposal_data: UpdateProposalData) {
     let cb = ConfigBuilder::new().with_leaders(&update_proposal_data.leaders_ids());
 
     let testledger = LedgerBuilder::from_config(cb)
@@ -66,19 +64,14 @@ pub fn ledger_adopt_settings_from_update_proposal(
         }
     }
 
-    if !ledger.updates.proposals.is_empty() {
-        return TestResult::error(format!(
-            "Error: proposal collection should be empty but contains:{:?}",
-            ledger.updates.proposals
-        ));
-    }
+    prop_assert!(
+        ledger.updates.proposals.is_empty(),
+        "Error: proposal collection should be empty but contains:{:?}",
+        ledger.updates.proposals
+    );
 
-    if all_settings_equal {
-        TestResult::passed()
-    } else {
-        TestResult::error(format!("Error: proposed update reached required votes, but proposal was NOT updated, Expected: {:?} vs Actual: {:?}",
-                                expected_params,actual_params))
-    }
+    prop_assert!(all_settings_equal, "Error: proposed update reached required votes, but proposal was NOT updated, Expected: {:?} vs Actual: {:?}",
+        expected_params,actual_params);
 }
 
 fn build_block(

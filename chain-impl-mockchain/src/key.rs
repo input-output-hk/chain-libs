@@ -14,7 +14,14 @@ use typed_bytes::ByteBuilder;
 use chain_core::packer::Codec;
 use std::str::FromStr;
 
-#[derive(Clone)]
+#[cfg(any(test, feature = "property-test-api"))]
+use chain_crypto::testing::public_key_strategy;
+
+#[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum EitherEd25519SecretKey {
     Extended(crypto::SecretKey<crypto::Ed25519Extended>),
     Normal(crypto::SecretKey<crypto::Ed25519>),
@@ -218,6 +225,10 @@ impl<T: Clone, A: VerificationAlgorithm> Clone for Signed<T, A> {
 
 /// Hash that is used as an address of the various components.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Hash(crypto::Blake2b256);
 impl Hash {
     /// All 0 hash used as a special hash
@@ -315,7 +326,14 @@ impl FromStr for Hash {
 pub type BftVerificationAlg = Ed25519;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BftLeaderId(pub(crate) PublicKey<BftVerificationAlg>);
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
+pub struct BftLeaderId(
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(chain_crypto::testing::public_key_strategy::<BftVerificationAlg>()))]
+    pub(crate) PublicKey<BftVerificationAlg>,
+);
 
 impl From<[u8; 32]> for BftLeaderId {
     fn from(v: [u8; 32]) -> BftLeaderId {
@@ -373,8 +391,14 @@ impl From<PublicKey<BftVerificationAlg>> for BftLeaderId {
 
 /// Praos Leader consisting of the KES public key and VRF public key
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct GenesisPraosLeader {
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(public_key_strategy::<SumEd25519_12>()))]
     pub kes_public_key: PublicKey<SumEd25519_12>,
+    #[cfg_attr(any(test, feature = "property-test-api"), strategy(public_key_strategy::<RistrettoGroup2HashDh>()))]
     pub vrf_public_key: PublicKey<RistrettoGroup2HashDh>,
 }
 
@@ -411,6 +435,7 @@ mod tests {
     #[cfg(test)]
     use quickcheck::TestResult;
     use quickcheck::{quickcheck, Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for Hash {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -443,9 +468,8 @@ mod tests {
         }
     }
 
-    quickcheck! {
-        fn leader_id_serialize_deserialize_biyection(leader_id: BftLeaderId) -> TestResult {
-            serialization_bijection(leader_id)
-        }
+    #[proptest]
+    fn leader_id_serialize_deserialize_biyection(leader_id: BftLeaderId) {
+        serialization_bijection(leader_id)
     }
 }

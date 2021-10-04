@@ -3,7 +3,14 @@ use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ConfigParams(pub(crate) Vec<ConfigParam>);
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
+pub struct ConfigParams(
+    #[cfg_attr(any(test, feature = "property-test-api"), any(proptest::collection::size_range(..256).lift()))]
+    pub(crate) Vec<ConfigParam>,
+);
 
 impl ConfigParams {
     pub fn new() -> Self {

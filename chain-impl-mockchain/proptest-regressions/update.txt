@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 4642d80469dec0525b5af24e14ada6222305a2ae797c3127bfa04a810a2ca1c6 # shrinks to input = _UpdateProposalSerializeDeserializeBijectionArgs { update_proposal: UpdateProposal { changes: ConfigParams([LinearFee(LinearFee { constant: 0, coefficient: 0, certificate: 0, per_certificate_fees: PerCertificateFee { certificate_pool_registration: None, certificate_stake_delegation: None, certificate_owner_stake_delegation: None }, per_vote_certificate_fees: PerVoteCertificateFee { certificate_vote_plan: None, certificate_vote_cast: Some(1) } })]) } }

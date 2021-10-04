@@ -236,6 +236,10 @@ pub type UpdateProposalId = crate::fragment::FragmentId;
 pub type UpdateVoterId = BftLeaderId;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct UpdateProposal {
     pub changes: ConfigParams,
 }
@@ -280,6 +284,10 @@ impl Readable for UpdateProposal {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct UpdateProposalWithProposer {
     pub proposal: UpdateProposal,
     pub proposer_id: UpdateVoterId,
@@ -306,6 +314,10 @@ impl Readable for UpdateProposalWithProposer {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct SignedUpdateProposal {
     pub proposal: UpdateProposalWithProposer,
 }
@@ -336,6 +348,10 @@ impl Readable for SignedUpdateProposal {
 
 // A positive vote for a proposal.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct UpdateVote {
     pub proposal_id: UpdateProposalId,
     pub voter_id: UpdateVoterId,
@@ -364,6 +380,10 @@ impl Readable for UpdateVote {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct SignedUpdateVote {
     pub vote: UpdateVote,
 }
@@ -415,11 +435,12 @@ mod tests {
     };
     #[cfg(test)]
     use chain_addr::Discrimination;
+    use proptest::prelude::*;
     #[cfg(test)]
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
     use std::iter;
+    use test_strategy::proptest;
 
     impl Arbitrary for UpdateProposal {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -514,10 +535,9 @@ mod tests {
         update_state.apply_vote(&signed_update_vote, &settings)
     }
 
-    quickcheck! {
-        fn update_proposal_serialize_deserialize_bijection(update_proposal: UpdateProposal) -> TestResult {
-            serialization_bijection(update_proposal)
-        }
+    #[proptest]
+    fn update_proposal_serialize_deserialize_bijection(update_proposal: UpdateProposal) {
+        serialization_bijection(update_proposal)
     }
 
     #[test]
@@ -786,7 +806,7 @@ mod tests {
         assert_eq!(update_state.proposals.len(), 0);
     }
 
-    #[derive(Debug, Copy, Clone)]
+    #[derive(Debug, Copy, Clone, test_strategy::Arbitrary)]
     pub struct ExpiryBlockDate {
         pub block_date: BlockDate,
         pub proposal_expiration: u32,
@@ -819,10 +839,8 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn rejected_proposals_are_removed_after_expiration_period(
-        expiry_block_data: ExpiryBlockDate,
-    ) -> TestResult {
+    #[proptest]
+    fn rejected_proposals_are_removed_after_expiration_period(expiry_block_data: ExpiryBlockDate) {
         let proposal_date = expiry_block_data.block_date();
         let proposal_expiration = expiry_block_data.proposal_expiration();
 
@@ -861,13 +879,11 @@ mod tests {
                 .expect("error while processing proposal");
 
             if proposal_date.epoch + proposal_expiration <= current_block_date.epoch {
-                assert_eq!(update_state.proposals.len(), 0);
+                prop_assert_eq!(update_state.proposals.len(), 0);
             } else {
-                assert_eq!(update_state.proposals.len(), 1);
+                prop_assert_eq!(update_state.proposals.len(), 1);
             }
             current_block_date = current_block_date.next_epoch()
         }
-
-        TestResult::passed()
     }
 }

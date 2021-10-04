@@ -8,10 +8,11 @@ use crate::vote;
 use chain_core::mempack::{ReadBuf, Readable};
 use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
+use proptest::prelude::*;
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
-use quickcheck_macros::quickcheck;
+use test_strategy::proptest;
 
 impl Arbitrary for PoolRetirement {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -74,6 +75,17 @@ impl Arbitrary for DelegationType {
         DelegationType::Full(Arbitrary::arbitrary(g))
     }
 }
+// TODO proptest
+// impl proptest::arbitrary::Arbitrary for DelegationType {
+//     type Strategy = proptest::strategy::BoxedStrategy<DelegationType>;
+//     type Parameters = ();
+
+//     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+//         any::<PoolId>()
+//             .prop_map(|pool_id| DelegationType::Full(pool_id))
+//             .boxed()
+//     }
+// }
 
 impl Arbitrary for StakeDelegation {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -273,13 +285,13 @@ impl Arbitrary for Certificate {
     }
 }
 
-#[quickcheck]
-fn pool_reg_serialization_bijection(b: PoolRegistration) -> TestResult {
+#[proptest]
+fn pool_reg_serialization_bijection(b: PoolRegistration) {
     let b_got = b.serialize();
     let mut buf = ReadBuf::from(b_got.as_ref());
     let result = PoolRegistration::read(&mut buf);
     let left = Ok(b);
     assert_eq!(left, result);
     assert_eq!(buf.get_slice_end(), &[]);
-    TestResult::from_bool(left == result)
+    prop_assert_eq!(left, result);
 }

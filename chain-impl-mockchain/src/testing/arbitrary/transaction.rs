@@ -6,6 +6,7 @@ use crate::{
         arbitrary::{utils as arbitrary_utils, AverageValue},
         data::{AddressData, AddressDataValue},
         ledger::TestLedger,
+        strategy,
     },
     transaction::{Input, Output},
     value::*,
@@ -13,15 +14,28 @@ use crate::{
 use chain_addr::{Address, Kind};
 use chain_crypto::{Ed25519, PublicKey};
 use quickcheck::{Arbitrary, Gen};
-use std::iter;
+use std::{convert::TryInto, iter};
 use thiserror::Error;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, test_strategy::Arbitrary)]
 pub struct ArbitraryValidTransactionData {
+    #[any(proptest::collection::size_range(..256).lift())]
     pub addresses: Vec<AddressDataValue>,
+    #[strategy(strategy::choose_random_vec_subset(#addresses, None))]
     pub input_addresses: Vec<AddressDataValue>,
+    #[strategy(choose_random_output_subset(#addresses, #input_addresses))]
     pub output_addresses: Vec<AddressDataValue>,
     pub fee: LinearFee,
+}
+
+fn choose_random_output_subset(
+    addreses: Vec<AddressDataValue>,
+    inputs: Vec<AddressDataValue>,
+) -> impl proptest::strategy::Strategy<Value = Vec<AddressDataValue>> {
+    // this way we get at least one coin per output
+    let inputs_sum: u64 = inputs.into_iter().map(|input| input.value.0).sum();
+    let max_outputs_len = std::cmp::min(addreses.len(), inputs_sum.try_into().unwrap());
+    strategy::choose_random_vec_subset(addreses, Some(max_outputs_len))
 }
 
 impl Arbitrary for ArbitraryValidTransactionData {

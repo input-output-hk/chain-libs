@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 3dc719c99d00969fd03e8e1d1f8d247bb5454706b24c88a7fa30c3afd0d3f412 # shrinks to input = _LinearFeeCertificateCalculationArgs { certificate: PoolRetirement(PoolRetirement { pool_id: $hash_ty(0x8257a87f25ab75cb5f6ba506adb59cf1764365e93f5e7400c3ed1fe3496f1e2f), retirement_time: TimeOffsetSeconds(DurationSeconds(7448678820576350356)) }), inputs: 141, outputs: 204, fee: LinearFee { constant: 84037131145763882, coefficient: 4127535450679263578, certificate: 16808812788604336532, per_certificate_fees: PerCertificateFee { certificate_pool_registration: Some(8974887929408341596), certificate_stake_delegation: None, certificate_owner_stake_delegation: None }, per_vote_certificate_fees: PerVoteCertificateFee { certificate_vote_plan: Some(8783595777020599411), certificate_vote_cast: None } }, per_certificate_fees: PerCertificateFee { certificate_pool_registration: Some(13700089163430403858), certificate_stake_delegation: Some(2491635649483717791), certificate_owner_stake_delegation: Some(6568572915426812252) }, per_vote_certificate_fees: PerVoteCertificateFee { certificate_vote_plan: Some(8482191035474706181), certificate_vote_cast: Some(8792449183706279014) } }

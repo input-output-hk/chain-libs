@@ -2,7 +2,7 @@ use crate::{
     account::{Identifier, SpendingCounter},
     chaintypes::HeaderId,
     key::EitherEd25519SecretKey,
-    testing::builders::make_witness,
+    testing::{builders::make_witness, strategy::address_without_multisig},
     transaction::{Input, Output, TransactionAuthData, Witness},
     utxo::Entry,
     value::Value,
@@ -18,11 +18,15 @@ use std::fmt::{self, Debug};
 ///
 /// Struct is responsible for adding some code which makes converting into transaction input/output easily.
 /// Also it held all needed information (private key, public key) which can construct witness for transaction.
-///
 #[derive(Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct AddressData {
     pub private_key: EitherEd25519SecretKey,
     pub spending_counter: Option<SpendingCounter>,
+    #[strategy(address_without_multisig())]
     pub address: Address,
 }
 
@@ -227,6 +231,10 @@ impl From<AddressData> for Address {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct AddressDataValue {
     pub address_data: AddressData,
     pub value: Value,

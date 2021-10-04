@@ -7,6 +7,10 @@ use crate::value::Value;
 /// withdraw money from, so it serves just to
 /// record a monotically increasing special account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Treasury(Value);
 
 impl Treasury {

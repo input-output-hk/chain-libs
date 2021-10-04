@@ -288,4 +288,15 @@ mod test {
                 .boxed()
         }
     }
+
+    impl<A: AsymmetricKey> Arbitrary for SecretKey<A> {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<SecretKey<A>>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            any::<(TestCryptoGen, u32)>()
+                .prop_map(|(gen, idx)| SecretKey::generate(gen.get_rng(idx)))
+                .boxed()
+        }
+    }
 }

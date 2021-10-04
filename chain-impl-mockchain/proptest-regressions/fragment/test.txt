@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx f779cfcda49afe7b4e8a1522ddc9df2b628f8287d27619f92082ed7bf07e872a # shrinks to input = _InitialEntsSerializationBijectionArgs { config_params: ConfigParams([LinearFee(LinearFee { constant: 0, coefficient: 0, certificate: 0, per_certificate_fees: PerCertificateFee { certificate_pool_registration: None, certificate_stake_delegation: None, certificate_owner_stake_delegation: None }, per_vote_certificate_fees: PerVoteCertificateFee { certificate_vote_plan: None, certificate_vote_cast: Some(1) } })]) }
+xx 584bc2dc033882ab5b88a47af5bf2159deb77e6cc2e017069b5d34a343430f81 # shrinks to input = _FragmentRawBijectionArgs { b: OwnerStakeDelegation(Transaction { payload: [8, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], nb_inputs: 0, nb_outputs: 0, valid_until: BlockDate { epoch: 1, slot_id: 0 }, nb_witnesses: 0, total_input_value: Ok(Value(0)), total_output_value: Ok(Value(0)) }) }
+xx 0ca2daad13262f5e0a8786a0365cf319b8cf645828481f44dc1898c5e43df8e5 # shrinks to input = _FragmentSerializationBijectionArgs { b: StakeDelegation(Transaction { payload: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], nb_inputs: 0, nb_outputs: 0, valid_until: BlockDate { epoch: 1, slot_id: 0 }, nb_witnesses: 0, total_input_value: Ok(Value(0)), total_output_value: Ok(Value(0)) }) }
