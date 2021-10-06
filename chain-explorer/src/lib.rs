@@ -53,7 +53,7 @@ impl Batch {
             &block.parent_id().into(),
             &block.id().into(),
             block.chain_length().into(),
-            block.header.block_date().into(),
+            block.header().block_date().into(),
             block.fragments(),
         )?;
 
@@ -73,7 +73,7 @@ impl NeedsBootstrap {
         let parent_id = block0.parent_id();
         let block_id = block0.id();
 
-        mut_tx.add_block0(&parent_id.into(), &block_id.into(), block0.contents.iter())?;
+        mut_tx.add_block0(&parent_id.into(), &block_id.into(), block0.contents().iter())?;
 
         mut_tx.commit()?;
 
