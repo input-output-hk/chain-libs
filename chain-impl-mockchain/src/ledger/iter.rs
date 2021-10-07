@@ -342,7 +342,7 @@ impl<'a> std::iter::FromIterator<Entry<'a>> for Result<Ledger, Error> {
                         .plans
                         .insert(
                             vote_plan.to_id(),
-                            VotePlanManager::new(vote_plan.clone(), Default::default()),
+                            VotePlanManager::new(vote_plan.clone(), Default::default(), None),
                         )
                         .unwrap();
                 }

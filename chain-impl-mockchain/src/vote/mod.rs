@@ -11,6 +11,7 @@ mod payload;
 mod privacy;
 mod status;
 mod tally;
+mod power;
 
 pub use self::{
     choice::{Choice, Options},

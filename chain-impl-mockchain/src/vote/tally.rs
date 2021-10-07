@@ -32,7 +32,7 @@ pub enum Tally {
 pub enum PrivateTallyState {
     Encrypted {
         encrypted_tally: EncryptedTally,
-        total_stake: Stake,
+        total_weight: Weight,
     },
     Decrypted {
         result: TallyResult,
@@ -61,7 +61,7 @@ impl Weight {
     }
 
     #[must_use = "Does not modify the internal state"]
-    fn saturating_add(self, other: Self) -> Self {
+    pub fn saturating_add(self, other: Self) -> Self {
         Self(self.0.saturating_add(other.0))
     }
 }
@@ -71,11 +71,11 @@ impl Tally {
         Self::Public { result }
     }
 
-    pub fn new_private(encrypted_tally: EncryptedTally, total_stake: Stake) -> Self {
+    pub fn new_private(encrypted_tally: EncryptedTally, total_weight: Weight) -> Self {
         Self::Private {
             state: PrivateTallyState::Encrypted {
                 encrypted_tally,
-                total_stake,
+                total_weight,
             },
         }
     }
@@ -98,15 +98,15 @@ impl Tally {
         }
     }
 
-    pub fn private_encrypted(&self) -> Result<(&EncryptedTally, &Stake), TallyError> {
+    pub fn private_encrypted(&self) -> Result<(&EncryptedTally, &Weight), TallyError> {
         match self {
             Self::Private {
                 state:
                     PrivateTallyState::Encrypted {
                         encrypted_tally,
-                        total_stake,
+                        total_weight,
                     },
-            } => Ok((encrypted_tally, total_stake)),
+            } => Ok((encrypted_tally, total_weight)),
             Self::Private {
                 state: PrivateTallyState::Decrypted { .. },
             } => Err(TallyError::TallyAlreadyDecrypted),
@@ -117,7 +117,7 @@ impl Tally {
     pub fn private_total_power(&self) -> Result<u64, TallyError> {
         match self {
             Self::Private {
-                state: PrivateTallyState::Encrypted { total_stake, .. },
+                state: PrivateTallyState::Encrypted { total_weight: total_stake, .. },
             } => Ok(total_stake.0),
             Self::Private {
                 state: PrivateTallyState::Decrypted { .. },

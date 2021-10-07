@@ -1105,13 +1105,10 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let stake = StakeControl::new_with(&self.accounts, &self.utxos);
-
         let mut actions = Vec::new();
 
         self.votes = self.votes.apply_committee_result(
             self.date(),
-            &stake,
             &self.governance,
             tally,
             sig,
@@ -1149,11 +1146,9 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let stake = StakeControl::new_with(&self.accounts, &self.utxos);
-
         self.votes = self
             .votes
-            .apply_encrypted_vote_tally(self.date(), &stake, tally, sig.id)?;
+            .apply_encrypted_vote_tally(self.date(), tally, sig.id)?;
 
         Ok(self)
     }
