@@ -67,6 +67,10 @@ impl Batch {
 
 impl NeedsBootstrap {
     pub fn add_block0(self, block0: Block) -> Result<ExplorerDb, DbError> {
+        if u32::from(block0.chain_length()) != 0 {
+            return Err(DbError::InvalidBlock0);
+        }
+
         let db = self.0;
         let mut mut_tx = db.mut_txn_begin()?;
 

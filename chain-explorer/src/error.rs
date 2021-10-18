@@ -13,4 +13,6 @@ pub enum DbError {
     UnitializedDatabase,
     #[error("block is missing from the explorer")]
     MissingBlock,
+    #[error("invalid block0")]
+    InvalidBlock0,
 }
