@@ -26,11 +26,7 @@ pub fn ledger_adopt_settings_from_update_proposal(
     // apply proposal
     let date = ledger.date();
     ledger = ledger
-        .apply_update_proposal(
-            update_proposal_data.proposal_id,
-            &update_proposal_data.proposal,
-            date,
-        )
+        .apply_update_proposal(&update_proposal_data.proposal, date)
         .unwrap();
 
     // apply votes

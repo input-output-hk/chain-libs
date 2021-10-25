@@ -928,8 +928,7 @@ impl Ledger {
                 if true {
                     return Err(Error::UpdateNotAllowedYet);
                 }
-                new_ledger =
-                    new_ledger.apply_update_proposal(fragment_id, update_proposal, block_date)?;
+                new_ledger = new_ledger.apply_update_proposal(update_proposal, block_date)?;
             }
             Fragment::UpdateVote(vote) => {
                 if true {
@@ -1024,13 +1023,12 @@ impl Ledger {
 
     pub fn apply_update_proposal(
         mut self,
-        proposal_id: update::UpdateProposalId,
         proposal: &update::SignedUpdateProposal,
         cur_date: BlockDate,
     ) -> Result<Self, Error> {
-        self.updates =
-            self.updates
-                .apply_proposal(proposal_id, proposal, &self.settings, cur_date)?;
+        self.updates = self
+            .updates
+            .apply_proposal(proposal, &self.settings, cur_date)?;
         Ok(self)
     }
 

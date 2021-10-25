@@ -22,12 +22,12 @@ impl UpdateState {
 
     pub fn apply_proposal(
         mut self,
-        proposal_id: UpdateProposalId,
         proposal: &SignedUpdateProposal,
         settings: &Settings,
         cur_date: BlockDate,
     ) -> Result<Self, Error> {
         let proposer_id = &proposal.proposal.proposer_id;
+        let proposal_id = proposal.proposal.proposal.id();
 
         if proposal.verify() == Verification::Failed {
             return Err(Error::BadProposalSignature(
@@ -547,27 +547,6 @@ mod tests {
     }
 
     #[cfg(test)]
-    fn apply_update_proposal(
-        update_state: UpdateState,
-        proposal_id: UpdateProposalId,
-        config_param: &ConfigParam,
-        proposer: &LeaderPair,
-        settings: &Settings,
-        block_date: BlockDate,
-    ) -> Result<UpdateState, Error> {
-        let update_proposal = ProposalBuilder::new()
-            .with_proposal_change(config_param.clone())
-            .build();
-
-        let signed_update_proposal = SignedProposalBuilder::new()
-            .with_proposal_update(update_proposal)
-            .with_proposer_secret_key(proposer.key())
-            .build();
-
-        update_state.apply_proposal(proposal_id, &signed_update_proposal, &settings, block_date)
-    }
-
-    #[cfg(test)]
     fn apply_update_vote(
         update_state: UpdateState,
         proposal_id: UpdateProposalId,
@@ -593,21 +572,24 @@ mod tests {
         // data
         let unknown_leader = TestGen::leader_pair();
         let block_date = BlockDate::first();
-        let proposal_id = TestGen::hash();
         let config_param = ConfigParam::SlotsPerEpoch(100);
         //setup
         let update_state = UpdateState::new();
         let settings = Settings::new();
 
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(config_param.clone())
+            .build();
+
+        let proposal_id = update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(unknown_leader.key())
+            .build();
+
         assert_eq!(
-            apply_update_proposal(
-                update_state,
-                proposal_id,
-                &config_param,
-                &unknown_leader,
-                &settings,
-                block_date,
-            ),
+            update_state.apply_proposal(&signed_update_proposal, &settings, block_date),
             Err(Error::BadProposer(proposal_id, unknown_leader.id()))
         );
     }
@@ -615,7 +597,6 @@ mod tests {
     #[test]
     fn apply_invalid_signed_proposal_should_return_error() {
         // data
-        let proposal_id = TestGen::hash();
         let block_date = BlockDate::first();
         let config_param = ConfigParam::SlotsPerEpoch(100);
         //setup
@@ -637,16 +618,13 @@ mod tests {
             .with_proposer_secret_key(proposer1.key())
             .build();
 
+        let proposal_id = signed_update_proposal.proposal.proposal.id();
+
         // corrupt signed proposal
         signed_update_proposal.proposal.proposer_id = proposer2.id();
 
         assert_eq!(
-            update_state.apply_proposal(
-                proposal_id,
-                &signed_update_proposal,
-                &settings,
-                block_date,
-            ),
+            update_state.apply_proposal(&signed_update_proposal, &settings, block_date,),
             Err(Error::BadProposalSignature(proposal_id, proposer2.id()))
         );
     }
@@ -654,7 +632,6 @@ mod tests {
     #[test]
     fn apply_duplicated_proposal_should_return_error() {
         // data
-        let proposal_id = TestGen::hash();
         let block_date = BlockDate::first();
         let config_param = ConfigParam::SlotsPerEpoch(100);
         //setup
@@ -666,25 +643,23 @@ mod tests {
         let proposer = &leaders[0];
         let settings = TestGen::settings(leaders.clone());
 
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            &config_param,
-            proposer,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying first proposal");
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(config_param.clone())
+            .build();
+
+        let proposal_id = update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying first proposal");
 
         assert_eq!(
-            apply_update_proposal(
-                update_state,
-                proposal_id,
-                &config_param,
-                proposer,
-                &settings,
-                block_date
-            ),
+            update_state.apply_proposal(&signed_update_proposal, &settings, block_date),
             Err(Error::DuplicateProposal(proposal_id))
         );
     }
@@ -692,7 +667,6 @@ mod tests {
     #[test]
     fn test_add_invalid_signed_vote_should_return_error() {
         let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
         let block_date = BlockDate::first();
         let config_param = ConfigParam::SlotsPerEpoch(100);
 
@@ -703,15 +677,20 @@ mod tests {
         let proposer2 = &leaders[1];
         let settings = TestGen::settings(leaders.clone());
 
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            &config_param,
-            proposer1,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying proposal");
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(config_param.clone())
+            .build();
+
+        let proposal_id = update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(proposer1.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying proposal");
 
         let mut signed_update_vote = UpdateVoteBuilder::new()
             .with_proposal_id(proposal_id)
@@ -730,7 +709,6 @@ mod tests {
     #[test]
     fn test_add_vote_for_non_existing_proposal_should_return_error() {
         let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
         let unknown_proposal_id = TestGen::hash();
         let block_date = BlockDate::first();
         let config_param = ConfigParam::SlotsPerEpoch(100);
@@ -741,15 +719,18 @@ mod tests {
         let settings = TestGen::settings(leaders.clone());
 
         // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            &config_param,
-            proposer,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying first proposal");
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(config_param.clone())
+            .build();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying first proposal");
 
         // Apply vote for unknown proposal
         assert_eq!(
@@ -761,7 +742,6 @@ mod tests {
     #[test]
     fn test_add_duplicated_vote_should_return_error() {
         let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
         let block_date = BlockDate::first();
         let config_param = ConfigParam::SlotsPerEpoch(100);
 
@@ -771,15 +751,20 @@ mod tests {
         let proposer = &leaders[0];
         let settings = TestGen::settings(leaders.clone());
 
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            &config_param,
-            proposer,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying proposal");
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(config_param.clone())
+            .build();
+
+        let proposal_id = update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying proposal");
 
         // Apply vote
         update_state = apply_update_vote(update_state, proposal_id, proposer, &settings)
@@ -795,7 +780,6 @@ mod tests {
     #[test]
     fn test_add_vote_from_unknown_voter_should_return_error() {
         let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
         let unknown_leader = TestGen::leader_pair();
         let block_date = BlockDate::first();
         let config_param = ConfigParam::SlotsPerEpoch(100);
@@ -806,15 +790,20 @@ mod tests {
         let proposer = &leaders[0];
         let settings = TestGen::settings(leaders.clone());
 
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            &config_param,
-            proposer,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying proposal");
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(config_param.clone())
+            .build();
+
+        let proposal_id = update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying proposal");
 
         // Apply vote for unknown leader
         assert_eq!(
@@ -826,22 +815,26 @@ mod tests {
     #[test]
     fn process_proposals_for_readonly_setting_should_return_error() {
         let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
         let proposer = TestGen::leader_pair();
         let block_date = BlockDate::first();
         let readonly_setting = ConfigParam::Discrimination(Discrimination::Test);
 
         let settings = TestGen::settings(vec![proposer.clone()]);
 
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            &readonly_setting,
-            &proposer,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying proposal");
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(readonly_setting.clone())
+            .build();
+
+        let proposal_id = update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying proposal");
 
         // Apply vote
         update_state = apply_update_vote(update_state, proposal_id, &proposer, &settings)
@@ -856,8 +849,6 @@ mod tests {
     #[test]
     pub fn process_proposal_is_by_id_ordered() {
         let mut update_state = UpdateState::new();
-        let first_proposal_id = TestGen::hash();
-        let second_proposal_id = TestGen::hash();
         let first_proposer = TestGen::leader_pair();
         let second_proposer = TestGen::leader_pair();
         let block_date = BlockDate::first();
@@ -866,16 +857,21 @@ mod tests {
 
         let settings = TestGen::settings(vec![first_proposer.clone(), second_proposer.clone()]);
 
-        // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            first_proposal_id,
-            &first_update,
-            &first_proposer,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying proposal");
+        // Apply first proposal
+        let first_update_proposal = ProposalBuilder::new()
+            .with_proposal_change(first_update.clone())
+            .build();
+
+        let first_proposal_id = first_update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(first_update_proposal)
+            .with_proposer_secret_key(first_proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying proposal");
 
         // Apply vote
         update_state =
@@ -887,16 +883,21 @@ mod tests {
             apply_update_vote(update_state, first_proposal_id, &second_proposer, &settings)
                 .expect("failed while applying vote");
 
-        // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            second_proposal_id,
-            &second_update,
-            &second_proposer,
-            &settings,
-            block_date,
-        )
-        .expect("failed while applying proposal");
+        // Apply second proposal
+        let second_update_proposal = ProposalBuilder::new()
+            .with_proposal_change(second_update.clone())
+            .build();
+
+        let second_proposal_id = second_update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(second_update_proposal)
+            .with_proposer_secret_key(second_proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, block_date)
+            .expect("failed while applying proposal");
 
         // Apply vote
         update_state =
@@ -928,8 +929,6 @@ mod tests {
     #[test]
     pub fn process_proposal_is_by_time_ordered() {
         let mut update_state = UpdateState::new();
-        let first_proposal_id = TestGen::hash();
-        let second_proposal_id = TestGen::hash();
         let first_proposer = TestGen::leader_pair();
         let second_proposer = TestGen::leader_pair();
         let first_proposal_block_date = BlockDate::first();
@@ -942,16 +941,25 @@ mod tests {
 
         let settings = TestGen::settings(vec![first_proposer.clone(), second_proposer.clone()]);
 
-        // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            first_proposal_id,
-            &first_update,
-            &first_proposer,
-            &settings,
-            first_proposal_block_date,
-        )
-        .expect("failed while applying proposal");
+        // Apply first proposal
+        let first_update_proposal = ProposalBuilder::new()
+            .with_proposal_change(first_update.clone())
+            .build();
+
+        let first_proposal_id = first_update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(first_update_proposal)
+            .with_proposer_secret_key(first_proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(
+                &signed_update_proposal,
+                &settings,
+                first_proposal_block_date,
+            )
+            .expect("failed while applying proposal");
 
         // Apply vote
         update_state =
@@ -963,16 +971,25 @@ mod tests {
             apply_update_vote(update_state, first_proposal_id, &second_proposer, &settings)
                 .expect("failed while applying vote");
 
-        // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            second_proposal_id,
-            &second_update,
-            &second_proposer,
-            &settings,
-            second_proposal_block_date,
-        )
-        .expect("failed while applying proposal");
+        // Apply second proposal
+        let second_update_proposal = ProposalBuilder::new()
+            .with_proposal_change(second_update.clone())
+            .build();
+
+        let second_proposal_id = second_update_proposal.id();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(second_update_proposal)
+            .with_proposer_secret_key(second_proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(
+                &signed_update_proposal,
+                &settings,
+                second_proposal_block_date,
+            )
+            .expect("failed while applying proposal");
 
         // Apply vote
         update_state =
@@ -1042,7 +1059,6 @@ mod tests {
         let proposal_expiration = expiry_block_data.proposal_expiration();
 
         let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
         let proposer = TestGen::leader_pair();
         let update = ConfigParam::SlotsPerEpoch(100);
 
@@ -1050,15 +1066,18 @@ mod tests {
         settings.proposal_expiration = proposal_expiration;
 
         // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            &update,
-            &proposer,
-            &settings,
-            proposal_date,
-        )
-        .expect("failed while applying proposal");
+        let update_proposal = ProposalBuilder::new()
+            .with_proposal_change(update.clone())
+            .build();
+
+        let signed_update_proposal = SignedProposalBuilder::new()
+            .with_proposal_update(update_proposal)
+            .with_proposer_secret_key(proposer.key())
+            .build();
+
+        update_state = update_state
+            .apply_proposal(&signed_update_proposal, &settings, proposal_date)
+            .expect("failed while applying proposal");
 
         let mut current_block_date = BlockDate::first();
 

@@ -1,4 +1,4 @@
-use crate::key::{make_signature, Hash};
+use crate::key::{make_signature};
 use crate::{
     config::ConfigParam,
     fee::LinearFee,
@@ -17,7 +17,6 @@ use std::{collections::HashMap, iter};
 pub struct UpdateProposalData {
     pub leaders: HashMap<BftLeaderId, SecretKey<Ed25519>>,
     pub proposal: SignedUpdateProposal,
-    pub proposal_id: Hash,
     pub votes: Vec<SignedUpdateVote>,
     pub block_signing_key: SecretKey<Ed25519>,
     pub update_successful: bool,
@@ -29,7 +28,7 @@ impl Debug for UpdateProposalData {
         f.debug_struct("UpdateProposalData")
             .field("leaders", &leaders)
             .field("proposal", &self.proposal)
-            .field("proposal_id", &self.proposal_id)
+            .field("proposal_id", &self.proposal.proposal().proposal().id())
             .field("votes", &self.votes)
             .finish()
     }
@@ -79,13 +78,12 @@ impl Arbitrary for UpdateProposalData {
             ))
             .build();
 
+        let proposal_id = update_proposal.id();
+
         let signed_update_proposal = SignedProposalBuilder::new()
             .with_proposal_update(update_proposal)
             .with_proposer_secret_key(proposer_secret_key.clone())
             .build();
-
-        //generate proposal header
-        let proposal_id = Hash::arbitrary(gen);
 
         // create signed votes
         let signed_votes: Vec<SignedUpdateVote> = voters
@@ -105,7 +103,6 @@ impl Arbitrary for UpdateProposalData {
         UpdateProposalData {
             leaders,
             proposal: signed_update_proposal,
-            proposal_id,
             votes: signed_votes,
             block_signing_key: sk,
             update_successful,
