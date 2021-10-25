@@ -3,7 +3,7 @@ use chain_crypto::{Ed25519, SecretKey};
 use crate::{
     config::ConfigParam,
     fragment::config::ConfigParams,
-    key::{signed_new, BftLeaderId},
+    key::{make_signature, BftLeaderId},
     update::{
         SignedUpdateProposal, SignedUpdateVote, UpdateProposal, UpdateProposalId,
         UpdateProposalWithProposer, UpdateVote,
@@ -72,11 +72,10 @@ impl SignedProposalBuilder {
 
     pub fn build(&self) -> SignedUpdateProposal {
         SignedUpdateProposal::new(
-            signed_new(
+            make_signature(
                 &self.proposer_secret_key.clone().unwrap(),
-                self.update_proposal.clone().unwrap(),
-            )
-            .sig,
+                &self.update_proposal.clone().unwrap(),
+            ),
             UpdateProposalWithProposer::new(
                 self.update_proposal.clone().unwrap(),
                 BftLeaderId(self.proposer_secret_key.clone().unwrap().to_public()),
@@ -115,7 +114,7 @@ impl UpdateVoteBuilder {
             BftLeaderId(self.voter_secret_key.clone().unwrap().to_public()),
         );
         SignedUpdateVote::new(
-            signed_new(&self.voter_secret_key.clone().unwrap(), update_vote.clone()).sig,
+            make_signature(&self.voter_secret_key.clone().unwrap(), &update_vote),
             update_vote,
         )
     }

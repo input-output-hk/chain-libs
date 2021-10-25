@@ -4,7 +4,7 @@ use crate::fragment::config::ConfigParams;
 use crate::key::{deserialize_signature, serialize_signature, verify_signature, BftLeaderId};
 use crate::setting::{ActiveSlotsCoeffError, Settings};
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
-use chain_core::property;
+use chain_core::property::{self, Serialize};
 use chain_crypto::{Ed25519, Signature, Verification};
 use std::collections::{HashMap, HashSet};
 
@@ -258,6 +258,14 @@ impl UpdateProposal {
         Self { changes }
     }
 
+    pub fn id(&self) -> UpdateProposalId {
+        UpdateProposalId::hash_bytes(
+            &self
+                .serialize_as_vec()
+                .expect("memory serialize is expected to just work"),
+        )
+    }
+
     pub fn changes(&self) -> &ConfigParams {
         &self.changes
     }
@@ -451,7 +459,7 @@ impl Readable for SignedUpdateVote {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-    use crate::key::signed_new;
+    use crate::key::make_signature;
     #[cfg(test)]
     use crate::testing::serialization::serialization_bijection;
     #[cfg(test)]
@@ -502,7 +510,7 @@ mod tests {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let sk: SecretKey<Ed25519> = Arbitrary::arbitrary(g);
             let proposal: UpdateProposalWithProposer = Arbitrary::arbitrary(g);
-            let sign = signed_new(&sk, proposal.proposal.clone()).sig;
+            let sign = make_signature(&sk, &proposal.proposal);
             Self { sign, proposal }
         }
     }
@@ -520,7 +528,7 @@ mod tests {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let sk: SecretKey<Ed25519> = Arbitrary::arbitrary(g);
             let vote: UpdateVote = Arbitrary::arbitrary(g);
-            let sign = signed_new(&sk, vote.clone()).sig;
+            let sign = make_signature(&sk, &vote);
             Self { sign, vote }
         }
     }

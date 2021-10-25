@@ -1,7 +1,7 @@
 use crate::{
     config::ConfigParam,
     fragment::ConfigParams,
-    key::{signed_new, BftLeaderId},
+    key::{make_signature, BftLeaderId},
     update::{
         SignedUpdateProposal, SignedUpdateVote, UpdateProposal, UpdateProposalId,
         UpdateProposalWithProposer, UpdateVote,
@@ -24,7 +24,7 @@ pub fn build_proposal(
 
     //sign proposal
     SignedUpdateProposal::new(
-        signed_new(&proposer_secret_key, update_proposal).sig,
+        make_signature(&proposer_secret_key, &update_proposal),
         update_proposal_with_proposer,
     )
 }
@@ -35,7 +35,7 @@ pub fn build_vote(
 ) -> SignedUpdateVote {
     let update_vote = UpdateVote::new(proposal_id, BftLeaderId(leader_secret_key.to_public()));
     SignedUpdateVote::new(
-        signed_new(&leader_secret_key, update_vote.clone()).sig,
+        make_signature(&leader_secret_key, &update_vote),
         update_vote,
     )
 }

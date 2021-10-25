@@ -1,4 +1,4 @@
-use crate::key::{signed_new, Hash};
+use crate::key::{make_signature, Hash};
 use crate::{
     config::ConfigParam,
     fee::LinearFee,
@@ -93,7 +93,7 @@ impl Arbitrary for UpdateProposalData {
             .map(|(id, _)| {
                 let update_vote = UpdateVote::new(proposal_id, id.clone());
                 SignedUpdateVote::new(
-                    signed_new(proposer_secret_key, update_vote.clone()).sig,
+                    make_signature(proposer_secret_key, &update_vote),
                     update_vote,
                 )
             })
