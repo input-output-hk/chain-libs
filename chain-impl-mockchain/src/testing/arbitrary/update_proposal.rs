@@ -1,4 +1,4 @@
-use crate::key::{make_signature};
+use crate::key::make_signature;
 use crate::{
     config::ConfigParam,
     fee::LinearFee,
