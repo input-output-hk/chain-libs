@@ -170,7 +170,7 @@ impl<T> ByteBuilder<T> {
     /// The following call:
     ///
     /// ```no_run
-    /// byte_builder.option_or_else(value, none_call, some_call, none_call);
+    /// byte_builder.option_or_else(value, none_call, some_call);
     /// ```
     ///
     /// equivalent to the construction:
