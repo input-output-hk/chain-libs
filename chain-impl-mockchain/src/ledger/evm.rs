@@ -4,8 +4,8 @@ use super::Error;
 use crate::smartcontract::Contract;
 #[cfg(feature = "evm")]
 use chain_evm::{
-    machine::{BlockCoinBase, Config, Environment, Gas, GasPrice, Origin, Value, VirtualMachine},
-    state::{AccountTrie, Balance, ByteCode},
+    machine::{Config, Environment, VirtualMachine},
+    state::{AccountTrie, Balance},
 };
 
 #[derive(Default, Clone, PartialEq, Eq)]
@@ -27,22 +27,20 @@ impl Ledger {
     ) -> Result<(), Error> {
         match contract {
             Contract::EVM {
-                from: origin,
-                to: destination,
-                gas,
-                gas_price,
+                sender: _,
+                address,
+                gas: _,
+                gas_price: _,
                 value,
-                data,
+                data: _,
             } => {
                 //
-                let _vm = self.virtual_machine(&config, environment);
+                let _vm = self.virtual_machine(config, environment);
 
-                let _destination = destination.unwrap_or_default();
+                let _address = address.unwrap_or_default();
                 let _value = value.unwrap_or_default();
 
                 todo!("execute the contract and update ledger.evm.accounts");
-
-                Ok(())
             }
         }
     }
