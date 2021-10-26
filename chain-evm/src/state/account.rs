@@ -18,7 +18,7 @@ pub struct Account {
     /// Account data storage.
     pub storage: Storage,
     /// EVM bytecode of this account.
-    pub code: Box<[u8]>,
+    pub code: ByteCode,
 }
 
 impl Account {

@@ -1,7 +1,11 @@
 #[cfg(feature = "evm")]
+use super::Error;
+#[cfg(feature = "evm")]
+use crate::smartcontract::Contract;
+#[cfg(feature = "evm")]
 use chain_evm::{
-    machine::{Config, Environment, VirtualMachine},
-    state::{AccountTrie, Balance},
+    machine::{BlockCoinBase, Config, Environment, Gas, GasPrice, Origin, Value, VirtualMachine},
+    state::{AccountTrie, Balance, ByteCode},
 };
 
 #[derive(Default, Clone, PartialEq, Eq)]
@@ -14,6 +18,35 @@ impl Ledger {
     pub fn new() -> Self {
         Default::default()
     }
+    #[cfg(feature = "evm")]
+    pub fn deploy_contract<'runtime>(
+        &mut self,
+        contract: Contract,
+        config: &'runtime Config,
+        environment: &'runtime Environment,
+    ) -> Result<(), Error> {
+        match contract {
+            Contract::EVM {
+                from: origin,
+                to: destination,
+                gas,
+                gas_price,
+                value,
+                data,
+            } => {
+                //
+                let _vm = self.virtual_machine(&config, environment);
+
+                let _destination = destination.unwrap_or_default();
+                let _value = value.unwrap_or_default();
+
+                todo!("execute the contract and update ledger.evm.accounts");
+
+                Ok(())
+            }
+        }
+    }
+
     #[cfg(feature = "evm")]
     pub fn virtual_machine<'runtime>(
         &self,
