@@ -508,7 +508,7 @@ mod tests {
 
         let bb: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -522,8 +522,8 @@ mod tests {
         let contract = Contract::read(&mut readbuf).unwrap();
 
         let expected = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -533,8 +533,8 @@ mod tests {
         assert_eq!(contract, expected);
 
         // Example with contract that has data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -549,7 +549,7 @@ mod tests {
 
         let bb: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -564,8 +564,8 @@ mod tests {
         let contract = Contract::read(&mut readbuf).unwrap();
 
         let expected = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -575,8 +575,8 @@ mod tests {
         assert_eq!(contract, expected);
 
         // Example with contract that says it has data, but has no data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -591,7 +591,7 @@ mod tests {
 
         let bb: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -605,8 +605,8 @@ mod tests {
         let contract = Contract::read(&mut readbuf).unwrap();
 
         let expected = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -636,8 +636,8 @@ mod tests {
         use typed_bytes::ByteArray;
 
         // Example with contract that has no data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -645,7 +645,7 @@ mod tests {
 
         let expected: ByteArray<Contract> = ByteBuilder::new()
             .u8(0)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(0)
             .u8(1)
             .bytes(&<[u8; 32]>::from(gas))
@@ -656,8 +656,8 @@ mod tests {
             .finalize();
 
         let contract = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -670,8 +670,8 @@ mod tests {
         );
 
         // Example with contract that says it has data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -686,7 +686,7 @@ mod tests {
 
         let expected: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -698,8 +698,8 @@ mod tests {
             .finalize();
 
         let contract = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -712,8 +712,8 @@ mod tests {
         );
 
         // Example with contract that says it has data, but has no data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -728,7 +728,7 @@ mod tests {
 
         let expected: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -739,8 +739,8 @@ mod tests {
             .finalize();
 
         let contract = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
