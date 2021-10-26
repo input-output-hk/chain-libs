@@ -16,7 +16,7 @@ use std::{
 
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic, Log},
-    executor::{MemoryStackState, StackExecutor, StackSubstateMetadata},
+    executor::{MemoryStackState, Precompile, StackExecutor, StackSubstateMetadata},
     Context, Runtime,
 };
 use primitive_types::{H160, H256, U256};
@@ -90,6 +90,11 @@ pub struct VirtualMachine<'runtime> {
     logs: Vec<Log>,
 }
 
+fn precompile() -> Precompile {
+    // TODO: provide adequate precompiles
+    Default::default()
+}
+
 impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
     pub fn new(config: &'runtime Config, environment: &'runtime Environment) -> Self {
@@ -122,7 +127,7 @@ impl<'runtime> VirtualMachine<'runtime> {
     ) -> StackExecutor<'_, MemoryStackState<'_, '_, VirtualMachine>> {
         let metadata = StackSubstateMetadata::new(gas_limit, self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
-        StackExecutor::new(memory_stack_state, self.config)
+        StackExecutor::new_with_precompile(memory_stack_state, self.config, precompile())
     }
 
     /// Returns an initialized instance of `evm::Runtime`.
