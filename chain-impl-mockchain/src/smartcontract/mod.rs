@@ -20,10 +20,10 @@ pub enum Contract {
     /// Deploys a smart contract from a given `AccountAddress`, as
     /// perfomed by the `eth_sendTransaction` JSON-RPC method.
     EVM {
-        /// The address the transaction is send from.
-        from: AccountAddress,
+        /// The address from which the transaction is sent. Also referred to as `caller`.
+        sender: AccountAddress,
         /// (optional when creating new contract) The address the transaction is directed to.
-        to: Option<AccountAddress>,
+        address: Option<AccountAddress>,
         /// (optional, default: To-Be-Determined) Integer of the gas provided for the transaction execution.
         gas: Option<Gas>,
         /// (optional, default: To-Be-Determined) Integer of the gasPrice used for each payed gas.
@@ -41,16 +41,16 @@ impl Contract {
         match self {
             #[cfg(feature = "evm")]
             Contract::EVM {
-                from,
-                to,
+                sender,
+                address,
                 gas,
                 gas_price,
                 value,
                 data,
             } => {
                 //
-                let bb = _bb.u8(0).bytes(from.as_fixed_bytes());
-                let bb = if let Some(to_addr) = to {
+                let bb = _bb.u8(0).bytes(sender.as_fixed_bytes());
+                let bb = if let Some(to_addr) = address {
                     bb.u8(1).bytes(to_addr.as_fixed_bytes())
                 } else {
                     bb.u8(0)
@@ -102,8 +102,8 @@ impl Readable for Contract {
             #[cfg(feature = "evm")]
             0 => {
                 // EVM Contract
-                let from = AccountAddress::from_slice(buf.get_slice(20)?);
-                let to = match buf.get_u8()? {
+                let sender = AccountAddress::from_slice(buf.get_slice(20)?);
+                let address = match buf.get_u8()? {
                     0 => None,
                     1 => {
                         let a = AccountAddress::from_slice(buf.get_slice(20)?);
@@ -167,8 +167,8 @@ impl Readable for Contract {
                     Err(e)
                 } else {
                     Ok(Contract::EVM {
-                        from,
-                        to,
+                        sender,
+                        address,
                         gas,
                         gas_price,
                         value,
@@ -217,8 +217,8 @@ mod tests {
     #[test]
     fn test_readable_evm_contract() {
         // Example with contract that has no data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -233,7 +233,7 @@ mod tests {
 
         let bb: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -247,8 +247,8 @@ mod tests {
         let contract = Contract::read(&mut readbuf).unwrap();
 
         let expected = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -258,8 +258,8 @@ mod tests {
         assert_eq!(contract, expected);
 
         // Example with contract that has data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -274,7 +274,7 @@ mod tests {
 
         let bb: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -289,8 +289,8 @@ mod tests {
         let contract = Contract::read(&mut readbuf).unwrap();
 
         let expected = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -300,8 +300,8 @@ mod tests {
         assert_eq!(contract, expected);
 
         // Example with contract that says it has data, but has no data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -316,7 +316,7 @@ mod tests {
 
         let bb: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -330,8 +330,8 @@ mod tests {
         let contract = Contract::read(&mut readbuf).unwrap();
 
         let expected = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -361,8 +361,8 @@ mod tests {
         use typed_bytes::ByteArray;
 
         // Example with contract that has no data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -370,7 +370,7 @@ mod tests {
 
         let expected: ByteArray<Contract> = ByteBuilder::new()
             .u8(0)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(0)
             .u8(1)
             .bytes(&<[u8; 32]>::from(gas))
@@ -381,8 +381,8 @@ mod tests {
             .finalize();
 
         let contract = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -395,8 +395,8 @@ mod tests {
         );
 
         // Example with contract that says it has data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -411,7 +411,7 @@ mod tests {
 
         let expected: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -423,8 +423,8 @@ mod tests {
             .finalize();
 
         let contract = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
@@ -437,8 +437,8 @@ mod tests {
         );
 
         // Example with contract that says it has data, but has no data
-        let from = AccountAddress::random();
-        let to = None;
+        let sender = AccountAddress::random();
+        let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
         let value = None;
@@ -453,7 +453,7 @@ mod tests {
 
         let expected: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
-            .bytes(from.as_fixed_bytes())
+            .bytes(sender.as_fixed_bytes())
             .u8(has_to)
             .u8(has_gas)
             .bytes(&<[u8; 32]>::from(gas))
@@ -464,8 +464,8 @@ mod tests {
             .finalize();
 
         let contract = Contract::EVM {
-            from,
-            to,
+            sender,
+            address,
             gas: Some(gas),
             gas_price: Some(gas_price),
             value,
