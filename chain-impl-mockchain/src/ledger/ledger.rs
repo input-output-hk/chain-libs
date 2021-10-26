@@ -16,7 +16,6 @@ use crate::fee::{FeeAlgorithm, LinearFee};
 use crate::fragment::{BlockContentHash, BlockContentSize, Contents, Fragment, FragmentId};
 use crate::rewards;
 use crate::setting::ActiveSlotsCoeffError;
-use crate::smartcontract::Contract;
 use crate::stake::{
     PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeControl, StakeDistribution,
 };
@@ -512,6 +511,10 @@ impl Ledger {
                         let config = &ledger.settings.evm_params.config.into();
                         let environment = &ledger.settings.evm_params.environment;
                         ledger.evm.deploy_contract(contract, config, environment)?;
+                    }
+                    #[cfg(not(feature = "evm"))]
+                    {
+                        let _ = tx;
                     }
                 }
             }
