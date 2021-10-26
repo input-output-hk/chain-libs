@@ -145,6 +145,7 @@ impl From<EvmConfig> for Config {
     fn from(other: EvmConfig) -> Config {
         match other {
             EvmConfig::Istanbul => Config::istanbul(),
+            EvmConfig::Berlin => Config::berlin(),
         }
     }
 }
