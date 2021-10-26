@@ -126,6 +126,8 @@ pub struct EvmConfigParams {
 pub enum EvmConfig {
     /// Configuration for the `Istanbul` fork.
     Istanbul = 0,
+    /// Configuration for the `Berlin` fork.
+    Berlin = 1,
 }
 
 #[cfg(feature = "evm")]
@@ -133,6 +135,7 @@ impl From<EvmConfig> for Config {
     fn from(other: EvmConfig) -> Config {
         match other {
             EvmConfig::Istanbul => Config::istanbul(),
+            EvmConfig::Berlin => Config::berlin(),
         }
     }
 }
@@ -141,7 +144,7 @@ impl From<EvmConfig> for Config {
 impl Default for EvmConfigParams {
     fn default() -> Self {
         EvmConfigParams {
-            config: EvmConfig::Istanbul,
+            config: EvmConfig::Berlin,
             environment: Environment {
                 gas_price: Default::default(),
                 origin: Default::default(),
@@ -846,9 +849,12 @@ impl ConfigParamVariant for EvmConfigParams {
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
         let mut rb = ReadBuf::from(payload);
-        // Read Config
+
+        // Read EvmConfig and match hard fork variant
+        use EvmConfig::*;
         let config = match rb.get_u8()? {
-            n if n == EvmConfig::Istanbul as u8 => EvmConfig::Istanbul,
+            n if n == Istanbul as u8 => Istanbul,
+            n if n == Berlin as u8 => Berlin,
             _ => return Err(Error::InvalidTag),
         };
 
@@ -1018,7 +1024,7 @@ mod test {
     impl Arbitrary for EvmConfigParams {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             Self {
-                config: EvmConfig::Istanbul,
+                config: EvmConfig::Berlin,
                 environment: Environment {
                     gas_price: u64::arbitrary(g).into(),
                     origin: Origin::random(),
