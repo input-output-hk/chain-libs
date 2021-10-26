@@ -16,7 +16,7 @@ rand_core = "0.6"
 thiserror = "1.0"
 
 [dependencies.tonic]
-version = "0.5.2"
+version = "0.6.0"
 default-features = false
 features = ["codegen", "prost"]
 
