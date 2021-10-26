@@ -4,8 +4,8 @@ use super::Error;
 use crate::smartcontract::Contract;
 #[cfg(feature = "evm")]
 use chain_evm::{
-    machine::{Config, Environment, VirtualMachine},
-    state::{AccountTrie, Balance},
+    machine::{BlockCoinBase, Config, Environment, Gas, GasPrice, Origin, Value, VirtualMachine},
+    state::{AccountTrie, Balance, ByteCode},
 };
 
 #[derive(Default, Clone, PartialEq, Eq)]
