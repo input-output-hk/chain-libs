@@ -508,29 +508,10 @@ impl Ledger {
                     #[cfg(feature = "evm")]
                     {
                         // WIP: deploying contract
-                        match tx.as_slice().payload().into_payload() {
-                            Contract::EVM {
-                                from: origin,
-                                to: destination,
-                                gas,
-                                gas_price,
-                                value,
-                                data,
-                            } => {
-                                //
-                                let destination = destination.unwrap_or_default();
-                                let value = value.unwrap_or_default();
-                                // 1. get settings in ledger
-                                // 2. declare config, and block environment
-                                // 3. instantiate virtual machine with a clone of the ledger state
-                                let config = ledger.settings.evm_params.config.into();
-                                let environment = &ledger.settings.evm_params.environment;
-                                let _vm = ledger.evm.virtual_machine(&config, environment);
-                                // 4. deploy contract
-                                // 5. update ledger state with the VM state,
-                                todo!("execute the contract and update ledger.evm.accounts");
-                            }
-                        }
+                        let contract = tx.as_slice().payload().into_payload();
+                        let config = &ledger.settings.evm_params.config.into();
+                        let environment = &ledger.settings.evm_params.environment;
+                        ledger.evm.deploy_contract(contract, config, environment)?;
                     }
                 }
             }
