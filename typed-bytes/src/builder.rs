@@ -157,7 +157,7 @@ impl<T> ByteBuilder<T> {
     /// the bytebuilder, otherwise just return the bytebuilder
     pub fn option<F, V>(self, value: Option<V>, f: F) -> Self
     where
-        F: Fn(Self, V) -> Self,
+        F: FnOnce(Self, V) -> Self,
     {
         self.option_or_else(value, |bb| bb, f)
     }
