@@ -184,8 +184,8 @@ impl<T> ByteBuilder<T> {
     /// ```
     pub fn option_or_else<F, G, V>(self, value: Option<V>, default: G, f: F) -> Self
     where
-        F: Fn(Self, V) -> Self,
-        G: Fn(Self) -> Self,
+        F: FnOnce(Self, V) -> Self,
+        G: FnOnce(Self) -> Self,
     {
         match value {
             None => default(self),
