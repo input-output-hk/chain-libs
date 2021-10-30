@@ -169,13 +169,13 @@ impl<T> ByteBuilder<T> {
     ///
     /// The following call:
     ///
-    /// ```no_run
+    /// ```ignore
     /// byte_builder.option_or_else(value, none_call, some_call);
     /// ```
     ///
     /// equivalent to the construction:
     ///
-    /// ```no_run
+    /// ```ignore
     /// if let Some(value) = value {
     ///    some_call(byte_builder, value)
     /// } else {
