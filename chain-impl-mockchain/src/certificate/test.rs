@@ -1,6 +1,7 @@
 use super::*;
 use crate::accounting::account::DelegationType;
 use crate::block::BlockDate;
+use crate::fragment::ConfigParams;
 use crate::ledger::governance::TreasuryGovernanceAction;
 use crate::rewards::TaxType;
 use crate::vote;
@@ -89,6 +90,25 @@ impl Arbitrary for OwnerStakeDelegation {
         Self {
             delegation: Arbitrary::arbitrary(g),
         }
+    }
+}
+
+impl Arbitrary for UpdateProposal {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        let mut changes = ConfigParams::new();
+        for _ in 0..u8::arbitrary(g) % 10 {
+            changes.push(Arbitrary::arbitrary(g));
+        }
+        let proposer_id = UpdateProposerId::arbitrary(g);
+        Self::new(changes, proposer_id)
+    }
+}
+
+impl Arbitrary for UpdateVote {
+    fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        let proposal_id = UpdateProposalId::arbitrary(g);
+        let voter_id = UpdateVoterId::arbitrary(g);
+        Self::new(proposal_id, voter_id)
     }
 }
 
