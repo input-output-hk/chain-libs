@@ -943,9 +943,9 @@ mod test {
     #[test]
     fn to_and_from_payload_evm_config_params() {
         let evm_params = EvmConfigParams::default();
-        let payload = evm_params.to_payload();
-        let other_evm = EvmConfigParams::from_payload(&payload).unwrap();
-        assert_eq!(evm_params, other_evm);
+        let payload = Box::new(evm_params.clone()).to_payload();
+        let other_evm = Box::<EvmConfigParams>::from_payload(&payload).unwrap();
+        assert_eq!(evm_params, *other_evm);
     }
 
     quickcheck! {
