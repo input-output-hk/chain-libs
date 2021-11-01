@@ -9,14 +9,13 @@
 //! ## StackState<'config>
 //!
 
-use std::{
-    rc::Rc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::BTreeMap;
+use std::rc::Rc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic, Log},
-    executor::{MemoryStackState, Precompile, StackExecutor, StackSubstateMetadata},
+    executor::{MemoryStackState, PrecompileFn, StackExecutor, StackSubstateMetadata},
     Context, Runtime,
 };
 use primitive_types::{H160, H256, U256};
@@ -80,17 +79,20 @@ pub type Value = U256;
 /// The context of the EVM runtime
 pub type RuntimeContext = Context;
 
+type Precompiles = BTreeMap<H160, PrecompileFn>;
+
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
 pub struct VirtualMachine<'runtime> {
     /// EVM Block Configuration.
     config: &'runtime Config,
     environment: &'runtime Environment,
+    precompiles: Precompiles,
     state: AccountTrie,
     logs: Vec<Log>,
 }
 
-fn precompile() -> Precompile {
+fn precompiles() -> Precompiles {
     // TODO: provide adequate precompiles
     Default::default()
 }
@@ -98,12 +100,7 @@ fn precompile() -> Precompile {
 impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
     pub fn new(config: &'runtime Config, environment: &'runtime Environment) -> Self {
-        Self {
-            config,
-            environment,
-            state: Default::default(),
-            logs: Default::default(),
-        }
+        Self::new_with_state(config, environment, Default::default())
     }
 
     /// Creates a new `VirtualMachine` given configuration params and a given account storage.
@@ -115,6 +112,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         Self {
             config,
             environment,
+            precompiles: precompiles(),
             state,
             logs: Default::default(),
         }
@@ -124,10 +122,11 @@ impl<'runtime> VirtualMachine<'runtime> {
     pub fn executor(
         &self,
         gas_limit: u64,
-    ) -> StackExecutor<'_, MemoryStackState<'_, '_, VirtualMachine>> {
+    ) -> StackExecutor<'_, '_, MemoryStackState<'_, '_, VirtualMachine>, BTreeMap<H160, PrecompileFn>>
+    {
         let metadata = StackSubstateMetadata::new(gas_limit, self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
-        StackExecutor::new_with_precompile(memory_stack_state, self.config, precompile())
+        StackExecutor::new_with_precompiles(memory_stack_state, self.config, &self.precompiles)
     }
 
     /// Returns an initialized instance of `evm::Runtime`.
@@ -173,6 +172,9 @@ impl<'runtime> Backend for VirtualMachine<'runtime> {
     }
     fn block_gas_limit(&self) -> U256 {
         self.environment.block_gas_limit
+    }
+    fn block_base_fee_per_gas(&self) -> U256 {
+        self.environment.block_base_fee_per_gas
     }
     fn chain_id(&self) -> U256 {
         self.environment.chain_id
@@ -281,6 +283,7 @@ mod tests {
             block_timestamp: Default::default(),
             block_difficulty: Default::default(),
             block_gas_limit: Default::default(),
+            block_base_fee_per_gas: Default::default(),
         };
 
         let vm = VirtualMachine::new(&config, &environment);

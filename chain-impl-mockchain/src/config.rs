@@ -155,6 +155,7 @@ impl Default for EvmConfigParams {
                 block_timestamp: Default::default(),
                 block_difficulty: Default::default(),
                 block_gas_limit: Default::default(),
+                block_base_fee_per_gas: Default::default(),
             },
         }
     }
@@ -843,7 +844,8 @@ impl ConfigParamVariant for EvmConfigParams {
             .bytes(env.block_coinbase.as_fixed_bytes())
             .bytes(&<[u8; 32]>::from(env.block_timestamp))
             .bytes(&<[u8; 32]>::from(env.block_difficulty))
-            .bytes(&<[u8; 32]>::from(env.block_gas_limit));
+            .bytes(&<[u8; 32]>::from(env.block_gas_limit))
+            .bytes(&<[u8; 32]>::from(env.block_base_fee_per_gas));
         bb.finalize_as_vec()
     }
 
@@ -874,6 +876,7 @@ impl ConfigParamVariant for EvmConfigParams {
         let block_timestamp = rb.get_slice(32)?.into();
         let block_difficulty = rb.get_slice(32)?.into();
         let block_gas_limit = rb.get_slice(32)?.into();
+        let block_base_fee_per_gas = rb.get_slice(32)?.into();
 
         let environment = Environment {
             gas_price,
@@ -885,6 +888,7 @@ impl ConfigParamVariant for EvmConfigParams {
             block_timestamp,
             block_difficulty,
             block_gas_limit,
+            block_base_fee_per_gas,
         };
 
         Ok(EvmConfigParams {
@@ -1035,6 +1039,7 @@ mod test {
                     block_timestamp: u64::arbitrary(g).into(),
                     block_difficulty: u64::arbitrary(g).into(),
                     block_gas_limit: u64::arbitrary(g).into(),
+                    block_base_fee_per_gas: u64::arbitrary(g).into(),
                 },
             }
         }
