@@ -124,6 +124,8 @@ impl ConfigBuilder {
                     block_difficulty: BlockDifficulty::from(131_072),
                     // FIXME: need to set a real limit
                     block_gas_limit: GasLimit::max_value(),
+                    // FIXME: adequate base fee
+                    block_base_fee_per_gas: 1u32.into(),
                 },
             },
         }
