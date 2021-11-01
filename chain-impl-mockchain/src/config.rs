@@ -90,7 +90,7 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
-    EvmParams(EvmConfigParams),
+    EvmParams(Box<EvmConfigParams>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -833,7 +833,7 @@ impl ConfigParamVariant for CommitteeId {
 }
 
 #[cfg(feature = "evm")]
-impl ConfigParamVariant for EvmConfigParams {
+impl ConfigParamVariant for Box<EvmConfigParams> {
     fn to_payload(&self) -> Vec<u8> {
         let bb: ByteBuilder<EvmConfigParams> = ByteBuilder::new().u8(self.config as u8);
         let env = &self.environment;
@@ -901,10 +901,10 @@ impl ConfigParamVariant for EvmConfigParams {
             block_base_fee_per_gas,
         };
 
-        Ok(EvmConfigParams {
+        Ok(Box::new(EvmConfigParams {
             config,
             environment,
-        })
+        }))
     }
 }
 

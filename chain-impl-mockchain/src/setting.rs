@@ -247,7 +247,7 @@ impl Settings {
                 }
                 #[cfg(feature = "evm")]
                 ConfigParam::EvmParams(evm_config_params) => {
-                    new_state.evm_params = evm_config_params.clone();
+                    new_state.evm_params = *evm_config_params.clone();
                 }
             }
         }
@@ -294,7 +294,7 @@ impl Settings {
             None => (),
         };
         #[cfg(feature = "evm")]
-        params.push(ConfigParam::EvmParams(self.evm_params.clone()));
+        params.push(ConfigParam::EvmParams(Box::new(self.evm_params.clone())));
 
         debug_assert_eq!(self, &Settings::new().apply(&params).unwrap());
 
