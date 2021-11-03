@@ -11,7 +11,6 @@
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic, Log},
@@ -38,19 +37,7 @@ pub type BlockHashes = Vec<BlockHash>;
 pub type BlockNumber = U256;
 
 /// A block's timestamp.
-pub struct BlockTimestamp;
-
-impl BlockTimestamp {
-    /// Returns the time since `UNIX_EPOCH` as `U256`
-    pub fn now() -> U256 {
-        U256::from(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        )
-    }
-}
+pub type BlockTimestamp = U256;
 
 /// A block's difficulty.
 pub type BlockDifficulty = U256;
