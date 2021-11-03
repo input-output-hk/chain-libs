@@ -121,7 +121,7 @@ impl ConfigBuilder {
                     block_hashes: BlockHashes::new(),
                     block_number: BlockNumber::zero(),
                     block_coinbase: BlockCoinBase::zero(),
-                    block_timestamp: BlockTimestamp::now(),
+                    block_timestamp: BlockTimestamp::zero() + 1,
                     block_difficulty: BlockDifficulty::from(131_072),
                     // FIXME: need to set a real limit
                     block_gas_limit: GasLimit::max_value(),
