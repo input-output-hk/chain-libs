@@ -141,16 +141,6 @@ impl From<EvmConfig> for Config {
 }
 
 #[cfg(feature = "evm")]
-impl From<EvmConfig> for Config {
-    fn from(other: EvmConfig) -> Config {
-        match other {
-            EvmConfig::Istanbul => Config::istanbul(),
-            EvmConfig::Berlin => Config::berlin(),
-        }
-    }
-}
-
-#[cfg(feature = "evm")]
 impl Default for EvmConfigParams {
     fn default() -> Self {
         EvmConfigParams {
