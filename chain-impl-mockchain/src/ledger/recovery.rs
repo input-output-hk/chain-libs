@@ -40,7 +40,6 @@ use super::{Entry, EntryOwned};
 use crate::account::AccountAlg;
 use crate::accounting::account::{
     AccountState, DelegationRatio, DelegationType, LastRewards, SpendingCounter,
-    SpendingCounterIncreasing,
 };
 use crate::certificate::{PoolId, PoolRegistration, Proposal, Proposals, VoteAction, VotePlan};
 use crate::config::ConfigParam;
@@ -161,43 +160,11 @@ fn unpack_account_identifier<R: std::io::BufRead>(
     }
 }
 
-fn pack_spending_strategy<W: std::io::Write>(
-    spending_strategy: &SpendingCounterIncreasing,
-    codec: &mut Codec<W>,
-) -> Result<(), std::io::Error> {
-    let counters = spending_strategy.get_valid_counters();
-    for counter in counters {
-        codec.put_u32(counter.into())?;
-    }
-    Ok(())
-}
-
-fn unpack_spending_strategy<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<SpendingCounterIncreasing, std::io::Error> {
-    let mut counters = Vec::new();
-    for _ in 0..SpendingCounterIncreasing::LANES {
-        let counter = SpendingCounter(codec.get_u32()?);
-        counters.push(counter);
-    }
-    let got_length = counters.len();
-    SpendingCounterIncreasing::new_from_counters(counters).ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "wrong numbers of lanes, expecting {} but got {}",
-                SpendingCounterIncreasing::LANES,
-                got_length,
-            ),
-        )
-    })
-}
-
 fn pack_account_state<W: std::io::Write>(
     account_state: &AccountState<()>,
     codec: &mut Codec<W>,
 ) -> Result<(), std::io::Error> {
-    pack_spending_strategy(&account_state.spending, codec)?;
+    codec.put_u32(account_state.counter.0)?;
     pack_delegation_type(&account_state.delegation, codec)?;
     codec.put_u64(account_state.value.0)?;
     pack_last_rewards(&account_state.last_rewards, codec)?;
@@ -207,12 +174,12 @@ fn pack_account_state<W: std::io::Write>(
 fn unpack_account_state<R: std::io::BufRead>(
     codec: &mut Codec<R>,
 ) -> Result<AccountState<()>, std::io::Error> {
-    let spending = unpack_spending_strategy(codec)?;
+    let counter = codec.get_u32()?;
     let delegation = unpack_delegation_type(codec)?;
     let value = codec.get_u64()?;
     let last_rewards = unpack_last_rewards(codec)?;
     Ok(AccountState {
-        spending,
+        counter: SpendingCounter(counter),
         delegation,
         value: Value(value),
         last_rewards,

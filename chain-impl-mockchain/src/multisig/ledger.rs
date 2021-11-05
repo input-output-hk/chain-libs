@@ -111,22 +111,20 @@ impl Ledger {
     pub fn remove_value(
         &self,
         identifier: &Identifier,
-        spending_counter: SpendingCounter,
         value: Value,
-    ) -> Result<(Self, &Declaration), LedgerError> {
+    ) -> Result<(Self, &Declaration, SpendingCounter), LedgerError> {
         let decl = self
             .declarations
             .lookup(identifier)
             .ok_or(LedgerError::DoesntExist)?;
-        let new_accts = self
-            .accounts
-            .remove_value(identifier, spending_counter, value)?;
+        let (new_accts, spending_counter) = self.accounts.remove_value(identifier, value)?;
         Ok((
             Self {
                 accounts: new_accts,
                 declarations: self.declarations.clone(),
             },
             decl,
+            spending_counter,
         ))
     }
 

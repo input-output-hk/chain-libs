@@ -6,7 +6,6 @@
 
 pub mod account_state;
 pub mod last_rewards;
-pub mod spending;
 use crate::{date::Epoch, value::*};
 use imhamt::{Hamt, InsertError, UpdateError};
 use std::collections::hash_map::DefaultHasher;
@@ -16,7 +15,6 @@ use thiserror::Error;
 
 pub use account_state::*;
 pub use last_rewards::LastRewards;
-pub use spending::{SpendingCounter, SpendingCounterIncreasing};
 
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test;
@@ -27,10 +25,10 @@ pub enum LedgerError {
     NonExistent,
     #[error("Account already exists")]
     AlreadyExists,
+    #[error("Operation counter reached its maximum and next operation must be full withdrawal")]
+    NeedTotalWithdrawal,
     #[error("Removed account is not empty")]
     NonZero,
-    #[error("Spending credential invalid")]
-    SpendingCredentialInvalid,
     #[error("Value calculation failed")]
     ValueError(#[from] ValueError),
 }
@@ -177,12 +175,16 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
     pub fn remove_value(
         &self,
         identifier: &ID,
-        spending: SpendingCounter,
         value: Value,
-    ) -> Result<Self, LedgerError> {
+    ) -> Result<(Self, SpendingCounter), LedgerError> {
+        // ideally we don't need 2 calls to do this
+        let counter = self
+            .0
+            .lookup(identifier)
+            .map_or(Err(LedgerError::NonExistent), |st| Ok(st.counter))?;
         self.0
-            .update(identifier, |st| st.sub(spending, value))
-            .map(Ledger)
+            .update(identifier, |st| st.sub(value))
+            .map(|ledger| (Ledger(ledger), counter))
             .map_err(|e| e.into())
     }
 
@@ -190,7 +192,7 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
         let values = self
             .0
             .iter()
-            .map(|(_, account_state)| account_state.value());
+            .map(|(_, account_state)| account_state.get_value());
         Value::sum(values)
     }
 
@@ -387,12 +389,11 @@ mod tests {
             return test_result;
         }
 
-        let mut spending_counter = SpendingCounter::zero();
         //verify account state
         match ledger.get_state(&account_id) {
             Ok(account_state) => {
                 let expected_account_state = AccountState {
-                    spending: SpendingCounterIncreasing::default(),
+                    counter: SpendingCounter::zero(),
                     last_rewards: LastRewards {
                         epoch: 0,
                         reward: value,
@@ -418,8 +419,8 @@ mod tests {
         }
 
         // remove value from account
-        ledger = match ledger.remove_value(&account_id, spending_counter, value) {
-            Ok(ledger) => ledger,
+        ledger = match ledger.remove_value(&account_id, value) {
+            Ok((ledger, _spending_counter)) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
                     "Removew value operation for id {} should be successful: {:?}",
@@ -427,7 +428,6 @@ mod tests {
                 ))
             }
         };
-        spending_counter = spending_counter.increment();
         let value_before_reward = Value(value.0 * 2);
         // verify total value was decreased
         let test_result = test_total_value(
@@ -447,8 +447,8 @@ mod tests {
         }
 
         // removes all funds from account
-        ledger = match ledger.remove_value(&account_id, spending_counter, value_before_reward) {
-            Ok(ledger) => ledger,
+        ledger = match ledger.remove_value(&account_id, value_before_reward) {
+            Ok((ledger, _spending_counter)) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
                     "Remove all funds operation for id {} should be successful: {:?}",
@@ -456,9 +456,6 @@ mod tests {
                 ))
             }
         };
-
-        // commented line to prevent a warning, but it should be updated to reflect the correct state of spending credential
-        // spending_counter = spending_counter.increment();
 
         // removes account
         ledger = match ledger.remove_account(&account_id) {
@@ -505,14 +502,16 @@ mod tests {
         value_to_remove: Value,
     ) -> TestResult {
         let mut ledger = Ledger::new();
-        ledger = ledger.add_account(&id, account_state.value(), ()).unwrap();
-        let result = ledger.remove_value(&id, SpendingCounter::zero(), value_to_remove);
-        let expected_result = account_state.value() - value_to_remove;
+        ledger = ledger
+            .add_account(&id, account_state.get_value(), ())
+            .unwrap();
+        let result = ledger.remove_value(&id, value_to_remove);
+        let expected_result = account_state.get_value() - value_to_remove;
         match (result, expected_result) {
-            (Err(_), Err(_)) => verify_total_value(ledger, account_state.value()),
+            (Err(_), Err(_)) => verify_total_value(ledger, account_state.get_value()),
             (Ok(_), Err(_)) => TestResult::failed(),
             (Err(_), Ok(_)) => TestResult::failed(),
-            (Ok(ledger), Ok(value)) => verify_total_value(ledger, value),
+            (Ok((ledger, _)), Ok(value)) => verify_total_value(ledger, value),
         }
     }
 
@@ -534,9 +533,11 @@ mod tests {
         account_state: AccountState<()>,
     ) -> TestResult {
         let mut ledger = Ledger::new();
-        ledger = ledger.add_account(&id, account_state.value(), ()).unwrap();
+        ledger = ledger
+            .add_account(&id, account_state.get_value(), ())
+            .unwrap();
         let result = ledger.remove_account(&id);
-        let expected_zero = account_state.value() == Value::zero();
+        let expected_zero = account_state.get_value() == Value::zero();
         match (result, expected_zero) {
             (Err(_), false) => verify_account_exists(&ledger, &id),
             (Ok(_), false) => TestResult::failed(),
