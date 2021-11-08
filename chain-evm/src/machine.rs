@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic, Log},
-    executor::{MemoryStackState, PrecompileFn, StackExecutor, StackSubstateMetadata},
+    executor::stack::{MemoryStackState, PrecompileFn, StackExecutor, StackSubstateMetadata},
     Context, Runtime,
 };
 use primitive_types::{H160, H256, U256};
