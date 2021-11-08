@@ -7,6 +7,7 @@ edition = "2018"
 evm = "0.33.0"
 imhamt = { path = "../imhamt" }
 primitive-types = "0.10.1"
+aurora-engine-precompiles = { path = "../../aurora-engine/engine-precompiles" }
 
 [dev-dependencies]
 proptest = "1.0.0"
