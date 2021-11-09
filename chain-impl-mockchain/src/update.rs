@@ -224,15 +224,13 @@ impl From<ActiveSlotsCoeffError> for Error {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    use crate::certificate::UpdateProposal;
     #[cfg(test)]
     use crate::testing::serialization::serialization_bijection;
-    use crate::{
-        certificate::{UpdateProposal, UpdateVote},
-        fragment::config::ConfigParams,
-    };
     #[cfg(test)]
     use crate::{
         config::ConfigParam,
+        fragment::config::ConfigParams,
         testing::{data::LeaderPair, TestGen},
     };
     #[cfg(test)]
