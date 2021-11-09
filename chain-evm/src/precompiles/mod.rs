@@ -1,4 +1,5 @@
 //! EVM precompiles based on the aurora-engine project.
+#![allow(dead_code)]
 pub mod blake2;
 pub mod bn128;
 pub mod hash;
