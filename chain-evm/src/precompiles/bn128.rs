@@ -1,7 +1,5 @@
-use aurora_engine_precompiles::prelude::{Address, Borrowed, PhantomData, Vec};
-use aurora_engine_precompiles::{
-    Byzantium, EvmPrecompileResult, HardFork, Istanbul, Precompile, PrecompileOutput,
-};
+use super::prelude::{Address, Borrowed, PhantomData, Vec};
+use super::{Byzantium, EvmPrecompileResult, HardFork, Istanbul, Precompile, PrecompileOutput};
 use evm::{Context, ExitError};
 
 /// bn128 costs.
@@ -396,7 +394,7 @@ impl Precompile for Bn128Pair<Istanbul> {
 
 #[cfg(test)]
 mod tests {
-    use aurora_engine_precompiles::utils::new_context;
+    use crate::precompiles::utils::new_context;
 
     use super::*;
 

@@ -1,24 +1,13 @@
+use super::prelude::Address;
+use super::PrecompileOutput;
 use super::{EvmPrecompileResult, Precompile};
-#[cfg(feature = "contract")]
-use crate::prelude::{
-    format, is_valid_account_id,
-    parameters::{PromiseCreateArgs, WithdrawCallArgs},
-    sdk,
-    storage::{bytes_to_key, KeyPrefix},
-    types::AccountId,
-    vec, BorshSerialize, Cow, String, ToString, TryInto, Vec, H160, U256,
-};
-
-use crate::prelude::Address;
-use crate::PrecompileOutput;
-#[cfg(feature = "contract")]
-use evm::backend::Log;
 use evm::{Context, ExitError};
 
 const ERR_TARGET_TOKEN_NOT_FOUND: &str = "Target token not found";
 
 mod costs {
-    use crate::prelude::types::Gas;
+    // Note: not the same type that is defined in machine
+    type Gas = u64;
 
     // TODO(#51): Determine the correct amount of gas
     pub(super) const EXIT_TO_NEAR_GAS: Gas = 0;
@@ -34,15 +23,15 @@ mod costs {
 }
 
 pub mod events {
-    use crate::prelude::{vec, Address, String, ToString, H256, U256};
+    use crate::precompiles::prelude::{vec, Address, String, ToString, H256, U256};
 
     /// Derived from event signature (see tests::test_exit_signatures)
-    pub const EXIT_TO_NEAR_SIGNATURE: H256 = crate::make_h256(
+    pub const EXIT_TO_NEAR_SIGNATURE: H256 = crate::precompiles::make_h256(
         0x5a91b8bc9c1981673db8fb226dbd8fcd,
         0xd0c23f45cd28abb31403a5392f6dd0c7,
     );
     /// Derived from event signature (see tests::test_exit_signatures)
-    pub const EXIT_TO_ETH_SIGNATURE: H256 = crate::make_h256(
+    pub const EXIT_TO_ETH_SIGNATURE: H256 = crate::precompiles::make_h256(
         0xd046c2bb01a5622bc4b9696332391d87,
         0x491373762eeac0831c48400e2d5a5f07,
     );
@@ -51,7 +40,7 @@ pub mod events {
     /// which ERC-20 token is being withdrawn. However, ETH is not an ERC-20 token
     /// So we need to have some other address to fill this field. This constant is
     /// used for this purpose.
-    pub const ETH_ADDRESS: Address = Address([0; 20]);
+    pub const ETH_ADDRESS: Address = crate::precompiles::make_address(0, 0);
 
     /// ExitToNear(
     ///    Address indexed sender,
@@ -526,21 +515,6 @@ impl Precompile for ExitToEthereum {
 
 #[cfg(test)]
 mod tests {
-    use super::{ExitToEthereum, ExitToNear};
-    use crate::prelude::sdk::types::near_account_to_evm_address;
-
-    #[test]
-    fn test_precompile_id() {
-        assert_eq!(
-            ExitToEthereum::ADDRESS,
-            near_account_to_evm_address("exitToEthereum".as_bytes())
-        );
-        assert_eq!(
-            ExitToNear::ADDRESS,
-            near_account_to_evm_address("exitToNear".as_bytes())
-        );
-    }
-
     #[test]
     fn test_exit_signatures() {
         let exit_to_near = super::events::exit_to_near_schema();

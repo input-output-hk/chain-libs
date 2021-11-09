@@ -2,4 +2,4 @@ pub mod machine;
 mod precompiles;
 pub mod state;
 
-pub use machine::{Config, Environment, GasLimit};
+pub use machine::{Address, Config, Environment, GasLimit};
