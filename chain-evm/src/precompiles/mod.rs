@@ -196,7 +196,7 @@ impl Precompiles {
 pub const fn make_address(x: u32, y: u128) -> prelude::Address {
     let x_bytes = x.to_be_bytes();
     let y_bytes = y.to_be_bytes();
-    [
+    prelude::H160([
         x_bytes[0],
         x_bytes[1],
         x_bytes[2],
@@ -217,8 +217,7 @@ pub const fn make_address(x: u32, y: u128) -> prelude::Address {
         y_bytes[13],
         y_bytes[14],
         y_bytes[15],
-    ]
-    .into()
+    ])
 }
 
 const fn make_h256(x: u128, y: u128) -> prelude::H256 {
