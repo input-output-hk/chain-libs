@@ -34,9 +34,9 @@ impl Precompile for SHA256 {
         )
     }
 
-    /// See: https://ethereum.github.io/yellowpaper/paper.pdf
-    /// See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
-    /// See: https://etherscan.io/address/0000000000000000000000000000000000000002
+    // See: https://ethereum.github.io/yellowpaper/paper.pdf
+    // See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
+    // See: https://etherscan.io/address/0000000000000000000000000000000000000002
     fn run(
         input: &[u8],
         target_gas: Option<u64>,
@@ -56,9 +56,9 @@ impl Precompile for SHA256 {
         Ok(PrecompileOutput::without_logs(cost, output).into())
     }
 
-    /// See: https://ethereum.github.io/yellowpaper/paper.pdf
-    /// See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
-    /// See: https://etherscan.io/address/0000000000000000000000000000000000000002
+    // See: https://ethereum.github.io/yellowpaper/paper.pdf
+    // See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
+    // See: https://etherscan.io/address/0000000000000000000000000000000000000002
 }
 
 /// RIPEMD160 precompile.
@@ -85,9 +85,9 @@ impl Precompile for RIPEMD160 {
         )
     }
 
-    /// See: https://ethereum.github.io/yellowpaper/paper.pdf
-    /// See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
-    /// See: https://etherscan.io/address/0000000000000000000000000000000000000003
+    // See: https://ethereum.github.io/yellowpaper/paper.pdf
+    // See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
+    // See: https://etherscan.io/address/0000000000000000000000000000000000000003
     fn run(
         input: &[u8],
         target_gas: Option<u64>,
