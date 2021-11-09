@@ -191,6 +191,31 @@ impl Precompiles {
     }
 }
 
+impl stack::PrecompileSet for Precompiles {
+    fn execute(
+        &self,
+        address: prelude::Address,
+        input: &[u8],
+        gas_limit: Option<u64>,
+        context: &Context,
+        is_static: bool,
+    ) -> Option<Result<stack::PrecompileOutput, stack::PrecompileFailure>> {
+        if let Some(precompile) = self.0.get(&address) {
+            match precompile(input, gas_limit, context, is_static)
+                .map_err(|exit_status| stack::PrecompileFailure::Error { exit_status })
+            {
+                Ok(output) => Some(Ok(output)),
+                Err(e) => Some(Err(e)),
+            }
+        } else {
+            None
+        }
+    }
+    fn is_precompile(&self, address: prelude::Address) -> bool {
+        self.0.contains_key(&address)
+    }
+}
+
 /// const fn for making an address by concatenating the bytes from two given numbers,
 /// Note that 32 + 128 = 160 = 20 bytes (the length of an address). This function is used
 /// as a convenience for specifying the addresses of the various precompiles.
