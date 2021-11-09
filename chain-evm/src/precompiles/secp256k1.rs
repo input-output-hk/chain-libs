@@ -1,5 +1,5 @@
-use crate::prelude::{sdk, vec, Borrowed, H256};
-use crate::{EvmPrecompileResult, Precompile, PrecompileOutput};
+use super::prelude::{vec, Borrowed, H256};
+use super::{EvmPrecompileResult, Precompile, PrecompileOutput};
 use ethabi::Address;
 use evm::{Context, ExitError};
 
@@ -46,7 +46,7 @@ fn internal_impl(hash: H256, signature: &[u8]) -> Result<Address, ExitError> {
         }
     }
 
-    Err(ExitError::Other(Borrowed(sdk::ECRecoverErr.as_str())))
+    Err(ExitError::Other(Borrowed("ERR_ECRECOVER")))
 }
 
 pub(super) struct ECRecover;
@@ -113,7 +113,7 @@ impl Precompile for ECRecover {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::new_context;
+    use crate::precompiles::utils::new_context;
 
     fn ecverify(hash: H256, signature: &[u8], signer: Address) -> bool {
         matches!(ecrecover(hash, signature), Ok(s) if s == signer)

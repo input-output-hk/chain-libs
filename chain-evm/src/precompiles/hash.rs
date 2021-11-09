@@ -1,7 +1,7 @@
 #[cfg(feature = "contract")]
-use crate::prelude::sdk;
-use crate::prelude::{vec, Address};
-use crate::{EvmPrecompileResult, Precompile, PrecompileOutput};
+use super::prelude::sdk;
+use super::prelude::{vec, Address};
+use super::{EvmPrecompileResult, Precompile, PrecompileOutput};
 use evm::{Context, ExitError};
 
 mod costs {
@@ -136,7 +136,7 @@ impl Precompile for RIPEMD160 {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::new_context;
+    use crate::precompiles::utils::new_context;
 
     use super::*;
 

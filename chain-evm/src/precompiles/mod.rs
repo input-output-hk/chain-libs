@@ -1,6 +1,4 @@
 //! EVM precompiles based on the aurora-engine project.
-use evm::backend::Log;
-use evm::{Context, ExitError, ExitSucceed};
 pub mod blake2;
 pub mod bn128;
 pub mod hash;
@@ -12,15 +10,16 @@ pub mod secp256k1;
 #[cfg(test)]
 mod utils;
 
-use blake2::Blake2F;
-use bn128::{Bn128Add, Bn128Mul, Bn128Pair};
+use self::blake2::Blake2F;
+use self::bn128::{Bn128Add, Bn128Mul, Bn128Pair};
+use self::hash::{RIPEMD160, SHA256};
+use self::identity::Identity;
+use self::modexp::ModExp;
+use self::native::{ExitToEthereum, ExitToNear};
+use self::secp256k1::ECRecover;
 use evm::backend::Log;
+use evm::executor::stack;
 use evm::{Context, ExitError, ExitSucceed};
-use hash::{RIPEMD160, SHA256};
-use identity::Identity;
-use modexp::ModExp;
-use native::{ExitToEthereum, ExitToNear};
-use secp256k1::ECRecover;
 
 #[derive(Debug, Default)]
 pub struct PrecompileOutput {
@@ -39,9 +38,9 @@ impl PrecompileOutput {
     }
 }
 
-impl From<PrecompileOutput> for evm::executor::PrecompileOutput {
+impl From<PrecompileOutput> for stack::PrecompileOutput {
     fn from(output: PrecompileOutput) -> Self {
-        evm::executor::PrecompileOutput {
+        stack::PrecompileOutput {
             exit_status: ExitSucceed::Returned,
             cost: output.cost,
             output: output.output,
@@ -50,7 +49,7 @@ impl From<PrecompileOutput> for evm::executor::PrecompileOutput {
     }
 }
 
-type EvmPrecompileResult = Result<evm::executor::PrecompileOutput, ExitError>;
+type EvmPrecompileResult = Result<stack::PrecompileOutput, ExitError>;
 
 /// A precompiled function for use in the EVM.
 pub trait Precompile {
@@ -196,7 +195,7 @@ impl Precompiles {
 pub const fn make_address(x: u32, y: u128) -> prelude::Address {
     let x_bytes = x.to_be_bytes();
     let y_bytes = y.to_be_bytes();
-    prelude::Address([
+    [
         x_bytes[0],
         x_bytes[1],
         x_bytes[2],
@@ -217,7 +216,8 @@ pub const fn make_address(x: u32, y: u128) -> prelude::Address {
         y_bytes[13],
         y_bytes[14],
         y_bytes[15],
-    ])
+    ]
+    .into()
 }
 
 const fn make_h256(x: u128, y: u128) -> prelude::H256 {
@@ -261,7 +261,7 @@ const fn make_h256(x: u128, y: u128) -> prelude::H256 {
 
 #[cfg(test)]
 mod tests {
-    use aurora_engine_precompiles::{prelude, Byzantium, Istanbul};
+    use super::{prelude, Byzantium, Istanbul};
     use rand::Rng;
 
     #[test]
@@ -285,7 +285,7 @@ mod tests {
 
         let mut rng = rand::thread_rng();
         for _ in 0..u8::MAX {
-            let address: prelude::Address = prelude::Address(rng.gen());
+            let address = rng.gen::<[u8; 20]>().into();
             let (x, y) = split_address(address);
             assert_eq!(address, super::make_address(x, y))
         }
@@ -294,7 +294,7 @@ mod tests {
     fn u8_to_address(x: u8) -> prelude::Address {
         let mut bytes = [0u8; 20];
         bytes[19] = x;
-        prelude::Address(bytes)
+        bytes.into()
     }
 
     // Inverse function of `super::make_address`.
