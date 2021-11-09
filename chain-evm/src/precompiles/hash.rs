@@ -1,5 +1,3 @@
-#[cfg(feature = "contract")]
-use super::prelude::sdk;
 use super::prelude::{vec, Address};
 use super::{EvmPrecompileResult, Precompile, PrecompileOutput};
 use evm::{Context, ExitError};
@@ -39,7 +37,6 @@ impl Precompile for SHA256 {
     /// See: https://ethereum.github.io/yellowpaper/paper.pdf
     /// See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
     /// See: https://etherscan.io/address/0000000000000000000000000000000000000002
-    #[cfg(not(feature = "contract"))]
     fn run(
         input: &[u8],
         target_gas: Option<u64>,
@@ -62,23 +59,6 @@ impl Precompile for SHA256 {
     /// See: https://ethereum.github.io/yellowpaper/paper.pdf
     /// See: https://docs.soliditylang.org/en/develop/units-and-global-variables.html#mathematical-and-cryptographic-functions
     /// See: https://etherscan.io/address/0000000000000000000000000000000000000002
-    #[cfg(feature = "contract")]
-    fn run(
-        input: &[u8],
-        target_gas: Option<u64>,
-        _context: &Context,
-        _is_static: bool,
-    ) -> EvmPrecompileResult {
-        let cost = Self::required_gas(input)?;
-        if let Some(target_gas) = target_gas {
-            if cost > target_gas {
-                return Err(ExitError::OutOfGas);
-            }
-        }
-
-        let output = sdk::sha256(input).as_bytes().to_vec();
-        Ok(PrecompileOutput::without_logs(cost, output).into())
-    }
 }
 
 /// RIPEMD160 precompile.
@@ -87,7 +67,6 @@ pub struct RIPEMD160;
 impl RIPEMD160 {
     pub(super) const ADDRESS: Address = super::make_address(0, 3);
 
-    #[cfg(not(feature = "contract"))]
     fn internal_impl(input: &[u8]) -> [u8; 20] {
         use ripemd160::Digest;
         let hash = ripemd160::Ripemd160::digest(input);
@@ -122,10 +101,7 @@ impl Precompile for RIPEMD160 {
             }
         }
 
-        #[cfg(not(feature = "contract"))]
         let hash = Self::internal_impl(input);
-        #[cfg(feature = "contract")]
-        let hash = sdk::ripemd160(input);
         // The result needs to be padded with leading zeros because it is only 20 bytes, but
         // the evm works with 32-byte words.
         let mut output = vec![0u8; 32];

@@ -19,14 +19,9 @@ mod consts {
 pub fn ecrecover(hash: H256, signature: &[u8]) -> Result<Address, ExitError> {
     assert_eq!(signature.len(), 65);
 
-    #[cfg(feature = "contract")]
-    return sdk::ecrecover(hash, signature).map_err(|e| ExitError::Other(Borrowed(e.as_str())));
-
-    #[cfg(not(feature = "contract"))]
     internal_impl(hash, signature)
 }
 
-#[cfg(not(feature = "contract"))]
 fn internal_impl(hash: H256, signature: &[u8]) -> Result<Address, ExitError> {
     use sha3::Digest;
 
