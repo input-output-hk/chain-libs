@@ -4,7 +4,8 @@ use chain_core::mempack::{ReadError, Readable};
 #[cfg(feature = "evm")]
 use chain_evm::{
     machine::{Gas, GasPrice, Value},
-    state::{AccountAddress, ByteCode},
+    state::ByteCode,
+    Address,
 };
 use typed_bytes::ByteBuilder;
 
@@ -17,13 +18,13 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Contract {
     #[cfg(feature = "evm")]
-    /// Deploys a smart contract from a given `AccountAddress`, as
+    /// Deploys a smart contract from a given `Address`, as
     /// perfomed by the `eth_sendTransaction` JSON-RPC method.
     EVM {
         /// The address from which the transaction is sent. Also referred to as `caller`.
-        sender: AccountAddress,
+        sender: Address,
         /// (optional when creating new contract) The address the transaction is directed to.
-        address: Option<AccountAddress>,
+        address: Option<Address>,
         /// (optional, default: To-Be-Determined) Integer of the gas provided for the transaction execution.
         gas: Option<Gas>,
         /// (optional, default: To-Be-Determined) Integer of the gasPrice used for each payed gas.
@@ -102,11 +103,11 @@ impl Readable for Contract {
             #[cfg(feature = "evm")]
             0 => {
                 // EVM Contract
-                let sender = AccountAddress::from_slice(buf.get_slice(20)?);
+                let sender = Address::from_slice(buf.get_slice(20)?);
                 let address = match buf.get_u8()? {
                     0 => None,
                     1 => {
-                        let a = AccountAddress::from_slice(buf.get_slice(20)?);
+                        let a = Address::from_slice(buf.get_slice(20)?);
                         if a.is_zero() {
                             None
                         } else {
@@ -217,7 +218,7 @@ mod tests {
     #[test]
     fn test_readable_evm_contract() {
         // Example with contract that has no data
-        let sender = AccountAddress::random();
+        let sender = Address::random();
         let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
@@ -258,7 +259,7 @@ mod tests {
         assert_eq!(contract, expected);
 
         // Example with contract that has data
-        let sender = AccountAddress::random();
+        let sender = Address::random();
         let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
@@ -300,7 +301,7 @@ mod tests {
         assert_eq!(contract, expected);
 
         // Example with contract that says it has data, but has no data
-        let sender = AccountAddress::random();
+        let sender = Address::random();
         let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
@@ -361,7 +362,7 @@ mod tests {
         use typed_bytes::ByteArray;
 
         // Example with contract that has no data
-        let sender = AccountAddress::random();
+        let sender = Address::random();
         let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
@@ -395,7 +396,7 @@ mod tests {
         );
 
         // Example with contract that says it has data
-        let sender = AccountAddress::random();
+        let sender = Address::random();
         let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
@@ -437,7 +438,7 @@ mod tests {
         );
 
         // Example with contract that says it has data, but has no data
-        let sender = AccountAddress::random();
+        let sender = Address::random();
         let address = None;
         let gas: Gas = 10000.into();
         let gas_price: GasPrice = 2000.into();
