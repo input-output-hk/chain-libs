@@ -17,7 +17,7 @@ mod consts {
 pub(super) struct Blake2F;
 
 impl Blake2F {
-    pub(super) const ADDRESS: Address = aurora_engine_precompiles::make_address(0, 9);
+    pub(super) const ADDRESS: Address = super::make_address(0, 9);
 }
 
 impl Precompile for Blake2F {
@@ -96,7 +96,7 @@ impl Precompile for Blake2F {
 #[cfg(test)]
 mod tests {
     use super::super::utils::new_context;
-    use aurora_engine_precompiles::prelude::Vec;
+    use crate::precompiles::prelude::Vec;
 
     use super::*;
 

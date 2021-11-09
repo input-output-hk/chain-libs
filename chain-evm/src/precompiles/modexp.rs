@@ -1,5 +1,5 @@
-use crate::prelude::{Address, PhantomData, Vec, U256};
-use crate::{Berlin, Byzantium, EvmPrecompileResult, HardFork, Precompile, PrecompileOutput};
+use super::prelude::{Address, PhantomData, Vec, U256};
+use super::{Berlin, Byzantium, EvmPrecompileResult, HardFork, Precompile, PrecompileOutput};
 
 use evm::{Context, ExitError};
 use num::{BigUint, Integer};
@@ -196,10 +196,8 @@ fn parse_lengths(input: &[u8]) -> (u64, u64, u64) {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::new_context;
-
     use super::*;
-    use crate::prelude::types::u256_to_arr;
+    use crate::precompiles::utils::new_context;
 
     // Byzantium tests: https://github.com/holiman/go-ethereum/blob/master/core/vm/testdata/precompiles/modexp.json
     // Berlin tests:https://github.com/holiman/go-ethereum/blob/master/core/vm/testdata/precompiles/modexp_eip2565.json
@@ -355,6 +353,10 @@ mod tests {
         5_461, 87_381,
     ];
 
+    fn u256_to_arr(value: U256) -> [u8; 32] {
+        value.into()
+    }
+
     #[test]
     fn test_modexp() {
         for (test, test_gas) in TESTS.iter().zip(BYZANTIUM_GAS.iter()) {
@@ -397,11 +399,11 @@ mod tests {
         let exp = U256::MAX;
 
         let mut input: Vec<u8> = Vec::new();
-        input.extend_from_slice(&u256_to_arr(&base_len));
-        input.extend_from_slice(&u256_to_arr(&exp_len));
-        input.extend_from_slice(&u256_to_arr(&mod_len));
+        input.extend_from_slice(&u256_to_arr(base_len));
+        input.extend_from_slice(&u256_to_arr(exp_len));
+        input.extend_from_slice(&u256_to_arr(mod_len));
         input.extend_from_slice(&base.to_be_bytes());
-        input.extend_from_slice(&u256_to_arr(&exp));
+        input.extend_from_slice(&u256_to_arr(exp));
 
         // completes without any overflow
         ModExp::<Berlin>::required_gas(&input).unwrap();
@@ -416,11 +418,11 @@ mod tests {
         let exp = U256::MAX;
 
         let mut input: Vec<u8> = Vec::new();
-        input.extend_from_slice(&u256_to_arr(&base_len));
-        input.extend_from_slice(&u256_to_arr(&exp_len));
-        input.extend_from_slice(&u256_to_arr(&mod_len));
+        input.extend_from_slice(&u256_to_arr(base_len));
+        input.extend_from_slice(&u256_to_arr(exp_len));
+        input.extend_from_slice(&u256_to_arr(mod_len));
         input.extend_from_slice(&base.to_be_bytes());
-        input.extend_from_slice(&u256_to_arr(&exp));
+        input.extend_from_slice(&u256_to_arr(exp));
 
         // completes without any overflow
         ModExp::<Berlin>::required_gas(&input).unwrap();

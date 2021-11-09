@@ -24,6 +24,9 @@ use crate::state::AccountTrie;
 /// Export EVM types
 pub use evm::{backend::MemoryVicinity as Environment, Config};
 
+/// An address of an EVM account.
+pub type Address = H160;
+
 /// A block's chain ID.
 pub type ChainId = U256;
 
