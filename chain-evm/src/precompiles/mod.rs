@@ -20,6 +20,7 @@ use self::secp256k1::ECRecover;
 use evm::backend::Log;
 use evm::executor::stack;
 use evm::{Context, ExitError, ExitSucceed};
+use sha3::{Digest, Keccak256};
 
 #[derive(Debug, Default)]
 pub struct PrecompileOutput {
@@ -257,6 +258,11 @@ const fn make_h256(x: u128, y: u128) -> prelude::H256 {
         y_bytes[14],
         y_bytes[15],
     ])
+}
+
+#[inline]
+pub fn keccak(data: &[u8]) -> prelude::H256 {
+    prelude::H256::from_slice(Keccak256::digest(data).as_slice())
 }
 
 #[cfg(test)]

@@ -23,6 +23,7 @@ mod costs {
 }
 
 pub mod events {
+    use crate::precompiles::keccak;
     use crate::precompiles::prelude::{vec, Address, String, ToString, H256, U256};
 
     /// Derived from event signature (see tests::test_exit_signatures)
@@ -66,7 +67,7 @@ pub mod events {
                 EXIT_TO_NEAR_SIGNATURE,
                 encode_address(self.sender),
                 encode_address(self.erc20_address),
-                aurora_engine_sdk::keccak(&ethabi::encode(&[ethabi::Token::String(self.dest)])),
+                keccak(&ethabi::encode(&[ethabi::Token::String(self.dest)])),
             ];
 
             ethabi::RawLog { topics, data }
