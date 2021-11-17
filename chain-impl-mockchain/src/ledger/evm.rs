@@ -38,6 +38,8 @@ impl Ledger {
 
                 todo!("execute the contract and update ledger.evm.accounts");
             }
+            Contract::Create2 { .. } => todo!(),
+            Contract::Call { .. } => todo!(),
         }
     }
 

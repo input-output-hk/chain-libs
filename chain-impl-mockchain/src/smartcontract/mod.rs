@@ -28,6 +28,24 @@ pub enum Contract {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
     },
+    #[cfg(feature = "evm")]
+    Create2 {
+        caller: Address,
+        value: Value,
+        init_code: ByteCode,
+        salt: primitive_types::H256,
+        gas_limit: u64,
+        access_list: Vec<(Address, Vec<Key>)>,
+    },
+    #[cfg(feature = "evm")]
+    Call {
+        caller: Address,
+        address: Address,
+        value: Value,
+        data: ByteCode,
+        gas_limit: u64,
+        access_list: Vec<(Address, Vec<Key>)>,
+    },
 }
 
 impl Contract {
@@ -50,6 +68,10 @@ impl Contract {
                 let bb = serialize_gas_limit(bb, gas_limit);
                 serialize_access_list(bb, access_list)
             }
+            #[cfg(feature = "evm")]
+            Contract::Create2 { .. } => todo!(),
+            #[cfg(feature = "evm")]
+            Contract::Call { .. } => todo!(),
             #[cfg(not(feature = "evm"))]
             _ => unreachable!(),
         }
