@@ -3,10 +3,13 @@
 use chain_core::mempack::{ReadError, Readable};
 #[cfg(feature = "evm")]
 use chain_evm::{
-    machine::{Gas, GasPrice, Value},
-    state::ByteCode,
+    machine::Value,
+    primitive_types,
+    state::{ByteCode, Key},
     Address,
 };
+#[cfg(feature = "evm")]
+use std::convert::TryInto;
 use typed_bytes::ByteBuilder;
 
 use crate::{
@@ -18,21 +21,12 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Contract {
     #[cfg(feature = "evm")]
-    /// Deploys a smart contract from a given `Address`, as
-    /// perfomed by the `eth_sendTransaction` JSON-RPC method.
-    EVM {
-        /// The address from which the transaction is sent. Also referred to as `caller`.
-        sender: Address,
-        /// (optional when creating new contract) The address the transaction is directed to.
-        address: Option<Address>,
-        /// (optional, default: To-Be-Determined) Integer of the gas provided for the transaction execution.
-        gas: Option<Gas>,
-        /// (optional, default: To-Be-Determined) Integer of the gasPrice used for each payed gas.
-        gas_price: Option<GasPrice>,
-        /// (optional) Integer of the value send with this transaction.
-        value: Option<Value>,
-        /// (optional) The compiled code of a contract.
-        data: Option<ByteCode>,
+    Create {
+        caller: Address,
+        value: Value,
+        init_code: ByteCode,
+        gas_limit: u64,
+        access_list: Vec<(Address, Vec<Key>)>,
     },
 }
 
@@ -41,57 +35,132 @@ impl Contract {
     pub fn serialize_in(&self, _bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
         match self {
             #[cfg(feature = "evm")]
-            Contract::EVM {
-                sender,
-                address,
-                gas,
-                gas_price,
+            Contract::Create {
+                caller,
                 value,
-                data,
+                init_code,
+                gas_limit,
+                access_list,
             } => {
-                //
-                let bb = _bb.u8(0).bytes(sender.as_fixed_bytes());
-                let bb = if let Some(to_addr) = address {
-                    bb.u8(1).bytes(to_addr.as_fixed_bytes())
-                } else {
-                    bb.u8(0)
-                };
-                let bb = if let Some(gas) = gas {
-                    let mut gas_bytes = [0u8; 32];
-                    gas.to_big_endian(&mut gas_bytes);
-                    bb.u8(1).bytes(&gas_bytes)
-                } else {
-                    bb.u8(0)
-                };
-                let bb = if let Some(gas_price) = gas_price {
-                    let mut gas_price_bytes = [0u8; 32];
-                    gas_price.to_big_endian(&mut gas_price_bytes);
-                    bb.u8(1).bytes(&gas_price_bytes)
-                } else {
-                    bb.u8(0)
-                };
-                let bb = if let Some(value) = value {
-                    let mut value_bytes = [0u8; 32];
-                    value.to_big_endian(&mut value_bytes);
-                    bb.u8(1).bytes(&value_bytes)
-                } else {
-                    bb.u8(0)
-                };
-                let bb = if let Some(data) = data {
-                    if !data.as_ref().is_empty() {
-                        bb.u8(1).bytes(data.as_ref())
-                    } else {
-                        bb.u8(0)
-                    }
-                } else {
-                    bb.u8(0)
-                };
-                bb
+                // Set Contract type
+                let bb = _bb.u8(0);
+                let bb = serialize_address(bb, caller);
+                let bb = serialize_u256(bb, value);
+                let bb = serialize_bytecode(bb, init_code);
+                let bb = serialize_gas_limit(bb, gas_limit);
+                serialize_access_list(bb, access_list)
             }
             #[cfg(not(feature = "evm"))]
             _ => unreachable!(),
         }
     }
+}
+
+#[cfg(feature = "evm")]
+fn serialize_address(bb: ByteBuilder<Contract>, caller: &Address) -> ByteBuilder<Contract> {
+    bb.u8(0).bytes(caller.as_fixed_bytes())
+}
+
+#[cfg(feature = "evm")]
+fn serialize_u256(
+    bb: ByteBuilder<Contract>,
+    value: &primitive_types::U256,
+) -> ByteBuilder<Contract> {
+    let mut value_bytes = [0u8; 32];
+    value.to_big_endian(&mut value_bytes);
+    bb.bytes(&value_bytes)
+}
+
+#[cfg(feature = "evm")]
+fn serialize_h256(
+    bb: ByteBuilder<Contract>,
+    value: &primitive_types::H256,
+) -> ByteBuilder<Contract> {
+    bb.bytes(value.as_fixed_bytes())
+}
+
+#[cfg(feature = "evm")]
+fn serialize_bytecode(bb: ByteBuilder<Contract>, code: &ByteCode) -> ByteBuilder<Contract> {
+    bb.u64(code.len().try_into().unwrap()).bytes(code.as_ref())
+}
+
+#[cfg(feature = "evm")]
+fn serialize_gas_limit(bb: ByteBuilder<Contract>, gas_limit: &u64) -> ByteBuilder<Contract> {
+    bb.u64(*gas_limit)
+}
+
+#[cfg(feature = "evm")]
+fn serialize_access_list(
+    bb: ByteBuilder<Contract>,
+    access_list: &[(Address, Vec<Key>)],
+) -> ByteBuilder<Contract> {
+    bb.u64(access_list.len().try_into().unwrap())
+        .fold(access_list.iter(), |bb, (address, keys)| {
+            serialize_address(bb, address)
+                .u64(keys.len().try_into().unwrap())
+                .fold(keys.iter(), |bb, key| serialize_h256(bb, key))
+        })
+}
+
+#[cfg(feature = "evm")]
+fn read_address(
+    buf: &mut chain_core::mempack::ReadBuf,
+) -> Result<Address, chain_core::mempack::ReadError> {
+    Ok(Address::from_slice(buf.get_slice(20)?))
+}
+
+#[cfg(feature = "evm")]
+fn read_h256(
+    buf: &mut chain_core::mempack::ReadBuf,
+) -> Result<primitive_types::H256, chain_core::mempack::ReadError> {
+    Ok(primitive_types::H256::from_slice(buf.get_slice(32)?))
+}
+
+#[cfg(feature = "evm")]
+fn read_u256(
+    buf: &mut chain_core::mempack::ReadBuf,
+) -> Result<primitive_types::U256, chain_core::mempack::ReadError> {
+    Ok(primitive_types::U256::from(buf.get_slice(32)?))
+}
+
+#[cfg(feature = "evm")]
+fn read_bytecode(
+    buf: &mut chain_core::mempack::ReadBuf,
+) -> Result<ByteCode, chain_core::mempack::ReadError> {
+    match buf.get_u64()? {
+        n if n > 0 => Ok(ByteCode::from(buf.get_slice(n.try_into().unwrap())?)),
+        _ => Ok(ByteCode::default()),
+    }
+}
+
+#[cfg(feature = "evm")]
+fn read_gas_limit(
+    buf: &mut chain_core::mempack::ReadBuf,
+) -> Result<u64, chain_core::mempack::ReadError> {
+    buf.get_u64()
+}
+
+#[cfg(feature = "evm")]
+fn read_access_list(
+    buf: &mut chain_core::mempack::ReadBuf,
+) -> Result<Vec<(Address, Vec<Key>)>, chain_core::mempack::ReadError> {
+    let count = buf.get_u64()?;
+    let access_list = (0..count)
+        .into_iter()
+        .fold(Vec::new(), |mut access_list, _| {
+            let address = read_address(buf).unwrap_or_default();
+            let keys_count = buf.get_u64().unwrap_or_default();
+            let keys = (0..keys_count).into_iter().fold(Vec::new(), |mut keys, _| {
+                let key = read_h256(buf).unwrap_or_default();
+                if !key.is_zero() {
+                    keys.push(key);
+                }
+                keys
+            });
+            access_list.push((address, keys));
+            access_list
+        });
+    Ok(access_list)
 }
 
 impl Readable for Contract {
@@ -102,80 +171,22 @@ impl Readable for Contract {
         match contract_type {
             #[cfg(feature = "evm")]
             0 => {
-                // EVM Contract
-                let sender = Address::from_slice(buf.get_slice(20)?);
-                let address = match buf.get_u8()? {
-                    0 => None,
-                    1 => {
-                        let a = Address::from_slice(buf.get_slice(20)?);
-                        if a.is_zero() {
-                            None
-                        } else {
-                            Some(a)
-                        }
-                    }
-                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
-                };
-                let gas = match buf.get_u8()? {
-                    0 => None,
-                    1 => {
-                        let g = Gas::from(buf.get_slice(32)?);
-                        if g.is_zero() {
-                            None
-                        } else {
-                            Some(g)
-                        }
-                    }
-                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
-                };
-                let gas_price = match buf.get_u8()? {
-                    0 => None,
-                    1 => {
-                        let gp = GasPrice::from(buf.get_slice(32)?);
-                        if gp.is_zero() {
-                            None
-                        } else {
-                            Some(gp)
-                        }
-                    }
-                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
-                };
-                let value = match buf.get_u8()? {
-                    0 => None,
-                    1 => {
-                        let val = Value::from(buf.get_slice(32)?);
-                        if val.is_zero() {
-                            None
-                        } else {
-                            Some(val)
-                        }
-                    }
-                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
-                };
-                let data = match buf.get_u8()? {
-                    0 => None,
-                    1 => {
-                        if buf.is_end() {
-                            None
-                        } else {
-                            Some(ByteCode::from(buf.get_slice_end()))
-                        }
-                    }
-                    _ => return Err(ReadError::StructureInvalid("Invalid byte sequence".into())),
-                };
+                // CREATE Contract
+                let caller = read_address(buf)?;
+                let value = read_u256(buf)?;
+                let init_code = read_bytecode(buf)?;
+                let gas_limit = read_gas_limit(buf)?;
+                let access_list = read_access_list(buf)?;
 
-                if let Err(e) = buf.expect_end() {
-                    Err(e)
-                } else {
-                    Ok(Contract::EVM {
-                        sender,
-                        address,
-                        gas,
-                        gas_price,
-                        value,
-                        data,
-                    })
-                }
+                buf.expect_end()?;
+
+                Ok(Contract::Create {
+                    caller,
+                    value,
+                    init_code,
+                    gas_limit,
+                    access_list,
+                })
             }
             n => Err(ReadError::UnknownTag(n as u32)),
         }
@@ -225,7 +236,7 @@ mod tests {
         let value = None;
         let data = None;
 
-        let contract_type = 0; // Contract::EVM = 0
+        let contract_type = 0; // Contract::Create = 0
         let has_to = 0;
         let has_gas = 1;
         let has_gas_price = 1;
@@ -247,7 +258,7 @@ mod tests {
         let mut readbuf = ReadBuf::from(bb.as_slice());
         let contract = Contract::read(&mut readbuf).unwrap();
 
-        let expected = Contract::EVM {
+        let expected = Contract::Create {
             sender,
             address,
             gas: Some(gas),
@@ -266,7 +277,7 @@ mod tests {
         let value = None;
         let data = vec![0, 1, 2, 3];
 
-        let contract_type = 0; // Contract::EVM = 0
+        let contract_type = 0; // Contract::Create = 0
         let has_to = 0;
         let has_gas = 1;
         let has_gas_price = 1;
@@ -289,7 +300,7 @@ mod tests {
         let mut readbuf = ReadBuf::from(bb.as_slice());
         let contract = Contract::read(&mut readbuf).unwrap();
 
-        let expected = Contract::EVM {
+        let expected = Contract::Create {
             sender,
             address,
             gas: Some(gas),
@@ -308,7 +319,7 @@ mod tests {
         let value = None;
         let data = None;
 
-        let contract_type = 0; // Contract::EVM = 0
+        let contract_type = 0; // Contract::Create = 0
         let has_to = 0;
         let has_gas = 1;
         let has_gas_price = 1;
@@ -330,7 +341,7 @@ mod tests {
         let mut readbuf = ReadBuf::from(bb.as_slice());
         let contract = Contract::read(&mut readbuf).unwrap();
 
-        let expected = Contract::EVM {
+        let expected = Contract::Create {
             sender,
             address,
             gas: Some(gas),
@@ -342,7 +353,7 @@ mod tests {
         assert_eq!(contract, expected);
 
         // Example with contract with truncated byte-array
-        let contract_type = 0; // Contract::EVM = 0
+        let contract_type = 0; // Contract::Create = 0
 
         let bb: ByteArray<Contract> = ByteBuilder::new()
             .u8(contract_type)
@@ -381,7 +392,7 @@ mod tests {
             .u8(0)
             .finalize();
 
-        let contract = Contract::EVM {
+        let contract = Contract::Create {
             sender,
             address,
             gas: Some(gas),
@@ -403,7 +414,7 @@ mod tests {
         let value = None;
         let data = vec![0, 1, 2, 3];
 
-        let contract_type = 0; // Contract::EVM = 0
+        let contract_type = 0; // Contract::Create = 0
         let has_to = 0;
         let has_gas = 1;
         let has_gas_price = 1;
@@ -423,7 +434,7 @@ mod tests {
             .bytes(&data)
             .finalize();
 
-        let contract = Contract::EVM {
+        let contract = Contract::Create {
             sender,
             address,
             gas: Some(gas),
@@ -445,7 +456,7 @@ mod tests {
         let value = None;
         let data = Vec::new().into_boxed_slice();
 
-        let contract_type = 0; // Contract::EVM = 0
+        let contract_type = 0; // Contract::Create = 0
         let has_to = 0;
         let has_gas = 1;
         let has_gas_price = 1;
@@ -464,7 +475,7 @@ mod tests {
             .u8(has_data)
             .finalize();
 
-        let contract = Contract::EVM {
+        let contract = Contract::Create {
             sender,
             address,
             gas: Some(gas),

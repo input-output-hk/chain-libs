@@ -26,19 +26,15 @@ impl Ledger {
         environment: &'runtime Environment,
     ) -> Result<(), Error> {
         match contract {
-            Contract::EVM {
-                sender: _,
-                address,
-                gas: _,
-                gas_price: _,
-                value,
-                data: _,
+            Contract::Create {
+                caller: _,
+                value: _,
+                init_code: _,
+                gas_limit: _,
+                access_list: _,
             } => {
                 //
                 let _vm = self.virtual_machine(config, environment);
-
-                let _address = address.unwrap_or_default();
-                let _value = value.unwrap_or_default();
 
                 todo!("execute the contract and update ledger.evm.accounts");
             }
