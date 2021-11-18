@@ -12,6 +12,8 @@ use crate::{
 };
 use chain_addr::Discrimination;
 
+const ALICE: &str = "ALICE";
+
 #[test]
 pub fn update_slot_duration() {
     let initial_slot_duration = 10;
@@ -24,15 +26,15 @@ pub fn update_slot_duration() {
                 .with_discrimination(Discrimination::Test)
                 .with_leaders(&[leader_pair.id()]),
         )
-        .with_initials(vec![wallet("Alice")
+        .with_initials(vec![wallet(ALICE)
             .key(EitherEd25519SecretKey::Normal(leader_pair.key()))
             .with(1_000)])
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet("Alice").unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
     let mut config_params = ConfigParams::new();
-    config_params.push(ConfigParam::SlotDuration(100));
+    config_params.push(ConfigParam::SlotDuration(final_slot_duration));
 
     let update_proposal = UpdateProposal::new(config_params, leader_pair.id());
 

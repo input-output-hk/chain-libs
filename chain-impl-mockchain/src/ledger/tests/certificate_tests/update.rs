@@ -44,8 +44,7 @@ pub fn ledger_adopt_settings_from_update_proposal(
 
     // apply votes
     for vote in update_proposal_data.gen_votes(fragment.id()) {
-        let fragment =
-            fragment_factory.update_vote(testledger.date().next_epoch(), &leader, vote.into());
+        let fragment = fragment_factory.update_vote(testledger.date().next_epoch(), &leader, vote);
         testledger
             .apply_fragment(&fragment, BlockDate::first().next_epoch())
             .unwrap();
@@ -53,7 +52,9 @@ pub fn ledger_adopt_settings_from_update_proposal(
     }
 
     // trigger proposal process (build block)
-    testledger.apply_empty_bft_block(&leader_pair).unwrap();
+    testledger
+        .apply_empty_bft_block_with_date(leader_pair, testledger.date().next_epoch())
+        .unwrap();
 
     // assert
     let actual_params = testledger.ledger.settings.to_config_params();

@@ -74,17 +74,17 @@ impl WalletTemplate {
     }
 }
 
-impl Into<Wallet> for WalletTemplate {
-    fn into(self) -> Wallet {
-        if let Some(secret_key) = self.secret_key() {
+impl From<WalletTemplate> for Wallet {
+    fn from(template: WalletTemplate) -> Self {
+        if let Some(secret_key) = template.secret_key() {
             let user_address = Address(Discrimination::Test, Kind::Account(secret_key.to_public()));
             let account = AddressDataValue::new(
                 AddressData::new(secret_key, Some(0.into()), user_address),
-                self.initial_value,
+                template.initial_value,
             );
-            Wallet::from_address_data_value_and_alias(self.alias(), account)
+            Self::from_address_data_value_and_alias(template.alias(), account)
         } else {
-            Wallet::new(&self.alias(), self.initial_value)
+            Self::new(&template.alias(), template.initial_value)
         }
     }
 }

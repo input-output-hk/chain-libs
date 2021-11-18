@@ -72,10 +72,7 @@ impl AddressData {
         Self::new(
             EitherEd25519SecretKey::Normal(leader_pair.key()),
             Some(SpendingCounter(0)),
-            Address(
-                discrimination,
-                Kind::Account(leader_pair.key().to_public().clone()),
-            ),
+            Address(discrimination, Kind::Account(leader_pair.key().to_public())),
         )
     }
 
