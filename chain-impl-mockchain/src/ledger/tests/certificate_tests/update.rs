@@ -33,7 +33,8 @@ pub fn ledger_adopt_settings_from_update_proposal(
     let fragment = fragment_factory.update_proposal(
         testledger.date().next_epoch(),
         &leader,
-        update_proposal_data.proposal.clone(),
+        &leader,
+        update_proposal_data.proposal.clone().into(),
     );
 
     leader.confirm_transaction();
@@ -44,7 +45,8 @@ pub fn ledger_adopt_settings_from_update_proposal(
 
     // apply votes
     for vote in update_proposal_data.gen_votes(fragment.id()) {
-        let fragment = fragment_factory.update_vote(testledger.date().next_epoch(), &leader, vote);
+        let fragment =
+            fragment_factory.update_vote(testledger.date().next_epoch(), &leader, &leader, vote);
         testledger
             .apply_fragment(&fragment, BlockDate::first().next_epoch())
             .unwrap();
