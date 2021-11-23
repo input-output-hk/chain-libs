@@ -121,6 +121,7 @@ impl<'runtime> VirtualMachine<'runtime> {
     }
 
     /// Execute a CREATE transaction
+    #[allow(clippy::boxed_local)]
     pub fn transact_create(
         &mut self,
         caller: Address,
@@ -153,6 +154,8 @@ impl<'runtime> VirtualMachine<'runtime> {
     }
 
     /// Execute a CREATE2 transaction
+    #[allow(clippy::boxed_local)]
+    #[allow(clippy::too_many_arguments)]
     pub fn transact_create2(
         &mut self,
         caller: Address,
@@ -191,6 +194,8 @@ impl<'runtime> VirtualMachine<'runtime> {
     }
 
     /// Execute a CALL transaction
+    #[allow(clippy::boxed_local)]
+    #[allow(clippy::too_many_arguments)]
     pub fn transact_call(
         &mut self,
         caller: Address,
