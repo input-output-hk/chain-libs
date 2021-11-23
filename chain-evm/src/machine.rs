@@ -9,20 +9,25 @@
 //! ## StackState<'config>
 //!
 
-use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use evm::{
-    backend::{Apply, ApplyBackend, Backend, Basic, Log},
-    executor::stack::{MemoryStackState, PrecompileFn, StackExecutor, StackSubstateMetadata},
+    backend::{Apply, ApplyBackend, Backend, Basic},
+    executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
     Context, Runtime,
 };
 use primitive_types::{H160, H256, U256};
 
-use crate::state::AccountTrie;
+use crate::{
+    precompiles::Precompiles,
+    state::{AccountTrie, ByteCode, Key},
+};
 
 /// Export EVM types
-pub use evm::{backend::MemoryVicinity as Environment, Config};
+pub use evm::{
+    backend::{Log, MemoryVicinity as Environment},
+    Config, ExitReason,
+};
 
 /// An address of an EVM account.
 pub type Address = H160;
@@ -69,8 +74,6 @@ pub type Value = U256;
 /// The context of the EVM runtime
 pub type RuntimeContext = Context;
 
-type Precompiles = BTreeMap<H160, PrecompileFn>;
-
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
 pub struct VirtualMachine<'runtime> {
@@ -83,8 +86,7 @@ pub struct VirtualMachine<'runtime> {
 }
 
 fn precompiles() -> Precompiles {
-    // TODO: provide adequate precompiles
-    Default::default()
+    Precompiles::new_berlin()
 }
 
 impl<'runtime> VirtualMachine<'runtime> {
@@ -108,17 +110,6 @@ impl<'runtime> VirtualMachine<'runtime> {
         }
     }
 
-    /// Returns an initialized instance of `evm::executor::StackExecutor`.
-    pub fn executor(
-        &self,
-        gas_limit: u64,
-    ) -> StackExecutor<'_, '_, MemoryStackState<'_, '_, VirtualMachine>, BTreeMap<H160, PrecompileFn>>
-    {
-        let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-        let memory_stack_state = MemoryStackState::new(metadata, self);
-        StackExecutor::new_with_precompiles(memory_stack_state, self.config, &self.precompiles)
-    }
-
     /// Returns an initialized instance of `evm::Runtime`.
     pub fn runtime(
         &self,
@@ -127,6 +118,109 @@ impl<'runtime> VirtualMachine<'runtime> {
         context: RuntimeContext,
     ) -> Runtime<'_> {
         Runtime::new(code, data, context, self.config)
+    }
+
+    /// Execute a CREATE transaction
+    pub fn transact_create(
+        &mut self,
+        caller: Address,
+        value: Value,
+        init_code: ByteCode,
+        gas_limit: u64,
+        access_list: Vec<(Address, Vec<Key>)>,
+        delete_empty: bool,
+    ) -> ExitReason {
+        {
+            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
+            let memory_stack_state = MemoryStackState::new(metadata, self);
+            let mut executor = StackExecutor::new_with_precompiles(
+                memory_stack_state,
+                self.config,
+                &self.precompiles,
+            );
+
+            let exit_reason =
+                executor.transact_create(caller, value, init_code.to_vec(), gas_limit, access_list);
+            // apply changes to the state, this consumes the executor
+            let state = executor.into_state();
+            // Next, we consume the stack state and extract the values and logs
+            // used to modify the accounts trie in the VirtualMachine.
+            let (values, logs) = state.deconstruct();
+
+            self.apply(values, logs, delete_empty);
+            exit_reason
+        }
+    }
+
+    /// Execute a CREATE2 transaction
+    pub fn transact_create2(
+        &mut self,
+        caller: Address,
+        value: Value,
+        init_code: ByteCode,
+        salt: H256,
+        gas_limit: u64,
+        access_list: Vec<(Address, Vec<Key>)>,
+        delete_empty: bool,
+    ) -> ExitReason {
+        {
+            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
+            let memory_stack_state = MemoryStackState::new(metadata, self);
+            let mut executor = StackExecutor::new_with_precompiles(
+                memory_stack_state,
+                self.config,
+                &self.precompiles,
+            );
+            let exit_reason = executor.transact_create2(
+                caller,
+                value,
+                init_code.to_vec(),
+                salt,
+                gas_limit,
+                access_list,
+            );
+            // apply changes to the state, this consumes the executor
+            let state = executor.into_state();
+            // Next, we consume the stack state and extract the values and logs
+            // used to modify the accounts trie in the VirtualMachine.
+            let (values, logs) = state.deconstruct();
+
+            self.apply(values, logs, delete_empty);
+            exit_reason
+        }
+    }
+
+    /// Execute a CALL transaction
+    pub fn transact_call(
+        &mut self,
+        caller: Address,
+        address: Address,
+        value: Value,
+        data: ByteCode,
+        gas_limit: u64,
+        access_list: Vec<(Address, Vec<Key>)>,
+        delete_empty: bool,
+    ) -> (ExitReason, ByteCode) {
+        let metadata = StackSubstateMetadata::new(gas_limit, self.config);
+        let memory_stack_state = MemoryStackState::new(metadata, self);
+        let mut executor =
+            StackExecutor::new_with_precompiles(memory_stack_state, self.config, &self.precompiles);
+        let (exit_reason, byte_output) = executor.transact_call(
+            caller,
+            address,
+            value,
+            data.to_vec(),
+            gas_limit,
+            access_list,
+        );
+        // apply changes to the state, this consumes the executor
+        let state = executor.into_state();
+        // Next, we consume the stack state and extract the values and logs
+        // used to modify the accounts trie in the VirtualMachine.
+        let (values, logs) = state.deconstruct();
+
+        self.apply(values, logs, delete_empty);
+        (exit_reason, byte_output.into_boxed_slice())
     }
 }
 

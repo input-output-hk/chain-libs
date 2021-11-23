@@ -510,7 +510,8 @@ impl Ledger {
                         let contract = tx.as_slice().payload().into_payload();
                         let config = &ledger.settings.evm_params.config.into();
                         let environment = &ledger.settings.evm_params.environment;
-                        ledger.evm.deploy_contract(contract, config, environment)?;
+                        let _exit_reason =
+                            ledger.evm.deploy_contract(contract, config, environment)?;
                     }
                     #[cfg(not(feature = "evm"))]
                     {
@@ -1019,7 +1020,23 @@ impl Ledger {
                     tx.payload_auth().into_payload_auth(),
                 )?;
             }
-            Fragment::SmartContractDeploy(_deployment) => todo!(),
+            Fragment::SmartContractDeploy(tx) => {
+                #[cfg(feature = "evm")]
+                {
+                    // WIP: deploying contract
+                    let contract = tx.as_slice().payload().into_payload();
+                    let config = &new_ledger.settings.evm_params.config.into();
+                    let environment = &new_ledger.settings.evm_params.environment;
+                    let _exit_reason =
+                        new_ledger
+                            .evm
+                            .deploy_contract(contract, config, environment)?;
+                }
+                #[cfg(not(feature = "evm"))]
+                {
+                    let _ = tx;
+                }
+            }
         }
 
         Ok(new_ledger)

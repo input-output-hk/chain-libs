@@ -186,7 +186,7 @@ impl Precompiles {
     }
 
     #[allow(dead_code)]
-    fn new_berlin() -> Self {
+    pub fn new_berlin() -> Self {
         Self::new_istanbul()
     }
 }
