@@ -312,7 +312,7 @@ fn pack_pool_registration<W: std::io::Write>(
 
 fn unpack_pool_registration(buf: &mut ReadBuf) -> Result<PoolRegistration, ReadError> {
     // TODO: do not store extra bytes
-    buf.get_u64()? as usize;
+    buf.get_u64()?;
     PoolRegistration::read(buf)
 }
 
@@ -795,7 +795,7 @@ fn pack_address<W: std::io::Write>(
 fn unpack_address(buf: &mut ReadBuf) -> Result<Address, ReadError> {
     let size = buf.get_u64()?;
     let v = buf.get_slice(size as usize)?;
-    Address::from_bytes(&v).map_err(|e| {
+    Address::from_bytes(v).map_err(|e| {
         ReadError::InvalidData(format!("Error reading address from packed bytes: {}", e))
     })
 }
@@ -874,7 +874,7 @@ fn unpack_committee_public_keys(
     let mut result = Vec::new();
     for _ in 0..size {
         let bytes = buf.get_slice(chain_vote::MemberPublicKey::BYTES_LEN)?;
-        let key = chain_vote::MemberPublicKey::from_bytes(&bytes).ok_or_else(|| {
+        let key = chain_vote::MemberPublicKey::from_bytes(bytes).ok_or_else(|| {
             ReadError::InvalidData("invalid committee member public key in a vote plan".to_string())
         })?;
         result.push(key);
