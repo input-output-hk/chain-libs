@@ -20,7 +20,7 @@ use crate::setting::ActiveSlotsCoeffError;
 use crate::stake::{
     PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeControl, StakeDistribution,
 };
-use crate::tokens::MintingPolicyViolation;
+use crate::tokens::minting_policy::MintingPolicyViolation;
 use crate::transaction::*;
 use crate::treasury::Treasury;
 use crate::value::*;

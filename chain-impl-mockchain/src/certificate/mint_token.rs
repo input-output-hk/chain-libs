@@ -1,7 +1,7 @@
 use crate::{
     account::Identifier,
     certificate::CertificateSlice,
-    tokens::{MintingPolicy, TokenIdentifier},
+    tokens::{identifier::TokenIdentifier, minting_policy::MintingPolicy},
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
     value::Value,
 };

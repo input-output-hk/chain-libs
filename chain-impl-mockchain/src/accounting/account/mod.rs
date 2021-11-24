@@ -8,7 +8,7 @@ pub mod account_state;
 pub mod last_rewards;
 pub mod spending;
 
-use crate::tokens::TokenIdentifier;
+use crate::tokens::identifier::TokenIdentifier;
 use crate::{date::Epoch, value::*};
 use imhamt::{Hamt, InsertError, UpdateError};
 use std::collections::hash_map::DefaultHasher;
