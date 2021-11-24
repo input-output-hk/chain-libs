@@ -151,6 +151,7 @@ impl Fragment {
 }
 
 impl Readable for Fragment {
+    // TODO: fix deserialization, it needs to converge to the serialization, currently is not, look into the fragment_serialization_bijection() test
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let padding_tag = buf.get_u8()?;
         if padding_tag != 0 {
@@ -199,15 +200,6 @@ impl property::Serialize for Fragment {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         self.to_raw().serialize(writer)
-    }
-}
-
-impl property::Deserialize for Fragment {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        let raw = FragmentRaw::deserialize(reader)?;
-        Fragment::from_raw(&raw)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))
     }
 }
 

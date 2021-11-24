@@ -90,20 +90,6 @@ impl property::Serialize for UpdateProposal {
     }
 }
 
-impl property::Deserialize for UpdateProposal {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::*;
-        let mut codec = Codec::new(reader);
-        let changes = ConfigParams::deserialize(&mut codec)?;
-        let proposer_id = UpdateProposerId::deserialize(&mut codec)?;
-        Ok(Self {
-            changes,
-            proposer_id,
-        })
-    }
-}
-
 impl Readable for UpdateProposal {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let changes = ConfigParams::read(buf)?;

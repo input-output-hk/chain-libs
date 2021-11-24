@@ -209,25 +209,6 @@ impl property::Serialize for Input {
     }
 }
 
-impl property::Deserialize for Input {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::*;
-
-        let mut codec = Codec::new(reader);
-        let index_or_account = codec.get_u8()?;
-        let value = Value::deserialize(&mut codec)?;
-        let mut input_ptr = [0; INPUT_PTR_SIZE];
-        codec.into_inner().read_exact(&mut input_ptr)?;
-        Ok(Input {
-            index_or_account,
-            value,
-            input_ptr,
-        })
-    }
-}
-
 impl Readable for Input {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let index_or_account = buf.get_u8()?;

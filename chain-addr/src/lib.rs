@@ -36,7 +36,7 @@ use std::string::ToString;
 use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
 
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
-use chain_core::property::{self, Serialize as PropertySerialize};
+use chain_core::property::Serialize;
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod testing;
@@ -416,7 +416,7 @@ impl std::str::FromStr for AddressReadable {
     }
 }
 
-impl PropertySerialize for Address {
+impl Serialize for Address {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
@@ -447,58 +447,6 @@ impl PropertySerialize for Address {
         let mut data = Vec::with_capacity(self.to_size());
         self.serialize(&mut data)?;
         Ok(data)
-    }
-}
-impl property::Deserialize for Address {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::*;
-        use std::io::Read;
-        let mut codec = Codec::new(reader);
-        // is_valid_data(bytes)?;
-
-        let byte = codec.get_u8()?;
-
-        let discr = get_discrimination_value(byte);
-        let kind = match get_kind_value(byte) {
-            ADDR_KIND_SINGLE => {
-                let mut bytes = [0u8; 32];
-                codec.read_exact(&mut bytes)?;
-                let spending = PublicKey::from_binary(&bytes[..]).map_err(|err| {
-                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
-                })?;
-                Kind::Single(spending)
-            }
-            ADDR_KIND_GROUP => {
-                let mut bytes = [0u8; 32];
-                codec.read_exact(&mut bytes)?;
-                let spending = PublicKey::from_binary(&bytes[..]).map_err(|err| {
-                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
-                })?;
-                let mut bytes = [0u8; 32];
-                codec.read_exact(&mut bytes)?;
-                let group = PublicKey::from_binary(&bytes[..]).map_err(|err| {
-                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
-                })?;
-                Kind::Group(spending, group)
-            }
-            ADDR_KIND_ACCOUNT => {
-                let mut bytes = [0u8; 32];
-                codec.read_exact(&mut bytes)?;
-                let stake_key = PublicKey::from_binary(&bytes[..]).map_err(|err| {
-                    std::io::Error::new(std::io::ErrorKind::InvalidData, Box::new(err))
-                })?;
-                Kind::Account(stake_key)
-            }
-            ADDR_KIND_MULTISIG => {
-                let mut bytes = [0u8; 32];
-                codec.read_exact(&mut bytes)?;
-                Kind::Multisig(bytes)
-            }
-            _ => unreachable!(),
-        };
-        Ok(Address(discr, kind))
     }
 }
 

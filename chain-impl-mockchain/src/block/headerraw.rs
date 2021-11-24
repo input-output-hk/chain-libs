@@ -1,4 +1,4 @@
-use chain_core::property;
+use chain_core::{mempack::Readable, property};
 
 /// Block Header Bytes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,18 +24,13 @@ impl property::Serialize for HeaderRaw {
     }
 }
 
-impl property::Deserialize for HeaderRaw {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::Codec;
-        use std::io::Read;
-
-        let mut codec = Codec::new(reader);
-
-        let header_size = codec.get_u16()? as usize;
+impl Readable for HeaderRaw {
+    fn read(
+        buf: &mut chain_core::mempack::ReadBuf,
+    ) -> Result<Self, chain_core::mempack::ReadError> {
+        let header_size = buf.get_u16()? as usize;
         let mut v = vec![0u8; header_size];
-        codec.read_exact(&mut v[..])?;
+        buf.copy_to_slice_mut(&mut v)?;
         Ok(HeaderRaw(v))
     }
 }

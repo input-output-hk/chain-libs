@@ -1,6 +1,7 @@
 //! Split timeframe in eras
 
 use crate::timeframe::Slot;
+use chain_core::mempack::{ReadBuf, ReadError};
 use chain_ser::packer::Codec;
 use std::fmt;
 
@@ -52,12 +53,10 @@ pub fn pack_time_era<W: std::io::Write>(
     Ok(())
 }
 
-pub fn unpack_time_era<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<TimeEra, std::io::Error> {
-    let epoch_start = Epoch(codec.get_u32()?);
-    let slot_start = Slot(codec.get_u64()?);
-    let slots_per_epoch = codec.get_u32()?;
+pub fn unpack_time_era(buf: &mut ReadBuf) -> Result<TimeEra, ReadError> {
+    let epoch_start = Epoch(buf.get_u32()?);
+    let slot_start = Slot(buf.get_u64()?);
+    let slots_per_epoch = buf.get_u32()?;
 
     Ok(TimeEra {
         epoch_start,
@@ -115,7 +114,6 @@ mod test {
     use crate::timeframe::*;
     use crate::timeline::Timeline;
 
-    use std::io::Cursor;
     use std::time::{Duration, SystemTime};
 
     use chain_ser::packer::Codec;
@@ -124,14 +122,14 @@ mod test {
 
     #[proptest]
     fn time_era_pack_unpack_bijection(time_era: TimeEra) {
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
 
         pack_time_era(&time_era, &mut codec).unwrap();
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let other_time_era = unpack_time_era(&mut codec).unwrap();
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let other_time_era = unpack_time_era(&mut buf).unwrap();
         prop_assert_eq!(time_era, other_time_era);
     }
 

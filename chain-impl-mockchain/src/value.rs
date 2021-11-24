@@ -114,15 +114,6 @@ impl AsRef<u64> for Value {
     }
 }
 
-impl property::Deserialize for Value {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::*;
-        let mut codec = Codec::new(reader);
-        codec.get_u64().map(Value)
-    }
-}
 impl Readable for Value {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         buf.get_u64().map(Value)

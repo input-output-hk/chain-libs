@@ -33,21 +33,6 @@ impl property::Serialize for ConfigParams {
     }
 }
 
-impl property::Deserialize for ConfigParams {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::Codec;
-        let mut codec = Codec::new(reader);
-        let size = codec.get_u16()? as usize;
-        let mut config_params: Vec<ConfigParam> = Vec::with_capacity(size);
-        for _ in 0..size {
-            config_params.push(ConfigParam::deserialize(&mut codec)?);
-        }
-        Ok(ConfigParams(config_params))
-    }
-}
-
 impl Readable for ConfigParams {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         // FIXME: check canonical order?
@@ -66,10 +51,10 @@ mod tests {
 
     quickcheck! {
         fn config_params_serialize(params: ConfigParams) -> bool {
-            use chain_core::property::{Serialize as _, Deserialize as _};
+            use chain_core::property::{Serialize as _,};
             let bytes = params.serialize_as_vec().unwrap();
-            let reader = std::io::Cursor::new(&bytes);
-            let decoded = ConfigParams::deserialize(reader).unwrap();
+            let mut buf = ReadBuf::from(&bytes);
+            let decoded = ConfigParams::read(&mut buf).unwrap();
 
             params == decoded
         }

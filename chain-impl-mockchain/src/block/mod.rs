@@ -1,9 +1,9 @@
 //! Representation of the block in the mockchain.
 use crate::fragment::{Fragment, FragmentRaw};
-use chain_core::mempack::{read_from_raw, ReadBuf, ReadError, Readable};
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 
-use std::{io, slice};
+use std::slice;
 
 mod builder;
 mod header;
@@ -108,55 +108,6 @@ impl property::Serialize for Block {
             message_raw.serialize(&mut writer)?;
         }
         Ok(())
-    }
-}
-
-impl property::Deserialize for Block {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, Self::Error> {
-        let header_raw = HeaderRaw::deserialize(&mut reader)?;
-        let header = read_from_raw::<Header>(header_raw.as_ref())?;
-
-        let mut serialized_content_size = header.block_content_size();
-        let mut contents = ContentsBuilder::new();
-
-        while serialized_content_size > 0 {
-            let message_raw = FragmentRaw::deserialize(&mut reader)?;
-            let message_size = message_raw.size_bytes_plus_size() as u32;
-
-            if message_size > serialized_content_size {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!(
-                        "{} bytes remaining according to the header but got a fragment of size {}",
-                        message_size, serialized_content_size,
-                    ),
-                ));
-            }
-
-            let message = Fragment::from_raw(&message_raw)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-            contents.push(message);
-
-            serialized_content_size -= message_size;
-        }
-
-        let contents: Contents = contents.into();
-        let (content_hash, _content_size) = contents.compute_hash_size();
-
-        if content_hash != header.block_content_hash() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Inconsistent block content hash in header: block {} header {}",
-                    content_hash,
-                    header.block_content_hash()
-                ),
-            ));
-        }
-
-        Ok(Block { header, contents })
     }
 }
 

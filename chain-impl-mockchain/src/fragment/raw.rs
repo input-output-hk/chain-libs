@@ -34,18 +34,6 @@ impl Readable for FragmentRaw {
     }
 }
 
-impl property::Deserialize for FragmentRaw {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        use chain_core::packer::*;
-        let mut codec = Codec::new(reader);
-        let size = codec.get_u32()?;
-        let mut v = vec![0u8; size as usize];
-        codec.into_inner().read_exact(&mut v)?;
-        Ok(FragmentRaw(v))
-    }
-}
-
 impl property::Serialize for FragmentRaw {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {

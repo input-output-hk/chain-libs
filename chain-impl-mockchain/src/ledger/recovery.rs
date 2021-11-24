@@ -37,7 +37,6 @@
 
 use super::pots;
 use super::{Entry, EntryOwned};
-use crate::account::AccountAlg;
 use crate::accounting::account::{
     AccountState, DelegationRatio, DelegationType, LastRewards, SpendingCounter,
     SpendingCounterIncreasing,
@@ -61,22 +60,20 @@ use crate::value::Value;
 use crate::vote;
 use crate::{config, key, multisig, utxo};
 use chain_addr::{Address, Discrimination};
-use chain_core::mempack::{ReadBuf, Readable};
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_crypto::digest::{DigestAlg, DigestOf};
-use chain_crypto::AsymmetricPublicKey;
-use chain_ser::deser::{Deserialize, Serialize};
+use chain_ser::deser::Serialize;
 use chain_ser::packer::Codec;
 use chain_time::era::{pack_time_era, unpack_time_era};
 use imhamt::Hamt;
 use std::convert::TryFrom;
-use std::io::{self, BufRead, ErrorKind, Read, Write};
+use std::io::Write;
 use std::sync::Arc;
 
 #[cfg(test)]
 use crate::{
     chaintypes::ConsensusVersion,
     fee::{LinearFee, PerCertificateFee, PerVoteCertificateFee},
-    fragment::ConfigParams,
     key::BftLeaderId,
 };
 
@@ -87,8 +84,8 @@ fn pack_pool_id<W: std::io::Write>(
     pack_digestof(pool_id, codec)
 }
 
-fn unpack_pool_id<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<PoolId, std::io::Error> {
-    unpack_digestof(codec)
+fn unpack_pool_id(buf: &mut ReadBuf) -> Result<PoolId, ReadError> {
+    unpack_digestof(buf)
 }
 
 fn pack_discrimination<W: std::io::Write>(
@@ -106,16 +103,14 @@ fn pack_discrimination<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_discrimination<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<Discrimination, std::io::Error> {
-    match codec.get_u8()? {
+fn unpack_discrimination(buf: &mut ReadBuf) -> Result<Discrimination, ReadError> {
+    match buf.get_u8()? {
         0 => Ok(Discrimination::Production),
         1 => Ok(Discrimination::Test),
-        code => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Not recognize code {}", code),
-        )),
+        code => Err(ReadError::InvalidData(format!(
+            "Not recognize code {}",
+            code
+        ))),
     }
 }
 
@@ -129,18 +124,10 @@ fn pack_digestof<H: DigestAlg, T, W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_digestof<H: DigestAlg, T, R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<DigestOf<H, T>, std::io::Error> {
-    let size = codec.get_u64()?;
-    let bytes = codec.get_bytes(size as usize)?;
-    match DigestOf::try_from(&bytes[..]) {
-        Ok(data) => Ok(data),
-        Err(e) => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("{}", e),
-        )),
-    }
+fn unpack_digestof<H: DigestAlg, T>(buf: &mut ReadBuf) -> Result<DigestOf<H, T>, ReadError> {
+    let size = buf.get_u64()?;
+    let bytes = buf.get_slice(size as usize)?;
+    DigestOf::try_from(bytes).map_err(|e| ReadError::InvalidData(e.to_string()))
 }
 
 fn pack_account_identifier<W: std::io::Write>(
@@ -150,18 +137,8 @@ fn pack_account_identifier<W: std::io::Write>(
     serialize_public_key(identifier.as_ref(), codec)
 }
 
-fn unpack_account_identifier<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<crate::account::Identifier, std::io::Error> {
-    let bytes = codec.get_bytes(<AccountAlg as AsymmetricPublicKey>::PUBLIC_KEY_SIZE as usize)?;
-    let mut bytes_buff = ReadBuf::from(&bytes);
-    match crate::account::Identifier::read(&mut bytes_buff) {
-        Ok(identifier) => Ok(identifier),
-        Err(e) => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Error reading Identifier: {}", e),
-        )),
-    }
+fn unpack_account_identifier(buf: &mut ReadBuf) -> Result<crate::account::Identifier, ReadError> {
+    crate::account::Identifier::read(buf)
 }
 
 fn pack_spending_strategy<W: std::io::Write>(
@@ -175,24 +152,19 @@ fn pack_spending_strategy<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_spending_strategy<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<SpendingCounterIncreasing, std::io::Error> {
+fn unpack_spending_strategy(buf: &mut ReadBuf) -> Result<SpendingCounterIncreasing, ReadError> {
     let mut counters = Vec::new();
     for _ in 0..SpendingCounterIncreasing::LANES {
-        let counter = SpendingCounter(codec.get_u32()?);
+        let counter = SpendingCounter(buf.get_u32()?);
         counters.push(counter);
     }
     let got_length = counters.len();
     SpendingCounterIncreasing::new_from_counters(counters).ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "wrong numbers of lanes, expecting {} but got {}",
-                SpendingCounterIncreasing::LANES,
-                got_length,
-            ),
-        )
+        ReadError::InvalidData(format!(
+            "wrong numbers of lanes, expecting {} but got {}",
+            SpendingCounterIncreasing::LANES,
+            got_length,
+        ))
     })
 }
 
@@ -207,13 +179,11 @@ fn pack_account_state<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_account_state<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<AccountState<()>, std::io::Error> {
-    let spending = unpack_spending_strategy(codec)?;
-    let delegation = unpack_delegation_type(codec)?;
-    let value = codec.get_u64()?;
-    let last_rewards = unpack_last_rewards(codec)?;
+fn unpack_account_state(buf: &mut ReadBuf) -> Result<AccountState<()>, ReadError> {
+    let spending = unpack_spending_strategy(buf)?;
+    let delegation = unpack_delegation_type(buf)?;
+    let value = buf.get_u64()?;
+    let last_rewards = unpack_last_rewards(buf)?;
     Ok(AccountState {
         spending,
         delegation,
@@ -237,23 +207,18 @@ fn pack_delegation_ratio<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_delegation_ratio<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<DelegationRatio, std::io::Error> {
-    let parts = codec.get_u8()?;
-    let pools_size = codec.get_u64()?;
-    let mut pools: Vec<(PoolId, u8)> = Vec::with_capacity(pools_size as usize);
-    for _ in 0..pools_size {
-        let u = codec.get_u8()?;
-        pools.push((unpack_pool_id(codec)?, u));
+fn unpack_delegation_ratio(buf: &mut ReadBuf) -> Result<DelegationRatio, ReadError> {
+    let parts = buf.get_u8()?;
+    let pool_size = buf.get_u64()?;
+    let mut pools: Vec<(PoolId, u8)> = Vec::with_capacity(pool_size as usize);
+    for _ in 0..pool_size {
+        let u = buf.get_u8()?;
+        pools.push((unpack_pool_id(buf)?, u));
     }
-    match DelegationRatio::new(parts, pools) {
-        Some(delegation_ratio) => Ok(delegation_ratio),
-        None => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Error building DelegationRatio from serialized data",
-        )),
-    }
+
+    DelegationRatio::new(parts, pools).ok_or_else(|| {
+        ReadError::InvalidData("Error building DelegationRatio from serialized data".to_string())
+    })
 }
 
 fn pack_delegation_type<W: std::io::Write>(
@@ -276,23 +241,15 @@ fn pack_delegation_type<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_delegation_type<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<DelegationType, std::io::Error> {
-    match codec.get_u8()? {
+fn unpack_delegation_type(buf: &mut ReadBuf) -> Result<DelegationType, ReadError> {
+    match buf.get_u8()? {
         0 => Ok(DelegationType::NonDelegated),
-        1 => {
-            let pool_id = unpack_pool_id(codec)?;
-            Ok(DelegationType::Full(pool_id))
-        }
-        2 => {
-            let delegation_ratio = unpack_delegation_ratio(codec)?;
-            Ok(DelegationType::Ratio(delegation_ratio))
-        }
-        code => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Invalid DelegationType type code {}", code),
-        )),
+        1 => Ok(DelegationType::Full(unpack_pool_id(buf)?)),
+        2 => Ok(DelegationType::Ratio(unpack_delegation_ratio(buf)?)),
+        code => Err(ReadError::InvalidData(format!(
+            "Invalid DelegationType type code {}",
+            code
+        ))),
     }
 }
 
@@ -305,12 +262,10 @@ fn pack_last_rewards<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_last_rewards<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<LastRewards, std::io::Error> {
+fn unpack_last_rewards(buf: &mut ReadBuf) -> Result<LastRewards, ReadError> {
     Ok(LastRewards {
-        epoch: codec.get_u32()?,
-        reward: Value(codec.get_u64()?),
+        epoch: buf.get_u32()?,
+        reward: Value(buf.get_u64()?),
     })
 }
 
@@ -331,16 +286,14 @@ fn pack_consensus_version<W: std::io::Write>(
 }
 
 #[cfg(test)]
-fn unpack_consensus_version<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<ConsensusVersion, std::io::Error> {
-    match codec.get_u8()? {
+fn unpack_consensus_version(buf: &mut ReadBuf) -> Result<ConsensusVersion, ReadError> {
+    match buf.get_u8()? {
         1 => Ok(ConsensusVersion::Bft),
         2 => Ok(ConsensusVersion::GenesisPraos),
-        code => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Unrecognized code {} for ConsensusVersion", code),
-        )),
+        code => Err(ReadError::InvalidData(format!(
+            "Unrecognized code {} for ConsensusVersion",
+            code
+        ))),
     }
 }
 
@@ -351,24 +304,16 @@ fn pack_pool_registration<W: std::io::Write>(
     let byte_array = pool_registration.serialize();
     let bytes = byte_array.as_slice();
     let size = bytes.len() as u64;
+    // TODO: do not store extra bytes
     codec.put_u64(size)?;
     codec.put_bytes(bytes)?;
     Ok(())
 }
 
-fn unpack_pool_registration<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<PoolRegistration, std::io::Error> {
-    let size = codec.get_u64()? as usize;
-    let bytes_buff = codec.get_bytes(size)?;
-    let mut read_buff = ReadBuf::from(&bytes_buff);
-    match PoolRegistration::read(&mut read_buff) {
-        Ok(res) => Ok(res),
-        Err(err) => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Error reading PoolRegistration data: {}", err),
-        )),
-    }
+fn unpack_pool_registration(buf: &mut ReadBuf) -> Result<PoolRegistration, ReadError> {
+    // TODO: do not store extra bytes
+    buf.get_u64()? as usize;
+    PoolRegistration::read(buf)
 }
 
 fn pack_config_param<W: Write>(
@@ -378,10 +323,8 @@ fn pack_config_param<W: Write>(
     config_param.serialize(codec)
 }
 
-fn unpack_config_param<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<ConfigParam, std::io::Error> {
-    ConfigParam::deserialize(codec)
+fn unpack_config_param(buf: &mut ReadBuf) -> Result<ConfigParam, ReadError> {
+    ConfigParam::read(buf)
 }
 
 fn pack_block_date<W: std::io::Write>(
@@ -393,11 +336,9 @@ fn pack_block_date<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_block_date<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<BlockDate, std::io::Error> {
-    let epoch = codec.get_u32()?;
-    let slot_id = codec.get_u32()?;
+fn unpack_block_date(buf: &mut ReadBuf) -> Result<BlockDate, ReadError> {
+    let epoch = buf.get_u32()?;
+    let slot_id = buf.get_u32()?;
     Ok(BlockDate { epoch, slot_id })
 }
 
@@ -415,14 +356,12 @@ fn pack_linear_fee<W: std::io::Write>(
 }
 
 #[cfg(test)]
-fn unpack_linear_fee<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<LinearFee, std::io::Error> {
-    let constant = codec.get_u64()?;
-    let coefficient = codec.get_u64()?;
-    let certificate = codec.get_u64()?;
-    let per_certificate_fees = unpack_per_certificate_fee(codec)?;
-    let per_vote_certificate_fees = unpack_per_vote_certificate_fee(codec)?;
+fn unpack_linear_fee(buf: &mut ReadBuf) -> Result<LinearFee, ReadError> {
+    let constant = buf.get_u64()?;
+    let coefficient = buf.get_u64()?;
+    let certificate = buf.get_u64()?;
+    let per_certificate_fees = unpack_per_certificate_fee(buf)?;
+    let per_vote_certificate_fees = unpack_per_vote_certificate_fee(buf)?;
     Ok(LinearFee {
         constant,
         coefficient,
@@ -479,12 +418,10 @@ fn pack_per_vote_certificate_fee<W: std::io::Write>(
 }
 
 #[cfg(test)]
-fn unpack_per_certificate_fee<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<PerCertificateFee, std::io::Error> {
-    let certificate_pool_registration = std::num::NonZeroU64::new(codec.get_u64()?);
-    let certificate_stake_delegation = std::num::NonZeroU64::new(codec.get_u64()?);
-    let certificate_owner_stake_delegation = std::num::NonZeroU64::new(codec.get_u64()?);
+fn unpack_per_certificate_fee(buf: &mut ReadBuf) -> Result<PerCertificateFee, ReadError> {
+    let certificate_pool_registration = std::num::NonZeroU64::new(buf.get_u64()?);
+    let certificate_stake_delegation = std::num::NonZeroU64::new(buf.get_u64()?);
+    let certificate_owner_stake_delegation = std::num::NonZeroU64::new(buf.get_u64()?);
 
     Ok(PerCertificateFee {
         certificate_pool_registration,
@@ -494,33 +431,14 @@ fn unpack_per_certificate_fee<R: std::io::BufRead>(
 }
 
 #[cfg(test)]
-fn unpack_per_vote_certificate_fee<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<PerVoteCertificateFee, std::io::Error> {
-    let certificate_vote_plan = std::num::NonZeroU64::new(codec.get_u64()?);
-    let certificate_vote_cast = std::num::NonZeroU64::new(codec.get_u64()?);
+fn unpack_per_vote_certificate_fee(buf: &mut ReadBuf) -> Result<PerVoteCertificateFee, ReadError> {
+    let certificate_vote_plan = std::num::NonZeroU64::new(buf.get_u64()?);
+    let certificate_vote_cast = std::num::NonZeroU64::new(buf.get_u64()?);
 
     Ok(PerVoteCertificateFee {
         certificate_vote_plan,
         certificate_vote_cast,
     })
-}
-
-#[allow(dead_code)]
-#[cfg(test)]
-fn pack_config_params<W: std::io::Write>(
-    config_params: &ConfigParams,
-    codec: &mut Codec<W>,
-) -> Result<(), std::io::Error> {
-    config_params.serialize(codec)
-}
-
-#[allow(dead_code)]
-#[cfg(test)]
-fn unpack_config_params<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<ConfigParams, std::io::Error> {
-    ConfigParams::deserialize(codec)
 }
 
 #[cfg(test)]
@@ -532,10 +450,8 @@ fn pack_leader_id<W: std::io::Write>(
 }
 
 #[cfg(test)]
-fn unpack_leader_id<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<BftLeaderId, std::io::Error> {
-    BftLeaderId::deserialize(codec)
+fn unpack_leader_id(buf: &mut ReadBuf) -> Result<BftLeaderId, ReadError> {
+    BftLeaderId::read(buf)
 }
 
 fn pack_header_id<W: std::io::Write>(
@@ -545,8 +461,8 @@ fn pack_header_id<W: std::io::Write>(
     header_id.serialize(codec)
 }
 
-fn unpack_header_id<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<HeaderId, std::io::Error> {
-    HeaderId::deserialize(codec)
+fn unpack_header_id(buf: &mut ReadBuf) -> Result<HeaderId, ReadError> {
+    HeaderId::read(buf)
 }
 
 fn pack_ledger_static_parameters<W: std::io::Write>(
@@ -560,13 +476,11 @@ fn pack_ledger_static_parameters<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_ledger_static_parameters<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<LedgerStaticParameters, std::io::Error> {
-    let block0_initial_hash = unpack_header_id(codec)?;
-    let block0_start_time = config::Block0Date(codec.get_u64()?);
-    let discrimination = unpack_discrimination(codec)?;
-    let kes_update_speed = codec.get_u32()?;
+fn unpack_ledger_static_parameters(buf: &mut ReadBuf) -> Result<LedgerStaticParameters, ReadError> {
+    let block0_initial_hash = unpack_header_id(buf)?;
+    let block0_start_time = config::Block0Date(buf.get_u64()?);
+    let discrimination = unpack_discrimination(buf)?;
+    let kes_update_speed = buf.get_u32()?;
     Ok(LedgerStaticParameters {
         block0_initial_hash,
         block0_start_time,
@@ -586,11 +500,11 @@ fn pack_globals<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_globals<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Globals, std::io::Error> {
-    let date = unpack_block_date(codec)?;
-    let chain_length = ChainLength(codec.get_u32()?);
-    let static_params = unpack_ledger_static_parameters(codec)?;
-    let era = unpack_time_era(codec)?;
+fn unpack_globals(buf: &mut ReadBuf) -> Result<Globals, ReadError> {
+    let date = unpack_block_date(buf)?;
+    let chain_length = ChainLength(buf.get_u32()?);
+    let static_params = unpack_ledger_static_parameters(buf)?;
+    let era = unpack_time_era(buf)?;
     Ok(Globals {
         date,
         chain_length,
@@ -620,17 +534,15 @@ fn pack_pot_entry<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_pot_entry<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<pots::Entry, std::io::Error> {
-    match codec.get_u8()? {
-        0 => Ok(pots::Entry::Fees(Value(codec.get_u64()?))),
-        1 => Ok(pots::Entry::Treasury(Value(codec.get_u64()?))),
-        2 => Ok(pots::Entry::Rewards(Value(codec.get_u64()?))),
-        code => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Invalid Entry type code {}", code),
-        )),
+fn unpack_pot_entry(buf: &mut ReadBuf) -> Result<pots::Entry, ReadError> {
+    match buf.get_u8()? {
+        0 => Ok(pots::Entry::Fees(Value(buf.get_u64()?))),
+        1 => Ok(pots::Entry::Treasury(Value(buf.get_u64()?))),
+        2 => Ok(pots::Entry::Rewards(Value(buf.get_u64()?))),
+        code => Err(ReadError::InvalidData(format!(
+            "Invalid Entry type code {}",
+            code
+        ))),
     }
 }
 
@@ -641,10 +553,8 @@ fn pack_multisig_identifier<W: std::io::Write>(
     identifier.0.serialize(codec)
 }
 
-fn unpack_multisig_identifier<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<multisig::Identifier, std::io::Error> {
-    Ok(multisig::Identifier(key::Hash::deserialize(codec)?))
+fn unpack_multisig_identifier(buf: &mut ReadBuf) -> Result<multisig::Identifier, ReadError> {
+    Ok(multisig::Identifier(key::Hash::read(buf)?))
 }
 
 fn pack_declaration<W: std::io::Write>(
@@ -659,14 +569,12 @@ fn pack_declaration<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_declaration<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<Declaration, std::io::Error> {
-    let threshold = codec.get_u8()?;
-    let size = codec.get_u64()?;
+fn unpack_declaration(buf: &mut ReadBuf) -> Result<Declaration, ReadError> {
+    let threshold = buf.get_u8()?;
+    let size = buf.get_u64()?;
     let mut owners: Vec<DeclElement> = Vec::with_capacity(size as usize);
     for _ in 0..size {
-        let decl_element = unpack_decl_element(codec)?;
+        let decl_element = unpack_decl_element(buf)?;
         owners.push(decl_element);
     }
     Ok(Declaration { threshold, owners })
@@ -689,16 +597,14 @@ fn pack_decl_element<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_decl_element<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<DeclElement, std::io::Error> {
-    match codec.get_u8()? {
-        0 => Ok(DeclElement::Sub(unpack_declaration(codec)?)),
-        1 => Ok(DeclElement::Owner(key::Hash::deserialize(codec)?)),
-        code => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Invalid DeclElement type code {}", code),
-        )),
+fn unpack_decl_element(buf: &mut ReadBuf) -> Result<DeclElement, ReadError> {
+    match buf.get_u8()? {
+        0 => Ok(DeclElement::Sub(unpack_declaration(buf)?)),
+        1 => Ok(DeclElement::Owner(key::Hash::read(buf)?)),
+        code => Err(ReadError::InvalidData(format!(
+            "Invalid DeclElement type code {}",
+            code
+        ))),
     }
 }
 
@@ -712,12 +618,10 @@ fn pack_pool_last_rewards<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_pool_last_rewards<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<PoolLastRewards, std::io::Error> {
-    let epoch = codec.get_u32()?;
-    let value_taxed = Value(codec.get_u64()?);
-    let value_for_stakers = Value(codec.get_u64()?);
+fn unpack_pool_last_rewards(buf: &mut ReadBuf) -> Result<PoolLastRewards, ReadError> {
+    let epoch = buf.get_u32()?;
+    let value_taxed = Value(buf.get_u64()?);
+    let value_for_stakers = Value(buf.get_u64()?);
 
     Ok(PoolLastRewards {
         epoch,
@@ -735,11 +639,9 @@ fn pack_pool_state<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_pool_state<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<PoolState, std::io::Error> {
-    let last_rewards = unpack_pool_last_rewards(codec)?;
-    let registration = Arc::new(unpack_pool_registration(codec)?);
+fn unpack_pool_state(buf: &mut ReadBuf) -> Result<PoolState, ReadError> {
+    let last_rewards = unpack_pool_last_rewards(buf)?;
+    let registration = Arc::new(unpack_pool_registration(buf)?);
 
     Ok(PoolState {
         last_rewards,
@@ -763,22 +665,19 @@ fn pack_update_proposal_state<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_update_proposal_state<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<UpdateProposalState, std::io::Error> {
-    let proposal = unpack_update_proposal(codec)?;
-    let proposal_date = unpack_block_date(codec)?;
-    let total_votes = codec.get_u64()?;
+fn unpack_update_proposal_state(buf: &mut ReadBuf) -> Result<UpdateProposalState, ReadError> {
+    let proposal = unpack_update_proposal(buf)?;
+    let proposal_date = unpack_block_date(buf)?;
+    let total_votes = buf.get_u64()?;
     let mut votes = Hamt::new();
-    {
-        let mut codec = Codec::new(codec);
-        for _ in 0..total_votes {
-            let id = UpdateVoterId::deserialize(&mut codec)?;
-            votes = votes
-                .insert(id, ())
-                .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
-        }
+
+    for _ in 0..total_votes {
+        let id = UpdateVoterId::read(buf)?;
+        votes = votes
+            .insert(id, ())
+            .map_err(|e| ReadError::InvalidData(e.to_string()))?;
     }
+
     Ok(UpdateProposalState {
         proposal,
         proposal_date,
@@ -793,10 +692,8 @@ fn pack_update_proposal<W: std::io::Write>(
     Serialize::serialize(update_proposal, codec)
 }
 
-fn unpack_update_proposal<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<UpdateProposal, std::io::Error> {
-    UpdateProposal::deserialize(codec)
+fn unpack_update_proposal(buf: &mut ReadBuf) -> Result<UpdateProposal, ReadError> {
+    UpdateProposal::read(buf)
 }
 
 fn pack_update_proposal_id<W: std::io::Write>(
@@ -806,10 +703,8 @@ fn pack_update_proposal_id<W: std::io::Write>(
     update_proposal_id.serialize(codec)
 }
 
-fn unpack_update_proposal_id<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<UpdateProposalId, std::io::Error> {
-    UpdateProposalId::deserialize(codec)
+fn unpack_update_proposal_id(buf: &mut ReadBuf) -> Result<UpdateProposalId, ReadError> {
+    UpdateProposalId::read(buf)
 }
 
 fn pack_utxo_entry<OutputAddress, F, W: std::io::Write>(
@@ -827,18 +722,18 @@ where
     Ok(())
 }
 
-fn unpack_utxo_entry_owned<OutputAddress, F, R: std::io::BufRead>(
+fn unpack_utxo_entry_owned<OutputAddress, F>(
     output_address_unpacker: &mut F,
-    codec: &mut Codec<R>,
-) -> Result<utxo::EntryOwned<OutputAddress>, std::io::Error>
+    buf: &mut ReadBuf,
+) -> Result<utxo::EntryOwned<OutputAddress>, ReadError>
 where
-    F: FnMut(&mut Codec<R>) -> Result<OutputAddress, std::io::Error>,
+    F: FnMut(&mut ReadBuf) -> Result<OutputAddress, ReadError>,
 {
     let mut fragment_id_bytes: [u8; 32] = [0; 32];
-    codec.read_exact(&mut fragment_id_bytes)?;
+    buf.copy_to_slice_mut(&mut fragment_id_bytes)?;
     let fragment_id = FragmentId::from_bytes(fragment_id_bytes);
-    let output_index = codec.get_u8()?;
-    let output: Output<OutputAddress> = unpack_output(output_address_unpacker, codec)?;
+    let output_index = buf.get_u8()?;
+    let output: Output<OutputAddress> = unpack_output(output_address_unpacker, buf)?;
     Ok(utxo::EntryOwned {
         fragment_id,
         output_index,
@@ -859,15 +754,15 @@ where
     Ok(())
 }
 
-fn unpack_output<OutputAddress, F, R: std::io::BufRead>(
+fn unpack_output<OutputAddress, F>(
     address_unpacker: &mut F,
-    codec: &mut Codec<R>,
-) -> Result<Output<OutputAddress>, std::io::Error>
+    buf: &mut ReadBuf,
+) -> Result<Output<OutputAddress>, ReadError>
 where
-    F: FnMut(&mut Codec<R>) -> Result<OutputAddress, std::io::Error>,
+    F: FnMut(&mut ReadBuf) -> Result<OutputAddress, ReadError>,
 {
-    let address = address_unpacker(codec)?;
-    let value = Value(codec.get_u64()?);
+    let address = address_unpacker(buf)?;
+    let value = Value(buf.get_u64()?);
     Ok(Output { address, value })
 }
 
@@ -881,12 +776,10 @@ fn pack_old_addr<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_old_addr<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<legacy::OldAddress, std::io::Error> {
-    let size = codec.get_u64()?;
-    let v = codec.get_bytes(size as usize)?;
-    Ok(legacy::OldAddress::new(v))
+fn unpack_old_addr(buf: &mut ReadBuf) -> Result<legacy::OldAddress, ReadError> {
+    let size = buf.get_u64()?;
+    let v = buf.get_slice(size as usize)?;
+    Ok(legacy::OldAddress::new(v.into()))
 }
 
 fn pack_address<W: std::io::Write>(
@@ -899,16 +792,12 @@ fn pack_address<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_address<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Address, std::io::Error> {
-    let size = codec.get_u64()?;
-    let v = codec.get_bytes(size as usize)?;
-    match Address::from_bytes(&v) {
-        Ok(address) => Ok(address),
-        Err(e) => Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("Error reading address from packed bytes: {}", e),
-        )),
-    }
+fn unpack_address(buf: &mut ReadBuf) -> Result<Address, ReadError> {
+    let size = buf.get_u64()?;
+    let v = buf.get_slice(size as usize)?;
+    Address::from_bytes(&v).map_err(|e| {
+        ReadError::InvalidData(format!("Error reading address from packed bytes: {}", e))
+    })
 }
 
 fn pack_vote_proposal<W: std::io::Write>(
@@ -920,17 +809,15 @@ fn pack_vote_proposal<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_proposal<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Proposal, std::io::Error> {
-    let external_id = unpack_digestof(codec)?;
-    let options = vote::Options::new_length(codec.get_u8()?)
-        .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
-    let action = unpack_vote_action(codec)?;
+fn unpack_proposal(buf: &mut ReadBuf) -> Result<Proposal, ReadError> {
+    let external_id = unpack_digestof(buf)?;
+    let options = vote::Options::new_length(buf.get_u8()?)
+        .map_err(|e| ReadError::InvalidData(e.to_string()))?;
+    let action = unpack_vote_action(buf)?;
     Ok(Proposal::new(external_id, options, action))
 }
 
-fn unpack_vote_action<R: std::io::BufRead>(
-    _codec: &mut Codec<R>,
-) -> Result<VoteAction, std::io::Error> {
+fn unpack_vote_action(_codec: &mut ReadBuf) -> Result<VoteAction, ReadError> {
     todo!()
 }
 
@@ -945,13 +832,11 @@ fn pack_vote_proposals<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_proposals<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<Proposals, std::io::Error> {
+fn unpack_proposals(buf: &mut ReadBuf) -> Result<Proposals, ReadError> {
     let mut proposals = Proposals::new();
-    let size = codec.get_u64()?;
+    let size = buf.get_u64()?;
     for _ in 0..size {
-        let _ = proposals.push(unpack_proposal(codec)?);
+        let _ = proposals.push(unpack_proposal(buf)?);
     }
     Ok(proposals)
 }
@@ -963,14 +848,11 @@ fn pack_payload_type<W: std::io::Write>(
     codec.put_u8(t as u8)
 }
 
-fn unpack_payload_type<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<vote::PayloadType, std::io::Error> {
+fn unpack_payload_type(buf: &mut ReadBuf) -> Result<vote::PayloadType, ReadError> {
     use std::convert::TryFrom as _;
 
-    let byte = codec.get_u8()?;
-    vote::PayloadType::try_from(byte)
-        .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))
+    let byte = buf.get_u8()?;
+    vote::PayloadType::try_from(byte).map_err(|e| ReadError::InvalidData(e.to_string()))
 }
 
 fn pack_committee_public_keys<W: std::io::Write>(
@@ -985,18 +867,15 @@ fn pack_committee_public_keys<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_committee_public_keys<R: BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<Vec<chain_vote::MemberPublicKey>, io::Error> {
-    let size = codec.get_u8()?;
+fn unpack_committee_public_keys(
+    buf: &mut ReadBuf,
+) -> Result<Vec<chain_vote::MemberPublicKey>, ReadError> {
+    let size = buf.get_u8()?;
     let mut result = Vec::new();
     for _ in 0..size {
-        let buf = codec.get_bytes(chain_vote::MemberPublicKey::BYTES_LEN)?;
-        let key = chain_vote::MemberPublicKey::from_bytes(&buf).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "invalid committee member public key in a vote plan",
-            )
+        let bytes = buf.get_slice(chain_vote::MemberPublicKey::BYTES_LEN)?;
+        let key = chain_vote::MemberPublicKey::from_bytes(&bytes).ok_or_else(|| {
+            ReadError::InvalidData("invalid committee member public key in a vote plan".to_string())
         })?;
         result.push(key);
     }
@@ -1016,13 +895,13 @@ fn pack_vote_plan<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_vote_plan<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<VotePlan, std::io::Error> {
-    let vote_start = unpack_block_date(codec)?;
-    let vote_end = unpack_block_date(codec)?;
-    let committee_end = unpack_block_date(codec)?;
-    let payload_type = unpack_payload_type(codec)?;
-    let proposals = unpack_proposals(codec)?;
-    let keys = unpack_committee_public_keys(codec)?;
+fn unpack_vote_plan(buf: &mut ReadBuf) -> Result<VotePlan, ReadError> {
+    let vote_start = unpack_block_date(buf)?;
+    let vote_end = unpack_block_date(buf)?;
+    let committee_end = unpack_block_date(buf)?;
+    let payload_type = unpack_payload_type(buf)?;
+    let proposals = unpack_proposals(buf)?;
+    let keys = unpack_committee_public_keys(buf)?;
     Ok(VotePlan::new(
         vote_start,
         vote_end,
@@ -1134,71 +1013,68 @@ fn pack_entry<W: std::io::Write>(
     Ok(())
 }
 
-fn unpack_entry_owned<R: std::io::BufRead>(
-    codec: &mut Codec<R>,
-) -> Result<EntryOwned, std::io::Error> {
-    let code_u8 = codec.get_u8()?;
+fn unpack_entry_owned(buf: &mut ReadBuf) -> Result<EntryOwned, ReadError> {
+    let code_u8 = buf.get_u8()?;
     let code = EntrySerializeCode::from_u8(code_u8).ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Error reading Entry, not recognized type code {}", code_u8),
-        )
+        ReadError::InvalidData(format!(
+            "Error reading Entry, not recognized type code {}",
+            code_u8
+        ))
     })?;
     match code {
-        EntrySerializeCode::Globals => Ok(EntryOwned::Globals(unpack_globals(codec)?)),
-        EntrySerializeCode::Pot => Ok(EntryOwned::Pot(unpack_pot_entry(codec)?)),
+        EntrySerializeCode::Globals => Ok(EntryOwned::Globals(unpack_globals(buf)?)),
+        EntrySerializeCode::Pot => Ok(EntryOwned::Pot(unpack_pot_entry(buf)?)),
         EntrySerializeCode::Utxo => Ok(EntryOwned::Utxo(unpack_utxo_entry_owned(
             &mut unpack_address,
-            codec,
+            buf,
         )?)),
         EntrySerializeCode::OldUtxo => Ok(EntryOwned::OldUtxo(unpack_utxo_entry_owned(
             &mut unpack_old_addr,
-            codec,
+            buf,
         )?)),
         EntrySerializeCode::Account => {
-            let identifier = unpack_account_identifier(codec)?;
-            let account = unpack_account_state(codec)?;
+            let identifier = unpack_account_identifier(buf)?;
+            let account = unpack_account_state(buf)?;
             Ok(EntryOwned::Account((identifier, account)))
         }
-        EntrySerializeCode::ConfigParam => Ok(EntryOwned::ConfigParam(unpack_config_param(codec)?)),
+        EntrySerializeCode::ConfigParam => Ok(EntryOwned::ConfigParam(unpack_config_param(buf)?)),
         EntrySerializeCode::UpdateProposal => {
-            let proposal_id = unpack_update_proposal_id(codec)?;
-            let proposal_state = unpack_update_proposal_state(codec)?;
+            let proposal_id = unpack_update_proposal_id(buf)?;
+            let proposal_state = unpack_update_proposal_state(buf)?;
             Ok(EntryOwned::UpdateProposal((proposal_id, proposal_state)))
         }
         EntrySerializeCode::MultisigAccount => {
-            let identifier = unpack_multisig_identifier(codec)?;
-            let account_state = unpack_account_state(codec)?;
+            let identifier = unpack_multisig_identifier(buf)?;
+            let account_state = unpack_account_state(buf)?;
             Ok(EntryOwned::MultisigAccount((identifier, account_state)))
         }
         EntrySerializeCode::MultisigDeclaration => {
-            let identifier = unpack_multisig_identifier(codec)?;
-            let declaration = unpack_declaration(codec)?;
+            let identifier = unpack_multisig_identifier(buf)?;
+            let declaration = unpack_declaration(buf)?;
             Ok(EntryOwned::MultisigDeclaration((identifier, declaration)))
         }
         EntrySerializeCode::StakePool => {
-            let pool_id = unpack_digestof(codec)?;
-            let pool_state = unpack_pool_state(codec)?;
+            let pool_id = unpack_digestof(buf)?;
+            let pool_state = unpack_pool_state(buf)?;
             Ok(EntryOwned::StakePool((pool_id, pool_state)))
         }
         EntrySerializeCode::LeaderParticipation => {
-            let pool_id = unpack_digestof(codec)?;
-            let v = codec.get_u32()?;
+            let pool_id = unpack_digestof(buf)?;
+            let v = buf.get_u32()?;
             Ok(EntryOwned::LeaderParticipation((pool_id, v)))
         }
         EntrySerializeCode::VotePlan => {
-            let vote_plan = unpack_vote_plan(codec)?;
+            let vote_plan = unpack_vote_plan(buf)?;
             Ok(EntryOwned::VotePlan(vote_plan))
         }
         EntrySerializeCode::SerializationEnd => Ok(EntryOwned::StopEntry),
     }
 }
 
-fn unpack_entries<R: std::io::BufRead>(reader: R) -> Result<Vec<EntryOwned>, std::io::Error> {
-    let mut codec = Codec::new(reader);
+fn unpack_entries(buf: &mut ReadBuf) -> Result<Vec<EntryOwned>, ReadError> {
     let mut res = Vec::new();
     loop {
-        match unpack_entry_owned(&mut codec)? {
+        match unpack_entry_owned(buf)? {
             EntryOwned::StopEntry => {
                 break;
             }
@@ -1224,22 +1100,14 @@ impl Serialize for Ledger {
     }
 }
 
-impl Deserialize for Ledger {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        let owned_entries = unpack_entries(reader)?;
+impl Readable for Ledger {
+    fn read(buf: &mut ReadBuf) -> Result<Self, chain_core::mempack::ReadError> {
+        let owned_entries = unpack_entries(buf)?;
         let entries = owned_entries
             .iter()
             .map(|entry_owned| entry_owned.to_entry().unwrap());
         let ledger: Result<Ledger, crate::ledger::Error> = entries.collect();
-        match ledger {
-            Ok(l) => Ok(l),
-            Err(e) => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("{}", e),
-            )),
-        }
+        ledger.map_err(|e| ReadError::InvalidData(e.to_string()))
     }
 }
 
@@ -1250,65 +1118,57 @@ pub mod test {
     use cardano_legacy_address::Addr;
     use chain_crypto::Blake2b256;
     use quickcheck::{quickcheck, TestResult};
-    use std::io::Cursor;
     use typed_bytes::{ByteArray, ByteSlice};
 
     #[test]
-    pub fn addr_pack_unpack_bijection() -> Result<(), std::io::Error> {
+    pub fn addr_pack_unpack_bijection() {
         // set fake buffer
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
         let address : Addr = "DdzFFzCqrhsqTG4t3uq5UBqFrxhxGVM6bvF4q1QcZXqUpizFddEEip7dx5rbife2s9o2fRU3hVKhRp4higog7As8z42s4AMw6Pcu8vL4".parse().unwrap();
-        pack_old_addr(&address, &mut codec)?;
-        c = codec.into_inner();
+        pack_old_addr(&address, &mut codec).unwrap();
         // reset fake buffer
-        c.set_position(0);
-        codec = Codec::new(c);
-        let new_address = unpack_old_addr(&mut codec)?;
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let new_address = unpack_old_addr(&mut buf).unwrap();
         assert_eq!(address, new_address);
-        Ok(())
     }
 
     #[test]
-    pub fn discrimination_pack_unpack_bijection() -> Result<(), std::io::Error> {
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
-        pack_discrimination(Discrimination::Test, &mut codec)?;
-        pack_discrimination(Discrimination::Production, &mut codec)?;
+    pub fn discrimination_pack_unpack_bijection() {
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
+        pack_discrimination(Discrimination::Test, &mut codec).unwrap();
+        pack_discrimination(Discrimination::Production, &mut codec).unwrap();
 
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let test = unpack_discrimination(&mut codec)?;
-        let production = unpack_discrimination(&mut codec)?;
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let test = unpack_discrimination(&mut buf).unwrap();
+        let production = unpack_discrimination(&mut buf).unwrap();
         assert_eq!(Discrimination::Test, test);
         assert_eq!(Discrimination::Production, production);
-        Ok(())
     }
 
     #[test]
-    pub fn digestof_pack_unpack_bijection() -> Result<(), std::io::Error> {
+    pub fn digestof_pack_unpack_bijection() {
         let data: [u8; 32] = [0u8; 32];
         let slice = &data[..];
         let byte_array: ByteArray<u8> = ByteArray::from(Vec::from(slice));
         let byte_slice: ByteSlice<u8> = byte_array.as_byteslice();
         let digest: DigestOf<Blake2b256, u8> = DigestOf::digest_byteslice(&byte_slice);
 
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
-        pack_digestof(&digest, &mut codec)?;
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
+        pack_digestof(&digest, &mut codec).unwrap();
 
-        let deserialize_digest: DigestOf<Blake2b256, u8> = unpack_digestof(&mut codec)?;
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let deserialize_digest: DigestOf<Blake2b256, u8> = unpack_digestof(&mut buf).unwrap();
         assert_eq!(digest, deserialize_digest);
-
-        Ok(())
     }
 
     #[test]
-    pub fn delegation_ratio_pack_unpack_bijection() -> Result<(), std::io::Error> {
+    pub fn delegation_ratio_pack_unpack_bijection() {
         let fake_pool_id = StakePoolBuilder::new().build().id();
         let parts = 8u8;
         let pools: Vec<(PoolId, u8)> = vec![
@@ -1317,20 +1177,19 @@ pub mod test {
             (fake_pool_id, 3u8),
         ];
 
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
         let delegation_ratio = DelegationRatio::new(parts, pools).unwrap();
-        pack_delegation_ratio(&delegation_ratio, &mut codec)?;
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let deserialized_delegation_ratio = unpack_delegation_ratio(&mut codec)?;
+        pack_delegation_ratio(&delegation_ratio, &mut codec).unwrap();
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let deserialized_delegation_ratio = unpack_delegation_ratio(&mut buf).unwrap();
         assert_eq!(delegation_ratio, deserialized_delegation_ratio);
-        Ok(())
     }
 
     #[test]
-    pub fn delegation_type_pack_unpack_bijection() -> Result<(), std::io::Error> {
+    pub fn delegation_type_pack_unpack_bijection() {
         let fake_pool_id = StakePoolBuilder::new().build().id();
 
         let non_delegated = DelegationType::NonDelegated;
@@ -1345,55 +1204,49 @@ pub mod test {
         let ratio = DelegationType::Ratio(DelegationRatio::new(parts, pools).unwrap());
 
         for delegation_type in [non_delegated, full, ratio].iter() {
-            let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-            let mut codec = Codec::new(c);
-            pack_delegation_type(delegation_type, &mut codec)?;
-            c = codec.into_inner();
-            c.set_position(0);
-            codec = Codec::new(c);
-            let deserialized_delegation_type = unpack_delegation_type(&mut codec)?;
+            let vec = Vec::new();
+            let mut codec = Codec::new(vec);
+            pack_delegation_type(delegation_type, &mut codec).unwrap();
+
+            let vec = codec.into_inner();
+            let mut buf = ReadBuf::from(vec.as_slice());
+            let deserialized_delegation_type = unpack_delegation_type(&mut buf).unwrap();
             assert_eq!(delegation_type, &deserialized_delegation_type);
         }
-        Ok(())
     }
 
     #[test]
-    pub fn account_state_pack_unpack_bijection() -> Result<(), std::io::Error> {
+    pub fn account_state_pack_unpack_bijection() {
         let account_state = AccountState::new(Value(256), ());
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
-        pack_account_state(&account_state, &mut codec)?;
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let deserialized_account_state = unpack_account_state(&mut codec)?;
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
+        pack_account_state(&account_state, &mut codec).unwrap();
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let deserialized_account_state = unpack_account_state(&mut buf).unwrap();
         assert_eq!(account_state, deserialized_account_state);
-        Ok(())
     }
 
     #[test]
-    pub fn last_rewards_pack_unpack_bijection() -> Result<(), std::io::Error> {
-        use std::io::Cursor;
-
+    pub fn last_rewards_pack_unpack_bijection() {
         let last_rewards = LastRewards {
             epoch: 0,
             reward: Value(1),
         };
 
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
-        pack_last_rewards(&last_rewards, &mut codec)?;
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let deserialize_last_rewards = unpack_last_rewards(&mut codec)?;
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
+        pack_last_rewards(&last_rewards, &mut codec).unwrap();
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let deserialize_last_rewards = unpack_last_rewards(&mut buf).unwrap();
         assert_eq!(last_rewards, deserialize_last_rewards);
-        Ok(())
     }
 
     #[test]
-    pub fn pots_entry_pack_unpack_bijection() -> Result<(), std::io::Error> {
-        use std::io::Cursor;
+    pub fn pots_entry_pack_unpack_bijection() {
         for entry_value in [
             pots::Entry::Fees(Value(10)),
             pots::Entry::Rewards(Value(10)),
@@ -1401,39 +1254,33 @@ pub mod test {
         ]
         .iter()
         {
-            let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-            let mut codec = Codec::new(c);
-            pack_pot_entry(entry_value, &mut codec)?;
-            c = codec.into_inner();
-            c.set_position(0);
-            codec = Codec::new(c);
-            let other_value = unpack_pot_entry(&mut codec)?;
+            let vec = Vec::new();
+            let mut codec = Codec::new(vec);
+            pack_pot_entry(entry_value, &mut codec).unwrap();
+
+            let vec = codec.into_inner();
+            let mut buf = ReadBuf::from(vec.as_slice());
+            let other_value = unpack_pot_entry(&mut buf).unwrap();
             assert_eq!(entry_value, &other_value);
         }
-        Ok(())
     }
 
     #[test]
-    pub fn multisig_identifier_pack_unpack_bijection() -> Result<(), std::io::Error> {
-        use std::io::Cursor;
-
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
+    pub fn multisig_identifier_pack_unpack_bijection() {
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
         let id_bytes: [u8; 32] = [0x1; 32];
         let identifier = crate::multisig::Identifier::from(id_bytes);
-        pack_multisig_identifier(&identifier, &mut codec)?;
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let other_identifier = unpack_multisig_identifier(&mut codec)?;
+        pack_multisig_identifier(&identifier, &mut codec).unwrap();
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let other_identifier = unpack_multisig_identifier(&mut buf).unwrap();
         assert_eq!(identifier, other_identifier);
-        Ok(())
     }
 
     #[test]
-    pub fn decl_element_pack_unpack_bijection() -> Result<(), std::io::Error> {
-        use std::io::Cursor;
-
+    pub fn decl_element_pack_unpack_bijection() {
         let id_bytes: [u8; 32] = [0x1; 32];
 
         for decl_element in [
@@ -1445,69 +1292,64 @@ pub mod test {
         ]
         .iter()
         {
-            let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-            let mut codec = Codec::new(c);
-            pack_decl_element(&decl_element, &mut codec)?;
-            c = codec.into_inner();
-            c.set_position(0);
-            codec = Codec::new(c);
-            let other_value = unpack_decl_element(&mut codec)?;
+            let vec = Vec::new();
+            let mut codec = Codec::new(vec);
+            pack_decl_element(&decl_element, &mut codec).unwrap();
+
+            let vec = codec.into_inner();
+            let mut buf = ReadBuf::from(vec.as_slice());
+            let other_value = unpack_decl_element(&mut buf).unwrap();
             assert_eq!(decl_element, &other_value);
         }
-        Ok(())
     }
 
     #[test]
-    pub fn declaration_pack_unpack_bijection() -> Result<(), std::io::Error> {
-        use std::io::Cursor;
-
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
+    pub fn declaration_pack_unpack_bijection() {
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
         let declaration = Declaration {
             owners: Vec::new(),
             threshold: 0,
         };
-        pack_declaration(&declaration, &mut codec)?;
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let other_value = unpack_declaration(&mut codec)?;
+        pack_declaration(&declaration, &mut codec).unwrap();
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let other_value = unpack_declaration(&mut buf).unwrap();
         assert_eq!(declaration, other_value);
-        Ok(())
     }
 
     #[test]
-    pub fn output_pack_unpack_bijection() -> Result<(), std::io::Error> {
+    pub fn output_pack_unpack_bijection() {
         let output: Output<()> = Output {
             address: (),
             value: Value(1000),
         };
 
-        let mut c = std::io::Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
-        pack_output(&output, &mut |_, _| Ok(()), &mut codec)?;
-        c = codec.into_inner();
-        c.set_position(0);
-        codec = Codec::new(c);
-        let other_output = unpack_output(&mut |_| Ok(()), &mut codec)?;
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
+        pack_output(&output, &mut |_, _| Ok(()), &mut codec).unwrap();
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let other_output = unpack_output(&mut |_| Ok(()), &mut buf).unwrap();
         assert_eq!(output, other_output);
-        Ok(())
     }
 
     #[test]
-    pub fn ledger_serialize_deserialize_bijection() -> Result<(), std::io::Error> {
+    pub fn ledger_serialize_deserialize_bijection() {
         let test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
             .faucet_value(Value(42000))
             .build()
             .expect("cannot build test ledger");
 
         let ledger: Ledger = test_ledger.into();
-        let mut c = std::io::Cursor::new(Vec::new());
-        ledger.serialize(&mut c)?;
-        c.set_position(0);
-        let other_ledger = Ledger::deserialize(&mut c)?;
+        let mut vec = Vec::new();
+        ledger.serialize(&mut vec).unwrap();
+
+        let mut buf = ReadBuf::from(vec.as_slice());
+        let other_ledger = Ledger::read(&mut buf).unwrap();
         assert_eq!(ledger, other_ledger);
-        Ok(())
     }
 
     #[cfg(test)]
@@ -1517,20 +1359,20 @@ pub mod test {
         value: T,
     ) -> TestResult
     where
-        Pack: Fn(&T, &mut Codec<Cursor<Vec<u8>>>) -> Result<(), std::io::Error>,
-        Unpack: Fn(&mut Codec<Cursor<Vec<u8>>>) -> Result<T, std::io::Error>,
+        Pack: Fn(&T, &mut Codec<Vec<u8>>) -> Result<(), std::io::Error>,
+        Unpack: Fn(&mut ReadBuf) -> Result<T, ReadError>,
         T: Eq,
     {
-        let mut c: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let mut codec = Codec::new(c);
+        let vec = Vec::new();
+        let mut codec = Codec::new(vec);
         match pack_method(&value, &mut codec) {
             Ok(_) => (),
             Err(e) => return TestResult::error(format!("{}", e)),
         };
-        c = codec.into_inner();
-        c.set_position(0);
-        let mut codec = Codec::new(c);
-        match unpack_method(&mut codec) {
+
+        let vec = codec.into_inner();
+        let mut buf = ReadBuf::from(vec.as_slice());
+        match unpack_method(&mut buf) {
             Ok(other_value) => TestResult::from_bool(value == other_value),
             Err(e) => TestResult::error(format!("{}", e)),
         }
@@ -1545,14 +1387,13 @@ pub mod test {
             )
         }
 
-
         fn consensus_version_serialization_bijection(consensus_version: ConsensusVersion) -> TestResult {
-           pack_unpack_bijection(
-                &|v, p| pack_consensus_version(*v, p),
-                &unpack_consensus_version,
-                consensus_version
-            )
-        }
+            pack_unpack_bijection(
+                 &|v, p| pack_consensus_version(*v, p),
+                 &unpack_consensus_version,
+                 consensus_version
+             )
+         }
 
         fn pool_registration_serialize_deserialize_biyection(pool_registration: PoolRegistration) -> TestResult {
             pack_unpack_bijection(

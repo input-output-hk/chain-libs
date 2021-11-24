@@ -11,7 +11,6 @@ use chain_crypto::{
 use rand_core::{CryptoRng, RngCore};
 use typed_bytes::ByteBuilder;
 
-use chain_core::packer::Codec;
 use std::str::FromStr;
 
 #[derive(Clone)]
@@ -263,15 +262,6 @@ impl property::Serialize for Hash {
     }
 }
 
-impl property::Deserialize for Hash {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, Self::Error> {
-        let mut buffer = [0; crypto::Blake2b256::HASH_SIZE];
-        reader.read_exact(&mut buffer)?;
-        Ok(Hash(crypto::Blake2b256::from(buffer)))
-    }
-}
-
 impl Readable for Hash {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let bytes = <[u8; crypto::Blake2b256::HASH_SIZE]>::read(buf)?;
@@ -333,24 +323,6 @@ impl property::Serialize for BftLeaderId {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         serialize_public_key(&self.0, writer)
-    }
-}
-
-impl property::Deserialize for BftLeaderId {
-    type Error = std::io::Error;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error> {
-        let mut codec = Codec::new(reader);
-        let size: usize = 32;
-        let bytes = codec.get_bytes(size)?;
-        let mut buff = ReadBuf::from(&bytes);
-        match deserialize_public_key(&mut buff) {
-            Ok(pk) => Ok(BftLeaderId(pk)),
-            Err(e) => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Error reading LeaderId public key: {}", e),
-            )),
-        }
     }
 }
 

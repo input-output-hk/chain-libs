@@ -130,12 +130,6 @@ impl property::Serialize for NoExtra {
     }
 }
 
-impl property::Deserialize for NoExtra {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(_: R) -> Result<Self, Self::Error> {
-        Ok(NoExtra)
-    }
-}
 impl Readable for NoExtra {
     fn read(_: &mut ReadBuf) -> Result<Self, ReadError> {
         Ok(NoExtra)

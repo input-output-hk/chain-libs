@@ -209,7 +209,7 @@ mod test {
     };
 
     use chain_addr::Discrimination;
-    use chain_core::property::Deserialize;
+    use chain_core::mempack::{ReadBuf, Readable};
     use chain_time::{Epoch, SlotDuration, TimeEra, TimeFrame, Timeline};
     use std::{collections::HashMap, mem, time::SystemTime};
 
@@ -247,7 +247,9 @@ mod test {
 
             let cur_block = store.get(&cur_hash).unwrap();
             blocks_to_apply.push(cur_hash);
-            cur_hash = Hash::deserialize(cur_block.header().block_parent_hash().as_ref()).unwrap();
+            let hash = cur_block.header().block_parent_hash();
+            let mut buf = ReadBuf::from(hash.as_ref());
+            cur_hash = Hash::read(&mut buf).unwrap();
         };
 
         for hash in blocks_to_apply.iter().rev() {

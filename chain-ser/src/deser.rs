@@ -12,13 +12,6 @@ pub trait Serialize {
     }
 }
 
-/// Define that an object can be read from a `Read` object.
-pub trait Deserialize: Sized {
-    type Error: std::error::Error + From<std::io::Error> + Send + Sync + 'static;
-
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, Self::Error>;
-}
-
 impl<T: Serialize> Serialize for &T {
     type Error = T::Error;
 
