@@ -291,7 +291,7 @@ impl Debug for Header {
 }
 
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 
@@ -303,8 +303,8 @@ impl property::Serialize for Header {
     }
 }
 
-impl Readable for Header {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for Header {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         Header::from_slice(buf.get_slice_end()).map_err(|e| match e {
             HeaderError::InvalidSize => ReadError::NotEnoughBytes(0, 0),
             HeaderError::UnknownVersion => ReadError::UnknownTag(0),

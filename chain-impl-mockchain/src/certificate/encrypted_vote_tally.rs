@@ -5,7 +5,7 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use chain_crypto::Verification;
@@ -91,17 +91,17 @@ impl property::Serialize for EncryptedVoteTally {
     }
 }
 
-impl Readable for EncryptedVoteTallyProof {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let id = CommitteeId::read(buf)?;
-        let signature = SingleAccountBindingSignature::read(buf)?;
+impl Deserialize for EncryptedVoteTallyProof {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let id = CommitteeId::deserialize(buf)?;
+        let signature = SingleAccountBindingSignature::deserialize(buf)?;
         Ok(Self { id, signature })
     }
 }
 
-impl Readable for EncryptedVoteTally {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let id = <[u8; 32]>::read(buf)?.into();
+impl Deserialize for EncryptedVoteTally {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let id = <[u8; 32]>::deserialize(buf)?.into();
         Ok(Self { id })
     }
 }

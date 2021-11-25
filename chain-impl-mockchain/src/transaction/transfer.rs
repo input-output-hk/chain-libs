@@ -1,6 +1,6 @@
 use crate::legacy::OldAddress;
 use crate::value::*;
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.
@@ -10,16 +10,16 @@ pub struct Output<Address> {
     pub value: Value,
 }
 
-impl<Address: Readable> Output<Address> {
+impl<Address: Deserialize> Output<Address> {
     pub fn from_address(address: Address, value: Value) -> Self {
         Output { address, value }
     }
 }
 
-impl<Address: Readable> Readable for Output<Address> {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let address = Address::read(buf)?;
-        let value = Value::read(buf)?;
+impl<Address: Deserialize> Deserialize for Output<Address> {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let address = Address::deserialize(buf)?;
+        let value = Value::deserialize(buf)?;
         Ok(Output { address, value })
     }
 }

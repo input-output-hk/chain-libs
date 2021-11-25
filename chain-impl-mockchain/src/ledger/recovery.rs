@@ -60,7 +60,7 @@ use crate::value::Value;
 use crate::vote;
 use crate::{config, key, multisig, utxo};
 use chain_addr::{Address, Discrimination};
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_crypto::digest::{DigestAlg, DigestOf};
 use chain_ser::deser::Serialize;
 use chain_ser::packer::Codec;
@@ -138,7 +138,7 @@ fn pack_account_identifier<W: std::io::Write>(
 }
 
 fn unpack_account_identifier(buf: &mut ReadBuf) -> Result<crate::account::Identifier, ReadError> {
-    crate::account::Identifier::read(buf)
+    crate::account::Identifier::deserialize(buf)
 }
 
 fn pack_spending_strategy<W: std::io::Write>(
@@ -313,7 +313,7 @@ fn pack_pool_registration<W: std::io::Write>(
 fn unpack_pool_registration(buf: &mut ReadBuf) -> Result<PoolRegistration, ReadError> {
     // TODO: do not store extra bytes
     buf.get_u64()?;
-    PoolRegistration::read(buf)
+    PoolRegistration::deserialize(buf)
 }
 
 fn pack_config_param<W: Write>(
@@ -324,7 +324,7 @@ fn pack_config_param<W: Write>(
 }
 
 fn unpack_config_param(buf: &mut ReadBuf) -> Result<ConfigParam, ReadError> {
-    ConfigParam::read(buf)
+    ConfigParam::deserialize(buf)
 }
 
 fn pack_block_date<W: std::io::Write>(
@@ -451,7 +451,7 @@ fn pack_leader_id<W: std::io::Write>(
 
 #[cfg(test)]
 fn unpack_leader_id(buf: &mut ReadBuf) -> Result<BftLeaderId, ReadError> {
-    BftLeaderId::read(buf)
+    BftLeaderId::deserialize(buf)
 }
 
 fn pack_header_id<W: std::io::Write>(
@@ -462,7 +462,7 @@ fn pack_header_id<W: std::io::Write>(
 }
 
 fn unpack_header_id(buf: &mut ReadBuf) -> Result<HeaderId, ReadError> {
-    HeaderId::read(buf)
+    HeaderId::deserialize(buf)
 }
 
 fn pack_ledger_static_parameters<W: std::io::Write>(
@@ -554,7 +554,7 @@ fn pack_multisig_identifier<W: std::io::Write>(
 }
 
 fn unpack_multisig_identifier(buf: &mut ReadBuf) -> Result<multisig::Identifier, ReadError> {
-    Ok(multisig::Identifier(key::Hash::read(buf)?))
+    Ok(multisig::Identifier(key::Hash::deserialize(buf)?))
 }
 
 fn pack_declaration<W: std::io::Write>(
@@ -600,7 +600,7 @@ fn pack_decl_element<W: std::io::Write>(
 fn unpack_decl_element(buf: &mut ReadBuf) -> Result<DeclElement, ReadError> {
     match buf.get_u8()? {
         0 => Ok(DeclElement::Sub(unpack_declaration(buf)?)),
-        1 => Ok(DeclElement::Owner(key::Hash::read(buf)?)),
+        1 => Ok(DeclElement::Owner(key::Hash::deserialize(buf)?)),
         code => Err(ReadError::InvalidData(format!(
             "Invalid DeclElement type code {}",
             code
@@ -672,7 +672,7 @@ fn unpack_update_proposal_state(buf: &mut ReadBuf) -> Result<UpdateProposalState
     let mut votes = Hamt::new();
 
     for _ in 0..total_votes {
-        let id = UpdateVoterId::read(buf)?;
+        let id = UpdateVoterId::deserialize(buf)?;
         votes = votes
             .insert(id, ())
             .map_err(|e| ReadError::InvalidData(e.to_string()))?;
@@ -693,7 +693,7 @@ fn pack_update_proposal<W: std::io::Write>(
 }
 
 fn unpack_update_proposal(buf: &mut ReadBuf) -> Result<UpdateProposal, ReadError> {
-    UpdateProposal::read(buf)
+    UpdateProposal::deserialize(buf)
 }
 
 fn pack_update_proposal_id<W: std::io::Write>(
@@ -704,7 +704,7 @@ fn pack_update_proposal_id<W: std::io::Write>(
 }
 
 fn unpack_update_proposal_id(buf: &mut ReadBuf) -> Result<UpdateProposalId, ReadError> {
-    UpdateProposalId::read(buf)
+    UpdateProposalId::deserialize(buf)
 }
 
 fn pack_utxo_entry<OutputAddress, F, W: std::io::Write>(
@@ -1100,8 +1100,8 @@ impl Serialize for Ledger {
     }
 }
 
-impl Readable for Ledger {
-    fn read(buf: &mut ReadBuf) -> Result<Self, chain_core::mempack::ReadError> {
+impl Deserialize for Ledger {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, chain_core::mempack::ReadError> {
         let owned_entries = unpack_entries(buf)?;
         let entries = owned_entries
             .iter()
@@ -1348,7 +1348,7 @@ pub mod test {
         ledger.serialize(&mut vec).unwrap();
 
         let mut buf = ReadBuf::from(vec.as_slice());
-        let other_ledger = Ledger::read(&mut buf).unwrap();
+        let other_ledger = Ledger::deserialize(&mut buf).unwrap();
         assert_eq!(ledger, other_ledger);
     }
 

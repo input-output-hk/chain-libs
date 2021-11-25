@@ -6,7 +6,7 @@ use crate::transaction::{
 };
 
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use std::marker::PhantomData;
@@ -63,8 +63,8 @@ impl property::Serialize for OwnerStakeDelegation {
     }
 }
 
-impl Readable for OwnerStakeDelegation {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for OwnerStakeDelegation {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let delegation = deserialize_delegation_type(buf)?;
         Ok(Self { delegation })
     }
@@ -105,9 +105,9 @@ impl property::Serialize for StakeDelegation {
     }
 }
 
-impl Readable for StakeDelegation {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let account_identifier = <[u8; 32]>::read(buf)?;
+impl Deserialize for StakeDelegation {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let account_identifier = <[u8; 32]>::deserialize(buf)?;
         let delegation = deserialize_delegation_type(buf)?;
         Ok(StakeDelegation {
             account_id: account_identifier.into(),
@@ -165,7 +165,7 @@ fn deserialize_delegation_type(buf: &mut ReadBuf) -> Result<DelegationType, Read
     match parts {
         0 => Ok(DelegationType::NonDelegated),
         1 => {
-            let pool_id = <[u8; 32]>::read(buf)?.into();
+            let pool_id = <[u8; 32]>::deserialize(buf)?.into();
             Ok(DelegationType::Full(pool_id))
         }
         _ => {
@@ -179,7 +179,7 @@ fn deserialize_delegation_type(buf: &mut ReadBuf) -> Result<DelegationType, Read
             let mut pools = Vec::with_capacity(sz as usize);
             for _ in 0..sz {
                 let pool_parts = buf.get_u8()?;
-                let pool_id = <[u8; 32]>::read(buf)?.into();
+                let pool_id = <[u8; 32]>::deserialize(buf)?.into();
                 pools.push((pool_id, pool_parts))
             }
             match DelegationRatio::new(parts, pools) {

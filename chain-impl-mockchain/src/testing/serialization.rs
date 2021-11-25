@@ -1,4 +1,4 @@
-use chain_core::mempack::{ReadBuf, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf};
 use chain_core::property::Serialize;
 use quickcheck::{Arbitrary, TestResult};
 
@@ -7,14 +7,14 @@ use quickcheck::{Arbitrary, TestResult};
 /// between the serialized bytes and the object)
 pub fn serialization_bijection<T>(t: T) -> TestResult
 where
-    T: Arbitrary + Serialize + Readable + Eq,
+    T: Arbitrary + Serialize + Deserialize + Eq,
 {
     let vec = match t.serialize_as_vec() {
         Err(error) => return TestResult::error(format!("serialization: {}", error)),
         Ok(v) => v,
     };
     let mut buf = ReadBuf::from(&vec);
-    let decoded_t = match T::read(&mut buf) {
+    let decoded_t = match T::deserialize(&mut buf) {
         Err(error) => {
             return TestResult::error(format!("deserialization: {:?}\n{}", error, buf.debug()))
         }

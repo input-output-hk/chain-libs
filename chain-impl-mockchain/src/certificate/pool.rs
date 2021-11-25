@@ -6,7 +6,7 @@ use crate::transaction::{
     SingleAccountBindingSignature, TransactionBindingAuthData,
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Verification};
@@ -155,11 +155,11 @@ impl PoolUpdate {
     }
 }
 
-impl Readable for PoolUpdate {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let pool_id = <[u8; 32]>::read(buf)?.into();
-        let last_pool_reg_hash = <[u8; 32]>::read(buf)?.into();
-        let new_pool_reg = PoolRegistration::read(buf)?;
+impl Deserialize for PoolUpdate {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let pool_id = <[u8; 32]>::deserialize(buf)?.into();
+        let last_pool_reg_hash = <[u8; 32]>::deserialize(buf)?.into();
+        let new_pool_reg = PoolRegistration::deserialize(buf)?;
         Ok(PoolUpdate {
             pool_id,
             last_pool_reg_hash,
@@ -179,9 +179,9 @@ impl PoolRetirement {
     }
 }
 
-impl Readable for PoolRetirement {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let pool_id = <[u8; 32]>::read(buf)?.into();
+impl Deserialize for PoolRetirement {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let pool_id = <[u8; 32]>::deserialize(buf)?.into();
         let retirement_time = DurationSeconds::from(buf.get_u64()?).into();
         Ok(PoolRetirement {
             pool_id,
@@ -264,14 +264,14 @@ impl property::Serialize for PoolRegistration {
     }
 }
 
-impl Readable for PoolRegistration {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for PoolRegistration {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let serial = buf.get_u128()?;
         let start_validity = DurationSeconds::from(buf.get_u64()?).into();
         let permissions = PoolPermissions::from_u64(buf.get_u64()?).ok_or_else(|| {
             ReadError::StructureInvalid("permission value not correct".to_string())
         })?;
-        let keys = GenesisPraosLeader::read(buf)?;
+        let keys = GenesisPraosLeader::deserialize(buf)?;
 
         let owners_nb = buf.get_u8()?;
         let mut owners = Vec::with_capacity(owners_nb as usize);
@@ -419,8 +419,8 @@ impl PoolOwnersSignature {
     }
 }
 
-impl Readable for PoolOwnersSigned {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for PoolOwnersSigned {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let sigs_nb = buf.get_u8()? as usize;
         if sigs_nb == 0 {
             return Err(ReadError::StructureInvalid(
@@ -437,15 +437,15 @@ impl Readable for PoolOwnersSigned {
     }
 }
 
-impl Readable for PoolSignature {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for PoolSignature {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         match buf.peek_u8()? {
             0 => {
                 let _ = buf.get_u8()?;
                 let sig = deserialize_signature(buf)?;
                 Ok(PoolSignature::Operator(SingleAccountBindingSignature(sig)))
             }
-            _ => PoolOwnersSigned::read(buf).map(PoolSignature::Owners),
+            _ => PoolOwnersSigned::deserialize(buf).map(PoolSignature::Owners),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::key::Hash;
 use chain_core::property;
-use chain_ser::mempack::{ReadBuf, ReadError, Readable};
+use chain_ser::mempack::{Deserialize, ReadBuf, ReadError};
 
 pub type FragmentId = Hash;
 pub const FRAGMENT_SIZE_BYTES_LEN: usize = 4;
@@ -25,8 +25,8 @@ impl AsRef<[u8]> for FragmentRaw {
     }
 }
 
-impl Readable for FragmentRaw {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for FragmentRaw {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let size = buf.get_u32()?;
         let mut v = vec![0u8; size as usize];
         buf.copy_to_slice_mut(&mut v)?;

@@ -4,7 +4,7 @@ use crate::{
     vote,
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use typed_bytes::{ByteArray, ByteBuilder};
@@ -86,9 +86,9 @@ impl property::Serialize for VoteCast {
     }
 }
 
-impl Readable for VoteCast {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let vote_plan = <[u8; 32]>::read(buf)?.into();
+impl Deserialize for VoteCast {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let vote_plan = <[u8; 32]>::deserialize(buf)?.into();
         let proposal_index = buf.get_u8()?;
         let payload = vote::Payload::read(buf)?;
 

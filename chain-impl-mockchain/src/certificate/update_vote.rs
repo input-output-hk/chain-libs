@@ -5,7 +5,7 @@ use crate::{
 };
 
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use typed_bytes::{ByteArray, ByteBuilder};
@@ -86,10 +86,10 @@ impl property::Serialize for UpdateVote {
     }
 }
 
-impl Readable for UpdateVote {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let proposal_id = UpdateProposalId::read(buf)?;
-        let voter_id = UpdateVoterId::read(buf)?;
+impl Deserialize for UpdateVote {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let proposal_id = UpdateProposalId::deserialize(buf)?;
+        let voter_id = UpdateVoterId::deserialize(buf)?;
 
         Ok(Self::new(proposal_id, voter_id))
     }

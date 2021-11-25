@@ -6,7 +6,7 @@ use crate::key::{
     SpendingSignature,
 };
 use crate::multisig;
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
@@ -222,12 +222,12 @@ impl property::Serialize for Witness {
     }
 }
 
-impl Readable for Witness {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for Witness {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         match buf.get_u8()? {
             WITNESS_TAG_OLDUTXO => {
                 let pk = deserialize_public_key(buf)?;
-                let some_bytes = <[u8; 32]>::read(buf)?;
+                let some_bytes = <[u8; 32]>::deserialize(buf)?;
                 let sig = deserialize_signature(buf)?;
                 Ok(Witness::OldUtxo(pk, some_bytes, sig))
             }
@@ -239,7 +239,7 @@ impl Readable for Witness {
             }
             WITNESS_TAG_MULTISIG => {
                 let nonce = buf.get_u32()?.into();
-                let msig = multisig::Witness::read(buf)?;
+                let msig = multisig::Witness::deserialize(buf)?;
                 Ok(Witness::Multisig(nonce, msig))
             }
             i => Err(ReadError::UnknownTag(i as u32)),

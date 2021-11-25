@@ -1,5 +1,5 @@
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use chain_crypto::{Ed25519, PublicKey};
@@ -133,8 +133,8 @@ impl property::Serialize for CommitteeId {
     }
 }
 
-impl Readable for CommitteeId {
-    fn read(reader: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for CommitteeId {
+    fn deserialize(reader: &mut ReadBuf) -> Result<Self, ReadError> {
         let slice = reader.get_slice(Self::COMMITTEE_ID_SIZE)?;
         Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()))
     }
@@ -176,7 +176,7 @@ mod tests {
     fn serialize_readable(committee_id: CommitteeId) -> bool {
         let b_got = committee_id.serialize_as_vec().unwrap();
         let mut buf = ReadBuf::from(b_got.as_ref());
-        let result = CommitteeId::read(&mut buf).expect("decode the committee ID");
+        let result = CommitteeId::deserialize(&mut buf).expect("decode the committee ID");
         committee_id == result
     }
 }

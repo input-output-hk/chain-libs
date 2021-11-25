@@ -9,7 +9,7 @@ use crate::{
     vote,
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
@@ -379,27 +379,27 @@ impl property::Serialize for VotePlan {
     }
 }
 
-impl Readable for VotePlanProof {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let id = vote::CommitteeId::read(buf)?;
-        let signature = SingleAccountBindingSignature::read(buf)?;
+impl Deserialize for VotePlanProof {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let id = vote::CommitteeId::deserialize(buf)?;
+        let signature = SingleAccountBindingSignature::deserialize(buf)?;
         Ok(Self { id, signature })
     }
 }
 
-impl Readable for VoteAction {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for VoteAction {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         match buf.get_u8()? {
             0 => Ok(Self::OffChain),
-            1 => TreasuryGovernanceAction::read(buf).map(|action| Self::Treasury { action }),
-            2 => ParametersGovernanceAction::read(buf).map(|action| Self::Parameters { action }),
+            1 => TreasuryGovernanceAction::deserialize(buf).map(|action| Self::Treasury { action }),
+            2 => ParametersGovernanceAction::deserialize(buf).map(|action| Self::Parameters { action }),
             t => Err(ReadError::UnknownTag(t as u32)),
         }
     }
 }
 
-impl Readable for VotePlan {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for VotePlan {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         use std::convert::TryInto as _;
 
         let vote_start = BlockDate {
@@ -425,12 +425,12 @@ impl Readable for VotePlan {
             proposals: Vec::with_capacity(proposal_size),
         };
         for _ in 0..proposal_size {
-            let external_id = <[u8; 32]>::read(buf)?.into();
+            let external_id = <[u8; 32]>::deserialize(buf)?.into();
             let options = buf.get_u8().and_then(|num_choices| {
                 vote::Options::new_length(num_choices)
                     .map_err(|e| ReadError::StructureInvalid(e.to_string()))
             })?;
-            let action = VoteAction::read(buf)?;
+            let action = VoteAction::deserialize(buf)?;
 
             let proposal = Proposal {
                 external_id,
@@ -474,7 +474,7 @@ mod tests {
         let serialized = vote_plan.serialize();
 
         let mut buf = ReadBuf::from(serialized.as_ref());
-        let result = VotePlan::read(&mut buf);
+        let result = VotePlan::deserialize(&mut buf);
 
         let decoded = result.expect("can decode encoded vote plan");
 

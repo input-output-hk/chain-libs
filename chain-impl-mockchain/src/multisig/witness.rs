@@ -1,7 +1,7 @@
 use crate::key::{
     deserialize_public_key, deserialize_signature, serialize_public_key, serialize_signature,
 };
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 use chain_crypto::{Ed25519, PublicKey, Verification};
 
@@ -82,8 +82,8 @@ impl property::Serialize for Witness {
     }
 }
 
-impl Readable for Witness {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for Witness {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let len = buf.get_u8()? as usize;
 
         if len == 0 {

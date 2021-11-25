@@ -2,7 +2,7 @@ use crate::accounting::account;
 use crate::key::{deserialize_public_key, serialize_public_key};
 use crate::transaction::WitnessAccountData;
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use chain_crypto::{Ed25519, PublicKey, Signature};
@@ -42,8 +42,8 @@ impl property::Serialize for Identifier {
     }
 }
 
-impl Readable for Identifier {
-    fn read(reader: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for Identifier {
+    fn deserialize(reader: &mut ReadBuf) -> Result<Self, ReadError> {
         deserialize_public_key(reader).map(Identifier)
     }
 }

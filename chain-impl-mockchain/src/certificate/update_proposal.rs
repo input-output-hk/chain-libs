@@ -7,7 +7,7 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property::{self, Serialize},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
@@ -90,10 +90,10 @@ impl property::Serialize for UpdateProposal {
     }
 }
 
-impl Readable for UpdateProposal {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let changes = ConfigParams::read(buf)?;
-        let proposer_id = UpdateProposerId::read(buf)?;
+impl Deserialize for UpdateProposal {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let changes = ConfigParams::deserialize(buf)?;
+        let proposer_id = UpdateProposerId::deserialize(buf)?;
 
         Ok(Self::new(changes, proposer_id))
     }

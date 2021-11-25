@@ -12,7 +12,7 @@ mod witness;
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test;
 
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 
 // to remove..
@@ -35,8 +35,8 @@ impl<Extra: Payload> property::Serialize for Transaction<Extra> {
     }
 }
 
-impl<Extra: Payload> Readable for Transaction<Extra> {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl<Extra: Payload> Deserialize for Transaction<Extra> {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let utx = UnverifiedTransactionSlice::from(buf.get_slice_end());
         match utx.check() {
             Ok(tx) => Ok(tx.to_owned()),

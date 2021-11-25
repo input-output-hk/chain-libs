@@ -6,7 +6,7 @@ use crate::utxo::Entry;
 use crate::value::Value;
 use crate::{account, multisig};
 use chain_addr::Address;
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 use chain_crypto::PublicKey;
 
@@ -209,11 +209,11 @@ impl property::Serialize for Input {
     }
 }
 
-impl Readable for Input {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for Input {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let index_or_account = buf.get_u8()?;
-        let value = Value::read(buf)?;
-        let input_ptr = <[u8; INPUT_PTR_SIZE]>::read(buf)?;
+        let value = Value::deserialize(buf)?;
+        let input_ptr = <[u8; INPUT_PTR_SIZE]>::deserialize(buf)?;
         Ok(Input {
             index_or_account,
             value,

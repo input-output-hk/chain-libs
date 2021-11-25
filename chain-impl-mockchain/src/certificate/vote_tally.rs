@@ -7,7 +7,7 @@ use crate::{
     vote::{CommitteeId, PayloadType, TryFromIntError},
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 use chain_crypto::Verification;
@@ -235,17 +235,17 @@ impl property::Serialize for VoteTally {
     }
 }
 
-impl Readable for TallyProof {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for TallyProof {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         match buf.get_u8()? {
             0 => {
-                let id = CommitteeId::read(buf)?;
-                let signature = SingleAccountBindingSignature::read(buf)?;
+                let id = CommitteeId::deserialize(buf)?;
+                let signature = SingleAccountBindingSignature::deserialize(buf)?;
                 Ok(Self::Public { id, signature })
             }
             1 => {
-                let id = CommitteeId::read(buf)?;
-                let signature = SingleAccountBindingSignature::read(buf)?;
+                let id = CommitteeId::deserialize(buf)?;
+                let signature = SingleAccountBindingSignature::deserialize(buf)?;
                 Ok(Self::Private { id, signature })
             }
             _ => Err(ReadError::StructureInvalid(
@@ -255,11 +255,11 @@ impl Readable for TallyProof {
     }
 }
 
-impl Readable for VoteTally {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for VoteTally {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         use std::convert::TryInto as _;
 
-        let id = <[u8; 32]>::read(buf)?.into();
+        let id = <[u8; 32]>::deserialize(buf)?.into();
         let payload_type = buf
             .get_u8()?
             .try_into()

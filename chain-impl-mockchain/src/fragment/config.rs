@@ -1,5 +1,5 @@
 use crate::config::ConfigParam;
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -33,13 +33,13 @@ impl property::Serialize for ConfigParams {
     }
 }
 
-impl Readable for ConfigParams {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for ConfigParams {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         // FIXME: check canonical order?
         let len = buf.get_u16()?;
         let mut configs: Vec<ConfigParam> = Vec::with_capacity(len as usize);
         for _ in 0..len {
-            configs.push(ConfigParam::read(buf)?);
+            configs.push(ConfigParam::deserialize(buf)?);
         }
         Ok(ConfigParams(configs))
     }
@@ -54,7 +54,7 @@ mod tests {
             use chain_core::property::{Serialize as _,};
             let bytes = params.serialize_as_vec().unwrap();
             let mut buf = ReadBuf::from(&bytes);
-            let decoded = ConfigParams::read(&mut buf).unwrap();
+            let decoded = ConfigParams::deserialize(&mut buf).unwrap();
 
             params == decoded
         }
@@ -63,7 +63,7 @@ mod tests {
             use chain_core::property::Serialize as _;
             let bytes = params.serialize_as_vec().unwrap();
             let mut reader = ReadBuf::from(&bytes);
-            let decoded = ConfigParams::read(&mut reader).unwrap();
+            let decoded = ConfigParams::deserialize(&mut reader).unwrap();
 
             params == decoded
         }

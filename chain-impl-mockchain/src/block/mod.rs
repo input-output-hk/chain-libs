@@ -1,6 +1,6 @@
 //! Representation of the block in the mockchain.
 use crate::fragment::{Fragment, FragmentRaw};
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 
 use std::slice;
@@ -111,17 +111,17 @@ impl property::Serialize for Block {
     }
 }
 
-impl Readable for Block {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for Block {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let header_size = buf.get_u16()? as usize;
         let mut header_buf = buf.split_to(header_size)?;
-        let header = Header::read(&mut header_buf)?;
+        let header = Header::deserialize(&mut header_buf)?;
 
         let mut remaining_content_size = header.block_content_size() as usize;
         let mut contents = ContentsBuilder::new();
 
         while remaining_content_size > 0 {
-            let message_raw = FragmentRaw::read(buf)?;
+            let message_raw = FragmentRaw::deserialize(buf)?;
             let message_size = message_raw.size_bytes_plus_size();
 
             if message_size > remaining_content_size {

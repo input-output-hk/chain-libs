@@ -7,7 +7,7 @@ use super::witness::Witness;
 use crate::date::BlockDate;
 use crate::value::{Value, ValueError};
 use chain_addr::Address;
-use chain_core::mempack::{ReadBuf, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf};
 use chain_crypto::digest::Digest;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
@@ -130,7 +130,7 @@ impl<'a> Iterator for OutputsIter<'a> {
         } else {
             let mut rb = ReadBuf::from(self.slice.1);
             rb.skip_bytes(self.index).unwrap();
-            let output = Output::read(&mut rb).unwrap();
+            let output = Output::deserialize(&mut rb).unwrap();
             self.index = rb.position();
             Some(output)
         }
@@ -146,7 +146,7 @@ impl<'a> Iterator for WitnessesIter<'a> {
         } else {
             let mut rb = ReadBuf::from(self.slice.1);
             rb.skip_bytes(self.index).unwrap();
-            let output = Witness::read(&mut rb).unwrap();
+            let output = Witness::deserialize(&mut rb).unwrap();
             self.index = rb.position();
             Some(output)
         }
@@ -265,7 +265,7 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
 
     // read payload
     if P::HAS_DATA {
-        P::read_validate(&mut rb).map_err(|_| TransactionStructError::PayloadInvalid)?;
+        P::deserialize_validate(&mut rb).map_err(|_| TransactionStructError::PayloadInvalid)?;
     }
 
     // read date
@@ -290,14 +290,14 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
         .map_err(|_| TransactionStructError::InputsInvalid)?;
     let outputs_pos = rb.position();
     for _ in 0..nb_outputs {
-        Output::<Address>::read_validate(&mut rb)
+        Output::<Address>::deserialize_validate(&mut rb)
             .map_err(|_| TransactionStructError::OutputsInvalid)?;
     }
 
     // read witnesses
     let witnesses_pos = rb.position();
     for _ in 0..nb_inputs {
-        Witness::read_validate(&mut rb).map_err(|_| TransactionStructError::WitnessesInvalid)?;
+        Witness::deserialize_validate(&mut rb).map_err(|_| TransactionStructError::WitnessesInvalid)?;
     }
 
     // read payload auth
@@ -306,7 +306,7 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
         if rb.is_end() {
             return Err(TransactionStructError::PayloadAuthMissing);
         }
-        P::Auth::read_validate(&mut rb).map_err(|_| TransactionStructError::PayloadAuthInvalid)?;
+        P::Auth::deserialize_validate(&mut rb).map_err(|_| TransactionStructError::PayloadAuthInvalid)?;
     }
 
     if !rb.is_end() {

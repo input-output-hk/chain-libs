@@ -1,5 +1,5 @@
 use crate::stake::Stake;
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 use std::convert::TryFrom;
 use std::{iter::Sum, ops};
@@ -114,8 +114,8 @@ impl AsRef<u64> for Value {
     }
 }
 
-impl Readable for Value {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for Value {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         buf.get_u64().map(Value)
     }
 }

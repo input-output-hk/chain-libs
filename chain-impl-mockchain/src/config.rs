@@ -9,7 +9,7 @@ use crate::{
     vote::CommitteeId,
 };
 use chain_addr::Discrimination;
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::packer::Codec;
 use chain_core::property;
 use chain_crypto::PublicKey;
@@ -227,8 +227,8 @@ impl<'a> From<&'a ConfigParam> for Tag {
     }
 }
 
-impl Readable for ConfigParam {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for ConfigParam {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let taglen = TagLen(buf.get_u16()?);
         let bytes = buf.get_slice(taglen.get_len())?;
         match taglen.get_tag()? {
@@ -780,7 +780,7 @@ mod test {
             use chain_core::property::Serialize as _;
             let bytes = param.serialize_as_vec().unwrap();
             let mut reader = ReadBuf::from(&bytes);
-            let decoded = ConfigParam::read(&mut reader).unwrap();
+            let decoded = ConfigParam::deserialize(&mut reader).unwrap();
 
             param == decoded
         }

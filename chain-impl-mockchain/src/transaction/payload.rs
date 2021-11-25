@@ -1,15 +1,15 @@
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
+    mempack::{Deserialize, ReadBuf, ReadError},
     property,
 };
 
 use crate::certificate::CertificateSlice;
 use std::marker::PhantomData;
 
-pub trait Payload: Readable {
+pub trait Payload: Deserialize {
     const HAS_DATA: bool;
     const HAS_AUTH: bool;
-    type Auth: Readable;
+    type Auth: Deserialize;
 
     fn payload_data(&self) -> PayloadData<Self>;
 
@@ -68,13 +68,13 @@ impl<'a, P: ?Sized> Clone for PayloadAuthSlice<'a, P> {
 
 impl<'a, P: Payload> PayloadSlice<'a, P> {
     pub fn into_payload(self) -> P {
-        P::read(&mut ReadBuf::from(self.0)).unwrap()
+        P::deserialize(&mut ReadBuf::from(self.0)).unwrap()
     }
 }
 
 impl<'a, P: Payload> PayloadAuthSlice<'a, P> {
     pub fn into_payload_auth(self) -> P::Auth {
-        P::Auth::read(&mut ReadBuf::from(self.0)).unwrap()
+        P::Auth::deserialize(&mut ReadBuf::from(self.0)).unwrap()
     }
 }
 
@@ -130,8 +130,8 @@ impl property::Serialize for NoExtra {
     }
 }
 
-impl Readable for NoExtra {
-    fn read(_: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for NoExtra {
+    fn deserialize(_: &mut ReadBuf) -> Result<Self, ReadError> {
         Ok(NoExtra)
     }
 }

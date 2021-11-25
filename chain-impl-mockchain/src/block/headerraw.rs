@@ -1,4 +1,4 @@
-use chain_core::{mempack::Readable, property};
+use chain_core::{mempack::Deserialize, property};
 
 /// Block Header Bytes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,8 +24,8 @@ impl property::Serialize for HeaderRaw {
     }
 }
 
-impl Readable for HeaderRaw {
-    fn read(
+impl Deserialize for HeaderRaw {
+    fn deserialize(
         buf: &mut chain_core::mempack::ReadBuf,
     ) -> Result<Self, chain_core::mempack::ReadError> {
         let header_size = buf.get_u16()? as usize;

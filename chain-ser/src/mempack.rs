@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::fmt;
 use std::num::{NonZeroU32, NonZeroU64};
 
@@ -40,7 +39,11 @@ impl fmt::Display for ReadError {
     }
 }
 
-impl Error for ReadError {}
+impl From<std::io::Error> for ReadError {
+    fn from(err: std::io::Error) -> Self {
+        ReadError::InvalidData(err.to_string())
+    }
+}
 
 /// A local memory slice to read from memory
 pub struct ReadBuf<'a> {
@@ -197,28 +200,25 @@ impl<'a> ReadBuf<'a> {
     }
 }
 
-pub trait Readable: Sized {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError>;
+pub trait Deserialize: Sized {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError>;
 
-    fn read_validate(buf: &mut ReadBuf) -> Result<(), ReadError> {
-        Self::read(buf).map(|_| ())
+    fn deserialize_validate(buf: &mut ReadBuf) -> Result<(), ReadError> {
+        Self::deserialize(buf).map(|_| ())
     }
 }
 
-impl Readable for () {
-    fn read(_: &mut ReadBuf) -> Result<(), ReadError> {
+impl Deserialize for () {
+    fn deserialize(_: &mut ReadBuf) -> Result<(), ReadError> {
         Ok(())
-    }
-    fn read_validate(buf: &mut ReadBuf) -> Result<(), ReadError> {
-        Self::read(buf)
     }
 }
 
 macro_rules! read_array_impls {
     ($($N: expr)+) => {
         $(
-        impl Readable for [u8; $N] {
-            fn read<'a>(readbuf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+        impl Deserialize for [u8; $N] {
+            fn deserialize<'a>(readbuf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
                 let mut buf = [0u8; $N];
                 buf.copy_from_slice(readbuf.get_slice($N)?);
                 Ok(buf)

@@ -1,7 +1,7 @@
 //! Module provides cryptographic utilities and types related to
 //! the user keys.
 //!
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
 use chain_core::property;
 use chain_crypto as crypto;
 use chain_crypto::{
@@ -94,16 +94,16 @@ pub fn deserialize_public_key<A>(buf: &mut ReadBuf) -> Result<crypto::PublicKey<
 where
     A: AsymmetricPublicKey,
 {
-    let bytes =  buf.get_slice(A::PUBLIC_KEY_SIZE)?;
-    crypto::PublicKey::from_binary(&bytes).map_err(chain_crypto_pub_err)
+    let bytes = buf.get_slice(A::PUBLIC_KEY_SIZE)?;
+    crypto::PublicKey::from_binary(bytes).map_err(chain_crypto_pub_err)
 }
 #[inline]
 pub fn deserialize_signature<A, T>(buf: &mut ReadBuf) -> Result<crypto::Signature<T, A>, ReadError>
 where
     A: VerificationAlgorithm,
 {
-    let bytes =  buf.get_slice(A::SIGNATURE_SIZE)?;
-    crypto::Signature::from_binary(&bytes).map_err(chain_crypto_sig_err)
+    let bytes = buf.get_slice(A::SIGNATURE_SIZE)?;
+    crypto::Signature::from_binary(bytes).map_err(chain_crypto_sig_err)
 }
 
 pub fn make_signature<T, A>(
@@ -179,10 +179,10 @@ where
     }
 }
 
-impl<T: Readable, A: VerificationAlgorithm> Readable for Signed<T, A> {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl<T: Deserialize, A: VerificationAlgorithm> Deserialize for Signed<T, A> {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         Ok(Signed {
-            data: T::read(buf)?,
+            data: T::deserialize(buf)?,
             sig: deserialize_signature(buf)?,
         })
     }
@@ -260,9 +260,9 @@ impl property::Serialize for Hash {
     }
 }
 
-impl Readable for Hash {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let bytes = <[u8; crypto::Blake2b256::HASH_SIZE]>::read(buf)?;
+impl Deserialize for Hash {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+        let bytes = <[u8; crypto::Blake2b256::HASH_SIZE]>::deserialize(buf)?;
         Ok(Hash(crypto::Blake2b256::from(bytes)))
     }
 }
@@ -324,8 +324,8 @@ impl property::Serialize for BftLeaderId {
     }
 }
 
-impl Readable for BftLeaderId {
-    fn read(reader: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for BftLeaderId {
+    fn deserialize(reader: &mut ReadBuf) -> Result<Self, ReadError> {
         deserialize_public_key(reader).map(BftLeaderId)
     }
 }
@@ -360,8 +360,8 @@ impl GenesisPraosLeader {
     }
 }
 
-impl Readable for GenesisPraosLeader {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+impl Deserialize for GenesisPraosLeader {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let vrf_public_key = deserialize_public_key(buf)?;
         let kes_public_key = deserialize_public_key(buf)?;
         Ok(GenesisPraosLeader {
