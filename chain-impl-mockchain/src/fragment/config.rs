@@ -1,6 +1,8 @@
 use crate::config::ConfigParam;
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConfigParams(pub(crate) Vec<ConfigParam>);
@@ -19,7 +21,7 @@ impl ConfigParams {
     }
 }
 
-impl property::Serialize for ConfigParams {
+impl Serialize for ConfigParams {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {

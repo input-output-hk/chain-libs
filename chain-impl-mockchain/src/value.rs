@@ -1,6 +1,8 @@
 use crate::stake::Stake;
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 use std::convert::TryFrom;
 use std::{iter::Sum, ops};
 use thiserror::Error;
@@ -120,7 +122,7 @@ impl Deserialize for Value {
     }
 }
 
-impl property::Serialize for Value {
+impl Serialize for Value {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;

@@ -12,8 +12,10 @@ mod witness;
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test;
 
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 
 // to remove..
 pub use builder::{
@@ -28,7 +30,7 @@ pub use transfer::*;
 pub use utxo::*;
 pub use witness::*;
 
-impl<Extra: Payload> property::Serialize for Transaction<Extra> {
+impl<Extra: Payload> Serialize for Transaction<Extra> {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.as_ref())

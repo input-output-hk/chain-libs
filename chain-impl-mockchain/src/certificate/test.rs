@@ -6,7 +6,7 @@ use crate::ledger::governance::TreasuryGovernanceAction;
 use crate::rewards::TaxType;
 use crate::vote;
 #[cfg(test)]
-use chain_core::mempack::{Deserialize, ReadBuf};
+use chain_core::{mempack::ReadBuf, property::Deserialize};
 use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
 #[cfg(test)]

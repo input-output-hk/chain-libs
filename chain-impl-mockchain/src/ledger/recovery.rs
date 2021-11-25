@@ -60,9 +60,11 @@ use crate::value::Value;
 use crate::vote;
 use crate::{config, key, multisig, utxo};
 use chain_addr::{Address, Discrimination};
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 use chain_crypto::digest::{DigestAlg, DigestOf};
-use chain_ser::deser::Serialize;
 use chain_ser::packer::Codec;
 use chain_time::era::{pack_time_era, unpack_time_era};
 use imhamt::Hamt;

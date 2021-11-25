@@ -6,8 +6,10 @@ use crate::utxo::Entry;
 use crate::value::Value;
 use crate::{account, multisig};
 use chain_addr::Address;
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 use chain_crypto::PublicKey;
 
 pub const INPUT_SIZE: usize = 41;
@@ -195,7 +197,7 @@ impl Input {
     }
 }
 
-impl property::Serialize for Input {
+impl Serialize for Input {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {

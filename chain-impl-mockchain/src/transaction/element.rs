@@ -1,7 +1,10 @@
 use crate::key::deserialize_signature;
 use crate::transaction::TransactionBindingAuthData;
 use crate::value::{Value, ValueError};
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::Deserialize,
+};
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Signature, Verification};
 use thiserror::Error;
 use typed_bytes::ByteBuilder;

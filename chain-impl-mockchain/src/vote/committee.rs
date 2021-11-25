@@ -1,6 +1,6 @@
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 use chain_crypto::{Ed25519, PublicKey};
 use std::{
@@ -126,7 +126,7 @@ impl FromStr for CommitteeId {
 
 /* Ser/De ****************************************************************** */
 
-impl property::Serialize for CommitteeId {
+impl Serialize for CommitteeId {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.as_ref())
@@ -143,8 +143,6 @@ impl Deserialize for CommitteeId {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-    #[cfg(test)]
-    use chain_core::property::Serialize as _;
     use quickcheck::{Arbitrary, Gen};
     use quickcheck_macros::quickcheck;
 

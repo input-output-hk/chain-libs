@@ -1,5 +1,7 @@
-use chain_core::mempack::{Deserialize, ReadBuf};
-use chain_core::property::Serialize;
+use chain_core::{
+    mempack::ReadBuf,
+    property::{Deserialize, Serialize},
+};
 use quickcheck::{Arbitrary, TestResult};
 
 /// test that any arbitrary given object can serialize and deserialize

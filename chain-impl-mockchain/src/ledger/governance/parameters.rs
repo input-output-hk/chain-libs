@@ -1,5 +1,8 @@
 use crate::{ledger::governance::GovernanceAcceptanceCriteria, value::Value};
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::Deserialize,
+};
 use imhamt::Hamt;
 use std::collections::hash_map::DefaultHasher;
 use typed_bytes::ByteBuilder;

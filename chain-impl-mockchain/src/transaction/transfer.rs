@@ -1,6 +1,9 @@
 use crate::legacy::OldAddress;
 use crate::value::*;
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::Deserialize,
+};
 
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.

@@ -3,8 +3,10 @@ mod content;
 mod raw;
 
 use crate::legacy;
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{self, Deserialize, Serialize},
+};
 
 pub use config::ConfigParams;
 pub use raw::{FragmentId, FragmentRaw};
@@ -110,7 +112,6 @@ impl Fragment {
     /// Get the serialized representation of this message
     pub fn to_raw(&self) -> FragmentRaw {
         use chain_core::packer::*;
-        use chain_core::property::Serialize;
         let v = Vec::new();
         let mut codec = Codec::new(v);
         codec.put_u8(0).unwrap();
@@ -167,7 +168,9 @@ impl Deserialize for Fragment {
             Some(FragmentTag::OldUtxoDeclaration) => {
                 legacy::UtxoDeclaration::deserialize(buf).map(Fragment::OldUtxoDeclaration)
             }
-            Some(FragmentTag::Transaction) => Transaction::deserialize(buf).map(Fragment::Transaction),
+            Some(FragmentTag::Transaction) => {
+                Transaction::deserialize(buf).map(Fragment::Transaction)
+            }
             Some(FragmentTag::OwnerStakeDelegation) => {
                 Transaction::deserialize(buf).map(Fragment::OwnerStakeDelegation)
             }
@@ -180,11 +183,15 @@ impl Deserialize for Fragment {
             Some(FragmentTag::PoolRetirement) => {
                 Transaction::deserialize(buf).map(Fragment::PoolRetirement)
             }
-            Some(FragmentTag::PoolUpdate) => Transaction::deserialize(buf).map(Fragment::PoolUpdate),
+            Some(FragmentTag::PoolUpdate) => {
+                Transaction::deserialize(buf).map(Fragment::PoolUpdate)
+            }
             Some(FragmentTag::UpdateProposal) => {
                 Transaction::deserialize(buf).map(Fragment::UpdateProposal)
             }
-            Some(FragmentTag::UpdateVote) => Transaction::deserialize(buf).map(Fragment::UpdateVote),
+            Some(FragmentTag::UpdateVote) => {
+                Transaction::deserialize(buf).map(Fragment::UpdateVote)
+            }
             Some(FragmentTag::VotePlan) => Transaction::deserialize(buf).map(Fragment::VotePlan),
             Some(FragmentTag::VoteCast) => Transaction::deserialize(buf).map(Fragment::VoteCast),
             Some(FragmentTag::VoteTally) => Transaction::deserialize(buf).map(Fragment::VoteTally),
@@ -196,7 +203,7 @@ impl Deserialize for Fragment {
     }
 }
 
-impl property::Serialize for Fragment {
+impl Serialize for Fragment {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         self.to_raw().serialize(writer)

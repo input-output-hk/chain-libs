@@ -6,8 +6,10 @@ use crate::key::{
     SpendingSignature,
 };
 use crate::multisig;
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
 /// Structure that proofs that certain user agrees with
@@ -178,7 +180,6 @@ impl Witness {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        use chain_core::property::Serialize;
         self.serialize_as_vec()
             .expect("memory serialize is expected to just work")
     }
@@ -189,7 +190,7 @@ const WITNESS_TAG_UTXO: u8 = 1u8;
 const WITNESS_TAG_ACCOUNT: u8 = 2u8;
 const WITNESS_TAG_MULTISIG: u8 = 3u8;
 
-impl property::Serialize for Witness {
+impl Serialize for Witness {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {

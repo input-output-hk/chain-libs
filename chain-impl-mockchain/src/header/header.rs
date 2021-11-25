@@ -291,11 +291,11 @@ impl Debug for Header {
 }
 
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 
-impl property::Serialize for Header {
+impl Serialize for Header {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {

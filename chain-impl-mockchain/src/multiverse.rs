@@ -209,7 +209,7 @@ mod test {
     };
 
     use chain_addr::Discrimination;
-    use chain_core::mempack::{Deserialize, ReadBuf};
+    use chain_core::{mempack::ReadBuf, property::Deserialize};
     use chain_time::{Epoch, SlotDuration, TimeEra, TimeFrame, Timeline};
     use std::{collections::HashMap, mem, time::SystemTime};
 

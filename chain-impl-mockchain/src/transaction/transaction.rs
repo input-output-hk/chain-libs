@@ -7,7 +7,7 @@ use super::witness::Witness;
 use crate::date::BlockDate;
 use crate::value::{Value, ValueError};
 use chain_addr::Address;
-use chain_core::mempack::{Deserialize, ReadBuf};
+use chain_core::{mempack::ReadBuf, property::Deserialize};
 use chain_crypto::digest::Digest;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
@@ -297,7 +297,8 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
     // read witnesses
     let witnesses_pos = rb.position();
     for _ in 0..nb_inputs {
-        Witness::deserialize_validate(&mut rb).map_err(|_| TransactionStructError::WitnessesInvalid)?;
+        Witness::deserialize_validate(&mut rb)
+            .map_err(|_| TransactionStructError::WitnessesInvalid)?;
     }
 
     // read payload auth
@@ -306,7 +307,8 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
         if rb.is_end() {
             return Err(TransactionStructError::PayloadAuthMissing);
         }
-        P::Auth::deserialize_validate(&mut rb).map_err(|_| TransactionStructError::PayloadAuthInvalid)?;
+        P::Auth::deserialize_validate(&mut rb)
+            .map_err(|_| TransactionStructError::PayloadAuthInvalid)?;
     }
 
     if !rb.is_end() {

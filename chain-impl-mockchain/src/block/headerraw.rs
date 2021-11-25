@@ -1,4 +1,4 @@
-use chain_core::{mempack::Deserialize, property};
+use chain_core::property::{Deserialize, Serialize};
 
 /// Block Header Bytes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -10,7 +10,7 @@ impl AsRef<[u8]> for HeaderRaw {
     }
 }
 
-impl property::Serialize for HeaderRaw {
+impl Serialize for HeaderRaw {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {

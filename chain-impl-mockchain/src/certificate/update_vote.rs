@@ -5,8 +5,8 @@ use crate::{
 };
 
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -75,7 +75,7 @@ impl Payload for UpdateVote {
 
 /* Ser/De ******************************************************************* */
 
-impl property::Serialize for UpdateVote {
+impl Serialize for UpdateVote {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;

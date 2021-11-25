@@ -1,8 +1,10 @@
 //! Module provides cryptographic utilities and types related to
 //! the user keys.
 //!
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{BlockId, Deserialize, FragmentId, Serialize},
+};
 use chain_crypto as crypto;
 use chain_crypto::{
     digest::DigestOf, AsymmetricKey, AsymmetricPublicKey, Blake2b256, Ed25519, PublicKey,
@@ -113,7 +115,7 @@ pub fn make_signature<T, A>(
 where
     A: SigningAlgorithm,
     <A as AsymmetricKey>::PubAlg: VerificationAlgorithm,
-    T: property::Serialize,
+    T: Serialize,
 {
     let bytes = data.serialize_as_vec().unwrap();
     spending_key.sign(&bytes).coerce()
@@ -126,7 +128,7 @@ pub fn verify_signature<T, A>(
 ) -> crypto::Verification
 where
     A: VerificationAlgorithm,
-    T: property::Serialize,
+    T: Serialize,
 {
     let bytes = data.serialize_as_vec().unwrap();
     signature.clone().coerce().verify(public_key, &bytes)
@@ -139,7 +141,7 @@ pub fn verify_multi_signature<T, A>(
 ) -> crypto::Verification
 where
     A: VerificationAlgorithm,
-    T: property::Serialize,
+    T: Serialize,
 {
     assert!(!public_key.is_empty());
     let bytes = data.serialize_as_vec().unwrap();
@@ -152,7 +154,7 @@ pub struct Signed<T, A: VerificationAlgorithm> {
     pub sig: crypto::Signature<T, A>,
 }
 
-pub fn signed_new<T: property::Serialize, A: SigningAlgorithm>(
+pub fn signed_new<T: Serialize, A: SigningAlgorithm>(
     secret_key: &crypto::SecretKey<A>,
     data: T,
 ) -> Signed<T, A::PubAlg>
@@ -167,7 +169,7 @@ where
     }
 }
 
-impl<T: property::Serialize, A: VerificationAlgorithm> property::Serialize for Signed<T, A>
+impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A>
 where
     std::io::Error: From<T::Error>,
 {
@@ -252,7 +254,7 @@ impl<'a> From<&'a Hash> for &'a [u8; 32] {
     }
 }
 
-impl property::Serialize for Hash {
+impl Serialize for Hash {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.0.as_hash_bytes())?;
@@ -267,13 +269,13 @@ impl Deserialize for Hash {
     }
 }
 
-impl property::BlockId for Hash {
+impl BlockId for Hash {
     fn zero() -> Hash {
         Hash(crypto::Blake2b256::from([0; crypto::Blake2b256::HASH_SIZE]))
     }
 }
 
-impl property::FragmentId for Hash {}
+impl FragmentId for Hash {}
 
 impl AsRef<[u8]> for Hash {
     fn as_ref(&self) -> &[u8] {
@@ -317,7 +319,7 @@ impl BftLeaderId {
     }
 }
 
-impl property::Serialize for BftLeaderId {
+impl Serialize for BftLeaderId {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         serialize_public_key(&self.0, writer)

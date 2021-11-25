@@ -1,8 +1,10 @@
 use crate::key::{
     deserialize_public_key, deserialize_signature, serialize_public_key, serialize_signature,
 };
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 use chain_crypto::{Ed25519, PublicKey, Verification};
 
 use std::collections::BTreeMap;
@@ -65,7 +67,7 @@ fn deserialize_index(buf: &mut ReadBuf) -> Result<TreeIndex, ReadError> {
     }
 }
 
-impl property::Serialize for Witness {
+impl Serialize for Witness {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {

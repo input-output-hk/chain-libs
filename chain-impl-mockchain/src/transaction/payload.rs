@@ -1,6 +1,6 @@
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 
 use crate::certificate::CertificateSlice;
@@ -123,7 +123,7 @@ impl<'a, P: ?Sized> PayloadAuthSlice<'a, P> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoExtra;
 
-impl property::Serialize for NoExtra {
+impl Serialize for NoExtra {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, _: W) -> Result<(), Self::Error> {
         Ok(())

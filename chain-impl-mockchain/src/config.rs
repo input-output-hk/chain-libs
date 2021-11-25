@@ -9,9 +9,11 @@ use crate::{
     vote::CommitteeId,
 };
 use chain_addr::Discrimination;
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::packer::Codec;
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    packer::Codec,
+    property::{Deserialize, Serialize},
+};
 use chain_crypto::PublicKey;
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Write};
@@ -311,7 +313,7 @@ impl Deserialize for ConfigParam {
     }
 }
 
-impl property::Serialize for ConfigParam {
+impl Serialize for ConfigParam {
     type Error = io::Error;
 
     fn serialize<W: Write>(&self, writer: W) -> Result<(), Self::Error> {

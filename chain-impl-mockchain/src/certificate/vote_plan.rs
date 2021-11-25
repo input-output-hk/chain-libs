@@ -9,8 +9,8 @@ use crate::{
     vote,
 };
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
 use chain_vote::MemberPublicKey;
@@ -371,7 +371,7 @@ impl Deref for Proposals {
 
 /* Ser/De ******************************************************************* */
 
-impl property::Serialize for VotePlan {
+impl Serialize for VotePlan {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.serialize().as_slice())?;
@@ -392,7 +392,8 @@ impl Deserialize for VoteAction {
         match buf.get_u8()? {
             0 => Ok(Self::OffChain),
             1 => TreasuryGovernanceAction::deserialize(buf).map(|action| Self::Treasury { action }),
-            2 => ParametersGovernanceAction::deserialize(buf).map(|action| Self::Parameters { action }),
+            2 => ParametersGovernanceAction::deserialize(buf)
+                .map(|action| Self::Parameters { action }),
             t => Err(ReadError::UnknownTag(t as u32)),
         }
     }

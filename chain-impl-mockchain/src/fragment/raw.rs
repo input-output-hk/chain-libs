@@ -1,6 +1,6 @@
 use crate::key::Hash;
-use chain_core::property;
-use chain_ser::mempack::{Deserialize, ReadBuf, ReadError};
+use chain_core::property::{Deserialize, Serialize};
+use chain_ser::mempack::{ReadBuf, ReadError};
 
 pub type FragmentId = Hash;
 pub const FRAGMENT_SIZE_BYTES_LEN: usize = 4;
@@ -34,7 +34,7 @@ impl Deserialize for FragmentRaw {
     }
 }
 
-impl property::Serialize for FragmentRaw {
+impl Serialize for FragmentRaw {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;

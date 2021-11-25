@@ -4,8 +4,8 @@ use crate::{
     vote,
 };
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -78,7 +78,7 @@ impl Payload for VoteCast {
 
 /* Ser/De ******************************************************************* */
 
-impl property::Serialize for VoteCast {
+impl Serialize for VoteCast {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.serialize().as_slice())?;

@@ -3,8 +3,10 @@ use crate::value::Value;
 pub use cardano_legacy_address::Addr as OldAddress;
 pub use cardano_legacy_address::AddressMatchXPub as OldAddressMatchXPub;
 
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 use chain_crypto::{Ed25519, PublicKey};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +46,7 @@ impl Deserialize for UtxoDeclaration {
     }
 }
 
-impl property::Serialize for UtxoDeclaration {
+impl Serialize for UtxoDeclaration {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;

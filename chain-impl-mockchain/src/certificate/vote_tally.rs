@@ -7,8 +7,8 @@ use crate::{
     vote::{CommitteeId, PayloadType, TryFromIntError},
 };
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 use chain_crypto::Verification;
 use chain_vote::TallyDecryptShare;
@@ -227,7 +227,7 @@ impl Payload for VoteTally {
 
 /* Ser/De ******************************************************************* */
 
-impl property::Serialize for VoteTally {
+impl Serialize for VoteTally {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.serialize().as_slice())?;

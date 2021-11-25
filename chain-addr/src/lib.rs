@@ -35,8 +35,10 @@ use std::string::ToString;
 
 use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
 
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property::Serialize;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
+};
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod testing;

@@ -6,8 +6,8 @@ use crate::transaction::{
     SingleAccountBindingSignature, TransactionBindingAuthData,
 };
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property,
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Verification};
 use chain_time::{DurationSeconds, TimeOffsetSeconds};
@@ -190,7 +190,7 @@ impl Deserialize for PoolRetirement {
     }
 }
 
-impl property::Serialize for PoolUpdate {
+impl Serialize for PoolUpdate {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.serialize().as_slice())?;
@@ -198,7 +198,7 @@ impl property::Serialize for PoolUpdate {
     }
 }
 
-impl property::Serialize for PoolRetirement {
+impl Serialize for PoolRetirement {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.serialize().as_slice())?;
@@ -256,7 +256,7 @@ impl Payload for PoolRetirement {
     }
 }
 
-impl property::Serialize for PoolRegistration {
+impl Serialize for PoolRegistration {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
         writer.write_all(self.serialize().as_slice())?;

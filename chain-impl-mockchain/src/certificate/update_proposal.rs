@@ -7,8 +7,8 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
 use chain_core::{
-    mempack::{Deserialize, ReadBuf, ReadError},
-    property::{self, Serialize},
+    mempack::{ReadBuf, ReadError},
+    property::{Deserialize, Serialize},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -79,7 +79,7 @@ impl Payload for UpdateProposal {
 
 /* Ser/De ******************************************************************* */
 
-impl property::Serialize for UpdateProposal {
+impl Serialize for UpdateProposal {
     type Error = std::io::Error;
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
         use chain_core::packer::*;

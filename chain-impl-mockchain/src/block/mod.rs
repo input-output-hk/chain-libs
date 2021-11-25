@@ -1,7 +1,9 @@
 //! Representation of the block in the mockchain.
 use crate::fragment::{Fragment, FragmentRaw};
-use chain_core::mempack::{Deserialize, ReadBuf, ReadError};
-use chain_core::property;
+use chain_core::{
+    mempack::{ReadBuf, ReadError},
+    property::{self, Deserialize, Serialize},
+};
 
 use std::slice;
 
@@ -92,7 +94,7 @@ impl property::Block for Block {
     }
 }
 
-impl property::Serialize for Block {
+impl Serialize for Block {
     type Error = std::io::Error;
 
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
