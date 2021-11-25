@@ -1,7 +1,7 @@
 use crate::{
     account::Identifier,
     certificate::CertificateSlice,
-    tokens::{identifier::TokenIdentifier, minting_policy::MintingPolicy},
+    tokens::{minting_policy::MintingPolicy, name::TokenName},
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
     value::Value,
 };
@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
 pub struct MintToken {
-    pub token: TokenIdentifier,
+    pub name: TokenName,
     pub policy: MintingPolicy,
     pub to: Identifier,
     pub value: Value,
@@ -21,7 +21,9 @@ pub struct MintToken {
 
 impl MintToken {
     pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
-        bb.bytes(&self.token.bytes())
+        let name = self.name.as_ref();
+        bb.u8(name.len() as u8)
+            .bytes(name)
             .bytes(&self.policy.bytes())
             .bytes(self.to.as_ref().as_ref())
             .bytes(&self.value.bytes())
@@ -55,19 +57,13 @@ impl Payload for MintToken {
 
 impl Readable for MintToken {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let token = TokenIdentifier::read(buf)?;
+        let name = TokenName::read(buf)?;
         let policy = MintingPolicy::read(buf)?;
         let to = Identifier::read(buf)?;
         let value = Value::read(buf)?;
 
-        if policy.hash() != token.policy_hash {
-            return Err(ReadError::InvalidData(
-                "policy hash does not match".to_string(),
-            ));
-        }
-
         Ok(Self {
-            token,
+            name,
             policy,
             to,
             value,
@@ -82,16 +78,12 @@ mod tests {
 
     impl Arbitrary for MintToken {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let token_name = Arbitrary::arbitrary(g);
+            let name = Arbitrary::arbitrary(g);
             let policy = MintingPolicy::arbitrary(g);
-            let token = TokenIdentifier {
-                policy_hash: policy.hash(),
-                token_name,
-            };
             let to = Arbitrary::arbitrary(g);
             let value = Arbitrary::arbitrary(g);
             Self {
-                token,
+                name,
                 policy,
                 to,
                 value,

@@ -20,6 +20,7 @@ use crate::setting::ActiveSlotsCoeffError;
 use crate::stake::{
     PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeControl, StakeDistribution,
 };
+use crate::tokens::identifier::TokenIdentifier;
 use crate::tokens::minting_policy::MintingPolicyViolation;
 use crate::transaction::*;
 use crate::treasury::Treasury;
@@ -1320,23 +1321,31 @@ impl Ledger {
 
     pub fn mint_token(mut self, mt: MintToken) -> Result<Self, Error> {
         let MintToken {
-            token,
+            name,
             policy,
             to,
             value,
         } = mt;
         policy.check_minting_tx()?;
+        let token = TokenIdentifier {
+            policy_hash: policy.hash(),
+            token_name: name,
+        };
         self.accounts = self.accounts.token_add(&to, token, value)?;
         Ok(self)
     }
 
     pub fn mint_token_unchecked(mut self, mt: MintToken) -> Result<Self, Error> {
         let MintToken {
-            token,
-            policy: _,
+            name,
+            policy,
             to,
             value,
         } = mt;
+        let token = TokenIdentifier {
+            policy_hash: policy.hash(),
+            token_name: name,
+        };
         self.accounts = self.accounts.token_add(&to, token, value)?;
         Ok(self)
     }
