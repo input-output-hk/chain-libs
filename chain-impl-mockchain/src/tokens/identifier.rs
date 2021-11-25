@@ -78,7 +78,7 @@ impl FromStr for TokenIdentifier {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split(".");
+        let mut parts = s.split('.');
 
         let policy_hash = {
             let hex = parts.next().ok_or(ParseError::EmptyStr)?;

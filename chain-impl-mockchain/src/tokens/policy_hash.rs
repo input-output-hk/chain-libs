@@ -33,7 +33,7 @@ impl Readable for PolicyHash {
         let bytes = buf
             .get_slice(POLICY_HASH_SIZE)?
             .try_into()
-            .expect(&format!("already read {} bytes", POLICY_HASH_SIZE));
+            .unwrap_or_else(|_| panic!("already read {} bytes", POLICY_HASH_SIZE));
         Ok(Self(bytes))
     }
 }
