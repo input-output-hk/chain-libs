@@ -2,35 +2,6 @@ use std::error::Error;
 use std::fmt;
 use std::num::{NonZeroU32, NonZeroU64};
 
-/// A local memory buffer to serialize data to
-#[derive(Default)]
-pub struct WriteBuf(Vec<u8>);
-
-impl WriteBuf {
-    pub fn new() -> Self {
-        WriteBuf(Vec::new())
-    }
-
-    pub fn put_u8(&mut self, v: u8) {
-        self.0.push(v)
-    }
-    pub fn put_u16(&mut self, v: u16) {
-        self.0.extend_from_slice(&v.to_be_bytes())
-    }
-    pub fn put_u32(&mut self, v: u32) {
-        self.0.extend_from_slice(&v.to_be_bytes())
-    }
-    pub fn put_u64(&mut self, v: u64) {
-        self.0.extend_from_slice(&v.to_be_bytes())
-    }
-    pub fn put_u128(&mut self, v: u128) {
-        self.0.extend_from_slice(&v.to_be_bytes())
-    }
-    pub fn put_bytes(&mut self, v: &[u8]) {
-        self.0.extend_from_slice(v)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadError {
     /// Return the number of bytes left and the number of bytes demanded
@@ -212,12 +183,6 @@ impl<'a> ReadBuf<'a> {
         Ok(u128::from_be_bytes(buf))
     }
 
-    /*
-    pub fn trace(&mut self, s: &str) {
-        self.trace.push((self.offset, s.to_string()))
-    }
-    */
-
     pub fn debug(&self) -> String {
         let mut s = String::new();
         for (i, x) in self.data.iter().enumerate() {
@@ -249,22 +214,6 @@ impl Readable for () {
     }
 }
 
-macro_rules! read_prim_impl {
-    ($Ty: ty, $meth: ident) => {
-        impl Readable for $Ty {
-            fn read<'a>(buf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
-                buf.$meth()
-            }
-        }
-    };
-}
-
-read_prim_impl! { u8, get_u8 }
-read_prim_impl! { u16, get_u16 }
-read_prim_impl! { u32, get_u32 }
-read_prim_impl! { u64, get_u64 }
-read_prim_impl! { u128, get_u128 }
-
 macro_rules! read_array_impls {
     ($($N: expr)+) => {
         $(
@@ -281,43 +230,4 @@ macro_rules! read_array_impls {
 
 read_array_impls! {
     4 8 12 16 20 24 28 32 64 96 128
-}
-
-/// read N times for a T elements in sequences
-pub fn read_vec<T: Readable>(readbuf: &mut ReadBuf, n: usize) -> Result<Vec<T>, ReadError> {
-    let mut v = Vec::with_capacity(n);
-    for _ in 0..n {
-        let t = T::read(readbuf)?;
-        v.push(t)
-    }
-    Ok(v)
-}
-
-/// Fill a mutable slice with as many T as filling requires
-pub fn read_mut_slice<'a, T: Readable>(
-    readbuf: &mut ReadBuf<'a>,
-    v: &mut [T],
-) -> Result<(), ReadError> {
-    for t in v.iter_mut() {
-        *t = T::read(readbuf)?;
-    }
-    Ok(())
-}
-
-/// Transform a raw buffer into a Header
-pub fn read_from_raw<T: Readable>(raw: &[u8]) -> Result<T, std::io::Error> {
-    let mut rbuf = ReadBuf::from(raw);
-    match T::read(&mut rbuf) {
-        Err(e) => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("invalid data {:?} {:?}", e, raw),
-        )),
-        Ok(h) => match rbuf.expect_end() {
-            Err(e) => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("end of data {:?}", e),
-            )),
-            Ok(()) => Ok(h),
-        },
-    }
 }

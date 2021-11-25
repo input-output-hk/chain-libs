@@ -1,7 +1,7 @@
 //! Module provides cryptographic utilities and types related to
 //! the user keys.
 //!
-use chain_core::mempack::{read_mut_slice, ReadBuf, ReadError, Readable};
+use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::property;
 use chain_crypto as crypto;
 use chain_crypto::{
@@ -94,8 +94,7 @@ pub fn deserialize_public_key<A>(buf: &mut ReadBuf) -> Result<crypto::PublicKey<
 where
     A: AsymmetricPublicKey,
 {
-    let mut bytes = vec![0u8; A::PUBLIC_KEY_SIZE];
-    read_mut_slice(buf, &mut bytes[..])?;
+    let bytes =  buf.get_slice(A::PUBLIC_KEY_SIZE)?;
     crypto::PublicKey::from_binary(&bytes).map_err(chain_crypto_pub_err)
 }
 #[inline]
@@ -103,8 +102,7 @@ pub fn deserialize_signature<A, T>(buf: &mut ReadBuf) -> Result<crypto::Signatur
 where
     A: VerificationAlgorithm,
 {
-    let mut bytes = vec![0u8; A::SIGNATURE_SIZE];
-    read_mut_slice(buf, &mut bytes[..])?;
+    let bytes =  buf.get_slice(A::SIGNATURE_SIZE)?;
     crypto::Signature::from_binary(&bytes).map_err(chain_crypto_sig_err)
 }
 
