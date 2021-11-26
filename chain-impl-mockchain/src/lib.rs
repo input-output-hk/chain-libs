@@ -27,6 +27,7 @@ pub mod rewards;
 pub mod setting;
 pub mod smartcontract;
 pub mod stake;
+pub mod tokens;
 pub mod transaction;
 pub mod treasury;
 pub mod update;
