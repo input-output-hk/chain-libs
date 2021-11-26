@@ -3,7 +3,7 @@
 //! This will allow us to expose some standard way of serializing
 //! data.
 
-use crate::deser::WriteError;
+use crate::deser::{ReadError, WriteError};
 
 pub struct Codec<I>(I);
 impl<I> Codec<I> {
@@ -18,43 +18,43 @@ impl<I> Codec<I> {
 
 impl<R: std::io::BufRead> Codec<R> {
     #[inline]
-    pub fn get_u8(&mut self) -> std::io::Result<u8> {
+    pub fn get_u8(&mut self) -> Result<u8, ReadError> {
         let mut buf = [0u8; 1];
         self.0.read_exact(&mut buf)?;
         Ok(buf[0])
     }
     #[inline]
-    pub fn get_u16(&mut self) -> std::io::Result<u16> {
+    pub fn get_u16(&mut self) -> Result<u16, ReadError> {
         let mut buf = [0u8; 2];
         self.0.read_exact(&mut buf)?;
         Ok(u16::from_be_bytes(buf))
     }
     #[inline]
-    pub fn get_u32(&mut self) -> std::io::Result<u32> {
+    pub fn get_u32(&mut self) -> Result<u32, ReadError> {
         let mut buf = [0u8; 4];
         self.0.read_exact(&mut buf)?;
         Ok(u32::from_be_bytes(buf))
     }
     #[inline]
-    pub fn get_u64(&mut self) -> std::io::Result<u64> {
+    pub fn get_u64(&mut self) -> Result<u64, ReadError> {
         let mut buf = [0u8; 8];
         self.0.read_exact(&mut buf)?;
         Ok(u64::from_be_bytes(buf))
     }
     #[inline]
-    pub fn get_u128(&mut self) -> std::io::Result<u128> {
+    pub fn get_u128(&mut self) -> Result<u128, ReadError> {
         let mut buf = [0u8; 16];
         self.0.read_exact(&mut buf)?;
         Ok(u128::from_be_bytes(buf))
     }
     #[inline]
-    pub fn get_bytes(&mut self, n: usize) -> std::io::Result<Vec<u8>> {
+    pub fn get_bytes(&mut self, n: usize) -> Result<Vec<u8>, ReadError> {
         let mut buf = vec![0u8; n];
         self.0.read_exact(&mut buf)?;
         Ok(buf)
     }
     #[inline]
-    pub fn get_slice(&mut self, slice: &mut [u8]) -> std::io::Result<()> {
+    pub fn get_slice(&mut self, slice: &mut [u8]) -> Result<(), ReadError> {
         self.0.read_exact(slice)?;
         Ok(())
     }

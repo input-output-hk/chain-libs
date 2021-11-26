@@ -421,7 +421,6 @@ impl std::str::FromStr for AddressReadable {
 impl Serialize for Address {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
-        use std::io::Write;
         let mut codec = Codec::new(writer);
 
         let first_byte = match self.0 {
@@ -430,14 +429,14 @@ impl Serialize for Address {
         };
         codec.put_u8(first_byte)?;
         match &self.1 {
-            Kind::Single(spend) => codec.write_all(spend.as_ref())?,
+            Kind::Single(spend) => codec.put_bytes(spend.as_ref())?,
             Kind::Group(spend, group) => {
-                codec.write_all(spend.as_ref())?;
-                codec.write_all(group.as_ref())?;
+                codec.put_bytes(spend.as_ref())?;
+                codec.put_bytes(group.as_ref())?;
             }
-            Kind::Account(stake_key) => codec.write_all(stake_key.as_ref())?,
-            Kind::Multisig(hash) => codec.write_all(&hash[..])?,
-            Kind::Script(hash) => codec.write_all(&hash[..])?,
+            Kind::Account(stake_key) => codec.put_bytes(stake_key.as_ref())?,
+            Kind::Multisig(hash) => codec.put_bytes(&hash[..])?,
+            Kind::Script(hash) => codec.put_bytes(&hash[..])?,
         };
 
         Ok(())

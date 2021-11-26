@@ -49,7 +49,6 @@ impl Deserialize for UtxoDeclaration {
 impl Serialize for UtxoDeclaration {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
-        use std::io::Write;
 
         assert!(self.addrs.len() < 255);
 
@@ -59,7 +58,7 @@ impl Serialize for UtxoDeclaration {
             v.serialize(&mut codec)?;
             let bs = b.as_ref();
             codec.put_u16(bs.len() as u16)?;
-            codec.write_all(bs)?;
+            codec.put_bytes(bs)?;
         }
         Ok(())
     }

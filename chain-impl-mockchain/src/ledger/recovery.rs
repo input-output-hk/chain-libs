@@ -864,7 +864,7 @@ fn pack_committee_public_keys<W: std::io::Write>(
     use std::convert::TryInto;
     codec.put_u8(keys.len().try_into().unwrap())?;
     for k in keys {
-        codec.write_all(&k.to_bytes())?;
+        codec.put_bytes(&k.to_bytes())?;
     }
     Ok(())
 }

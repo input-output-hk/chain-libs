@@ -94,13 +94,12 @@ impl Payload for OwnerStakeDelegation {
 impl Serialize for StakeDelegation {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
-        use std::io::Write;
 
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
         let mut codec = Codec::new(writer);
-        codec.write_all(self.account_id.as_ref())?;
-        codec.write_all(&delegation_buf)?;
+        codec.put_bytes(self.account_id.as_ref())?;
+        codec.put_bytes(&delegation_buf)?;
         Ok(())
     }
 }

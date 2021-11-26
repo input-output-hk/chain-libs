@@ -193,14 +193,13 @@ const WITNESS_TAG_MULTISIG: u8 = 3u8;
 impl Serialize for Witness {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
-        use std::io::Write;
 
         let mut codec = Codec::new(writer);
         match self {
             Witness::OldUtxo(pk, cc, sig) => {
                 codec.put_u8(WITNESS_TAG_OLDUTXO)?;
                 serialize_public_key(pk, &mut codec)?;
-                codec.write_all(cc)?;
+                codec.put_bytes(cc)?;
                 serialize_signature(sig, &mut codec)
             }
             Witness::Utxo(sig) => {

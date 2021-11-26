@@ -13,11 +13,10 @@ impl AsRef<[u8]> for HeaderRaw {
 impl Serialize for HeaderRaw {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
-        use std::io::Write;
 
         let mut codec = Codec::new(writer);
         codec.put_u16(self.0.len() as u16)?;
-        codec.write_all(&self.0)?;
+        codec.put_bytes(&self.0)?;
         Ok(())
     }
 }

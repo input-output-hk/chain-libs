@@ -204,7 +204,7 @@ impl Serialize for Input {
         let mut codec = Codec::new(writer);
         codec.put_u8(self.index_or_account)?;
         self.value.serialize(&mut codec)?;
-        codec.into_inner().write_all(&self.input_ptr)?;
+        codec.put_bytes(&self.input_ptr)?;
         Ok(())
     }
 }

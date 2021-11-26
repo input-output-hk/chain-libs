@@ -40,7 +40,7 @@ impl Serialize for FragmentRaw {
 
         let mut codec = Codec::new(writer);
         codec.put_u32(self.0.len() as u32)?;
-        codec.into_inner().write_all(&self.0)?;
+        codec.put_bytes(&self.0)?;
         Ok(())
     }
 }
