@@ -14,6 +14,7 @@ use crate::leadership;
 use std::fmt::{self, Debug};
 use std::num::NonZeroUsize;
 
+use chain_core::property::WriteError;
 pub use cstruct::HeaderError;
 
 /// Finalized Unsigned Header
@@ -296,10 +297,10 @@ use chain_core::{
 };
 
 impl Serialize for Header {
-    type Error = std::io::Error;
-
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
-        writer.write_all(self.as_slice())
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
+        use chain_core::packer::Codec;
+        let mut codec = Codec::new(writer);
+        codec.put_bytes(self.as_slice())
     }
 }
 

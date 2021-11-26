@@ -12,7 +12,7 @@ use chain_addr::Discrimination;
 use chain_core::{
     mempack::{ReadBuf, ReadError},
     packer::Codec,
-    property::{Deserialize, Serialize},
+    property::{Deserialize, Serialize, WriteError},
 };
 use chain_crypto::PublicKey;
 use std::fmt::{self, Display, Formatter};
@@ -314,9 +314,7 @@ impl Deserialize for ConfigParam {
 }
 
 impl Serialize for ConfigParam {
-    type Error = io::Error;
-
-    fn serialize<W: Write>(&self, writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: Write>(&self, writer: W) -> Result<(), WriteError> {
         let tag = Tag::from(self);
         let bytes = match self {
             ConfigParam::Block0Date(data) => data.to_payload(),
@@ -354,7 +352,7 @@ impl Serialize for ConfigParam {
         })?;
         let mut codec = Codec::new(writer);
         codec.put_u16(taglen.0)?;
-        codec.write_all(&bytes)
+        codec.put_bytes(&bytes)
     }
 }
 

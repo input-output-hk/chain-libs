@@ -1,13 +1,38 @@
 use crate::mempack::{ReadBuf, ReadError};
 
+#[derive(Debug)]
+pub enum WriteError {
+    CannotSerialize(std::io::Error),
+}
+
+impl std::fmt::Display for WriteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            WriteError::CannotSerialize(err) => write!(f, "CannotSerialize: err {}", err),
+        }
+    }
+}
+
+impl From<std::io::Error> for WriteError {
+    fn from(err: std::io::Error) -> Self {
+        Self::CannotSerialize(err)
+    }
+}
+
+impl From<WriteError> for std::io::Error {
+    fn from(err: WriteError) -> Self {
+        match err {
+            WriteError::CannotSerialize(err) => err,
+        }
+    }
+}
+
 /// Define that an object can be written to a `Write` object.
 pub trait Serialize {
-    type Error: std::error::Error + From<std::io::Error>;
-
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error>;
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError>;
 
     /// Convenience method to serialize into a byte vector.
-    fn serialize_as_vec(&self) -> Result<Vec<u8>, Self::Error> {
+    fn serialize_as_vec(&self) -> Result<Vec<u8>, WriteError> {
         let mut data = vec![];
         self.serialize(&mut data)?;
         Ok(data)
@@ -15,9 +40,7 @@ pub trait Serialize {
 }
 
 impl<T: Serialize> Serialize for &T {
-    type Error = T::Error;
-
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), T::Error> {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         (**self).serialize(writer)
     }
 }

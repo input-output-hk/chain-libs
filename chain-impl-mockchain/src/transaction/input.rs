@@ -6,6 +6,7 @@ use crate::utxo::Entry;
 use crate::value::Value;
 use crate::{account, multisig};
 use chain_addr::Address;
+use chain_core::property::WriteError;
 use chain_core::{
     mempack::{ReadBuf, ReadError},
     property::{Deserialize, Serialize},
@@ -198,9 +199,7 @@ impl Input {
 }
 
 impl Serialize for Input {
-    type Error = std::io::Error;
-
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
 
         let mut codec = Codec::new(writer);

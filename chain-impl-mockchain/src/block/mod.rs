@@ -2,7 +2,7 @@
 use crate::fragment::{Fragment, FragmentRaw};
 use chain_core::{
     mempack::{ReadBuf, ReadError},
-    property::{self, Deserialize, Serialize},
+    property::{self, Deserialize, Serialize, WriteError},
 };
 
 use std::slice;
@@ -95,9 +95,7 @@ impl property::Block for Block {
 }
 
 impl Serialize for Block {
-    type Error = std::io::Error;
-
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         let header_raw = {
             let mut v = Vec::new();
             self.header.serialize(&mut v)?;

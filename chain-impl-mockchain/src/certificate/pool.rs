@@ -7,7 +7,7 @@ use crate::transaction::{
 };
 use chain_core::{
     mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize},
+    property::{Deserialize, Serialize, WriteError},
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Verification};
 use chain_time::{DurationSeconds, TimeOffsetSeconds};
@@ -191,16 +191,14 @@ impl Deserialize for PoolRetirement {
 }
 
 impl Serialize for PoolUpdate {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         writer.write_all(self.serialize().as_slice())?;
         Ok(())
     }
 }
 
 impl Serialize for PoolRetirement {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         writer.write_all(self.serialize().as_slice())?;
         Ok(())
     }
@@ -257,8 +255,7 @@ impl Payload for PoolRetirement {
 }
 
 impl Serialize for PoolRegistration {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         writer.write_all(self.serialize().as_slice())?;
         Ok(())
     }

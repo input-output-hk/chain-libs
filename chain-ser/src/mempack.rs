@@ -1,7 +1,7 @@
 use std::fmt;
 use std::num::{NonZeroU32, NonZeroU64};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ReadError {
     /// Return the number of bytes left and the number of bytes demanded
     NotEnoughBytes(usize, usize),

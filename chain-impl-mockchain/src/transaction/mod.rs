@@ -14,7 +14,7 @@ pub mod test;
 
 use chain_core::{
     mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize},
+    property::{Deserialize, Serialize, WriteError},
 };
 
 // to remove..
@@ -31,9 +31,8 @@ pub use utxo::*;
 pub use witness::*;
 
 impl<Extra: Payload> Serialize for Transaction<Extra> {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
-        writer.write_all(self.as_ref())
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
+        writer.write_all(self.as_ref()).map_err(|e| e.into())
     }
 }
 

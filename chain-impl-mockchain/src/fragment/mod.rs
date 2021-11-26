@@ -5,7 +5,7 @@ mod raw;
 use crate::legacy;
 use chain_core::{
     mempack::{ReadBuf, ReadError},
-    property::{self, Deserialize, Serialize},
+    property::{self, Deserialize, Serialize, WriteError},
 };
 
 pub use config::ConfigParams;
@@ -204,8 +204,7 @@ impl Deserialize for Fragment {
 }
 
 impl Serialize for Fragment {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         self.to_raw().serialize(writer)
     }
 }

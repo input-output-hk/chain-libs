@@ -3,7 +3,7 @@
 //!
 use chain_core::{
     mempack::{ReadBuf, ReadError},
-    property::{BlockId, Deserialize, FragmentId, Serialize},
+    property::{BlockId, Deserialize, FragmentId, Serialize, WriteError},
 };
 use chain_crypto as crypto;
 use chain_crypto::{
@@ -80,16 +80,20 @@ fn chain_crypto_sig_err(e: crypto::SignatureError) -> ReadError {
 #[inline]
 pub fn serialize_public_key<A: AsymmetricPublicKey, W: std::io::Write>(
     key: &crypto::PublicKey<A>,
-    mut writer: W,
-) -> Result<(), std::io::Error> {
-    writer.write_all(key.as_ref())
+    writer: W,
+) -> Result<(), WriteError> {
+    use chain_core::packer::Codec;
+    let mut codec = Codec::new(writer);
+    codec.put_bytes(key.as_ref())
 }
 #[inline]
 pub fn serialize_signature<A: VerificationAlgorithm, T, W: std::io::Write>(
     signature: &crypto::Signature<T, A>,
-    mut writer: W,
-) -> Result<(), std::io::Error> {
-    writer.write_all(signature.as_ref())
+    writer: W,
+) -> Result<(), WriteError> {
+    use chain_core::packer::Codec;
+    let mut codec = Codec::new(writer);
+    codec.put_bytes(signature.as_ref())
 }
 #[inline]
 pub fn deserialize_public_key<A>(buf: &mut ReadBuf) -> Result<crypto::PublicKey<A>, ReadError>
@@ -169,12 +173,8 @@ where
     }
 }
 
-impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A>
-where
-    std::io::Error: From<T::Error>,
-{
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A> {
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         self.data.serialize(&mut writer)?;
         serialize_signature(&self.sig, &mut writer)?;
         Ok(())
@@ -255,8 +255,7 @@ impl<'a> From<&'a Hash> for &'a [u8; 32] {
 }
 
 impl Serialize for Hash {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         writer.write_all(self.0.as_hash_bytes())?;
         Ok(())
     }
@@ -320,8 +319,7 @@ impl BftLeaderId {
 }
 
 impl Serialize for BftLeaderId {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         serialize_public_key(&self.0, writer)
     }
 }

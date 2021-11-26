@@ -1,5 +1,5 @@
 use crate::key::Hash;
-use chain_core::property::{Deserialize, Serialize};
+use chain_core::property::{Deserialize, Serialize, WriteError};
 use chain_ser::mempack::{ReadBuf, ReadError};
 
 pub type FragmentId = Hash;
@@ -35,8 +35,7 @@ impl Deserialize for FragmentRaw {
 }
 
 impl Serialize for FragmentRaw {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
 
         let mut codec = Codec::new(writer);

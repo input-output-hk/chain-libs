@@ -6,6 +6,7 @@ use crate::key::{
     SpendingSignature,
 };
 use crate::multisig;
+use chain_core::property::WriteError;
 use chain_core::{
     mempack::{ReadBuf, ReadError},
     property::{Deserialize, Serialize},
@@ -191,9 +192,7 @@ const WITNESS_TAG_ACCOUNT: u8 = 2u8;
 const WITNESS_TAG_MULTISIG: u8 = 3u8;
 
 impl Serialize for Witness {
-    type Error = std::io::Error;
-
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), Self::Error> {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         use chain_core::packer::*;
         use std::io::Write;
 

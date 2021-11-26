@@ -1,6 +1,6 @@
 use chain_core::{
     mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize},
+    property::{Deserialize, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey};
 use std::{
@@ -127,9 +127,8 @@ impl FromStr for CommitteeId {
 /* Ser/De ****************************************************************** */
 
 impl Serialize for CommitteeId {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
-        writer.write_all(self.as_ref())
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
+        writer.write_all(self.as_ref()).map_err(|e| e.into())
     }
 }
 
