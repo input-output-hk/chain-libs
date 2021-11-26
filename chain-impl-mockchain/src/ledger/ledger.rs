@@ -503,7 +503,7 @@ impl Ledger {
                 Fragment::EncryptedVoteTally(_) => {
                     return Err(Error::Block0(Block0Error::HasVoteTally));
                 }
-                Fragment::SmartContractDeploy(tx) => {
+                Fragment::Evm(tx) => {
                     #[cfg(feature = "evm")]
                     {
                         // WIP: deploying contract
@@ -1020,7 +1020,7 @@ impl Ledger {
                     tx.payload_auth().into_payload_auth(),
                 )?;
             }
-            Fragment::SmartContractDeploy(tx) => {
+            Fragment::Evm(tx) => {
                 #[cfg(feature = "evm")]
                 {
                     // WIP: deploying contract
