@@ -1,5 +1,5 @@
 use crate::vote::Choice;
-use chain_core::mempack::ReadBuf;
+use chain_core::packer::Codec;
 use chain_core::property::ReadError;
 use chain_vote::Ciphertext;
 use std::convert::{TryFrom, TryInto as _};
@@ -84,17 +84,17 @@ impl Payload {
         }
     }
 
-    pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let t = buf
+    pub(crate) fn read<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let t = codec
             .get_u8()?
             .try_into()
             .map_err(|e: TryFromIntError| ReadError::StructureInvalid(e.to_string()))?;
 
         match t {
-            PayloadType::Public => buf.get_u8().map(Choice::new).map(Self::public),
+            PayloadType::Public => codec.get_u8().map(Choice::new).map(Self::public),
             PayloadType::Private => {
-                let encrypted_vote = EncryptedVote::read(buf)?;
-                let proof = ProofOfCorrectVote::read(buf)?;
+                let encrypted_vote = EncryptedVote::read(codec)?;
+                let proof = ProofOfCorrectVote::read(codec)?;
                 Ok(Self::Private {
                     encrypted_vote,
                     proof,
@@ -130,8 +130,8 @@ impl ProofOfCorrectVote {
         self.serialize_in(ByteBuilder::new()).finalize()
     }
 
-    pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        chain_vote::ProofOfCorrectVote::from_buffer(buf).map(Self)
+    pub(crate) fn read<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        chain_vote::ProofOfCorrectVote::from_buffer(codec).map(Self)
     }
 }
 
@@ -155,13 +155,13 @@ impl EncryptedVote {
         self.serialize_in(ByteBuilder::new()).finalize()
     }
 
-    pub(crate) fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let len: usize = buf.get_u8()? as usize;
+    pub(crate) fn read<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let len: usize = codec.get_u8()? as usize;
         let mut cypher_texts: Vec<Ciphertext> = Vec::new();
         for _ in 0..len {
-            let ct_buf = buf.get_slice(Ciphertext::BYTES_LEN)?;
+            let ct_buf = codec.get_bytes(Ciphertext::BYTES_LEN)?;
             cypher_texts.push(
-                Ciphertext::from_bytes(ct_buf).ok_or_else(|| {
+                Ciphertext::from_bytes(ct_buf.as_slice()).ok_or_else(|| {
                     ReadError::StructureInvalid("Invalid private vote".to_string())
                 })?,
             );

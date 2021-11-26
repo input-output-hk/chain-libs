@@ -1,7 +1,4 @@
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, Serialize},
-};
+use chain_core::property::{Deserialize, Serialize};
 use quickcheck::{Arbitrary, TestResult};
 
 /// test that any arbitrary given object can serialize and deserialize
@@ -15,12 +12,9 @@ where
         Err(error) => return TestResult::error(format!("serialization: {}", error)),
         Ok(v) => v,
     };
-    let mut buf = ReadBuf::from(&vec);
-    let decoded_t = match T::deserialize(&mut buf) {
-        Err(error) => {
-            return TestResult::error(format!("deserialization: {:?}\n{}", error, buf.debug()))
-        }
+    let decoded_t = match T::deserialize(vec.as_slice()) {
+        Err(error) => return TestResult::error(format!("deserialization: {:?}", error)),
         Ok(v) => v,
     };
-    TestResult::from_bool(buf.expect_end().is_ok() && decoded_t == t)
+    TestResult::from_bool(decoded_t == t)
 }

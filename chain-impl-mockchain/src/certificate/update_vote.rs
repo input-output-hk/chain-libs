@@ -4,10 +4,7 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
 
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 pub type UpdateVoterId = BftLeaderId;
@@ -80,15 +77,15 @@ impl Serialize for UpdateVote {
         use chain_core::packer::*;
         let mut codec = Codec::new(writer);
         self.proposal_id.serialize(&mut codec)?;
-        self.voter_id.serialize(&mut codec)?;
+        self.voter_id.serialize(codec)?;
         Ok(())
     }
 }
 
 impl Deserialize for UpdateVote {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let proposal_id = UpdateProposalId::deserialize(buf)?;
-        let voter_id = UpdateVoterId::deserialize(buf)?;
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let proposal_id = UpdateProposalId::deserialize(&mut reader)?;
+        let voter_id = UpdateVoterId::deserialize(reader)?;
 
         Ok(Self::new(proposal_id, voter_id))
     }

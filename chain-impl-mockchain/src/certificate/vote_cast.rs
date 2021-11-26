@@ -3,10 +3,7 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
     vote,
 };
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -86,10 +83,13 @@ impl Serialize for VoteCast {
 }
 
 impl Deserialize for VoteCast {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let vote_plan = <[u8; 32]>::deserialize(buf)?.into();
-        let proposal_index = buf.get_u8()?;
-        let payload = vote::Payload::read(buf)?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        let vote_plan = <[u8; 32]>::deserialize(&mut codec)?.into();
+        let proposal_index = codec.get_u8()?;
+        let payload = vote::Payload::read(&mut codec)?;
 
         Ok(Self::new(vote_plan, proposal_index, payload))
     }

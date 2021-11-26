@@ -12,10 +12,7 @@ mod witness;
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test;
 
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 
 // to remove..
 pub use builder::{
@@ -37,8 +34,10 @@ impl<Extra: Payload> Serialize for Transaction<Extra> {
 }
 
 impl<Extra: Payload> Deserialize for Transaction<Extra> {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let utx = UnverifiedTransactionSlice::from(buf.get_slice_end());
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let utx = UnverifiedTransactionSlice::from(buf.as_slice());
         match utx.check() {
             Ok(tx) => Ok(tx.to_owned()),
             Err(e) => Err(ReadError::StructureInvalid(e.to_string())),

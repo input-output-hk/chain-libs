@@ -2,7 +2,7 @@
 //! the user keys.
 //!
 use chain_core::{
-    mempack::ReadBuf,
+    packer::Codec,
     property::{BlockId, Deserialize, FragmentId, ReadError, Serialize, WriteError},
 };
 use chain_crypto as crypto;
@@ -80,36 +80,36 @@ fn chain_crypto_sig_err(e: crypto::SignatureError) -> ReadError {
 #[inline]
 pub fn serialize_public_key<A: AsymmetricPublicKey, W: std::io::Write>(
     key: &crypto::PublicKey<A>,
-    writer: W,
+    codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    use chain_core::packer::Codec;
-    let mut codec = Codec::new(writer);
     codec.put_bytes(key.as_ref())
 }
 #[inline]
 pub fn serialize_signature<A: VerificationAlgorithm, T, W: std::io::Write>(
     signature: &crypto::Signature<T, A>,
-    writer: W,
+    codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    use chain_core::packer::Codec;
-    let mut codec = Codec::new(writer);
     codec.put_bytes(signature.as_ref())
 }
 #[inline]
-pub fn deserialize_public_key<A>(buf: &mut ReadBuf) -> Result<crypto::PublicKey<A>, ReadError>
+pub fn deserialize_public_key<A, R: std::io::BufRead>(
+    codec: &mut Codec<R>,
+) -> Result<crypto::PublicKey<A>, ReadError>
 where
     A: AsymmetricPublicKey,
 {
-    let bytes = buf.get_slice(A::PUBLIC_KEY_SIZE)?;
-    crypto::PublicKey::from_binary(bytes).map_err(chain_crypto_pub_err)
+    let bytes = codec.get_bytes(A::PUBLIC_KEY_SIZE)?;
+    crypto::PublicKey::from_binary(&bytes).map_err(chain_crypto_pub_err)
 }
 #[inline]
-pub fn deserialize_signature<A, T>(buf: &mut ReadBuf) -> Result<crypto::Signature<T, A>, ReadError>
+pub fn deserialize_signature<A, T, R: std::io::BufRead>(
+    codec: &mut Codec<R>,
+) -> Result<crypto::Signature<T, A>, ReadError>
 where
     A: VerificationAlgorithm,
 {
-    let bytes = buf.get_slice(A::SIGNATURE_SIZE)?;
-    crypto::Signature::from_binary(bytes).map_err(chain_crypto_sig_err)
+    let bytes = codec.get_bytes(A::SIGNATURE_SIZE)?;
+    crypto::Signature::from_binary(&bytes).map_err(chain_crypto_sig_err)
 }
 
 pub fn make_signature<T, A>(
@@ -174,18 +174,20 @@ where
 }
 
 impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A> {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        self.data.serialize(&mut writer)?;
-        serialize_signature(&self.sig, &mut writer)?;
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
+        let mut codec = Codec::new(writer);
+        self.data.serialize(&mut codec)?;
+        serialize_signature(&self.sig, &mut codec)?;
         Ok(())
     }
 }
 
 impl<T: Deserialize, A: VerificationAlgorithm> Deserialize for Signed<T, A> {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
         Ok(Signed {
-            data: T::deserialize(buf)?,
-            sig: deserialize_signature(buf)?,
+            data: T::deserialize(&mut codec)?,
+            sig: deserialize_signature(&mut codec)?,
         })
     }
 }
@@ -262,7 +264,7 @@ impl Serialize for Hash {
 }
 
 impl Deserialize for Hash {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(buf: R) -> Result<Self, ReadError> {
         let bytes = <[u8; crypto::Blake2b256::HASH_SIZE]>::deserialize(buf)?;
         Ok(Hash(crypto::Blake2b256::from(bytes)))
     }
@@ -320,13 +322,15 @@ impl BftLeaderId {
 
 impl Serialize for BftLeaderId {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        serialize_public_key(&self.0, writer)
+        let mut codec = Codec::new(writer);
+        serialize_public_key(&self.0, &mut codec)
     }
 }
 
 impl Deserialize for BftLeaderId {
-    fn deserialize(reader: &mut ReadBuf) -> Result<Self, ReadError> {
-        deserialize_public_key(reader).map(BftLeaderId)
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
+        deserialize_public_key(&mut codec).map(BftLeaderId)
     }
 }
 
@@ -361,9 +365,10 @@ impl GenesisPraosLeader {
 }
 
 impl Deserialize for GenesisPraosLeader {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let vrf_public_key = deserialize_public_key(buf)?;
-        let kes_public_key = deserialize_public_key(buf)?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
+        let vrf_public_key = deserialize_public_key(&mut codec)?;
+        let kes_public_key = deserialize_public_key(&mut codec)?;
         Ok(GenesisPraosLeader {
             kes_public_key,
             vrf_public_key,

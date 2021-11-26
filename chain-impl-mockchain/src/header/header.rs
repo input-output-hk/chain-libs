@@ -290,10 +290,7 @@ impl Debug for Header {
     }
 }
 
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 
 impl Serialize for Header {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
@@ -304,8 +301,10 @@ impl Serialize for Header {
 }
 
 impl Deserialize for Header {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        Header::from_slice(buf.get_slice_end()).map_err(|e| match e {
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        Header::from_slice(buf.as_slice()).map_err(|e| match e {
             HeaderError::InvalidSize => ReadError::NotEnoughBytes(0, 0),
             HeaderError::UnknownVersion => ReadError::UnknownTag(0),
             HeaderError::SizeMismatch { expected, got } => ReadError::SizeTooBig(expected, got),

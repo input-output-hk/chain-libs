@@ -8,10 +8,7 @@ use crate::{
     },
     vote,
 };
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
 use chain_vote::MemberPublicKey;
 use std::ops::Deref;
@@ -379,19 +376,23 @@ impl Serialize for VotePlan {
 }
 
 impl Deserialize for VotePlanProof {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let id = vote::CommitteeId::deserialize(buf)?;
-        let signature = SingleAccountBindingSignature::deserialize(buf)?;
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let id = vote::CommitteeId::deserialize(&mut reader)?;
+        let signature = SingleAccountBindingSignature::deserialize(reader)?;
         Ok(Self { id, signature })
     }
 }
 
 impl Deserialize for VoteAction {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        match buf.get_u8()? {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        match codec.get_u8()? {
             0 => Ok(Self::OffChain),
-            1 => TreasuryGovernanceAction::deserialize(buf).map(|action| Self::Treasury { action }),
-            2 => ParametersGovernanceAction::deserialize(buf)
+            1 => TreasuryGovernanceAction::deserialize(&mut codec)
+                .map(|action| Self::Treasury { action }),
+            2 => ParametersGovernanceAction::deserialize(codec)
                 .map(|action| Self::Parameters { action }),
             t => Err(ReadError::UnknownTag(t as u32)),
         }
@@ -399,38 +400,40 @@ impl Deserialize for VoteAction {
 }
 
 impl Deserialize for VotePlan {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
         use std::convert::TryInto as _;
 
+        let mut codec = Codec::new(reader);
         let vote_start = BlockDate {
-            epoch: buf.get_u32()?,
-            slot_id: buf.get_u32()?,
+            epoch: codec.get_u32()?,
+            slot_id: codec.get_u32()?,
         };
         let vote_end = BlockDate {
-            epoch: buf.get_u32()?,
-            slot_id: buf.get_u32()?,
+            epoch: codec.get_u32()?,
+            slot_id: codec.get_u32()?,
         };
         let committee_end = BlockDate {
-            epoch: buf.get_u32()?,
-            slot_id: buf.get_u32()?,
+            epoch: codec.get_u32()?,
+            slot_id: codec.get_u32()?,
         };
 
-        let payload_type = buf
+        let payload_type = codec
             .get_u8()?
             .try_into()
             .map_err(|e: vote::TryFromIntError| ReadError::StructureInvalid(e.to_string()))?;
 
-        let proposal_size = buf.get_u8()? as usize;
+        let proposal_size = codec.get_u8()? as usize;
         let mut proposals = Proposals {
             proposals: Vec::with_capacity(proposal_size),
         };
         for _ in 0..proposal_size {
-            let external_id = <[u8; 32]>::deserialize(buf)?.into();
-            let options = buf.get_u8().and_then(|num_choices| {
+            let external_id = <[u8; 32]>::deserialize(&mut codec)?.into();
+            let options = codec.get_u8().and_then(|num_choices| {
                 vote::Options::new_length(num_choices)
                     .map_err(|e| ReadError::StructureInvalid(e.to_string()))
             })?;
-            let action = VoteAction::deserialize(buf)?;
+            let action = VoteAction::deserialize(&mut codec)?;
 
             let proposal = Proposal {
                 external_id,
@@ -441,13 +444,15 @@ impl Deserialize for VotePlan {
             proposals.proposals.push(proposal);
         }
 
-        let member_keys_len = buf.get_u8()?;
+        let member_keys_len = codec.get_u8()?;
         let mut committee_public_keys = Vec::new();
         for _ in 0..member_keys_len {
-            let key_buf = buf.get_slice(MemberPublicKey::BYTES_LEN)?;
-            committee_public_keys.push(MemberPublicKey::from_bytes(key_buf).ok_or_else(|| {
-                ReadError::StructureInvalid("invalid public key format".to_string())
-            })?);
+            let key_buf = codec.get_bytes(MemberPublicKey::BYTES_LEN)?;
+            committee_public_keys.push(
+                MemberPublicKey::from_bytes(key_buf.as_slice()).ok_or_else(|| {
+                    ReadError::StructureInvalid("invalid public key format".to_string())
+                })?,
+            );
         }
 
         Ok(Self {
@@ -473,8 +478,7 @@ mod tests {
     fn serialize_deserialize(vote_plan: VotePlan) -> bool {
         let serialized = vote_plan.serialize();
 
-        let mut buf = ReadBuf::from(serialized.as_ref());
-        let result = VotePlan::deserialize(&mut buf);
+        let result = VotePlan::deserialize(serialized.as_ref());
 
         let decoded = result.expect("can decode encoded vote plan");
 

@@ -6,10 +6,7 @@ use crate::utxo::Entry;
 use crate::value::Value;
 use crate::{account, multisig};
 use chain_addr::Address;
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use chain_crypto::PublicKey;
 
 pub const INPUT_SIZE: usize = 41;
@@ -210,10 +207,13 @@ impl Serialize for Input {
 }
 
 impl Deserialize for Input {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let index_or_account = buf.get_u8()?;
-        let value = Value::deserialize(buf)?;
-        let input_ptr = <[u8; INPUT_PTR_SIZE]>::deserialize(buf)?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        let index_or_account = codec.get_u8()?;
+        let value = Value::deserialize(&mut codec)?;
+        let input_ptr = <[u8; INPUT_PTR_SIZE]>::deserialize(codec)?;
         Ok(Input {
             index_or_account,
             value,

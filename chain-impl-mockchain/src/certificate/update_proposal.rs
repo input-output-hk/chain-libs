@@ -6,10 +6,7 @@ use crate::{
     key::BftLeaderId,
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 pub type UpdateProposerId = BftLeaderId;
@@ -80,19 +77,17 @@ impl Payload for UpdateProposal {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for UpdateProposal {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
-        let mut codec = Codec::new(writer);
-        self.changes.serialize(&mut codec)?;
-        self.proposer_id.serialize(&mut codec)?;
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
+        self.changes.serialize(&mut writer)?;
+        self.proposer_id.serialize(writer)?;
         Ok(())
     }
 }
 
 impl Deserialize for UpdateProposal {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let changes = ConfigParams::deserialize(buf)?;
-        let proposer_id = UpdateProposerId::deserialize(buf)?;
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let changes = ConfigParams::deserialize(&mut reader)?;
+        let proposer_id = UpdateProposerId::deserialize(reader)?;
 
         Ok(Self::new(changes, proposer_id))
     }

@@ -3,10 +3,7 @@ mod content;
 mod raw;
 
 use crate::legacy;
-use chain_core::{
-    mempack::ReadBuf,
-    property::{self, Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{self, Deserialize, ReadError, Serialize, WriteError};
 
 pub use config::ConfigParams;
 pub use raw::{FragmentId, FragmentRaw};
@@ -136,8 +133,7 @@ impl Fragment {
     }
 
     pub fn from_raw(raw: &FragmentRaw) -> Result<Self, ReadError> {
-        let mut buf = ReadBuf::from(raw.as_ref());
-        Fragment::deserialize(&mut buf)
+        Fragment::deserialize(raw.as_ref())
     }
 
     /// The ID of a message is a hash of its serialization *without* the size.
@@ -153,8 +149,11 @@ impl Fragment {
 
 impl Deserialize for Fragment {
     // TODO: fix deserialization, it needs to converge to the serialization, currently is not, look into the fragment_serialization_bijection() test
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let padding_tag = buf.get_u8()?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        let padding_tag = codec.get_u8()?;
         if padding_tag != 0 {
             return Err(ReadError::StructureInvalid(format!(
                 "fragment padding tag expected at 0 but got {}",
@@ -162,41 +161,43 @@ impl Deserialize for Fragment {
             )));
         }
 
-        let tag = buf.get_u8()?;
+        let tag = codec.get_u8()?;
         match FragmentTag::from_u8(tag) {
-            Some(FragmentTag::Initial) => ConfigParams::deserialize(buf).map(Fragment::Initial),
+            Some(FragmentTag::Initial) => ConfigParams::deserialize(codec).map(Fragment::Initial),
             Some(FragmentTag::OldUtxoDeclaration) => {
-                legacy::UtxoDeclaration::deserialize(buf).map(Fragment::OldUtxoDeclaration)
+                legacy::UtxoDeclaration::deserialize(codec).map(Fragment::OldUtxoDeclaration)
             }
             Some(FragmentTag::Transaction) => {
-                Transaction::deserialize(buf).map(Fragment::Transaction)
+                Transaction::deserialize(codec).map(Fragment::Transaction)
             }
             Some(FragmentTag::OwnerStakeDelegation) => {
-                Transaction::deserialize(buf).map(Fragment::OwnerStakeDelegation)
+                Transaction::deserialize(codec).map(Fragment::OwnerStakeDelegation)
             }
             Some(FragmentTag::StakeDelegation) => {
-                Transaction::deserialize(buf).map(Fragment::StakeDelegation)
+                Transaction::deserialize(codec).map(Fragment::StakeDelegation)
             }
             Some(FragmentTag::PoolRegistration) => {
-                Transaction::deserialize(buf).map(Fragment::PoolRegistration)
+                Transaction::deserialize(codec).map(Fragment::PoolRegistration)
             }
             Some(FragmentTag::PoolRetirement) => {
-                Transaction::deserialize(buf).map(Fragment::PoolRetirement)
+                Transaction::deserialize(codec).map(Fragment::PoolRetirement)
             }
             Some(FragmentTag::PoolUpdate) => {
-                Transaction::deserialize(buf).map(Fragment::PoolUpdate)
+                Transaction::deserialize(codec).map(Fragment::PoolUpdate)
             }
             Some(FragmentTag::UpdateProposal) => {
-                Transaction::deserialize(buf).map(Fragment::UpdateProposal)
+                Transaction::deserialize(codec).map(Fragment::UpdateProposal)
             }
             Some(FragmentTag::UpdateVote) => {
-                Transaction::deserialize(buf).map(Fragment::UpdateVote)
+                Transaction::deserialize(codec).map(Fragment::UpdateVote)
             }
-            Some(FragmentTag::VotePlan) => Transaction::deserialize(buf).map(Fragment::VotePlan),
-            Some(FragmentTag::VoteCast) => Transaction::deserialize(buf).map(Fragment::VoteCast),
-            Some(FragmentTag::VoteTally) => Transaction::deserialize(buf).map(Fragment::VoteTally),
+            Some(FragmentTag::VotePlan) => Transaction::deserialize(codec).map(Fragment::VotePlan),
+            Some(FragmentTag::VoteCast) => Transaction::deserialize(codec).map(Fragment::VoteCast),
+            Some(FragmentTag::VoteTally) => {
+                Transaction::deserialize(codec).map(Fragment::VoteTally)
+            }
             Some(FragmentTag::EncryptedVoteTally) => {
-                Transaction::deserialize(buf).map(Fragment::EncryptedVoteTally)
+                Transaction::deserialize(codec).map(Fragment::EncryptedVoteTally)
             }
             None => Err(ReadError::UnknownTag(tag as u32)),
         }

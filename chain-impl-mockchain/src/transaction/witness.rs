@@ -6,10 +6,7 @@ use crate::key::{
     SpendingSignature,
 };
 use crate::multisig;
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
 /// Structure that proofs that certain user agrees with
@@ -204,12 +201,12 @@ impl Serialize for Witness {
             }
             Witness::Utxo(sig) => {
                 codec.put_u8(WITNESS_TAG_UTXO)?;
-                serialize_signature(sig, codec.into_inner())
+                serialize_signature(sig, &mut codec)
             }
             Witness::Account(nonce, sig) => {
                 codec.put_u8(WITNESS_TAG_ACCOUNT)?;
                 codec.put_u32((*nonce).into())?;
-                serialize_signature(sig, codec.into_inner())
+                serialize_signature(sig, &mut codec)
             }
             Witness::Multisig(nonce, msig) => {
                 codec.put_u8(WITNESS_TAG_MULTISIG)?;
@@ -221,23 +218,27 @@ impl Serialize for Witness {
 }
 
 impl Deserialize for Witness {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        match buf.get_u8()? {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+
+        match codec.get_u8()? {
             WITNESS_TAG_OLDUTXO => {
-                let pk = deserialize_public_key(buf)?;
-                let some_bytes = <[u8; 32]>::deserialize(buf)?;
-                let sig = deserialize_signature(buf)?;
+                let pk = deserialize_public_key(&mut codec)?;
+                let some_bytes = <[u8; 32]>::deserialize(&mut codec)?;
+                let sig = deserialize_signature(&mut codec)?;
                 Ok(Witness::OldUtxo(pk, some_bytes, sig))
             }
-            WITNESS_TAG_UTXO => deserialize_signature(buf).map(Witness::Utxo),
+            WITNESS_TAG_UTXO => deserialize_signature(&mut codec).map(Witness::Utxo),
             WITNESS_TAG_ACCOUNT => {
-                let nonce = buf.get_u32()?.into();
-                let sig = deserialize_signature(buf)?;
+                let nonce = codec.get_u32()?.into();
+                let sig = deserialize_signature(&mut codec)?;
                 Ok(Witness::Account(nonce, sig))
             }
             WITNESS_TAG_MULTISIG => {
-                let nonce = buf.get_u32()?.into();
-                let msig = multisig::Witness::deserialize(buf)?;
+                let nonce = codec.get_u32()?.into();
+                let msig = multisig::Witness::deserialize(codec)?;
                 Ok(Witness::Multisig(nonce, msig))
             }
             i => Err(ReadError::UnknownTag(i as u32)),

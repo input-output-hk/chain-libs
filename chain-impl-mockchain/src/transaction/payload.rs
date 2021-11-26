@@ -1,7 +1,4 @@
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 
 use crate::certificate::CertificateSlice;
 use std::marker::PhantomData;
@@ -68,13 +65,13 @@ impl<'a, P: ?Sized> Clone for PayloadAuthSlice<'a, P> {
 
 impl<'a, P: Payload> PayloadSlice<'a, P> {
     pub fn into_payload(self) -> P {
-        P::deserialize(&mut ReadBuf::from(self.0)).unwrap()
+        P::deserialize(self.0).unwrap()
     }
 }
 
 impl<'a, P: Payload> PayloadAuthSlice<'a, P> {
     pub fn into_payload_auth(self) -> P::Auth {
-        P::Auth::deserialize(&mut ReadBuf::from(self.0)).unwrap()
+        P::Auth::deserialize(self.0).unwrap()
     }
 }
 
@@ -130,7 +127,7 @@ impl Serialize for NoExtra {
 }
 
 impl Deserialize for NoExtra {
-    fn deserialize(_: &mut ReadBuf) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(_: R) -> Result<Self, ReadError> {
         Ok(NoExtra)
     }
 }

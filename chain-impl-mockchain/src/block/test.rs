@@ -12,7 +12,6 @@ use crate::{
 #[cfg(test)]
 use chain_core::property::{Block as _, Deserialize, Serialize};
 #[cfg(test)]
-use chain_ser::mempack::ReadBuf;
 #[cfg(test)]
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
@@ -55,7 +54,8 @@ quickcheck! {
         let (content_hash, content_size) = contents.compute_hash_size();
 
         let maybe_block = Block { header: header.clone(), contents };
-        let block = Block::deserialize(&mut ReadBuf::from(maybe_block.serialize_as_vec().unwrap().as_ref()));
+
+        let block = Block::deserialize(maybe_block.serialize_as_vec().unwrap().as_slice());
 
         (content_hash != header.block_content_hash() || content_size != header.block_content_size()) == block.is_err()
     }

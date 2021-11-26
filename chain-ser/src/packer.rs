@@ -87,6 +87,17 @@ impl<W: std::io::Write> Codec<W> {
     }
 }
 
+impl Codec<std::io::Cursor<&[u8]>> {
+    #[inline]
+    pub fn position(&mut self) -> usize {
+        self.0.position() as usize
+    }
+    #[inline]
+    pub fn set_position(&mut self, pos: usize) {
+        self.0.set_position(pos as u64)
+    }
+}
+
 impl<R: std::io::Read> std::io::Read for Codec<R> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {

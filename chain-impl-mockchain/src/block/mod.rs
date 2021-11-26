@@ -1,9 +1,6 @@
 //! Representation of the block in the mockchain.
 use crate::fragment::{Fragment, FragmentRaw};
-use chain_core::{
-    mempack::ReadBuf,
-    property::{self, Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{self, Deserialize, ReadError, Serialize, WriteError};
 
 use std::slice;
 
@@ -112,16 +109,17 @@ impl Serialize for Block {
 }
 
 impl Deserialize for Block {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let header_size = buf.get_u16()? as usize;
-        let mut header_buf = buf.split_to(header_size)?;
-        let header = Header::deserialize(&mut header_buf)?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
 
+        let mut codec = Codec::new(reader);
+        let header_raw = HeaderRaw::deserialize(&mut codec)?;
+        let header = Header::deserialize(header_raw.as_ref())?;
         let mut remaining_content_size = header.block_content_size() as usize;
         let mut contents = ContentsBuilder::new();
 
         while remaining_content_size > 0 {
-            let message_raw = FragmentRaw::deserialize(buf)?;
+            let message_raw = FragmentRaw::deserialize(&mut codec)?;
             let message_size = message_raw.size_bytes_plus_size();
 
             if message_size > remaining_content_size {

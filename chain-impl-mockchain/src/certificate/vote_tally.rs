@@ -6,10 +6,7 @@ use crate::{
     },
     vote::{CommitteeId, PayloadType, TryFromIntError},
 };
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use chain_crypto::Verification;
 use chain_vote::TallyDecryptShare;
 use thiserror::Error;
@@ -235,16 +232,19 @@ impl Serialize for VoteTally {
 }
 
 impl Deserialize for TallyProof {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        match buf.get_u8()? {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        match codec.get_u8()? {
             0 => {
-                let id = CommitteeId::deserialize(buf)?;
-                let signature = SingleAccountBindingSignature::deserialize(buf)?;
+                let id = CommitteeId::deserialize(&mut codec)?;
+                let signature = SingleAccountBindingSignature::deserialize(codec)?;
                 Ok(Self::Public { id, signature })
             }
             1 => {
-                let id = CommitteeId::deserialize(buf)?;
-                let signature = SingleAccountBindingSignature::deserialize(buf)?;
+                let id = CommitteeId::deserialize(&mut codec)?;
+                let signature = SingleAccountBindingSignature::deserialize(codec)?;
                 Ok(Self::Private { id, signature })
             }
             _ => Err(ReadError::StructureInvalid(
@@ -255,11 +255,13 @@ impl Deserialize for TallyProof {
 }
 
 impl Deserialize for VoteTally {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
         use std::convert::TryInto as _;
 
-        let id = <[u8; 32]>::deserialize(buf)?.into();
-        let payload_type = buf
+        let mut codec = Codec::new(reader);
+        let id = <[u8; 32]>::deserialize(&mut codec)?.into();
+        let payload_type = codec
             .get_u8()?
             .try_into()
             .map_err(|e: TryFromIntError| ReadError::StructureInvalid(e.to_string()))?;
@@ -267,25 +269,26 @@ impl Deserialize for VoteTally {
         let payload = match payload_type {
             PayloadType::Public => VoteTallyPayload::Public,
             PayloadType::Private => {
-                let proposals_number = buf.get_u8()? as usize;
+                let proposals_number = codec.get_u8()? as usize;
                 let mut proposals = Vec::with_capacity(proposals_number);
                 for _i in 0..proposals_number {
-                    let shares_number = buf.get_u8()? as usize;
-                    let options_number = buf.get_u8()? as usize;
+                    let shares_number = codec.get_u8()? as usize;
+                    let options_number = codec.get_u8()? as usize;
                     let share_bytes = TallyDecryptShare::bytes_len(options_number);
                     let mut shares = Vec::with_capacity(shares_number);
                     for _j in 0..shares_number {
-                        let s_buf = buf.get_slice(share_bytes)?;
-                        let share = TallyDecryptShare::from_bytes(s_buf).ok_or_else(|| {
-                            ReadError::StructureInvalid(
-                                "invalid decrypt share structure".to_owned(),
-                            )
-                        })?;
+                        let s_buf = codec.get_bytes(share_bytes)?;
+                        let share =
+                            TallyDecryptShare::from_bytes(s_buf.as_slice()).ok_or_else(|| {
+                                ReadError::StructureInvalid(
+                                    "invalid decrypt share structure".to_owned(),
+                                )
+                            })?;
                         shares.push(share);
                     }
                     let mut decrypted = Vec::with_capacity(options_number);
                     for _j in 0..options_number {
-                        decrypted.push(buf.get_u64()?);
+                        decrypted.push(codec.get_u64()?);
                     }
                     let shares = shares.into_boxed_slice();
                     let decrypted = decrypted.into_boxed_slice();

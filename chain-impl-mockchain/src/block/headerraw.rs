@@ -12,7 +12,7 @@ impl AsRef<[u8]> for HeaderRaw {
 
 impl Serialize for HeaderRaw {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
+        use chain_core::packer::Codec;
 
         let mut codec = Codec::new(writer);
         codec.put_u16(self.0.len() as u16)?;
@@ -22,10 +22,13 @@ impl Serialize for HeaderRaw {
 }
 
 impl Deserialize for HeaderRaw {
-    fn deserialize(buf: &mut chain_core::mempack::ReadBuf) -> Result<Self, ReadError> {
-        let header_size = buf.get_u16()? as usize;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        let header_size = codec.get_u16()? as usize;
         let mut v = vec![0u8; header_size];
-        buf.copy_to_slice_mut(&mut v)?;
+        codec.get_slice(&mut v)?;
         Ok(HeaderRaw(v))
     }
 }

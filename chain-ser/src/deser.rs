@@ -1,4 +1,4 @@
-use crate::mempack::ReadBuf;
+use crate::packer::Codec;
 
 #[derive(Debug)]
 pub enum WriteError {
@@ -85,20 +85,20 @@ pub trait Serialize {
 
 impl<T: Serialize> Serialize for &T {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        (**self).serialize(writer)
+        (*self).serialize(writer)
     }
 }
 
 pub trait Deserialize: Sized {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError>;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError>;
 
-    fn deserialize_validate(buf: &mut ReadBuf) -> Result<(), ReadError> {
-        Self::deserialize(buf).map(|_| ())
+    fn deserialize_validate<R: std::io::BufRead>(reader: R) -> Result<(), ReadError> {
+        Self::deserialize(reader).map(|_| ())
     }
 }
 
 impl Deserialize for () {
-    fn deserialize(_: &mut ReadBuf) -> Result<(), ReadError> {
+    fn deserialize<R: std::io::BufRead>(_: R) -> Result<(), ReadError> {
         Ok(())
     }
 }
@@ -107,9 +107,10 @@ macro_rules! read_array_impls {
     ($($N: expr)+) => {
         $(
         impl Deserialize for [u8; $N] {
-            fn deserialize<'a>(readbuf: &mut ReadBuf<'a>) -> Result<Self, ReadError> {
+            fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
                 let mut buf = [0u8; $N];
-                buf.copy_from_slice(readbuf.get_slice($N)?);
+                let mut codec = Codec::new(reader);
+                codec.get_slice(&mut buf)?;
                 Ok(buf)
             }
         }

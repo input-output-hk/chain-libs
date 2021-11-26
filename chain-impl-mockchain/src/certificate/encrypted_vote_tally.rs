@@ -4,10 +4,7 @@ use crate::{
     certificate::{CertificateSlice, VotePlanId},
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use chain_crypto::Verification;
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -91,16 +88,16 @@ impl Serialize for EncryptedVoteTally {
 }
 
 impl Deserialize for EncryptedVoteTallyProof {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let id = CommitteeId::deserialize(buf)?;
-        let signature = SingleAccountBindingSignature::deserialize(buf)?;
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let id = CommitteeId::deserialize(&mut reader)?;
+        let signature = SingleAccountBindingSignature::deserialize(reader)?;
         Ok(Self { id, signature })
     }
 }
 
 impl Deserialize for EncryptedVoteTally {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let id = <[u8; 32]>::deserialize(buf)?.into();
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let id = <[u8; 32]>::deserialize(reader)?.into();
         Ok(Self { id })
     }
 }

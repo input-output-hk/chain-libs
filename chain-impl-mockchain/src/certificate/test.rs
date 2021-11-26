@@ -6,7 +6,7 @@ use crate::ledger::governance::TreasuryGovernanceAction;
 use crate::rewards::TaxType;
 use crate::vote;
 #[cfg(test)]
-use chain_core::{mempack::ReadBuf, property::Deserialize};
+use chain_core::property::Deserialize;
 use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
 #[cfg(test)]
@@ -298,10 +298,8 @@ impl Arbitrary for Certificate {
 #[quickcheck]
 fn pool_reg_serialization_bijection(b: PoolRegistration) -> TestResult {
     let b_got = b.serialize();
-    let mut buf = ReadBuf::from(b_got.as_ref());
-    let result = PoolRegistration::deserialize(&mut buf);
+    let result = PoolRegistration::deserialize(b_got.as_ref());
     let left = Ok(b);
     assert_eq!(left, result);
-    assert_eq!(buf.get_slice_end(), &[]);
     TestResult::from_bool(left == result)
 }

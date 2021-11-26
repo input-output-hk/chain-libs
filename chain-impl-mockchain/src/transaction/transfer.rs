@@ -1,9 +1,6 @@
 use crate::legacy::OldAddress;
 use crate::value::*;
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError},
-};
+use chain_core::property::{Deserialize, ReadError};
 
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.
@@ -20,9 +17,9 @@ impl<Address: Deserialize> Output<Address> {
 }
 
 impl<Address: Deserialize> Deserialize for Output<Address> {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let address = Address::deserialize(buf)?;
-        let value = Value::deserialize(buf)?;
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let address = Address::deserialize(&mut reader)?;
+        let value = Value::deserialize(reader)?;
         Ok(Output { address, value })
     }
 }

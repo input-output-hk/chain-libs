@@ -1,6 +1,5 @@
 use crate::key::Hash;
 use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
-use chain_ser::mempack::ReadBuf;
 
 pub type FragmentId = Hash;
 pub const FRAGMENT_SIZE_BYTES_LEN: usize = 4;
@@ -26,17 +25,20 @@ impl AsRef<[u8]> for FragmentRaw {
 }
 
 impl Deserialize for FragmentRaw {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let size = buf.get_u32()?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        let size = codec.get_u32()?;
         let mut v = vec![0u8; size as usize];
-        buf.copy_to_slice_mut(&mut v)?;
+        codec.get_slice(&mut v)?;
         Ok(FragmentRaw(v))
     }
 }
 
 impl Serialize for FragmentRaw {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
+        use chain_core::packer::Codec;
 
         let mut codec = Codec::new(writer);
         codec.put_u32(self.0.len() as u32)?;

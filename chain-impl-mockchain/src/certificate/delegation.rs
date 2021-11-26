@@ -5,10 +5,8 @@ use crate::transaction::{
     UnspecifiedAccountIdentifier,
 };
 
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::packer::Codec;
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use std::marker::PhantomData;
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -58,15 +56,15 @@ impl Serialize for OwnerStakeDelegation {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
-        use chain_core::packer::Codec;
         let mut codec = Codec::new(writer);
         codec.put_bytes(&delegation_buf)
     }
 }
 
 impl Deserialize for OwnerStakeDelegation {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let delegation = deserialize_delegation_type(buf)?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
+        let delegation = deserialize_delegation_type(&mut codec)?;
         Ok(Self { delegation })
     }
 }
@@ -105,9 +103,10 @@ impl Serialize for StakeDelegation {
 }
 
 impl Deserialize for StakeDelegation {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let account_identifier = <[u8; 32]>::deserialize(buf)?;
-        let delegation = deserialize_delegation_type(buf)?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
+        let account_identifier = <[u8; 32]>::deserialize(&mut codec)?;
+        let delegation = deserialize_delegation_type(&mut codec)?;
         Ok(StakeDelegation {
             account_id: account_identifier.into(),
             delegation,
@@ -159,16 +158,18 @@ fn serialize_delegation_type(
     }
 }
 
-fn deserialize_delegation_type(buf: &mut ReadBuf) -> Result<DelegationType, ReadError> {
-    let parts = buf.get_u8()?;
+fn deserialize_delegation_type<R: std::io::BufRead>(
+    mut codec: &mut Codec<R>,
+) -> Result<DelegationType, ReadError> {
+    let parts = codec.get_u8()?;
     match parts {
         0 => Ok(DelegationType::NonDelegated),
         1 => {
-            let pool_id = <[u8; 32]>::deserialize(buf)?.into();
+            let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
             Ok(DelegationType::Full(pool_id))
         }
         _ => {
-            let sz = buf.get_u8()?;
+            let sz = codec.get_u8()?;
             if sz as usize > DELEGATION_RATIO_MAX_DECLS {
                 return Err(ReadError::SizeTooBig(
                     sz as usize,
@@ -177,8 +178,8 @@ fn deserialize_delegation_type(buf: &mut ReadBuf) -> Result<DelegationType, Read
             }
             let mut pools = Vec::with_capacity(sz as usize);
             for _ in 0..sz {
-                let pool_parts = buf.get_u8()?;
-                let pool_id = <[u8; 32]>::deserialize(buf)?.into();
+                let pool_parts = codec.get_u8()?;
+                let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
                 pools.push((pool_id, pool_parts))
             }
             match DelegationRatio::new(parts, pools) {

@@ -3,10 +3,7 @@ use crate::value::Value;
 pub use cardano_legacy_address::Addr as OldAddress;
 pub use cardano_legacy_address::AddressMatchXPub as OldAddressMatchXPub;
 
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use chain_crypto::{Ed25519, PublicKey};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,19 +22,21 @@ pub fn oldaddress_from_xpub(
 }
 
 impl Deserialize for UtxoDeclaration {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
         use std::convert::TryFrom;
 
-        let nb_entries = buf.get_u8()? as usize;
+        let mut codec = Codec::new(reader);
+        let nb_entries = codec.get_u8()? as usize;
         if nb_entries >= 0xff {
             return Err(ReadError::StructureInvalid("nb entries".to_string()));
         }
 
         let mut addrs = Vec::with_capacity(nb_entries);
         for _ in 0..nb_entries {
-            let value = Value::deserialize(buf)?;
-            let addr_size = buf.get_u16()? as usize;
-            let addr = OldAddress::try_from(buf.get_slice(addr_size)?)
+            let value = Value::deserialize(&mut codec)?;
+            let addr_size = codec.get_u16()? as usize;
+            let addr = OldAddress::try_from(codec.get_bytes(addr_size)?.as_slice())
                 .map_err(|err| ReadError::StructureInvalid(format!("{}", err)))?;
             addrs.push((addr, value))
         }

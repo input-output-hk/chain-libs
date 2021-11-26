@@ -35,10 +35,7 @@ use std::string::ToString;
 
 use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
 
-use chain_core::{
-    mempack::ReadBuf,
-    property::{Deserialize, ReadError, Serialize, WriteError},
-};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod testing;
@@ -461,33 +458,36 @@ fn chain_crypto_err(e: chain_crypto::PublicKeyError) -> ReadError {
 }
 
 impl Deserialize for Address {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let byte = buf.get_u8()?;
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        use chain_core::packer::Codec;
+
+        let mut codec = Codec::new(reader);
+        let byte = codec.get_u8()?;
         let discr = get_discrimination_value(byte);
         let kind = match get_kind_value(byte) {
             ADDR_KIND_SINGLE => {
-                let bytes = <[u8; 32]>::deserialize(buf)?;
+                let bytes = <[u8; 32]>::deserialize(codec)?;
                 let spending = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 Kind::Single(spending)
             }
             ADDR_KIND_GROUP => {
-                let bytes = <[u8; 32]>::deserialize(buf)?;
+                let bytes = <[u8; 32]>::deserialize(&mut codec)?;
                 let spending = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
-                let bytes = <[u8; 32]>::deserialize(buf)?;
+                let bytes = <[u8; 32]>::deserialize(codec)?;
                 let group = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 Kind::Group(spending, group)
             }
             ADDR_KIND_ACCOUNT => {
-                let bytes = <[u8; 32]>::deserialize(buf)?;
+                let bytes = <[u8; 32]>::deserialize(codec)?;
                 let stake_key = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 Kind::Account(stake_key)
             }
             ADDR_KIND_MULTISIG => {
-                let bytes = <[u8; 32]>::deserialize(buf)?;
+                let bytes = <[u8; 32]>::deserialize(codec)?;
                 Kind::Multisig(bytes)
             }
             ADDR_KIND_SCRIPT => {
-                let bytes = <[u8; 32]>::deserialize(buf)?;
+                let bytes = <[u8; 32]>::deserialize(codec)?;
                 Kind::Script(bytes)
             }
             n => return Err(ReadError::UnknownTag(n as u32)),
