@@ -1,7 +1,8 @@
 use crate::date::Epoch;
 use crate::stake::Stake;
 use crate::value::{Value, ValueError};
-use chain_core::mempack::{ReadBuf, ReadError};
+use chain_core::mempack::ReadBuf;
+use chain_core::property::ReadError;
 use std::num::{NonZeroU32, NonZeroU64};
 use typed_bytes::ByteBuilder;
 

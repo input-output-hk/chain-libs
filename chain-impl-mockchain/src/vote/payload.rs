@@ -1,5 +1,6 @@
 use crate::vote::Choice;
-use chain_core::mempack::{ReadBuf, ReadError};
+use chain_core::mempack::ReadBuf;
+use chain_core::property::ReadError;
 use chain_vote::Ciphertext;
 use std::convert::{TryFrom, TryInto as _};
 use std::hash::Hash;

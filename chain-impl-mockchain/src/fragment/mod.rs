@@ -4,8 +4,8 @@ mod raw;
 
 use crate::legacy;
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{self, Deserialize, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{self, Deserialize, ReadError, Serialize, WriteError},
 };
 
 pub use config::ConfigParams;

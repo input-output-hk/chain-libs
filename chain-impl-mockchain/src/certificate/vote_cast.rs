@@ -4,8 +4,8 @@ use crate::{
     vote,
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 

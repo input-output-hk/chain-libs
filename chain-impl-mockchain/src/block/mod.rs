@@ -1,8 +1,8 @@
 //! Representation of the block in the mockchain.
 use crate::fragment::{Fragment, FragmentRaw};
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{self, Deserialize, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{self, Deserialize, ReadError, Serialize, WriteError},
 };
 
 use std::slice;

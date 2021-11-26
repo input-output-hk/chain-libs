@@ -1,8 +1,7 @@
 //! Split timeframe in eras
 
 use crate::timeframe::Slot;
-use chain_core::mempack::{ReadBuf, ReadError};
-use chain_ser::packer::Codec;
+use chain_core::{mempack::ReadBuf, packer::Codec, property::ReadError};
 use std::fmt;
 
 /// Epoch number

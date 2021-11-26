@@ -2,8 +2,8 @@ use crate::key::{
     deserialize_public_key, deserialize_signature, serialize_public_key, serialize_signature,
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey, Verification};
 

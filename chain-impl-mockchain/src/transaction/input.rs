@@ -6,10 +6,9 @@ use crate::utxo::Entry;
 use crate::value::Value;
 use crate::{account, multisig};
 use chain_addr::Address;
-use chain_core::property::WriteError;
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize},
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use chain_crypto::PublicKey;
 

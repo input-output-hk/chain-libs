@@ -2,8 +2,8 @@
 //! the user keys.
 //!
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{BlockId, Deserialize, FragmentId, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{BlockId, Deserialize, FragmentId, ReadError, Serialize, WriteError},
 };
 use chain_crypto as crypto;
 use chain_crypto::{

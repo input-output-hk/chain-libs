@@ -7,8 +7,8 @@ use crate::{
     vote::{CommitteeId, PayloadType, TryFromIntError},
 };
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use chain_crypto::Verification;
 use chain_vote::TallyDecryptShare;

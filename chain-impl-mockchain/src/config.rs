@@ -10,9 +10,9 @@ use crate::{
 };
 use chain_addr::Discrimination;
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
+    mempack::ReadBuf,
     packer::Codec,
-    property::{Deserialize, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use chain_crypto::PublicKey;
 use std::fmt::{self, Display, Formatter};

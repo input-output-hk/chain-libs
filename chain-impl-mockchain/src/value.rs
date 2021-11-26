@@ -1,7 +1,7 @@
 use crate::stake::Stake;
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use std::convert::TryFrom;
 use std::{iter::Sum, ops};

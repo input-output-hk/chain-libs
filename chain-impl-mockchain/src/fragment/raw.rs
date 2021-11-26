@@ -1,6 +1,6 @@
 use crate::key::Hash;
-use chain_core::property::{Deserialize, Serialize, WriteError};
-use chain_ser::mempack::{ReadBuf, ReadError};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_ser::mempack::ReadBuf;
 
 pub type FragmentId = Hash;
 pub const FRAGMENT_SIZE_BYTES_LEN: usize = 4;

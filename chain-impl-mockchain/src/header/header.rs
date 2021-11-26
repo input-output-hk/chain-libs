@@ -14,7 +14,6 @@ use crate::leadership;
 use std::fmt::{self, Debug};
 use std::num::NonZeroUsize;
 
-use chain_core::property::WriteError;
 pub use cstruct::HeaderError;
 
 /// Finalized Unsigned Header
@@ -292,8 +291,8 @@ impl Debug for Header {
 }
 
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize},
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 
 impl Serialize for Header {

@@ -1,7 +1,7 @@
 use crate::{ledger::governance::GovernanceAcceptanceCriteria, value::Value};
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::Deserialize,
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError},
 };
 use imhamt::Hamt;
 use std::collections::hash_map::DefaultHasher;

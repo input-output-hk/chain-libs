@@ -6,7 +6,7 @@
 //! written by Dmytro Kaidalov.
 
 use crate::{GroupElement, Scalar};
-use chain_core::mempack::{ReadBuf, ReadError};
+use chain_core::{mempack::ReadBuf, property::ReadError};
 use rand_core::{CryptoRng, RngCore};
 use {rand::thread_rng, std::iter};
 

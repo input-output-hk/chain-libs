@@ -61,8 +61,8 @@ use crate::vote;
 use crate::{config, key, multisig, utxo};
 use chain_addr::{Address, Discrimination};
 use chain_core::{
-    mempack::{ReadBuf, ReadError},
-    property::{Deserialize, Serialize, WriteError},
+    mempack::ReadBuf,
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use chain_crypto::digest::{DigestAlg, DigestOf};
 use chain_ser::packer::Codec;
@@ -1101,7 +1101,7 @@ impl Serialize for Ledger {
 }
 
 impl Deserialize for Ledger {
-    fn deserialize(buf: &mut ReadBuf) -> Result<Self, chain_core::mempack::ReadError> {
+    fn deserialize(buf: &mut ReadBuf) -> Result<Self, ReadError> {
         let owned_entries = unpack_entries(buf)?;
         let entries = owned_entries
             .iter()

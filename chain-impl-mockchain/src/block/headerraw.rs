@@ -1,4 +1,4 @@
-use chain_core::property::{Deserialize, Serialize, WriteError};
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 
 /// Block Header Bytes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,9 +23,7 @@ impl Serialize for HeaderRaw {
 }
 
 impl Deserialize for HeaderRaw {
-    fn deserialize(
-        buf: &mut chain_core::mempack::ReadBuf,
-    ) -> Result<Self, chain_core::mempack::ReadError> {
+    fn deserialize(buf: &mut chain_core::mempack::ReadBuf) -> Result<Self, ReadError> {
         let header_size = buf.get_u16()? as usize;
         let mut v = vec![0u8; header_size];
         buf.copy_to_slice_mut(&mut v)?;
