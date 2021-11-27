@@ -3,6 +3,8 @@
 //! This will allow us to expose some standard way of serializing
 //! data.
 
+use std::num::{NonZeroU32, NonZeroU64};
+
 use crate::deser::{ReadError, WriteError};
 
 pub struct Codec<I>(I);
@@ -46,6 +48,18 @@ impl<R: std::io::BufRead> Codec<R> {
         let mut buf = [0u8; 16];
         self.0.read_exact(&mut buf)?;
         Ok(u128::from_be_bytes(buf))
+    }
+    #[inline]
+    pub fn get_nz_u32(&mut self) -> Result<NonZeroU32, ReadError> {
+        let val = self.get_u32()?;
+        NonZeroU32::new(val)
+            .ok_or_else(|| ReadError::StructureInvalid("received zero u32".to_string()))
+    }
+    #[inline]
+    pub fn get_nz_u64(&mut self) -> Result<NonZeroU64, ReadError> {
+        let val = self.get_u64()?;
+        NonZeroU64::new(val)
+            .ok_or_else(|| ReadError::StructureInvalid("received zero u64".to_string()))
     }
     #[inline]
     pub fn get_bytes(&mut self, n: usize) -> Result<Vec<u8>, ReadError> {

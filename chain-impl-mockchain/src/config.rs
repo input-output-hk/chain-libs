@@ -10,7 +10,6 @@ use crate::{
 };
 use chain_addr::Discrimination;
 use chain_core::{
-    mempack::ReadBuf,
     packer::Codec,
     property::{Deserialize, ReadError, Serialize, WriteError},
 };
@@ -398,10 +397,9 @@ impl ConfigParamVariant for Ratio {
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
-        let mut rb = ReadBuf::from(payload);
-        let num = rb.get_u64()?;
-        let denom = rb.get_nz_u64()?;
-        rb.expect_end()?;
+        let mut codec = Codec::new(payload);
+        let num = codec.get_u64()?;
+        let denom = codec.get_nz_u64()?;
         Ok(Ratio {
             numerator: num,
             denominator: denom,
@@ -440,15 +438,14 @@ impl ConfigParamVariant for RewardParams {
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
-        let mut rb = ReadBuf::from(payload);
-        match rb.get_u8()? {
+        let mut codec = Codec::new(payload);
+        match codec.get_u8()? {
             1 => {
-                let start = rb.get_u64()?;
-                let num = rb.get_u64()?;
-                let denom = rb.get_nz_u64()?;
-                let estart = rb.get_u32()?;
-                let erate = rb.get_nz_u32()?;
-                rb.expect_end()?;
+                let start = codec.get_u64()?;
+                let num = codec.get_u64()?;
+                let denom = codec.get_nz_u64()?;
+                let estart = codec.get_u32()?;
+                let erate = codec.get_nz_u32()?;
                 Ok(RewardParams::Linear {
                     constant: start,
                     ratio: Ratio {
@@ -460,12 +457,11 @@ impl ConfigParamVariant for RewardParams {
                 })
             }
             2 => {
-                let start = rb.get_u64()?;
-                let num = rb.get_u64()?;
-                let denom = rb.get_nz_u64()?;
-                let estart = rb.get_u32()?;
-                let erate = rb.get_nz_u32()?;
-                rb.expect_end()?;
+                let start = codec.get_u64()?;
+                let num = codec.get_u64()?;
+                let denom = codec.get_nz_u64()?;
+                let estart = codec.get_u32()?;
+                let erate = codec.get_nz_u32()?;
                 Ok(RewardParams::Halving {
                     constant: start,
                     ratio: Ratio {
@@ -609,9 +605,9 @@ impl ConfigParamVariant for (NonZeroU32, NonZeroU32) {
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
-        let mut rb = ReadBuf::from(payload);
-        let x = rb.get_nz_u32()?;
-        let y = rb.get_nz_u32()?;
+        let mut codec = Codec::new(payload);
+        let x = codec.get_nz_u32()?;
+        let y = codec.get_nz_u32()?;
         Ok((x, y))
     }
 }
