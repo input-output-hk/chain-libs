@@ -121,10 +121,12 @@ mod test {
 
     #[proptest]
     fn time_era_pack_unpack_bijection(time_era: TimeEra) {
-        let vec = std::io::Cursor::new(Vec::new());
-        let mut codec = Codec::new(vec);
-
+        let cursor = std::io::Cursor::new(Vec::new());
+        let mut codec = Codec::new(cursor);
         pack_time_era(&time_era, &mut codec).unwrap();
+        let mut cursor = codec.into_inner();
+        cursor.set_position(0);
+        codec = Codec::new(cursor);
         let other_time_era = unpack_time_era(&mut codec).unwrap();
         prop_assert_eq!(time_era, other_time_era);
     }
