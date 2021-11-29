@@ -1,9 +1,8 @@
-use std::convert::TryFrom;
-
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
+use std::convert::TryFrom;
 use thiserror::Error;
 
 pub const TOKEN_NAME_MAX_SIZE: usize = 32;
@@ -36,6 +35,14 @@ impl TryFrom<Vec<u8>> for TokenName {
             });
         }
         Ok(Self(value))
+    }
+}
+
+impl Serialize for TokenName {
+    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
+        let mut codec = Codec::new(writer);
+        codec.put_u8(self.0.len() as u8)?;
+        codec.put_bytes(self.0.as_slice())
     }
 }
 

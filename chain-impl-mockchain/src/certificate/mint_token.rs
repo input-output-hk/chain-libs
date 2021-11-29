@@ -5,12 +5,12 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
     value::Value,
 };
-use chain_core::property::{Deserialize, ReadError};
-use typed_bytes::ByteBuilder;
+use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use typed_bytes::{ByteArray, ByteBuilder};
 
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MintToken {
     pub name: TokenName,
     pub policy: MintingPolicy,
@@ -26,6 +26,10 @@ impl MintToken {
             .bytes(&self.policy.bytes())
             .bytes(self.to.as_ref().as_ref())
             .bytes(&self.value.bytes())
+    }
+
+    pub fn serialize(&self) -> ByteArray<Self> {
+        self.serialize_in(ByteBuilder::new()).finalize()
     }
 }
 
@@ -54,6 +58,15 @@ impl Payload for MintToken {
     }
 }
 
+impl Serialize for MintToken {
+    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
+        self.name.serialize(&mut writer)?;
+        self.policy.serialize(&mut writer)?;
+        self.to.serialize(&mut writer)?;
+        self.value.serialize(writer)
+    }
+}
+
 impl Deserialize for MintToken {
     fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
         let name = TokenName::deserialize(&mut reader)?;
@@ -73,7 +86,8 @@ impl Deserialize for MintToken {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-    use quickcheck::{Arbitrary, Gen};
+    use crate::testing::serialization::serialization_bijection;
+    use quickcheck::{Arbitrary, Gen, TestResult};
 
     impl Arbitrary for MintToken {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -87,6 +101,12 @@ mod tests {
                 to,
                 value,
             }
+        }
+    }
+
+    quickcheck! {
+        fn minttoken_serialization_bijection(b: MintToken) -> TestResult {
+            serialization_bijection(b)
         }
     }
 }

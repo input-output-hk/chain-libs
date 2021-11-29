@@ -79,8 +79,7 @@ impl Payload for UpdateProposal {
 impl Serialize for UpdateProposal {
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         self.changes.serialize(&mut writer)?;
-        self.proposer_id.serialize(writer)?;
-        Ok(())
+        self.proposer_id.serialize(writer)
     }
 }
 
