@@ -130,7 +130,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> ExitReason {
+    ) -> Option<(&AccountTrie, &[Log])> {
         {
             let metadata = StackSubstateMetadata::new(gas_limit, self.config);
             let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -142,14 +142,21 @@ impl<'runtime> VirtualMachine<'runtime> {
 
             let exit_reason =
                 executor.transact_create(caller, value, init_code.to_vec(), gas_limit, access_list);
-            // apply changes to the state, this consumes the executor
-            let state = executor.into_state();
-            // Next, we consume the stack state and extract the values and logs
-            // used to modify the accounts trie in the VirtualMachine.
-            let (values, logs) = state.deconstruct();
+            match exit_reason {
+                ExitReason::Succeed(_succeded) => {
+                    // apply and return state
+                    // apply changes to the state, this consumes the executor
+                    let state = executor.into_state();
+                    // Next, we consume the stack state and extract the values and logs
+                    // used to modify the accounts trie in the VirtualMachine.
+                    let (values, logs) = state.deconstruct();
 
-            self.apply(values, logs, delete_empty);
-            exit_reason
+                    self.apply(values, logs, delete_empty);
+                    //_exit_reason
+                    Some((&self.state, &self.logs))
+                }
+                _ => None,
+            }
         }
     }
 
@@ -165,7 +172,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> ExitReason {
+    ) -> Option<(&AccountTrie, &[Log])> {
         {
             let metadata = StackSubstateMetadata::new(gas_limit, self.config);
             let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -182,14 +189,21 @@ impl<'runtime> VirtualMachine<'runtime> {
                 gas_limit,
                 access_list,
             );
-            // apply changes to the state, this consumes the executor
-            let state = executor.into_state();
-            // Next, we consume the stack state and extract the values and logs
-            // used to modify the accounts trie in the VirtualMachine.
-            let (values, logs) = state.deconstruct();
+            match exit_reason {
+                ExitReason::Succeed(_succeded) => {
+                    // apply and return state
+                    // apply changes to the state, this consumes the executor
+                    let state = executor.into_state();
+                    // Next, we consume the stack state and extract the values and logs
+                    // used to modify the accounts trie in the VirtualMachine.
+                    let (values, logs) = state.deconstruct();
 
-            self.apply(values, logs, delete_empty);
-            exit_reason
+                    self.apply(values, logs, delete_empty);
+                    //_exit_reason
+                    Some((&self.state, &self.logs))
+                }
+                _ => None,
+            }
         }
     }
 
@@ -205,7 +219,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> (ExitReason, ByteCode) {
+    ) -> Option<(&AccountTrie, &[Log], ByteCode)> {
         let metadata = StackSubstateMetadata::new(gas_limit, self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
         let mut executor =
@@ -218,14 +232,21 @@ impl<'runtime> VirtualMachine<'runtime> {
             gas_limit,
             access_list,
         );
-        // apply changes to the state, this consumes the executor
-        let state = executor.into_state();
-        // Next, we consume the stack state and extract the values and logs
-        // used to modify the accounts trie in the VirtualMachine.
-        let (values, logs) = state.deconstruct();
+        match exit_reason {
+            ExitReason::Succeed(_succeded) => {
+                // apply and return state
+                // apply changes to the state, this consumes the executor
+                let state = executor.into_state();
+                // Next, we consume the stack state and extract the values and logs
+                // used to modify the accounts trie in the VirtualMachine.
+                let (values, logs) = state.deconstruct();
 
-        self.apply(values, logs, delete_empty);
-        (exit_reason, byte_output.into_boxed_slice())
+                self.apply(values, logs, delete_empty);
+                //_exit_reason
+                Some((&self.state, &self.logs, byte_output.into_boxed_slice()))
+            }
+            _ => None,
+        }
     }
 }
 

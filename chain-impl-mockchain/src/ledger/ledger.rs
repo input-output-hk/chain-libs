@@ -520,8 +520,7 @@ impl Ledger {
                         let contract = tx.as_slice().payload().into_payload();
                         let config = &ledger.settings.evm_params.config.into();
                         let environment = &ledger.settings.evm_params.environment;
-                        let _exit_reason =
-                            ledger.evm.deploy_contract(contract, config, environment)?;
+                        ledger.evm.deploy_contract(contract, config, environment)?;
                     }
                     #[cfg(not(feature = "evm"))]
                     {
@@ -1045,10 +1044,9 @@ impl Ledger {
                     let contract = tx.as_slice().payload().into_payload();
                     let config = &new_ledger.settings.evm_params.config.into();
                     let environment = &new_ledger.settings.evm_params.environment;
-                    let _exit_reason =
-                        new_ledger
-                            .evm
-                            .deploy_contract(contract, config, environment)?;
+                    new_ledger
+                        .evm
+                        .deploy_contract(contract, config, environment)?;
                 }
                 #[cfg(not(feature = "evm"))]
                 {

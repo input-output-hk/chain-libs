@@ -4,7 +4,7 @@ use super::Error;
 use crate::smartcontract::Contract;
 #[cfg(feature = "evm")]
 use chain_evm::{
-    machine::{Config, Environment, ExitReason, Log, VirtualMachine},
+    machine::{Config, Environment, Log, VirtualMachine},
     state::{AccountTrie, Balance},
 };
 
@@ -13,7 +13,7 @@ pub struct Ledger {
     #[cfg(feature = "evm")]
     pub(crate) accounts: AccountTrie,
     #[cfg(feature = "evm")]
-    pub(crate) logs: Box<[Log]>,
+    pub(crate) logs: Vec<Log>,
 }
 
 impl Ledger {
@@ -31,7 +31,7 @@ impl Ledger {
         contract: Contract,
         config: &'runtime Config,
         environment: &'runtime Environment,
-    ) -> Result<ExitReason, Error> {
+    ) -> Result<(), Error> {
         let mut vm = self.virtual_machine(config, environment);
         match contract {
             Contract::Create {
@@ -42,9 +42,14 @@ impl Ledger {
                 access_list,
             } => {
                 //
-                let exit_reason =
-                    vm.transact_create(caller, value, init_code, gas_limit, access_list, true);
-                Ok(exit_reason)
+                if let Some((new_state, logs)) =
+                    vm.transact_create(caller, value, init_code, gas_limit, access_list, true)
+                {
+                    // update ledger state
+                    self.accounts = new_state.clone();
+                    self.logs.extend_from_slice(logs);
+                }
+                Ok(())
             }
             Contract::Create2 {
                 caller,
@@ -54,7 +59,7 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let exit_reason = vm.transact_create2(
+                if let Some((new_state, logs)) = vm.transact_create2(
                     caller,
                     value,
                     init_code,
@@ -62,9 +67,12 @@ impl Ledger {
                     gas_limit,
                     access_list,
                     true,
-                );
-
-                Ok(exit_reason)
+                ) {
+                    // update ledger state
+                    self.accounts = new_state.clone();
+                    self.logs.extend_from_slice(logs);
+                }
+                Ok(())
             }
             Contract::Call {
                 caller,
@@ -74,9 +82,14 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let (exit_reason, _byte_code_msg) =
-                    vm.transact_call(caller, address, value, data, gas_limit, access_list, true);
-                Ok(exit_reason)
+                if let Some((new_state, logs, _byte_code_msg)) =
+                    vm.transact_call(caller, address, value, data, gas_limit, access_list, true)
+                {
+                    // update ledger state
+                    self.accounts = new_state.clone();
+                    self.logs.extend_from_slice(logs);
+                }
+                Ok(())
             }
         }
     }
