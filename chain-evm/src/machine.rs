@@ -399,7 +399,12 @@ mod tests {
         let vm = VirtualMachine::new(&config, &environment);
 
         let gas_limit = u64::max_value();
-        let mut executor = vm.executor(gas_limit);
+
+        let metadata = StackSubstateMetadata::new(gas_limit, &config);
+        let memory_stack_state = MemoryStackState::new(metadata, &vm);
+        let precompiles = precompiles();
+        let mut executor =
+            StackExecutor::new_with_precompiles(memory_stack_state, &config, &precompiles);
 
         // Byte-encoded smart contract code
         let code = Rc::new(Vec::new());
