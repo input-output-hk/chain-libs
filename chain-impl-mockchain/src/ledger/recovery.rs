@@ -820,7 +820,7 @@ fn unpack_old_addr<R: std::io::BufRead>(
 ) -> Result<legacy::OldAddress, ReadError> {
     let size = codec.get_u64()?;
     let v = codec.get_bytes(size as usize)?;
-    Ok(legacy::OldAddress::new(v.into()))
+    Ok(legacy::OldAddress::new(v))
 }
 
 fn pack_address<W: std::io::Write>(

@@ -86,8 +86,11 @@ impl Deserialize for MintToken {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    #[cfg(test)]
     use crate::testing::serialization::serialization_bijection;
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    #[cfg(test)]
+    use quickcheck::TestResult;
+    use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for MintToken {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
