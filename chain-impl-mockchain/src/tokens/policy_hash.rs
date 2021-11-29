@@ -1,6 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError},
+};
 
 pub const POLICY_HASH_SIZE: usize = 28;
 
@@ -24,14 +27,16 @@ impl TryFrom<&[u8]> for PolicyHash {
     type Error = ReadError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Self::read(&mut ReadBuf::from(value))
+        Self::deserialize(value)
     }
 }
 
-impl Readable for PolicyHash {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let bytes = buf
-            .get_slice(POLICY_HASH_SIZE)?
+impl Deserialize for PolicyHash {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
+
+        let bytes = codec
+            .get_bytes(POLICY_HASH_SIZE)?
             .try_into()
             .unwrap_or_else(|_| panic!("already read {} bytes", POLICY_HASH_SIZE));
         Ok(Self(bytes))

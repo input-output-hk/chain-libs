@@ -1,6 +1,8 @@
 use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
-
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError},
+};
 use cryptoxide::{blake2b::Blake2b, digest::Digest};
 use thiserror::Error;
 use typed_bytes::ByteBuilder;
@@ -68,9 +70,10 @@ impl Default for MintingPolicy {
     }
 }
 
-impl Readable for MintingPolicy {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let no_entries = buf.get_u8()?;
+impl Deserialize for MintingPolicy {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
+        let no_entries = codec.get_u8()?;
         if no_entries != 0 {
             return Err(ReadError::InvalidData(
                 "non-zero number of minting policy entries, but they are currently unimplemented"

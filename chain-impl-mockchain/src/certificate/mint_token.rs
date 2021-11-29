@@ -5,8 +5,7 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
     value::Value,
 };
-
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::property::{Deserialize, ReadError};
 use typed_bytes::ByteBuilder;
 
 use std::marker::PhantomData;
@@ -55,12 +54,12 @@ impl Payload for MintToken {
     }
 }
 
-impl Readable for MintToken {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let name = TokenName::read(buf)?;
-        let policy = MintingPolicy::read(buf)?;
-        let to = Identifier::read(buf)?;
-        let value = Value::read(buf)?;
+impl Deserialize for MintToken {
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let name = TokenName::deserialize(&mut reader)?;
+        let policy = MintingPolicy::deserialize(&mut reader)?;
+        let to = Identifier::deserialize(&mut reader)?;
+        let value = Value::deserialize(reader)?;
 
         Ok(Self {
             name,

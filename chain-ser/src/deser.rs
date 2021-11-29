@@ -5,6 +5,8 @@ pub enum WriteError {
     CannotSerialize(std::io::Error),
 }
 
+impl std::error::Error for WriteError {}
+
 impl std::fmt::Display for WriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -43,6 +45,8 @@ pub enum ReadError {
     /// for example because an invariant does not hold
     InvalidData(String),
 }
+
+impl std::error::Error for ReadError {}
 
 impl std::fmt::Display for ReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

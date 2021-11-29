@@ -1,6 +1,9 @@
 use std::convert::TryFrom;
 
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError},
+};
 use thiserror::Error;
 
 pub const TOKEN_NAME_MAX_SIZE: usize = 32;
@@ -36,13 +39,14 @@ impl TryFrom<Vec<u8>> for TokenName {
     }
 }
 
-impl Readable for TokenName {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let name_length = buf.get_u8()? as usize;
+impl Deserialize for TokenName {
+    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+        let mut codec = Codec::new(reader);
+        let name_length = codec.get_u8()? as usize;
         if name_length > TOKEN_NAME_MAX_SIZE {
             return Err(ReadError::SizeTooBig(TOKEN_NAME_MAX_SIZE, name_length));
         }
-        let bytes = buf.get_slice(name_length)?.into();
+        let bytes = codec.get_bytes(name_length)?;
         Ok(Self(bytes))
     }
 }

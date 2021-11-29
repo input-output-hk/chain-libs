@@ -2,10 +2,8 @@ use crate::tokens::{
     name::{TokenName, TokenNameTooLong},
     policy_hash::PolicyHash,
 };
-
+use chain_core::property::{Deserialize, ReadError};
 use std::{convert::TryFrom, fmt, str::FromStr};
-
-use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use thiserror::Error;
 use typed_bytes::ByteBuilder;
 
@@ -52,10 +50,10 @@ impl TokenIdentifier {
     }
 }
 
-impl Readable for TokenIdentifier {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        let policy_hash = PolicyHash::read(buf)?;
-        let token_name = TokenName::read(buf)?;
+impl Deserialize for TokenIdentifier {
+    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+        let policy_hash = PolicyHash::deserialize(&mut reader)?;
+        let token_name = TokenName::deserialize(reader)?;
         Ok(Self {
             policy_hash,
             token_name,

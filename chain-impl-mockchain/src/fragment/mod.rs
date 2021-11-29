@@ -204,7 +204,9 @@ impl Deserialize for Fragment {
             Some(FragmentTag::EncryptedVoteTally) => {
                 Transaction::deserialize(codec).map(Fragment::EncryptedVoteTally)
             }
-            Some(FragmentTag::MintToken) => Transaction::read(buf).map(Fragment::MintToken),
+            Some(FragmentTag::MintToken) => {
+                Transaction::deserialize(codec).map(Fragment::MintToken)
+            }
             None => Err(ReadError::UnknownTag(tag as u32)),
         }
     }
