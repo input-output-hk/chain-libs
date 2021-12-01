@@ -5,6 +5,7 @@ use chain_core::{
     packer::Codec,
     property::Serialize,
 };
+use chain_crypto::bech32::{self, Bech32};
 use thiserror::Error;
 
 pub const TOKEN_NAME_MAX_SIZE: usize = 32;
@@ -57,6 +58,23 @@ impl Readable for TokenName {
         }
         let bytes = buf.get_slice(name_length)?.into();
         Ok(Self(bytes))
+    }
+}
+
+impl Bech32 for TokenName {
+    const BECH32_HRP: &'static str = "token-name";
+    const BYTES_LEN: usize = TOKEN_NAME_MAX_SIZE;
+
+    fn try_from_bech32_str(bech32_str: &str) -> bech32::Result<Self>
+    where
+        Self: Sized,
+    {
+        let name = bech32::try_from_bech32_to_bytes::<Self>(bech32_str)?;
+        Ok(Self(name))
+    }
+
+    fn to_bech32_str(&self) -> String {
+        bech32::to_bech32_from_bytes::<Self>(self.as_ref())
     }
 }
 
