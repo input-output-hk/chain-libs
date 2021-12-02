@@ -8,9 +8,9 @@ evm = "0.33.0"
 imhamt = { path = "../imhamt" }
 primitive-types = "0.10.1"
 base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }
-blake2 = { git = "https://github.com/near/near-blake2.git", rev = "736ff607cc8160af87ffa697c14ebef85050138f", default-features = false }
+blake2 = { version = "0.9.1", git = "https://github.com/near/near-blake2.git", rev = "736ff607cc8160af87ffa697c14ebef85050138f", default-features = false }
 borsh = { version = "0.8.2", default-features = false }
-bn = { package = "aurora-bn", git = "https://github.com/aurora-is-near/aurora-bn.git", default-features = false, features = ["std"] }
+bn = { package = "aurora-bn", version = "0.1.0", git = "https://github.com/aurora-is-near/aurora-bn.git", default-features = false, features = ["std"] }
 libsecp256k1 = { version = "0.3.5", default-features = false }
 num = { version = "0.4.0", default-features = false, features = ["alloc"] }
 ripemd160 = { version = "0.9.1", default-features = false }
@@ -19,7 +19,7 @@ sha2 = { version = "0.9.3", default-features = false }
 sha3 = { version = "0.9.1", default-features = false }
 wee_alloc = { version = "0.4.5", default-features = false }
 logos = { version = "0.12", default-features = false, features = ["export_derive"] }
-ethabi = { git = "https://github.com/darwinia-network/ethabi", branch = "xavier-no-std", default-features = false }
+ethabi = { version = "14.1.0", git = "https://github.com/darwinia-network/ethabi", branch = "xavier-no-std", default-features = false }
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
 byte-slice-cast = { version = "1.0", default-features = false }
 
