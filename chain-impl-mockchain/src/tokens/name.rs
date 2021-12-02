@@ -64,7 +64,7 @@ impl Readable for TokenName {
 mod tests {
     use super::*;
 
-    use quickcheck::{Arbitrary, Gen};
+    use quickcheck::{Arbitrary, Gen, TestResult};
 
     impl Arbitrary for TokenName {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -75,5 +75,16 @@ mod tests {
             }
             Self(bytes)
         }
+    }
+
+    #[quickcheck_macros::quickcheck]
+    fn token_name_serialization_bijection(token_name: TokenName) -> TestResult {
+        let token_name_got = token_name.as_ref();
+        let mut buf = ReadBuf::from(token_name_got.as_ref());
+        let result = TokenName::read(&mut buf);
+        let left = Ok(token_name.clone());
+        assert_eq!(left, result);
+        assert_eq!(buf.get_slice_end(), &[]);
+        TestResult::from_bool(left == result)
     }
 }
