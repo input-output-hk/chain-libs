@@ -5,6 +5,8 @@
 //! [spec](https://github.com/input-output-hk/treasury-crypto/blob/master/docs/voting_protocol_spec/Treasury_voting_protocol_spec.pdf),
 //! written by Dmytro Kaidalov.
 
+use std::io::BufRead;
+
 use crate::{GroupElement, Scalar};
 use chain_core::packer::Codec;
 use chain_core::property::ReadError;
@@ -239,30 +241,34 @@ impl Zkp {
         let bits = codec.get_u8()? as usize;
         let mut ibas = Vec::with_capacity(bits);
         for _ in 0..bits {
-            let elem_buf = codec.get_bytes(Announcement::BYTES_LEN)?;
-            let iba = Announcement::from_bytes(elem_buf.as_slice())
+            let elem_buf = codec.get_slice(Announcement::BYTES_LEN)?;
+            let iba = Announcement::from_bytes(elem_buf)
                 .ok_or_else(|| ReadError::StructureInvalid("Invalid IBA component".to_string()))?;
+            codec.consume(Announcement::BYTES_LEN);
             ibas.push(iba);
         }
         let mut bs = Vec::with_capacity(bits);
         for _ in 0..bits {
-            let elem_buf = codec.get_bytes(Ciphertext::BYTES_LEN)?;
-            let ciphertext = Ciphertext::from_bytes(elem_buf.as_slice()).ok_or_else(|| {
+            let elem_buf = codec.get_slice(Ciphertext::BYTES_LEN)?;
+            let ciphertext = Ciphertext::from_bytes(elem_buf).ok_or_else(|| {
                 ReadError::StructureInvalid("Invalid encoded ciphertext".to_string())
             })?;
+            codec.consume(Ciphertext::BYTES_LEN);
             bs.push(ciphertext);
         }
         let mut zwvs = Vec::with_capacity(bits);
         for _ in 0..bits {
-            let elem_buf = codec.get_bytes(ResponseRandomness::BYTES_LEN)?;
-            let zwv = ResponseRandomness::from_bytes(elem_buf.as_slice())
+            let elem_buf = codec.get_slice(ResponseRandomness::BYTES_LEN)?;
+            let zwv = ResponseRandomness::from_bytes(elem_buf)
                 .ok_or_else(|| ReadError::StructureInvalid("Invalid ZWV component".to_string()))?;
+            codec.consume(ResponseRandomness::BYTES_LEN);
             zwvs.push(zwv);
         }
-        let r_buf = codec.get_bytes(Scalar::BYTES_LEN)?;
-        let r = Scalar::from_bytes(r_buf.as_slice()).ok_or_else(|| {
+        let r_buf = codec.get_slice(Scalar::BYTES_LEN)?;
+        let r = Scalar::from_bytes(r_buf).ok_or_else(|| {
             ReadError::StructureInvalid("Invalid Proof encoded R scalar".to_string())
         })?;
+        codec.consume(Scalar::BYTES_LEN);
 
         Ok(Self::from_parts(ibas, bs, zwvs, r))
     }

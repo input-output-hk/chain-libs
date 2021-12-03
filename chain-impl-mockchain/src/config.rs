@@ -15,7 +15,7 @@ use chain_core::{
 };
 use chain_crypto::PublicKey;
 use std::fmt::{self, Display, Formatter};
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 use std::num::{NonZeroU32, NonZeroU64};
 use strum_macros::{AsRefStr, EnumIter, EnumString};
 use typed_bytes::ByteBuilder;
@@ -232,60 +232,57 @@ impl Deserialize for ConfigParam {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
         let mut codec = Codec::new(reader);
         let taglen = TagLen(codec.get_u16()?);
-        let bytes = codec.get_bytes(taglen.get_len())?;
-        match taglen.get_tag()? {
-            Tag::Block0Date => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::Block0Date)
-            }
+        let bytes = codec.get_slice(taglen.get_len())?;
+        let res = match taglen.get_tag()? {
+            Tag::Block0Date => ConfigParamVariant::from_payload(bytes).map(ConfigParam::Block0Date),
             Tag::Discrimination => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::Discrimination)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::Discrimination)
             }
-            Tag::ConsensusVersion => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::ConsensusVersion),
+            Tag::ConsensusVersion => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::ConsensusVersion)
+            }
             Tag::SlotsPerEpoch => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::SlotsPerEpoch)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::SlotsPerEpoch)
             }
             Tag::SlotDuration => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::SlotDuration)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::SlotDuration)
             }
-            Tag::EpochStabilityDepth => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::EpochStabilityDepth),
-            Tag::ConsensusGenesisPraosActiveSlotsCoeff => {
-                ConfigParamVariant::from_payload(bytes.as_slice())
-                    .map(ConfigParam::ConsensusGenesisPraosActiveSlotsCoeff)
+            Tag::EpochStabilityDepth => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::EpochStabilityDepth)
             }
-            Tag::BlockContentMaxSize => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::BlockContentMaxSize),
+            Tag::ConsensusGenesisPraosActiveSlotsCoeff => ConfigParamVariant::from_payload(bytes)
+                .map(ConfigParam::ConsensusGenesisPraosActiveSlotsCoeff),
+            Tag::BlockContentMaxSize => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::BlockContentMaxSize)
+            }
             Tag::AddBftLeader => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::AddBftLeader)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::AddBftLeader)
             }
             Tag::RemoveBftLeader => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::RemoveBftLeader)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::RemoveBftLeader)
             }
-            Tag::LinearFee => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::LinearFee)
+            Tag::LinearFee => ConfigParamVariant::from_payload(bytes).map(ConfigParam::LinearFee),
+            Tag::ProposalExpiration => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::ProposalExpiration)
             }
-            Tag::ProposalExpiration => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::ProposalExpiration),
             Tag::KesUpdateSpeed => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::KesUpdateSpeed)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::KesUpdateSpeed)
             }
             Tag::TreasuryAdd => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::TreasuryAdd)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::TreasuryAdd)
             }
             Tag::TreasuryParams => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::TreasuryParams)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::TreasuryParams)
             }
-            Tag::RewardPot => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::RewardPot)
-            }
+            Tag::RewardPot => ConfigParamVariant::from_payload(bytes).map(ConfigParam::RewardPot),
             Tag::RewardParams => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::RewardParams)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::RewardParams)
             }
-            Tag::PerCertificateFees => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::PerCertificateFees),
+            Tag::PerCertificateFees => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::PerCertificateFees)
+            }
             Tag::FeesInTreasury => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::FeesInTreasury)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::FeesInTreasury)
             }
             Tag::RewardLimitNone => {
                 if !bytes.is_empty() {
@@ -294,23 +291,27 @@ impl Deserialize for ConfigParam {
                     Ok(ConfigParam::RewardLimitNone)
                 }
             }
-            Tag::RewardLimitByAbsoluteStake => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::RewardLimitByAbsoluteStake),
-            Tag::PoolRewardParticipationCapping => {
-                ConfigParamVariant::from_payload(bytes.as_slice())
-                    .map(ConfigParam::PoolRewardParticipationCapping)
+            Tag::RewardLimitByAbsoluteStake => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::RewardLimitByAbsoluteStake)
             }
+            Tag::PoolRewardParticipationCapping => ConfigParamVariant::from_payload(bytes)
+                .map(ConfigParam::PoolRewardParticipationCapping),
             Tag::AddCommitteeId => {
-                ConfigParamVariant::from_payload(bytes.as_slice()).map(ConfigParam::AddCommitteeId)
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::AddCommitteeId)
             }
-            Tag::RemoveCommitteeId => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::RemoveCommitteeId),
-            Tag::PerVoteCertificateFees => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::PerVoteCertificateFees),
-            Tag::TransactionMaxExpiryEpochs => ConfigParamVariant::from_payload(bytes.as_slice())
-                .map(ConfigParam::TransactionMaxExpiryEpochs),
+            Tag::RemoveCommitteeId => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::RemoveCommitteeId)
+            }
+            Tag::PerVoteCertificateFees => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::PerVoteCertificateFees)
+            }
+            Tag::TransactionMaxExpiryEpochs => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::TransactionMaxExpiryEpochs)
+            }
         }
-        .map_err(Into::into)
+        .map_err(Into::into);
+        codec.consume(taglen.get_len());
+        res
     }
 }
 

@@ -29,9 +29,8 @@ impl Deserialize for FragmentRaw {
         use chain_core::packer::Codec;
 
         let mut codec = Codec::new(reader);
-        let size = codec.get_u32()?;
-        let mut v = vec![0u8; size as usize];
-        codec.get_slice(&mut v)?;
+        let size = codec.get_u32()? as usize;
+        let v = codec.get_bytes(size)?;
         Ok(FragmentRaw(v))
     }
 }

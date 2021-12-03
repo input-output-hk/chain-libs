@@ -27,8 +27,7 @@ impl Deserialize for HeaderRaw {
 
         let mut codec = Codec::new(reader);
         let header_size = codec.get_u16()? as usize;
-        let mut v = vec![0u8; header_size];
-        codec.get_slice(&mut v)?;
+        let v = codec.get_bytes(header_size)?;
         Ok(HeaderRaw(v))
     }
 }

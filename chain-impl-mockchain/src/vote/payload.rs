@@ -4,6 +4,7 @@ use chain_core::property::ReadError;
 use chain_vote::Ciphertext;
 use std::convert::{TryFrom, TryInto as _};
 use std::hash::Hash;
+use std::io::BufRead;
 use thiserror::Error;
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -159,12 +160,13 @@ impl EncryptedVote {
         let len: usize = codec.get_u8()? as usize;
         let mut cypher_texts: Vec<Ciphertext> = Vec::new();
         for _ in 0..len {
-            let ct_buf = codec.get_bytes(Ciphertext::BYTES_LEN)?;
+            let ct_buf = codec.get_slice(Ciphertext::BYTES_LEN)?;
             cypher_texts.push(
-                Ciphertext::from_bytes(ct_buf.as_slice()).ok_or_else(|| {
+                Ciphertext::from_bytes(ct_buf).ok_or_else(|| {
                     ReadError::StructureInvalid("Invalid private vote".to_string())
                 })?,
             );
+            codec.consume(Ciphertext::BYTES_LEN);
         }
         Ok(Self(cypher_texts))
     }

@@ -3,6 +3,7 @@ use chain_crypto::{Ed25519, PublicKey};
 use std::{
     convert::TryFrom,
     fmt::{self, Debug, Display},
+    io::BufRead,
     str::FromStr,
 };
 use thiserror::Error;
@@ -134,8 +135,10 @@ impl Deserialize for CommitteeId {
         use chain_core::packer::Codec;
 
         let mut codec = Codec::new(reader);
-        let slice = codec.get_bytes(Self::COMMITTEE_ID_SIZE)?;
-        Self::try_from(slice.as_slice()).map_err(|err| ReadError::StructureInvalid(err.to_string()))
+        let slice = codec.get_slice(Self::COMMITTEE_ID_SIZE)?;
+        let res = Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()));
+        codec.consume(Self::COMMITTEE_ID_SIZE);
+        res
     }
 }
 

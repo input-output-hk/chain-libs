@@ -11,7 +11,7 @@ use crate::{
 use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
 use chain_vote::MemberPublicKey;
-use std::ops::Deref;
+use std::{io::BufRead, ops::Deref};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 /// abstract tag type to represent an external document, whatever it may be
@@ -447,12 +447,11 @@ impl Deserialize for VotePlan {
         let member_keys_len = codec.get_u8()?;
         let mut committee_public_keys = Vec::new();
         for _ in 0..member_keys_len {
-            let key_buf = codec.get_bytes(MemberPublicKey::BYTES_LEN)?;
-            committee_public_keys.push(
-                MemberPublicKey::from_bytes(key_buf.as_slice()).ok_or_else(|| {
-                    ReadError::StructureInvalid("invalid public key format".to_string())
-                })?,
-            );
+            let key_buf = codec.get_slice(MemberPublicKey::BYTES_LEN)?;
+            committee_public_keys.push(MemberPublicKey::from_bytes(key_buf).ok_or_else(|| {
+                ReadError::StructureInvalid("invalid public key format".to_string())
+            })?);
+            codec.consume(MemberPublicKey::BYTES_LEN);
         }
 
         Ok(Self {

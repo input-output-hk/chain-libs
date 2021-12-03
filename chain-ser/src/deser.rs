@@ -114,7 +114,7 @@ macro_rules! read_array_impls {
             fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
                 let mut buf = [0u8; $N];
                 let mut codec = Codec::new(reader);
-                codec.get_slice(&mut buf)?;
+                codec.copy_to_slice(&mut buf)?;
                 Ok(buf)
             }
         }

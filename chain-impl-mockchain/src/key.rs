@@ -13,7 +13,7 @@ use chain_crypto::{
 use rand_core::{CryptoRng, RngCore};
 use typed_bytes::ByteBuilder;
 
-use std::str::FromStr;
+use std::{io::BufRead, str::FromStr};
 
 #[derive(Clone)]
 pub enum EitherEd25519SecretKey {
@@ -98,8 +98,10 @@ pub fn deserialize_public_key<A, R: std::io::BufRead>(
 where
     A: AsymmetricPublicKey,
 {
-    let bytes = codec.get_bytes(A::PUBLIC_KEY_SIZE)?;
-    crypto::PublicKey::from_binary(&bytes).map_err(chain_crypto_pub_err)
+    let bytes = codec.get_slice(A::PUBLIC_KEY_SIZE)?;
+    let res = crypto::PublicKey::from_binary(bytes).map_err(chain_crypto_pub_err);
+    codec.consume(A::PUBLIC_KEY_SIZE);
+    res
 }
 #[inline]
 pub fn deserialize_signature<A, T, R: std::io::BufRead>(
@@ -108,8 +110,10 @@ pub fn deserialize_signature<A, T, R: std::io::BufRead>(
 where
     A: VerificationAlgorithm,
 {
-    let bytes = codec.get_bytes(A::SIGNATURE_SIZE)?;
-    crypto::Signature::from_binary(&bytes).map_err(chain_crypto_sig_err)
+    let bytes = codec.get_slice(A::SIGNATURE_SIZE)?;
+    let res = crypto::Signature::from_binary(bytes).map_err(chain_crypto_sig_err);
+    codec.consume(A::SIGNATURE_SIZE);
+    res
 }
 
 pub fn make_signature<T, A>(

@@ -1,3 +1,5 @@
+use std::io::BufRead;
+
 use crate::{
     certificate::{CertificateSlice, VotePlanId},
     transaction::{
@@ -277,13 +279,13 @@ impl Deserialize for VoteTally {
                     let share_bytes = TallyDecryptShare::bytes_len(options_number);
                     let mut shares = Vec::with_capacity(shares_number);
                     for _j in 0..shares_number {
-                        let s_buf = codec.get_bytes(share_bytes)?;
-                        let share =
-                            TallyDecryptShare::from_bytes(s_buf.as_slice()).ok_or_else(|| {
-                                ReadError::StructureInvalid(
-                                    "invalid decrypt share structure".to_owned(),
-                                )
-                            })?;
+                        let s_buf = codec.get_slice(share_bytes)?;
+                        let share = TallyDecryptShare::from_bytes(s_buf).ok_or_else(|| {
+                            ReadError::StructureInvalid(
+                                "invalid decrypt share structure".to_owned(),
+                            )
+                        })?;
+                        codec.consume(share_bytes);
                         shares.push(share);
                     }
                     let mut decrypted = Vec::with_capacity(options_number);

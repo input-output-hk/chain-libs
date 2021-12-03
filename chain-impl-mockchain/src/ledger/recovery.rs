@@ -66,7 +66,7 @@ use chain_ser::packer::Codec;
 use chain_time::era::{pack_time_era, unpack_time_era};
 use imhamt::Hamt;
 use std::convert::TryFrom;
-use std::io::Write;
+use std::io::{BufRead, Write};
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -128,9 +128,11 @@ fn pack_digestof<H: DigestAlg, T, W: std::io::Write>(
 fn unpack_digestof<H: DigestAlg, T, R: std::io::BufRead>(
     codec: &mut Codec<R>,
 ) -> Result<DigestOf<H, T>, ReadError> {
-    let size = codec.get_u64()?;
-    let bytes = codec.get_bytes(size as usize)?;
-    DigestOf::try_from(bytes.as_slice()).map_err(|e| ReadError::InvalidData(e.to_string()))
+    let size = codec.get_u64()? as usize;
+    let bytes = codec.get_slice(size)?;
+    let res = DigestOf::try_from(bytes).map_err(|e| ReadError::InvalidData(e.to_string()));
+    codec.consume(size);
+    res
 }
 
 fn pack_account_identifier<W: std::io::Write>(
@@ -768,8 +770,8 @@ fn unpack_utxo_entry_owned<OutputAddress, F, R: std::io::BufRead>(
 where
     F: FnMut(&mut Codec<R>) -> Result<OutputAddress, ReadError>,
 {
-    let mut fragment_id_bytes: [u8; 32] = [0; 32];
-    codec.get_slice(&mut fragment_id_bytes)?;
+    let mut fragment_id_bytes = [0u8; 32];
+    codec.copy_to_slice(&mut fragment_id_bytes)?;
     let fragment_id = FragmentId::from_bytes(fragment_id_bytes);
     let output_index = codec.get_u8()?;
     let output: Output<OutputAddress> = unpack_output(output_address_unpacker, codec)?;
@@ -818,8 +820,8 @@ fn pack_old_addr<W: std::io::Write>(
 fn unpack_old_addr<R: std::io::BufRead>(
     codec: &mut Codec<R>,
 ) -> Result<legacy::OldAddress, ReadError> {
-    let size = codec.get_u64()?;
-    let v = codec.get_bytes(size as usize)?;
+    let size = codec.get_u64()? as usize;
+    let v = codec.get_bytes(size)?;
     Ok(legacy::OldAddress::new(v))
 }
 
@@ -834,11 +836,13 @@ fn pack_address<W: std::io::Write>(
 }
 
 fn unpack_address<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Address, ReadError> {
-    let size = codec.get_u64()?;
-    let v = codec.get_bytes(size as usize)?;
-    Address::from_bytes(v.as_slice()).map_err(|e| {
+    let size = codec.get_u64()? as usize;
+    let v = codec.get_slice(size)?;
+    let res = Address::from_bytes(v).map_err(|e| {
         ReadError::InvalidData(format!("Error reading address from packed bytes: {}", e))
-    })
+    });
+    codec.consume(size);
+    res
 }
 
 fn pack_vote_proposal<W: std::io::Write>(
@@ -916,10 +920,11 @@ fn unpack_committee_public_keys<R: std::io::BufRead>(
     let size = codec.get_u8()?;
     let mut result = Vec::new();
     for _ in 0..size {
-        let bytes = codec.get_bytes(chain_vote::MemberPublicKey::BYTES_LEN)?;
-        let key = chain_vote::MemberPublicKey::from_bytes(bytes.as_slice()).ok_or_else(|| {
+        let bytes = codec.get_slice(chain_vote::MemberPublicKey::BYTES_LEN)?;
+        let key = chain_vote::MemberPublicKey::from_bytes(bytes).ok_or_else(|| {
             ReadError::InvalidData("invalid committee member public key in a vote plan".to_string())
         })?;
+        codec.consume(chain_vote::MemberPublicKey::BYTES_LEN);
         result.push(key);
     }
     Ok(result)

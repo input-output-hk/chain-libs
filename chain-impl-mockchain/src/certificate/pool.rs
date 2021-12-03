@@ -297,7 +297,7 @@ impl Deserialize for PoolRegistration {
             }
             2 => {
                 let mut pk = [0u8; 32];
-                codec.get_slice(&mut pk)?;
+                codec.copy_to_slice(&mut pk)?;
                 Some(AccountIdentifier::Multi(pk.into()))
             }
             n => return Err(ReadError::UnknownTag(n as u32)),

@@ -1,3 +1,5 @@
+use std::io::BufRead;
+
 use crate::value::Value;
 
 pub use cardano_legacy_address::Addr as OldAddress;
@@ -36,8 +38,9 @@ impl Deserialize for UtxoDeclaration {
         for _ in 0..nb_entries {
             let value = Value::deserialize(&mut codec)?;
             let addr_size = codec.get_u16()? as usize;
-            let addr = OldAddress::try_from(codec.get_bytes(addr_size)?.as_slice())
+            let addr = OldAddress::try_from(codec.get_slice(addr_size)?)
                 .map_err(|err| ReadError::StructureInvalid(format!("{}", err)))?;
+            codec.consume(addr_size);
             addrs.push((addr, value))
         }
 
