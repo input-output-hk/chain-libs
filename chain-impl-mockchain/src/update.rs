@@ -620,10 +620,11 @@ mod tests {
         assert_eq!(update_state.proposals.size(), 0);
     }
 
+    #[cfg(test)]
     #[derive(Debug, Copy, Clone)]
     struct ExpiryBlockDate {
-        pub block_date: BlockDate,
-        pub proposal_expiration: u32,
+        block_date: BlockDate,
+        proposal_expiration: u32,
     }
 
     #[cfg(test)]
@@ -641,6 +642,7 @@ mod tests {
         }
     }
 
+    #[cfg(test)]
     impl Arbitrary for ExpiryBlockDate {
         fn arbitrary<G: Gen>(gen: &mut G) -> Self {
             let mut block_date = BlockDate::arbitrary(gen);
@@ -653,6 +655,7 @@ mod tests {
         }
     }
 
+    #[cfg(test)]
     #[quickcheck]
     fn rejected_proposals_are_removed_after_expiration_period(
         expiry_block_data: ExpiryBlockDate,
