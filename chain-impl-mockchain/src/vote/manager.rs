@@ -454,7 +454,7 @@ impl ProposalManagers {
         let managers = plan
             .proposals()
             .iter()
-            .map(|proposal| ProposalManager::new(proposal))
+            .map(ProposalManager::new)
             .collect();
         match plan.payload_type() {
             PayloadType::Public => Self::Public { managers },
