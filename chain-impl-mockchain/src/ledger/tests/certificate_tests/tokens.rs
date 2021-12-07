@@ -51,6 +51,6 @@ pub fn mint_token_in_block0_with_output() {
 
     assert!(
         ledger_build_result.is_err(),
-        "ledger should not be built with faulty vote plan certificate"
+        "ledger should not be built with faulty mint token certificate"
     );
 }
