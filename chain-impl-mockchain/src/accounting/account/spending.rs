@@ -153,3 +153,114 @@ impl From<SpendingCounter> for u32 {
         v.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck::TestResult;
+
+    #[quickcheck_macros::quickcheck]
+    fn spending_counter_serialization_bijection(sc: SpendingCounter) -> TestResult {
+        let bytes = sc.to_bytes();
+        TestResult::from_bool(SpendingCounter::from_bytes(bytes) == sc)
+    }
+
+    #[test]
+    #[should_panic]
+    fn new_invalid_spending_counter() {
+        let lane: usize = (1 << LANES_BITS) + 1;
+        let counter: u32 = 1 << UNLANES_BITS;
+        SpendingCounter::new(lane, counter);
+    }
+
+    #[quickcheck_macros::quickcheck]
+    fn new_spending_counter(mut lane: usize, mut counter: u32) {
+        lane = lane % (1 << LANES_BITS);
+        counter = counter % (1 << UNLANES_BITS);
+        let sc = SpendingCounter::new(lane, counter);
+
+        assert_eq!(lane, sc.lane());
+        assert_eq!(counter, sc.unlaned_counter());
+    }
+
+    #[quickcheck_macros::quickcheck]
+    fn increment_counter(mut spending_counter: SpendingCounter) {
+        let lane_before = spending_counter.lane();
+        let counter = spending_counter.unlaned_counter();
+        spending_counter = spending_counter.increment();
+        assert_eq!(lane_before, spending_counter.lane());
+        assert_eq!(counter + 1, spending_counter.unlaned_counter());
+    }
+
+    #[quickcheck_macros::quickcheck]
+    pub fn increment_nth(mut spending_counter: SpendingCounter, n: u32) {
+        let lane_before = spending_counter.lane();
+        let counter = spending_counter.unlaned_counter();
+        spending_counter = spending_counter.increment_nth(n);
+        assert_eq!(lane_before, spending_counter.lane());
+        assert_eq!(counter + n, spending_counter.unlaned_counter());
+    }
+
+    #[quickcheck_macros::quickcheck]
+    pub fn spending_counter_is_set_on_correct_lane(
+        spending_counter: SpendingCounter,
+    ) -> TestResult {
+        let spending_counter_increasing =
+            SpendingCounterIncreasing::new_from_counter(spending_counter);
+        let counters = spending_counter_increasing.get_valid_counters();
+        TestResult::from_bool(spending_counter == counters[spending_counter.lane()])
+    }
+
+    #[test]
+    pub fn spending_counters_duplication() {
+        let counters = vec![SpendingCounter::zero(), SpendingCounter::zero()];
+        assert!(SpendingCounterIncreasing::new_from_counters(counters).is_none());
+    }
+
+    #[test]
+    pub fn spending_counters_incorrect_order() {
+        let counters = vec![SpendingCounter::new(1, 0), SpendingCounter::new(0, 0)];
+        assert!(SpendingCounterIncreasing::new_from_counters(counters).is_none());
+    }
+
+    #[test]
+    pub fn spending_counters_overflow() {
+        let counters = std::iter::from_fn(|| Some(SpendingCounter::zero()))
+            .take(SpendingCounterIncreasing::LANES)
+            .collect();
+        assert!(SpendingCounterIncreasing::new_from_counters(counters).is_none());
+    }
+
+    #[quickcheck_macros::quickcheck]
+    pub fn spending_counter_increasing_increment(mut index: usize) -> TestResult {
+        let mut sc_increasing = correct_spending_counter_increasing();
+        index %= SpendingCounterIncreasing::LANES;
+        let sc_before = sc_increasing.get_valid_counters()[index];
+        sc_increasing.next_verify(sc_before).unwrap();
+
+        let sc_after = sc_increasing.get_valid_counters()[index];
+        TestResult::from_bool(sc_after.unlaned_counter() == sc_before.unlaned_counter() + 1)
+    }
+
+    #[test]
+    pub fn spending_counter_increasing_wrong_counter() {
+        let mut sc_increasing = correct_spending_counter_increasing();
+        let incorrect_sc = SpendingCounter::new(0, 100);
+        assert!(sc_increasing.next_verify(incorrect_sc).is_err());
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn spending_counter_increasing_wrong_lane() {
+        let mut sc_increasing = correct_spending_counter_increasing();
+        let incorrect_sc = SpendingCounter::new(SpendingCounterIncreasing::LANES, 1);
+        assert!(sc_increasing.next_verify(incorrect_sc).is_err());
+    }
+
+    fn correct_spending_counter_increasing() -> SpendingCounterIncreasing {
+        let counters = (0..SpendingCounterIncreasing::LANES)
+            .map(|i| SpendingCounter::new(i, 0))
+            .collect();
+        SpendingCounterIncreasing::new_from_counters(counters).unwrap()
+    }
+}
