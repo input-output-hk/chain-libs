@@ -120,7 +120,7 @@ fn serialize_access_list(
         .fold(access_list.iter(), |bb, (address, keys)| {
             serialize_address(bb, address)
                 .u64(keys.len().try_into().unwrap())
-                .fold(keys.iter(), |bb, key| serialize_h256(bb, key))
+                .fold(keys.iter(), serialize_h256)
         })
 }
 
