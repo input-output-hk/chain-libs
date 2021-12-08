@@ -1,5 +1,5 @@
 use super::Error;
-use crate::smartcontract::Contract;
+use crate::evm::Contract;
 use chain_evm::{
     machine::{Config, Environment, Log, VirtualMachine},
     state::{AccountTrie, Balance},
