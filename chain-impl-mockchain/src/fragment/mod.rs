@@ -37,7 +37,7 @@ pub enum Fragment {
     VoteTally(Transaction<certificate::VoteTally>),
     EncryptedVoteTally(Transaction<certificate::EncryptedVoteTally>),
     MintToken(Transaction<certificate::MintToken>),
-    Evm(Transaction<evm::Contract>),
+    Evm(Transaction<evm::Transaction>),
 }
 
 impl PartialEq for Fragment {

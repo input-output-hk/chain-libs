@@ -1,5 +1,5 @@
-use super::Error;
-use crate::evm::Contract;
+use crate::evm::Transaction;
+use crate::ledger::Error;
 use chain_evm::{
     machine::{Config, Environment, Log, VirtualMachine},
     state::{AccountTrie, Balance},
@@ -18,15 +18,15 @@ impl Ledger {
             logs: Default::default(),
         }
     }
-    pub fn deploy_contract<'runtime>(
+    pub fn run_transaction<'runtime>(
         &mut self,
-        contract: Contract,
+        contract: Transaction,
         config: &'runtime Config,
         environment: &'runtime Environment,
     ) -> Result<(), Error> {
         let mut vm = self.virtual_machine(config, environment);
         match contract {
-            Contract::Create {
+            Transaction::Create {
                 caller,
                 value,
                 init_code,
@@ -43,7 +43,7 @@ impl Ledger {
                 }
                 Ok(())
             }
-            Contract::Create2 {
+            Transaction::Create2 {
                 caller,
                 value,
                 init_code,
@@ -66,7 +66,7 @@ impl Ledger {
                 }
                 Ok(())
             }
-            Contract::Call {
+            Transaction::Call {
                 caller,
                 address,
                 value,

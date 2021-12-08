@@ -1,4 +1,4 @@
-//! EVM Smart Contract transactions
+//! EVM transactions
 
 use chain_core::mempack::{ReadError, Readable};
 #[cfg(feature = "evm")]
@@ -17,9 +17,9 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData},
 };
 
-/// Variants of Smart Contract deployment
+/// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Contract {
+pub enum Transaction {
     #[cfg(feature = "evm")]
     Create {
         caller: Address,
@@ -48,19 +48,19 @@ pub enum Contract {
     },
 }
 
-impl Contract {
+impl Transaction {
     /// Serialize the contract into a `ByteBuilder`.
     pub fn serialize_in(&self, _bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
         match self {
             #[cfg(feature = "evm")]
-            Contract::Create {
+            Transaction::Create {
                 caller,
                 value,
                 init_code,
                 gas_limit,
                 access_list,
             } => {
-                // Set Contract type
+                // Set Transaction type
                 let bb = _bb.u8(0);
                 let bb = serialize_address(bb, caller);
                 let bb = serialize_u256(bb, value);
@@ -69,9 +69,9 @@ impl Contract {
                 serialize_access_list(bb, access_list)
             }
             #[cfg(feature = "evm")]
-            Contract::Create2 { .. } => todo!(),
+            Transaction::Create2 { .. } => todo!(),
             #[cfg(feature = "evm")]
-            Contract::Call { .. } => todo!(),
+            Transaction::Call { .. } => todo!(),
             #[cfg(not(feature = "evm"))]
             _ => unreachable!(),
         }
@@ -79,15 +79,15 @@ impl Contract {
 }
 
 #[cfg(feature = "evm")]
-fn serialize_address(bb: ByteBuilder<Contract>, caller: &Address) -> ByteBuilder<Contract> {
+fn serialize_address(bb: ByteBuilder<Transaction>, caller: &Address) -> ByteBuilder<Transaction> {
     bb.u8(0).bytes(caller.as_fixed_bytes())
 }
 
 #[cfg(feature = "evm")]
 fn serialize_u256(
-    bb: ByteBuilder<Contract>,
+    bb: ByteBuilder<Transaction>,
     value: &primitive_types::U256,
-) -> ByteBuilder<Contract> {
+) -> ByteBuilder<Transaction> {
     let mut value_bytes = [0u8; 32];
     value.to_big_endian(&mut value_bytes);
     bb.bytes(&value_bytes)
@@ -95,27 +95,27 @@ fn serialize_u256(
 
 #[cfg(feature = "evm")]
 fn serialize_h256(
-    bb: ByteBuilder<Contract>,
+    bb: ByteBuilder<Transaction>,
     value: &primitive_types::H256,
-) -> ByteBuilder<Contract> {
+) -> ByteBuilder<Transaction> {
     bb.bytes(value.as_fixed_bytes())
 }
 
 #[cfg(feature = "evm")]
-fn serialize_bytecode(bb: ByteBuilder<Contract>, code: &ByteCode) -> ByteBuilder<Contract> {
+fn serialize_bytecode(bb: ByteBuilder<Transaction>, code: &ByteCode) -> ByteBuilder<Transaction> {
     bb.u64(code.len().try_into().unwrap()).bytes(code.as_ref())
 }
 
 #[cfg(feature = "evm")]
-fn serialize_gas_limit(bb: ByteBuilder<Contract>, gas_limit: &u64) -> ByteBuilder<Contract> {
+fn serialize_gas_limit(bb: ByteBuilder<Transaction>, gas_limit: &u64) -> ByteBuilder<Transaction> {
     bb.u64(*gas_limit)
 }
 
 #[cfg(feature = "evm")]
 fn serialize_access_list(
-    bb: ByteBuilder<Contract>,
+    bb: ByteBuilder<Transaction>,
     access_list: &[(Address, Vec<Key>)],
-) -> ByteBuilder<Contract> {
+) -> ByteBuilder<Transaction> {
     bb.u64(access_list.len().try_into().unwrap())
         .fold(access_list.iter(), |bb, (address, keys)| {
             serialize_address(bb, address)
@@ -185,7 +185,7 @@ fn read_access_list(
     Ok(access_list)
 }
 
-impl Readable for Contract {
+impl Readable for Transaction {
     fn read(
         buf: &mut chain_core::mempack::ReadBuf,
     ) -> Result<Self, chain_core::mempack::ReadError> {
@@ -193,7 +193,7 @@ impl Readable for Contract {
         match contract_type {
             #[cfg(feature = "evm")]
             0 => {
-                // CREATE Contract
+                // CREATE Transaction
                 let caller = read_address(buf)?;
                 let value = read_u256(buf)?;
                 let init_code = read_bytecode(buf)?;
@@ -202,7 +202,7 @@ impl Readable for Contract {
 
                 buf.expect_end()?;
 
-                Ok(Contract::Create {
+                Ok(Transaction::Create {
                     caller,
                     value,
                     init_code,
@@ -215,7 +215,7 @@ impl Readable for Contract {
     }
 }
 
-impl Payload for Contract {
+impl Payload for Transaction {
     const HAS_DATA: bool = true;
     const HAS_AUTH: bool = false;
     type Auth = ();
