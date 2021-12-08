@@ -85,8 +85,17 @@ pub struct VirtualMachine<'runtime> {
     logs: Vec<Log>,
 }
 
-fn precompiles() -> Precompiles {
-    Precompiles::new_berlin()
+/// Ethereum Hard-Fork variants
+pub enum HardFork {
+    Istanbul,
+    Berlin,
+}
+
+fn precompiles(fork: HardFork) -> Precompiles {
+    match fork {
+        HardFork::Istanbul => Precompiles::new_istanbul(),
+        HardFork::Berlin => Precompiles::new_berlin(),
+    }
 }
 
 impl<'runtime> VirtualMachine<'runtime> {
@@ -104,7 +113,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         Self {
             config,
             environment,
-            precompiles: precompiles(),
+            precompiles: precompiles(HardFork::Berlin),
             state,
             logs: Default::default(),
         }
@@ -402,7 +411,7 @@ mod tests {
 
         let metadata = StackSubstateMetadata::new(gas_limit, &config);
         let memory_stack_state = MemoryStackState::new(metadata, &vm);
-        let precompiles = precompiles();
+        let precompiles = precompiles(HardFork::Berlin);
         let mut executor =
             StackExecutor::new_with_precompiles(memory_stack_state, &config, &precompiles);
 
