@@ -73,8 +73,9 @@ impl Readable for TokenName {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-
-    use quickcheck::{Arbitrary, Gen, TestResult};
+    #[allow(unused_imports)]
+    use quickcheck::TestResult;
+    use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for TokenName {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
