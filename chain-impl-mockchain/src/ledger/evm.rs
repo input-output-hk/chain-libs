@@ -1,8 +1,5 @@
-#[cfg(feature = "evm")]
 use super::Error;
-#[cfg(feature = "evm")]
 use crate::smartcontract::Contract;
-#[cfg(feature = "evm")]
 use chain_evm::{
     machine::{Config, Environment, Log, VirtualMachine},
     state::{AccountTrie, Balance},
@@ -10,22 +7,17 @@ use chain_evm::{
 
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct Ledger {
-    #[cfg(feature = "evm")]
     pub(crate) accounts: AccountTrie,
-    #[cfg(feature = "evm")]
     pub(crate) logs: Vec<Log>,
 }
 
 impl Ledger {
     pub fn new() -> Self {
         Self {
-            #[cfg(feature = "evm")]
             accounts: Default::default(),
-            #[cfg(feature = "evm")]
             logs: Default::default(),
         }
     }
-    #[cfg(feature = "evm")]
     pub fn deploy_contract<'runtime>(
         &mut self,
         contract: Contract,
@@ -94,7 +86,6 @@ impl Ledger {
         }
     }
 
-    #[cfg(feature = "evm")]
     pub(crate) fn virtual_machine<'runtime>(
         &self,
         config: &'runtime Config,
@@ -104,20 +95,8 @@ impl Ledger {
     }
 }
 
-#[cfg(not(feature = "evm"))]
 impl Ledger {
-    pub(crate) fn stats(&self) -> Option<String> {
-        None
-    }
-
-    pub(crate) fn info_eq(&self, _other: &Self) -> Option<String> {
-        None
-    }
-}
-
-#[cfg(feature = "evm")]
-impl Ledger {
-    pub(crate) fn stats(&self) -> Option<String> {
+    pub(crate) fn stats(&self) -> String {
         let Ledger { accounts, .. } = self;
         let mut count = 0;
         let mut total = Balance::zero();
@@ -125,10 +104,10 @@ impl Ledger {
             count += 1;
             total += account.balance;
         }
-        Some(format!("EVM accounts: #{} Total={:?}", count, total))
+        format!("EVM accounts: #{} Total={:?}", count, total)
     }
 
-    pub(crate) fn info_eq(&self, other: &Self) -> Option<String> {
-        Some(format!("evm: {}", self.accounts == other.accounts))
+    pub(crate) fn info_eq(&self, other: &Self) -> String {
+        format!("evm: {}", self.accounts == other.accounts)
     }
 }
