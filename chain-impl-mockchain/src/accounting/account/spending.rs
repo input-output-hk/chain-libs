@@ -189,7 +189,7 @@ mod tests {
         let counter = spending_counter.unlaned_counter();
         spending_counter = spending_counter.increment();
         assert_eq!(lane_before, spending_counter.lane());
-        assert_eq!(counter + 1, spending_counter.unlaned_counter());
+        assert_eq!(counter.wrapping_add(1), spending_counter.unlaned_counter());
     }
 
     #[quickcheck_macros::quickcheck]
@@ -198,7 +198,7 @@ mod tests {
         let counter = spending_counter.unlaned_counter();
         spending_counter = spending_counter.increment_nth(n);
         assert_eq!(lane_before, spending_counter.lane());
-        assert_eq!(counter + n, spending_counter.unlaned_counter());
+        assert_eq!(counter.wrapping_add(n), spending_counter.unlaned_counter());
     }
 
     #[quickcheck_macros::quickcheck]
@@ -224,16 +224,16 @@ mod tests {
     }
 
     #[test]
-    pub fn spending_counters_overflow() {
+    pub fn spending_counters_too_many_sub_counters() {
         let counters = std::iter::from_fn(|| Some(SpendingCounter::zero()))
-            .take(SpendingCounterIncreasing::LANES)
+            .take(SpendingCounterIncreasing::LANES + 1)
             .collect();
         assert!(SpendingCounterIncreasing::new_from_counters(counters).is_none());
     }
 
     #[quickcheck_macros::quickcheck]
     pub fn spending_counter_increasing_increment(mut index: usize) -> TestResult {
-        let mut sc_increasing = correct_spending_counter_increasing();
+        let mut sc_increasing = SpendingCounterIncreasing::default();
         index %= SpendingCounterIncreasing::LANES;
         let sc_before = sc_increasing.get_valid_counters()[index];
         sc_increasing.next_verify(sc_before).unwrap();
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     pub fn spending_counter_increasing_wrong_counter() {
-        let mut sc_increasing = correct_spending_counter_increasing();
+        let mut sc_increasing = SpendingCounterIncreasing::default();
         let incorrect_sc = SpendingCounter::new(0, 100);
         assert!(sc_increasing.next_verify(incorrect_sc).is_err());
     }
@@ -252,15 +252,8 @@ mod tests {
     #[test]
     #[should_panic]
     pub fn spending_counter_increasing_wrong_lane() {
-        let mut sc_increasing = correct_spending_counter_increasing();
+        let mut sc_increasing = SpendingCounterIncreasing::default();
         let incorrect_sc = SpendingCounter::new(SpendingCounterIncreasing::LANES, 1);
         assert!(sc_increasing.next_verify(incorrect_sc).is_err());
-    }
-
-    fn correct_spending_counter_increasing() -> SpendingCounterIncreasing {
-        let counters = (0..SpendingCounterIncreasing::LANES)
-            .map(|i| SpendingCounter::new(i, 0))
-            .collect();
-        SpendingCounterIncreasing::new_from_counters(counters).unwrap()
     }
 }
