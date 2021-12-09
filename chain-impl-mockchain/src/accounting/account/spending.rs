@@ -184,21 +184,39 @@ mod tests {
     }
 
     #[quickcheck_macros::quickcheck]
-    fn increment_counter(mut spending_counter: SpendingCounter) {
+    fn increment_counter(mut spending_counter: SpendingCounter) -> TestResult {
+        if spending_counter.unlaned_counter().checked_add(1).is_none() {
+            return TestResult::discard();
+        }
         let lane_before = spending_counter.lane();
         let counter = spending_counter.unlaned_counter();
         spending_counter = spending_counter.increment();
         assert_eq!(lane_before, spending_counter.lane());
-        assert_eq!(counter.wrapping_add(1), spending_counter.unlaned_counter());
+        TestResult::from_bool((counter + 1) == spending_counter.unlaned_counter())
     }
 
     #[quickcheck_macros::quickcheck]
-    pub fn increment_nth(mut spending_counter: SpendingCounter, n: u32) {
+    pub fn increment_nth(mut spending_counter: SpendingCounter, n: u32) -> TestResult {
+        if spending_counter.unlaned_counter().checked_add(n).is_none() {
+            return TestResult::discard();
+        }
         let lane_before = spending_counter.lane();
         let counter = spending_counter.unlaned_counter();
         spending_counter = spending_counter.increment_nth(n);
         assert_eq!(lane_before, spending_counter.lane());
-        assert_eq!(counter.wrapping_add(n), spending_counter.unlaned_counter());
+        TestResult::from_bool((counter + n) == spending_counter.unlaned_counter())
+    }
+
+    #[test]
+    #[should_panic]
+    fn increment_counter_overflow() {
+        let _ = SpendingCounter::new(0, u32::MAX).increment();
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn increment_nth_overflow() {
+        let _ = SpendingCounter::new(0, 1).increment_nth(u32::MAX);
     }
 
     #[quickcheck_macros::quickcheck]
