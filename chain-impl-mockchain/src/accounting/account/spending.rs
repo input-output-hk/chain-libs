@@ -209,13 +209,15 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn increment_counter_overflow() {
-        let _ = SpendingCounter::new(0, u32::MAX).increment();
+    #[cfg(debug_assertions)]
+    fn increment_counter_overflow_debug() {
+        let _ = SpendingCounter::new(8, u32::MAX).increment();
     }
 
     #[test]
     #[should_panic]
-    pub fn increment_nth_overflow() {
+    #[cfg(debug_assertions)]
+    pub fn increment_nth_overflow_debug() {
         let _ = SpendingCounter::new(0, 1).increment_nth(u32::MAX);
     }
 
