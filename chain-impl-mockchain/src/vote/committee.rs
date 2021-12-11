@@ -1,4 +1,7 @@
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use chain_crypto::{Ed25519, PublicKey};
 use std::{
     convert::TryFrom,
@@ -132,8 +135,6 @@ impl Serialize for CommitteeId {
 
 impl Deserialize for CommitteeId {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let slice = codec.get_slice(Self::COMMITTEE_ID_SIZE)?;
         let res = Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()));

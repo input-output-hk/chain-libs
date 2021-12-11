@@ -7,7 +7,7 @@ use super::witness::Witness;
 use crate::date::BlockDate;
 use crate::value::{Value, ValueError};
 use chain_addr::Address;
-use chain_core::property::Deserialize;
+use chain_core::{packer::Codec, property::Deserialize};
 use chain_crypto::digest::Digest;
 use std::fmt::{self, Debug};
 use std::io::Cursor;
@@ -129,10 +129,12 @@ impl<'a> Iterator for OutputsIter<'a> {
         if self.index == self.slice.1.len() {
             None
         } else {
-            let mut cursor = Cursor::new(self.slice.1);
-            cursor.set_position(cursor.position() + self.index as u64);
-            let output = Output::deserialize(&mut cursor).unwrap();
-            self.index = cursor.position() as usize;
+            let cursor = Cursor::new(self.slice.1);
+            let mut codec = Codec::new(cursor);
+            let position = codec.position() + self.index;
+            codec.set_position(position);
+            let output = Output::deserialize(&mut codec).unwrap();
+            self.index = codec.position();
             Some(output)
         }
     }
@@ -145,10 +147,12 @@ impl<'a> Iterator for WitnessesIter<'a> {
         if self.index == self.slice.1.len() {
             None
         } else {
-            let mut cursor = Cursor::new(self.slice.1);
-            cursor.set_position(cursor.position() + self.index as u64);
-            let output = Witness::deserialize(&mut cursor).unwrap();
-            self.index = cursor.position() as usize;
+            let cursor = Cursor::new(self.slice.1);
+            let mut codec = Codec::new(cursor);
+            let position = codec.position() + self.index;
+            codec.set_position(position);
+            let output = Witness::deserialize(&mut codec).unwrap();
+            self.index = codec.position();
             Some(output)
         }
     }
@@ -261,8 +265,6 @@ pub(super) struct TransactionStruct {
 
 /// Verify the structure of the transaction and return all the offsets
 fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionStructError> {
-    use chain_core::packer::Codec;
-
     let sz = slice.len();
     let cursor = Cursor::new(slice);
     let mut codec = Codec::new(cursor);

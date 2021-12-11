@@ -1,7 +1,10 @@
 use crate::key::{
     deserialize_public_key, deserialize_signature, serialize_public_key, serialize_signature,
 };
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use chain_crypto::{Ed25519, PublicKey, Verification};
 
 use std::collections::BTreeMap;
@@ -57,8 +60,6 @@ impl Witness {
 }
 
 fn deserialize_index<R: std::io::BufRead>(reader: R) -> Result<TreeIndex, ReadError> {
-    use chain_core::packer::Codec;
-
     let mut codec = Codec::new(reader);
     let idx = codec.get_u16()?;
     match TreeIndex::unpack(idx) {
@@ -69,8 +70,6 @@ fn deserialize_index<R: std::io::BufRead>(reader: R) -> Result<TreeIndex, ReadEr
 
 impl Serialize for Witness {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
-
         let mut codec = Codec::new(writer);
         codec.put_u8(self.0.len() as u8)?;
         for (ti, pk, sig) in self.0.iter() {
@@ -84,8 +83,6 @@ impl Serialize for Witness {
 
 impl Deserialize for Witness {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let len = codec.get_u8()? as usize;
         if len == 0 {

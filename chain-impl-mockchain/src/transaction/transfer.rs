@@ -1,6 +1,9 @@
 use crate::legacy::OldAddress;
 use crate::value::*;
-use chain_core::property::{Deserialize, ReadError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError},
+};
 
 /// Information how tokens are spent.
 /// A value of tokens is sent to the address.
@@ -10,7 +13,7 @@ pub struct Output<Address> {
     pub value: Value,
 }
 
-impl<Address: Deserialize> Output<Address> {
+impl<Address> Output<Address> {
     pub fn from_address(address: Address, value: Value) -> Self {
         Output { address, value }
     }

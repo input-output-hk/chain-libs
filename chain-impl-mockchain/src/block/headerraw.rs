@@ -1,4 +1,7 @@
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 
 /// Block Header Bytes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,8 +15,6 @@ impl AsRef<[u8]> for HeaderRaw {
 
 impl Serialize for HeaderRaw {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(writer);
         codec.put_u16(self.0.len() as u16)?;
         codec.put_bytes(&self.0)?;
@@ -23,8 +24,6 @@ impl Serialize for HeaderRaw {
 
 impl Deserialize for HeaderRaw {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let header_size = codec.get_u16()? as usize;
         let v = codec.get_bytes(header_size)?;

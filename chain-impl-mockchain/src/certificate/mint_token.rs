@@ -5,7 +5,10 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
     value::Value,
 };
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 use std::marker::PhantomData;

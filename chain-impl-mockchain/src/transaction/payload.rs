@@ -1,4 +1,7 @@
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 
 use crate::certificate::CertificateSlice;
 use std::marker::PhantomData;

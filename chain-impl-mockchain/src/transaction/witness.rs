@@ -6,7 +6,10 @@ use crate::key::{
     SpendingSignature,
 };
 use crate::multisig;
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
 /// Structure that proofs that certain user agrees with
@@ -189,8 +192,6 @@ const WITNESS_TAG_MULTISIG: u8 = 3u8;
 
 impl Serialize for Witness {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
-
         let mut codec = Codec::new(writer);
         match self {
             Witness::OldUtxo(pk, cc, sig) => {
@@ -219,10 +220,7 @@ impl Serialize for Witness {
 
 impl Deserialize for Witness {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
-
         match codec.get_u8()? {
             WITNESS_TAG_OLDUTXO => {
                 let pk = deserialize_public_key(&mut codec)?;

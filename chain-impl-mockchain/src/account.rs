@@ -1,7 +1,10 @@
 use crate::accounting::account;
 use crate::key::{deserialize_public_key, serialize_public_key};
 use crate::transaction::WitnessAccountData;
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
 pub use account::{DelegationRatio, DelegationType, LedgerError, SpendingCounter};
@@ -34,8 +37,6 @@ impl AsRef<PublicKey<AccountAlg>> for Identifier {
 
 impl Serialize for Identifier {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(writer);
         serialize_public_key(&self.0, &mut codec)
     }
@@ -43,8 +44,6 @@ impl Serialize for Identifier {
 
 impl Deserialize for Identifier {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         deserialize_public_key(&mut codec).map(Identifier)
     }

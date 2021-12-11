@@ -1,5 +1,8 @@
 use crate::config::ConfigParam;
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConfigParams(pub(crate) Vec<ConfigParam>);
@@ -21,7 +24,6 @@ impl ConfigParams {
 impl Serialize for ConfigParams {
     fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
         // FIXME: put params in canonical order (e.g. sorted by tag)?
-        use chain_core::packer::*;
         Codec::new(&mut writer).put_u16(self.0.len() as u16)?;
         for config in &self.0 {
             config.serialize(&mut writer)?
@@ -32,8 +34,6 @@ impl Serialize for ConfigParams {
 
 impl Deserialize for ConfigParams {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         // FIXME: check canonical order?
         let mut codec = Codec::new(reader);
         let len = codec.get_u16()?;

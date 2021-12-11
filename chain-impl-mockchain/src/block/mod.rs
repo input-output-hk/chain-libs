@@ -1,6 +1,9 @@
 //! Representation of the block in the mockchain.
 use crate::fragment::{Fragment, FragmentRaw};
-use chain_core::property::{self, Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{self, Deserialize, ReadError, Serialize, WriteError},
+};
 
 use std::slice;
 
@@ -110,8 +113,6 @@ impl Serialize for Block {
 
 impl Deserialize for Block {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let header_raw = HeaderRaw::deserialize(&mut codec)?;
         let header = Header::deserialize(header_raw.as_ref())?;

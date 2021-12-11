@@ -8,7 +8,10 @@ use crate::{
     },
     vote::{CommitteeId, PayloadType, TryFromIntError},
 };
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use chain_crypto::Verification;
 use chain_vote::TallyDecryptShare;
 use thiserror::Error;
@@ -235,8 +238,6 @@ impl Serialize for VoteTally {
 
 impl Deserialize for TallyProof {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         match codec.get_u8()? {
             0 => {
@@ -258,7 +259,6 @@ impl Deserialize for TallyProof {
 
 impl Deserialize for VoteTally {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
         use std::convert::TryInto as _;
 
         let mut codec = Codec::new(reader);

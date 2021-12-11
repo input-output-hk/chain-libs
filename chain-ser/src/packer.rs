@@ -19,6 +19,14 @@ impl<I> Codec<I> {
     }
 }
 
+impl<R: std::io::Read> Codec<R> {
+    #[inline]
+    pub fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize, ReadError> {
+        let res = self.inner.read_to_end(buf)?;
+        Ok(res)
+    }
+}
+
 impl<R: std::io::BufRead> Codec<R> {
     #[inline]
     pub fn get_u8(&mut self) -> Result<u8, ReadError> {
@@ -112,7 +120,7 @@ impl<W: std::io::Write> Codec<W> {
     }
 }
 
-impl Codec<std::io::Cursor<&[u8]>> {
+impl<T> Codec<std::io::Cursor<T>> {
     #[inline]
     pub fn position(&mut self) -> usize {
         self.inner.position() as usize

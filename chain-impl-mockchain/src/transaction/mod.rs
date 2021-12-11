@@ -12,7 +12,10 @@ mod witness;
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test;
 
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 
 // to remove..
 pub use builder::{

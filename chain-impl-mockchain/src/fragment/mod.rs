@@ -3,7 +3,10 @@ mod content;
 mod raw;
 
 use crate::legacy;
-use chain_core::property::{self, Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{self, Deserialize, ReadError, Serialize, WriteError},
+};
 
 pub use config::ConfigParams;
 pub use raw::{FragmentId, FragmentRaw};
@@ -112,7 +115,6 @@ impl Fragment {
 
     /// Get the serialized representation of this message
     pub fn to_raw(&self) -> FragmentRaw {
-        use chain_core::packer::*;
         let v = Vec::new();
         let mut codec = Codec::new(v);
         codec.put_u8(0).unwrap();
@@ -155,8 +157,6 @@ impl Fragment {
 impl Deserialize for Fragment {
     // TODO: fix deserialization, it needs to converge to the serialization, currently is not, look into the fragment_serialization_bijection() test
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let padding_tag = codec.get_u8()?;
         if padding_tag != 0 {

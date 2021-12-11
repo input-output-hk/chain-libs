@@ -5,8 +5,10 @@ use crate::transaction::{
     UnspecifiedAccountIdentifier,
 };
 
-use chain_core::packer::Codec;
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use std::marker::PhantomData;
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -91,8 +93,6 @@ impl Payload for OwnerStakeDelegation {
 
 impl Serialize for StakeDelegation {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
-
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
         let mut codec = Codec::new(writer);

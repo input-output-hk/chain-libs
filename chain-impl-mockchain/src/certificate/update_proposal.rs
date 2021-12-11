@@ -6,7 +6,10 @@ use crate::{
     key::BftLeaderId,
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 pub type UpdateProposerId = BftLeaderId;

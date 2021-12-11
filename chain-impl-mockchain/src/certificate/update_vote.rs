@@ -4,7 +4,10 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
 
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 pub type UpdateVoterId = BftLeaderId;
@@ -74,7 +77,6 @@ impl Payload for UpdateVote {
 
 impl Serialize for UpdateVote {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
         let mut codec = Codec::new(writer);
         self.proposal_id.serialize(&mut codec)?;
         self.voter_id.serialize(codec)?;

@@ -1,6 +1,7 @@
 use crate::key::deserialize_signature;
 use crate::transaction::TransactionBindingAuthData;
 use crate::value::{Value, ValueError};
+use chain_core::packer::Codec;
 use chain_core::property::{Deserialize, ReadError};
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Signature, Verification};
 use thiserror::Error;
@@ -65,8 +66,6 @@ impl AsRef<[u8]> for SingleAccountBindingSignature {
 
 impl Deserialize for SingleAccountBindingSignature {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         deserialize_signature(&mut codec).map(SingleAccountBindingSignature)
     }
@@ -101,8 +100,6 @@ impl AccountBindingSignature {
 
 impl Deserialize for AccountBindingSignature {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         match codec.get_u8()? {
             1 => {

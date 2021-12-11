@@ -8,7 +8,10 @@ use crate::{
     },
     vote,
 };
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
 use chain_vote::MemberPublicKey;
 use std::{io::BufRead, ops::Deref};
@@ -385,8 +388,6 @@ impl Deserialize for VotePlanProof {
 
 impl Deserialize for VoteAction {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         match codec.get_u8()? {
             0 => Ok(Self::OffChain),
@@ -401,7 +402,6 @@ impl Deserialize for VoteAction {
 
 impl Deserialize for VotePlan {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
         use std::convert::TryInto as _;
 
         let mut codec = Codec::new(reader);

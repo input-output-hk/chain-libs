@@ -2,7 +2,10 @@ use crate::tokens::{
     name::{TokenName, TokenNameTooLong},
     policy_hash::PolicyHash,
 };
-use chain_core::property::{Deserialize, ReadError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError},
+};
 use std::{convert::TryFrom, fmt, str::FromStr};
 use thiserror::Error;
 use typed_bytes::ByteBuilder;

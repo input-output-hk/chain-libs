@@ -5,7 +5,10 @@ use crate::transaction::{
     AccountIdentifier, Payload, PayloadAuthData, PayloadData, PayloadSlice,
     SingleAccountBindingSignature, TransactionBindingAuthData,
 };
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Verification};
 use chain_time::{DurationSeconds, TimeOffsetSeconds};
 use std::marker::PhantomData;
@@ -154,8 +157,6 @@ impl PoolUpdate {
 
 impl Deserialize for PoolUpdate {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
         let last_pool_reg_hash = <[u8; 32]>::deserialize(&mut codec)?.into();
@@ -181,8 +182,6 @@ impl PoolRetirement {
 
 impl Deserialize for PoolRetirement {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
         let retirement_time = DurationSeconds::from(codec.get_u64()?).into();
@@ -266,8 +265,6 @@ impl Serialize for PoolRegistration {
 
 impl Deserialize for PoolRegistration {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let serial = codec.get_u128()?;
         let start_validity = DurationSeconds::from(codec.get_u64()?).into();
@@ -424,8 +421,6 @@ impl PoolOwnersSignature {
 
 impl Deserialize for PoolOwnersSigned {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let sigs_nb = codec.get_u8()? as usize;
         if sigs_nb == 0 {
@@ -445,15 +440,13 @@ impl Deserialize for PoolOwnersSigned {
 
 impl Deserialize for PoolSignature {
     fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(&mut reader);
         match codec.get_u8()? {
             0 => {
                 let sig = deserialize_signature(&mut codec)?;
                 Ok(PoolSignature::Operator(SingleAccountBindingSignature(sig)))
             }
-            1 => PoolOwnersSigned::deserialize(reader).map(PoolSignature::Owners),
+            1 => PoolOwnersSigned::deserialize(codec).map(PoolSignature::Owners),
             code => Err(ReadError::UnknownTag(code as u32)),
         }
     }

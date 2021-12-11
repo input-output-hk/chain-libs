@@ -290,11 +290,13 @@ impl Debug for Header {
     }
 }
 
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 
 impl Serialize for Header {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::Codec;
         let mut codec = Codec::new(writer);
         codec.put_bytes(self.as_slice())
     }

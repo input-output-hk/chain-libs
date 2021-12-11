@@ -35,7 +35,10 @@ use std::string::ToString;
 
 use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
 
-use chain_core::property::{Deserialize, ReadError, Serialize, WriteError};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, ReadError, Serialize, WriteError},
+};
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod testing;
@@ -417,7 +420,6 @@ impl std::str::FromStr for AddressReadable {
 
 impl Serialize for Address {
     fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        use chain_core::packer::*;
         let mut codec = Codec::new(writer);
 
         let first_byte = match self.0 {
@@ -459,8 +461,6 @@ fn chain_crypto_err(e: chain_crypto::PublicKeyError) -> ReadError {
 
 impl Deserialize for Address {
     fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        use chain_core::packer::Codec;
-
         let mut codec = Codec::new(reader);
         let byte = codec.get_u8()?;
         let discr = get_discrimination_value(byte);
