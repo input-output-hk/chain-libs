@@ -859,9 +859,13 @@ mod tests {
     use crate::certificate::TallyProof;
 
     use crate::testing::{TestGen, VoteTestGen};
+    use crate::tokens::identifier::TokenIdentifier;
+    use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
+    use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
     use chain_core::property::BlockDate as BlockDateProp;
     use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
+    use std::convert::TryFrom;
 
     #[test]
     pub fn proposal_manager_insert_vote() {
@@ -968,6 +972,10 @@ mod tests {
             proposals,
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
@@ -1012,6 +1020,10 @@ mod tests {
             proposals,
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let mut committee_ids = HashSet::new();
@@ -1083,6 +1095,10 @@ mod tests {
             proposals,
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let mut committee_ids = HashSet::new();
@@ -1139,6 +1155,10 @@ mod tests {
             proposals,
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let mut committee_ids = HashSet::new();
@@ -1244,6 +1264,10 @@ mod tests {
             proposals,
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let mut committee_ids = HashSet::new();
@@ -1311,6 +1335,10 @@ mod tests {
             proposals,
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let mut first_proposal_manager =
@@ -1629,6 +1657,10 @@ mod tests {
             VoteTestGen::proposals(3),
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
@@ -1660,6 +1692,10 @@ mod tests {
             VoteTestGen::proposals(3),
             PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());

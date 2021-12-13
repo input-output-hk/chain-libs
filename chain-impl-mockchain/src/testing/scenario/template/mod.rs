@@ -4,6 +4,9 @@ use crate::key::EitherEd25519SecretKey;
 use crate::ledger::governance::{ParametersGovernanceAction, TreasuryGovernanceAction};
 use crate::testing::data::AddressData;
 use crate::testing::data::AddressDataValue;
+use crate::tokens::identifier::TokenIdentifier;
+use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
+use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
 use crate::{
     certificate::{ExternalProposalId, PoolPermissions, Proposal, Proposals, VoteAction, VotePlan},
     header::BlockDate,
@@ -16,6 +19,7 @@ pub use builders::*;
 use chain_addr::{Address, Discrimination, Kind};
 use chain_crypto::{Ed25519, PublicKey};
 use chain_vote::MemberPublicKey;
+use std::convert::TryFrom;
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone)]
@@ -235,6 +239,10 @@ impl From<VotePlanDef> for VotePlan {
             proposals,
             dto.payload_type,
             dto.committee_keys,
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         )
     }
 }
