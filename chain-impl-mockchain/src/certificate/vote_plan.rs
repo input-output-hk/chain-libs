@@ -15,7 +15,6 @@ use chain_core::{
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
 use chain_vote::MemberPublicKey;
-use std::convert::TryFrom;
 use std::ops::Deref;
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -484,6 +483,7 @@ mod tests {
     use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
     use chain_core::property::BlockDate as BlockDateProp;
     use quickcheck_macros::quickcheck;
+    use std::convert::TryFrom;
 
     #[quickcheck]
     fn serialize_deserialize(vote_plan: VotePlan) -> bool {
