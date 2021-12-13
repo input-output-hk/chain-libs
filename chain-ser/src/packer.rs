@@ -25,9 +25,6 @@ impl<R: std::io::Read> Codec<R> {
         let res = self.inner.read_to_end(buf)?;
         Ok(res)
     }
-}
-
-impl<R: std::io::BufRead> Codec<R> {
     #[inline]
     pub fn get_u8(&mut self) -> Result<u8, ReadError> {
         let mut buf = [0u8; 1];
@@ -77,6 +74,14 @@ impl<R: std::io::BufRead> Codec<R> {
         Ok(buf)
     }
     #[inline]
+    pub fn copy_to_slice(&mut self, slice: &mut [u8]) -> Result<(), ReadError> {
+        self.inner.read_exact(slice)?;
+        Ok(())
+    }
+}
+
+impl<R: std::io::BufRead> Codec<R> {
+    #[inline]
     /// This is a wrapper over the std::io::BufRead::fill_buf() function,
     /// so be aware of that you need also execute consume() function to move the reader position
     pub fn get_slice(&mut self, n: usize) -> Result<&[u8], ReadError> {
@@ -85,11 +90,6 @@ impl<R: std::io::BufRead> Codec<R> {
             return Err(ReadError::NotEnoughBytes(data.len(), n));
         }
         Ok(&data[..n])
-    }
-    #[inline]
-    pub fn copy_to_slice(&mut self, slice: &mut [u8]) -> Result<(), ReadError> {
-        self.inner.read_exact(slice)?;
-        Ok(())
     }
 }
 
