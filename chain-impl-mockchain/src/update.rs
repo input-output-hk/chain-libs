@@ -26,6 +26,7 @@ impl UpdateState {
     ) -> Result<Self, Error> {
         let proposer_id = proposal.proposer_id();
 
+        // Only proposal.changes() validation without mutating of the 'settings' variable
         settings.try_apply(proposal.changes())?;
 
         if !settings.bft_leaders.contains(proposer_id) {
@@ -103,9 +104,11 @@ impl UpdateState {
                 // If a majority of BFT leaders voted for the
                 // proposal, then apply it.
                 if proposal_state.votes.size() > settings.bft_leaders.len() / 2 {
+                    // WARNING: be careful, if settings update with the new proposals will depend on the order proposal application,
+                    // assumption that all proposals should be valid at this point can be violated
                     settings = settings
                         .try_apply(proposal_state.proposal.changes())
-                        .unwrap();
+                        .expect("proposal should be valid");
                     expired_ids.push(*proposal_id);
                 } else if proposal_state.proposal_date.epoch + settings.proposal_expiration
                     < new_date.epoch
