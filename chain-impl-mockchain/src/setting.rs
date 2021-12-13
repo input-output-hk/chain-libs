@@ -136,7 +136,7 @@ impl Settings {
         self.linear_fees
     }
 
-    pub fn apply(&self, changes: &ConfigParams) -> Result<Self, update::Error> {
+    pub fn try_apply(&self, changes: &ConfigParams) -> Result<Self, update::Error> {
         let mut new_state = self.clone();
         let mut per_certificate_fees = None;
         let mut per_vote_certificate_fees = None;
@@ -284,7 +284,7 @@ impl Settings {
             None => (),
         };
 
-        debug_assert_eq!(self, &Settings::new().apply(&params).unwrap());
+        debug_assert_eq!(self, &Settings::new().try_apply(&params).unwrap());
 
         params
     }

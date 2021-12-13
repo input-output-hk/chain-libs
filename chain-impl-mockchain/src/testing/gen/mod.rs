@@ -116,7 +116,7 @@ impl TestGen {
         for leader_id in leaders.iter().cloned().map(|x| x.id()) {
             config_params.push(ConfigParam::AddBftLeader(leader_id));
         }
-        settings.apply(&config_params).unwrap()
+        settings.try_apply(&config_params).unwrap()
     }
 
     pub fn vrf_proof(stake_pool: &StakePool) -> VrfProof {
