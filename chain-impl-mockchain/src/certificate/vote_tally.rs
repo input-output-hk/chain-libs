@@ -101,8 +101,6 @@ impl VoteTally {
     }
 
     pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
-        use std::convert::TryInto;
-
         let bb = bb.bytes(self.id().as_ref()).u8(self.tally_type() as u8);
 
         match &self.payload {
