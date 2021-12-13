@@ -229,6 +229,7 @@ impl From<ActiveSlotsCoeffError> for Error {
 mod tests {
     use super::*;
     use crate::certificate::UpdateProposal;
+    #[cfg(test)]
     use crate::milli::Milli;
     #[cfg(test)]
     use crate::testing::serialization::serialization_bijection;
