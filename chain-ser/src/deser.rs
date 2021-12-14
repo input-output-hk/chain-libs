@@ -101,6 +101,20 @@ pub trait Deserialize: Sized {
     }
 }
 
+pub trait DeserializeFromSlice: Sized {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError>;
+
+    fn deserialize_validate_from_slice(codec: &mut Codec<&[u8]>) -> Result<(), ReadError> {
+        Self::deserialize_from_slice(codec).map(|_| ())
+    }
+}
+
+impl<T: Deserialize> DeserializeFromSlice for T {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+        Self::deserialize(codec)
+    }
+}
+
 impl Deserialize for () {
     fn deserialize<R: std::io::BufRead>(_: &mut Codec<R>) -> Result<(), ReadError> {
         Ok(())

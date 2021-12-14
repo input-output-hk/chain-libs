@@ -148,14 +148,3 @@ impl<BR: std::io::BufRead> std::io::BufRead for Codec<BR> {
         self.inner.consume(amt)
     }
 }
-
-impl<W: std::io::Write> std::io::Write for Codec<W> {
-    #[inline]
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.inner.write(buf)
-    }
-    #[inline]
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.inner.flush()
-    }
-}
