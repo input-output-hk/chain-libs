@@ -71,15 +71,13 @@ impl Default for MintingPolicy {
 }
 
 impl Serialize for MintingPolicy {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(0_u8)
     }
 }
 
 impl Deserialize for MintingPolicy {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let no_entries = codec.get_u8()?;
         if no_entries != 0 {
             return Err(ReadError::InvalidData(

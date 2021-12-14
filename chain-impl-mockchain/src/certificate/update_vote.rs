@@ -76,18 +76,17 @@ impl Payload for UpdateVote {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for UpdateVote {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
-        self.proposal_id.serialize(&mut codec)?;
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        self.proposal_id.serialize(codec)?;
         self.voter_id.serialize(codec)?;
         Ok(())
     }
 }
 
 impl Deserialize for UpdateVote {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        let proposal_id = UpdateProposalId::deserialize(&mut reader)?;
-        let voter_id = UpdateVoterId::deserialize(reader)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let proposal_id = UpdateProposalId::deserialize(codec)?;
+        let voter_id = UpdateVoterId::deserialize(codec)?;
 
         Ok(Self::new(proposal_id, voter_id))
     }

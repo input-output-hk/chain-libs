@@ -128,14 +128,13 @@ impl FromStr for CommitteeId {
 /* Ser/De ****************************************************************** */
 
 impl Serialize for CommitteeId {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.as_ref()).map_err(|e| e.into())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.as_ref())
     }
 }
 
 impl Deserialize for CommitteeId {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let slice = codec.get_slice(Self::COMMITTEE_ID_SIZE)?;
         let res = Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()));
         codec.consume(Self::COMMITTEE_ID_SIZE);
@@ -176,7 +175,8 @@ mod tests {
     #[quickcheck]
     fn serialize_readable(committee_id: CommitteeId) -> bool {
         let b_got = committee_id.serialize_as_vec().unwrap();
-        let result = CommitteeId::deserialize(b_got.as_slice()).expect("decode the committee ID");
+        let result = CommitteeId::deserialize(&mut Codec::new(b_got.as_slice()))
+            .expect("decode the committee ID");
         committee_id == result
     }
 }

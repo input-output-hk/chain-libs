@@ -79,18 +79,16 @@ impl Payload for VoteCast {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for VoteCast {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.serialize().as_slice())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Deserialize for VoteCast {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let vote_plan = <[u8; 32]>::deserialize(&mut codec)?.into();
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let vote_plan = <[u8; 32]>::deserialize(codec)?.into();
         let proposal_index = codec.get_u8()?;
-        let payload = vote::Payload::read(&mut codec)?;
+        let payload = vote::Payload::read(codec)?;
 
         Ok(Self::new(vote_plan, proposal_index, payload))
     }

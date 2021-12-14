@@ -59,8 +59,7 @@ impl Witness {
     }
 }
 
-fn deserialize_index<R: std::io::BufRead>(reader: R) -> Result<TreeIndex, ReadError> {
-    let mut codec = Codec::new(reader);
+fn deserialize_index<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<TreeIndex, ReadError> {
     let idx = codec.get_u16()?;
     match TreeIndex::unpack(idx) {
         None => Err(ReadError::StructureInvalid("invalid index".to_string())),
@@ -69,21 +68,19 @@ fn deserialize_index<R: std::io::BufRead>(reader: R) -> Result<TreeIndex, ReadEr
 }
 
 impl Serialize for Witness {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(self.0.len() as u8)?;
         for (ti, pk, sig) in self.0.iter() {
             codec.put_u16(ti.pack())?;
-            serialize_public_key(pk, &mut codec)?;
-            serialize_signature(sig, &mut codec)?;
+            serialize_public_key(pk, codec)?;
+            serialize_signature(sig, codec)?;
         }
         Ok(())
     }
 }
 
 impl Deserialize for Witness {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let len = codec.get_u8()? as usize;
         if len == 0 {
             return Err(ReadError::StructureInvalid(
@@ -91,22 +88,22 @@ impl Deserialize for Witness {
             ));
         }
 
-        let first_index = deserialize_index(&mut codec)?;
-        let first_key = deserialize_public_key(&mut codec)?;
-        let first_sig = deserialize_signature(&mut codec)?;
+        let first_index = deserialize_index(codec)?;
+        let first_key = deserialize_public_key(codec)?;
+        let first_sig = deserialize_signature(codec)?;
 
         let mut v = vec![(first_index, first_key, first_sig)];
 
         let mut prev_index = first_index;
         for _ in 0..len {
-            let ti = deserialize_index(&mut codec)?;
+            let ti = deserialize_index(codec)?;
             if ti <= prev_index {
                 return Err(ReadError::StructureInvalid(
                     "index not in order".to_string(),
                 ));
             }
-            let pk = deserialize_public_key(&mut codec)?;
-            let sig = deserialize_signature(&mut codec)?;
+            let pk = deserialize_public_key(codec)?;
+            let sig = deserialize_signature(codec)?;
             prev_index = ti;
             v.push((ti, pk, sig))
         }

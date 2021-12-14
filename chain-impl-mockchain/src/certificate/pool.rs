@@ -156,10 +156,9 @@ impl PoolUpdate {
 }
 
 impl Deserialize for PoolUpdate {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
-        let last_pool_reg_hash = <[u8; 32]>::deserialize(&mut codec)?.into();
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let pool_id = <[u8; 32]>::deserialize(codec)?.into();
+        let last_pool_reg_hash = <[u8; 32]>::deserialize(codec)?.into();
         let new_pool_reg = PoolRegistration::deserialize(codec)?;
         Ok(PoolUpdate {
             pool_id,
@@ -181,9 +180,8 @@ impl PoolRetirement {
 }
 
 impl Deserialize for PoolRetirement {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let pool_id = <[u8; 32]>::deserialize(codec)?.into();
         let retirement_time = DurationSeconds::from(codec.get_u64()?).into();
         Ok(PoolRetirement {
             pool_id,
@@ -193,16 +191,14 @@ impl Deserialize for PoolRetirement {
 }
 
 impl Serialize for PoolUpdate {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.serialize().as_slice())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Serialize for PoolRetirement {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.serialize().as_slice())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.serialize().as_slice())
     }
 }
 
@@ -257,39 +253,37 @@ impl Payload for PoolRetirement {
 }
 
 impl Serialize for PoolRegistration {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.serialize().as_slice())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Deserialize for PoolRegistration {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let serial = codec.get_u128()?;
         let start_validity = DurationSeconds::from(codec.get_u64()?).into();
         let permissions = PoolPermissions::from_u64(codec.get_u64()?).ok_or_else(|| {
             ReadError::StructureInvalid("permission value not correct".to_string())
         })?;
-        let keys = GenesisPraosLeader::deserialize(&mut codec)?;
+        let keys = GenesisPraosLeader::deserialize(codec)?;
 
         let owners_nb = codec.get_u8()?;
         let mut owners = Vec::with_capacity(owners_nb as usize);
         for _ in 0..owners_nb {
-            owners.push(deserialize_public_key(&mut codec)?);
+            owners.push(deserialize_public_key(codec)?);
         }
 
         let operators_nb = codec.get_u8()?;
         let mut operators = Vec::with_capacity(operators_nb as usize);
         for _ in 0..operators_nb {
-            operators.push(deserialize_public_key(&mut codec)?);
+            operators.push(deserialize_public_key(codec)?);
         }
 
-        let rewards = TaxType::read_frombuf(&mut codec)?;
+        let rewards = TaxType::read_frombuf(codec)?;
         let reward_account = match codec.get_u8()? {
             0 => None,
             1 => {
-                let pk = deserialize_public_key(&mut codec)?;
+                let pk = deserialize_public_key(codec)?;
                 Some(AccountIdentifier::Single(pk.into()))
             }
             2 => {
@@ -420,8 +414,7 @@ impl PoolOwnersSignature {
 }
 
 impl Deserialize for PoolOwnersSigned {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let sigs_nb = codec.get_u8()? as usize;
         if sigs_nb == 0 {
             return Err(ReadError::StructureInvalid(
@@ -431,7 +424,7 @@ impl Deserialize for PoolOwnersSigned {
         let mut signatures = Vec::new();
         for _ in 0..sigs_nb {
             let nb = codec.get_u8()?;
-            let sig = deserialize_signature(&mut codec)?;
+            let sig = deserialize_signature(codec)?;
             signatures.push((nb, SingleAccountBindingSignature(sig)))
         }
         Ok(PoolOwnersSigned { signatures })
@@ -439,11 +432,10 @@ impl Deserialize for PoolOwnersSigned {
 }
 
 impl Deserialize for PoolSignature {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(&mut reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             0 => {
-                let sig = deserialize_signature(&mut codec)?;
+                let sig = deserialize_signature(codec)?;
                 Ok(PoolSignature::Operator(SingleAccountBindingSignature(sig)))
             }
             1 => PoolOwnersSigned::deserialize(codec).map(PoolSignature::Owners),

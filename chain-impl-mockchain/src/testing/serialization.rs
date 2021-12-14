@@ -1,4 +1,7 @@
-use chain_core::property::{Deserialize, Serialize};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, Serialize},
+};
 use quickcheck::{Arbitrary, TestResult};
 
 /// test that any arbitrary given object can serialize and deserialize
@@ -12,7 +15,7 @@ where
         Err(error) => return TestResult::error(format!("serialization: {}", error)),
         Ok(v) => v,
     };
-    let decoded_t = match T::deserialize(vec.as_slice()) {
+    let decoded_t = match T::deserialize(&mut Codec::new(vec.as_slice())) {
         Err(error) => return TestResult::error(format!("deserialization: {:?}", error)),
         Ok(v) => v,
     };

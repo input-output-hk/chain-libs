@@ -140,7 +140,7 @@ impl Fragment {
     }
 
     pub fn from_raw(raw: &FragmentRaw) -> Result<Self, ReadError> {
-        Fragment::deserialize(raw.as_ref())
+        Fragment::deserialize(&mut Codec::new(raw.as_ref()))
     }
 
     /// The ID of a message is a hash of its serialization *without* the size.
@@ -156,8 +156,7 @@ impl Fragment {
 
 impl Deserialize for Fragment {
     // TODO: fix deserialization, it needs to converge to the serialization, currently is not, look into the fragment_serialization_bijection() test
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let padding_tag = codec.get_u8()?;
         if padding_tag != 0 {
             return Err(ReadError::StructureInvalid(format!(
@@ -213,8 +212,8 @@ impl Deserialize for Fragment {
 }
 
 impl Serialize for Fragment {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        self.to_raw().serialize(writer)
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        self.to_raw().serialize(codec)
     }
 }
 

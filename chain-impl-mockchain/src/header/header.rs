@@ -296,16 +296,15 @@ use chain_core::{
 };
 
 impl Serialize for Header {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.as_slice())
     }
 }
 
 impl Deserialize for Header {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let mut buf = Vec::new();
-        reader.read_to_end(&mut buf)?;
+        codec.read_to_end(&mut buf)?;
         Header::from_slice(buf.as_slice()).map_err(|e| match e {
             HeaderError::InvalidSize => ReadError::NotEnoughBytes(0, 0),
             HeaderError::UnknownVersion => ReadError::UnknownTag(0),

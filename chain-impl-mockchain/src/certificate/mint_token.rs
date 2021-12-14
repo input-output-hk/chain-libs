@@ -62,20 +62,20 @@ impl Payload for MintToken {
 }
 
 impl Serialize for MintToken {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        self.name.serialize(&mut writer)?;
-        self.policy.serialize(&mut writer)?;
-        self.to.serialize(&mut writer)?;
-        self.value.serialize(writer)
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        self.name.serialize(codec)?;
+        self.policy.serialize(codec)?;
+        self.to.serialize(codec)?;
+        self.value.serialize(codec)
     }
 }
 
 impl Deserialize for MintToken {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        let name = TokenName::deserialize(&mut reader)?;
-        let policy = MintingPolicy::deserialize(&mut reader)?;
-        let to = Identifier::deserialize(&mut reader)?;
-        let value = Value::deserialize(reader)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let name = TokenName::deserialize(codec)?;
+        let policy = MintingPolicy::deserialize(codec)?;
+        let to = Identifier::deserialize(codec)?;
+        let value = Value::deserialize(codec)?;
 
         Ok(Self {
             name,

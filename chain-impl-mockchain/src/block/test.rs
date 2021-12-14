@@ -10,7 +10,10 @@ use crate::{
     header::{BftProof, GenesisPraosProof, HeaderBuilderNew},
 };
 #[cfg(test)]
-use chain_core::property::{Block as _, Deserialize, Serialize};
+use chain_core::{
+    packer::Codec,
+    property::{Block as _, Deserialize, Serialize},
+};
 #[cfg(test)]
 #[cfg(test)]
 use quickcheck::TestResult;
@@ -55,7 +58,7 @@ quickcheck! {
 
         let maybe_block = Block { header: header.clone(), contents };
 
-        let block = Block::deserialize(maybe_block.serialize_as_vec().unwrap().as_slice());
+        let block = Block::deserialize(&mut Codec::new(maybe_block.serialize_as_vec().unwrap().as_slice()));
 
         (content_hash != header.block_content_hash() || content_size != header.block_content_size()) == block.is_err()
     }

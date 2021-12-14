@@ -65,9 +65,8 @@ impl AsRef<[u8]> for SingleAccountBindingSignature {
 }
 
 impl Deserialize for SingleAccountBindingSignature {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        deserialize_signature(&mut codec).map(SingleAccountBindingSignature)
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        deserialize_signature(codec).map(SingleAccountBindingSignature)
     }
 }
 
@@ -99,11 +98,10 @@ impl AccountBindingSignature {
 }
 
 impl Deserialize for AccountBindingSignature {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             1 => {
-                let sig = deserialize_signature(&mut codec).map(SingleAccountBindingSignature)?;
+                let sig = deserialize_signature(codec).map(SingleAccountBindingSignature)?;
                 Ok(AccountBindingSignature::Single(sig))
             }
             2 => unimplemented!(),

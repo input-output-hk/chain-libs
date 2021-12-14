@@ -54,9 +54,9 @@ impl TokenIdentifier {
 }
 
 impl Deserialize for TokenIdentifier {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        let policy_hash = PolicyHash::deserialize(&mut reader)?;
-        let token_name = TokenName::deserialize(reader)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let policy_hash = PolicyHash::deserialize(codec)?;
+        let token_name = TokenName::deserialize(codec)?;
         Ok(Self {
             policy_hash,
             token_name,

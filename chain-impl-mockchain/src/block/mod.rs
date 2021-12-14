@@ -95,32 +95,31 @@ impl property::Block for Block {
 }
 
 impl Serialize for Block {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let header_raw = {
             let mut v = Vec::new();
-            self.header.serialize(&mut v)?;
+            self.header.serialize(&mut Codec::new(&mut v))?;
             HeaderRaw(v)
         };
-        header_raw.serialize(&mut writer)?;
+        header_raw.serialize(codec)?;
 
         for message in self.contents.iter() {
             let message_raw = message.to_raw();
-            message_raw.serialize(&mut writer)?;
+            message_raw.serialize(codec)?;
         }
         Ok(())
     }
 }
 
 impl Deserialize for Block {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let header_raw = HeaderRaw::deserialize(&mut codec)?;
-        let header = Header::deserialize(header_raw.as_ref())?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let header_raw = HeaderRaw::deserialize(codec)?;
+        let header = Header::deserialize(&mut Codec::new(header_raw.as_ref()))?;
         let mut remaining_content_size = header.block_content_size() as usize;
         let mut contents = ContentsBuilder::new();
 
         while remaining_content_size > 0 {
-            let message_raw = FragmentRaw::deserialize(&mut codec)?;
+            let message_raw = FragmentRaw::deserialize(codec)?;
             let message_size = message_raw.size_bytes_plus_size();
 
             if message_size > remaining_content_size {

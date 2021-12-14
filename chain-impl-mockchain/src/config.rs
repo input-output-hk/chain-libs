@@ -229,8 +229,7 @@ impl<'a> From<&'a ConfigParam> for Tag {
 }
 
 impl Deserialize for ConfigParam {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let taglen = TagLen(codec.get_u16()?);
         let bytes = codec.get_slice(taglen.get_len())?;
         let res = match taglen.get_tag()? {
@@ -316,7 +315,7 @@ impl Deserialize for ConfigParam {
 }
 
 impl Serialize for ConfigParam {
-    fn serialize<W: Write>(&self, writer: W) -> Result<(), WriteError> {
+    fn serialize<W: Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let tag = Tag::from(self);
         let bytes = match self {
             ConfigParam::Block0Date(data) => data.to_payload(),
@@ -352,7 +351,6 @@ impl Serialize for ConfigParam {
                 "initial ent payload too big".to_string(),
             )
         })?;
-        let mut codec = Codec::new(writer);
         codec.put_u16(taglen.0)?;
         codec.put_bytes(&bytes)
     }
@@ -777,7 +775,7 @@ mod test {
         fn config_param_serialize_readable(param: ConfigParam) -> bool {
             use chain_core::property::Serialize as _;
             let bytes = param.serialize_as_vec().unwrap();
-            let decoded = ConfigParam::deserialize(bytes.as_slice()).unwrap();
+            let decoded = ConfigParam::deserialize(&mut Codec::new(bytes.as_slice())).unwrap();
 
             param == decoded
         }

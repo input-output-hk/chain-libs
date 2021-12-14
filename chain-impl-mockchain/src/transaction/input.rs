@@ -198,20 +198,18 @@ impl Input {
 }
 
 impl Serialize for Input {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(self.index_or_account)?;
-        self.value.serialize(&mut codec)?;
+        self.value.serialize(codec)?;
         codec.put_bytes(&self.input_ptr)?;
         Ok(())
     }
 }
 
 impl Deserialize for Input {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let index_or_account = codec.get_u8()?;
-        let value = Value::deserialize(&mut codec)?;
+        let value = Value::deserialize(codec)?;
         let input_ptr = <[u8; INPUT_PTR_SIZE]>::deserialize(codec)?;
         Ok(Input {
             index_or_account,

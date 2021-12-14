@@ -36,16 +36,14 @@ impl AsRef<PublicKey<AccountAlg>> for Identifier {
 }
 
 impl Serialize for Identifier {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
-        serialize_public_key(&self.0, &mut codec)
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        serialize_public_key(&self.0, codec)
     }
 }
 
 impl Deserialize for Identifier {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        deserialize_public_key(&mut codec).map(Identifier)
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        deserialize_public_key(codec).map(Identifier)
     }
 }
 

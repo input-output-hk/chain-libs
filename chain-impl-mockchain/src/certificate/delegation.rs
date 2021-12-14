@@ -55,18 +55,16 @@ impl StakeDelegation {
 }
 
 impl Serialize for OwnerStakeDelegation {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
-        let mut codec = Codec::new(writer);
         codec.put_bytes(&delegation_buf)
     }
 }
 
 impl Deserialize for OwnerStakeDelegation {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let delegation = deserialize_delegation_type(&mut codec)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let delegation = deserialize_delegation_type(codec)?;
         Ok(Self { delegation })
     }
 }
@@ -92,21 +90,18 @@ impl Payload for OwnerStakeDelegation {
 }
 
 impl Serialize for StakeDelegation {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
-        let mut codec = Codec::new(writer);
         codec.put_bytes(self.account_id.as_ref())?;
-        codec.put_bytes(&delegation_buf)?;
-        Ok(())
+        codec.put_bytes(&delegation_buf)
     }
 }
 
 impl Deserialize for StakeDelegation {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let account_identifier = <[u8; 32]>::deserialize(&mut codec)?;
-        let delegation = deserialize_delegation_type(&mut codec)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let account_identifier = <[u8; 32]>::deserialize(codec)?;
+        let delegation = deserialize_delegation_type(codec)?;
         Ok(StakeDelegation {
             account_id: account_identifier.into(),
             delegation,

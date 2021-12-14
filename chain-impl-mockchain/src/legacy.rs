@@ -27,10 +27,9 @@ pub fn oldaddress_from_xpub(
 }
 
 impl Deserialize for UtxoDeclaration {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         use std::convert::TryFrom;
 
-        let mut codec = Codec::new(reader);
         let nb_entries = codec.get_u8()? as usize;
         if nb_entries >= 0xff {
             return Err(ReadError::StructureInvalid("nb entries".to_string()));
@@ -38,7 +37,7 @@ impl Deserialize for UtxoDeclaration {
 
         let mut addrs = Vec::with_capacity(nb_entries);
         for _ in 0..nb_entries {
-            let value = Value::deserialize(&mut codec)?;
+            let value = Value::deserialize(codec)?;
             let addr_size = codec.get_u16()? as usize;
             let addr = OldAddress::try_from(codec.get_slice(addr_size)?)
                 .map_err(|err| ReadError::StructureInvalid(format!("{}", err)))?;
@@ -51,13 +50,12 @@ impl Deserialize for UtxoDeclaration {
 }
 
 impl Serialize for UtxoDeclaration {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         assert!(self.addrs.len() < 255);
 
-        let mut codec = Codec::new(writer);
         codec.put_u8(self.addrs.len() as u8)?;
         for (b, v) in &self.addrs {
-            v.serialize(&mut codec)?;
+            v.serialize(codec)?;
             let bs = b.as_ref();
             codec.put_u16(bs.len() as u16)?;
             codec.put_bytes(bs)?;

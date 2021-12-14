@@ -77,32 +77,32 @@ impl From<std::io::Error> for ReadError {
 
 /// Define that an object can be written to a `Write` object.
 pub trait Serialize {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError>;
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError>;
 
     /// Convenience method to serialize into a byte vector.
     fn serialize_as_vec(&self) -> Result<Vec<u8>, WriteError> {
-        let mut data = vec![];
-        self.serialize(&mut data)?;
+        let mut data = Vec::new();
+        self.serialize(&mut Codec::new(&mut data))?;
         Ok(data)
     }
 }
 
 impl<T: Serialize> Serialize for &T {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        (*self).serialize(writer)
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        (*self).serialize(codec)
     }
 }
 
 pub trait Deserialize: Sized {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError>;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError>;
 
-    fn deserialize_validate<R: std::io::BufRead>(reader: R) -> Result<(), ReadError> {
-        Self::deserialize(reader).map(|_| ())
+    fn deserialize_validate<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<(), ReadError> {
+        Self::deserialize(codec).map(|_| ())
     }
 }
 
 impl Deserialize for () {
-    fn deserialize<R: std::io::BufRead>(_: R) -> Result<(), ReadError> {
+    fn deserialize<R: std::io::BufRead>(_: &mut Codec<R>) -> Result<(), ReadError> {
         Ok(())
     }
 }
@@ -111,9 +111,8 @@ macro_rules! read_array_impls {
     ($($N: expr)+) => {
         $(
         impl Deserialize for [u8; $N] {
-            fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+            fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
                 let mut buf = [0u8; $N];
-                let mut codec = Codec::new(reader);
                 codec.copy_to_slice(&mut buf)?;
                 Ok(buf)
             }

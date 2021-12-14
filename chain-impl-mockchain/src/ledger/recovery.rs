@@ -1137,10 +1137,9 @@ fn unpack_entries<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Vec<Entry
 }
 
 impl Serialize for Ledger {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         for entry in self.iter() {
-            pack_entry(&entry, &mut codec)?;
+            pack_entry(&entry, codec)?;
         }
         // Write finish flag
         codec.put_u8(EntrySerializeCode::SerializationEnd as u8)?;
@@ -1149,9 +1148,8 @@ impl Serialize for Ledger {
 }
 
 impl Deserialize for Ledger {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let owned_entries = unpack_entries(&mut codec)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let owned_entries = unpack_entries(codec)?;
         let entries = owned_entries
             .iter()
             .map(|entry_owned| entry_owned.to_entry().unwrap());
@@ -1380,9 +1378,9 @@ pub mod test {
 
         let ledger: Ledger = test_ledger.into();
         let mut vec = Vec::new();
-        ledger.serialize(&mut vec).unwrap();
+        ledger.serialize(&mut Codec::new(&mut vec)).unwrap();
 
-        let other_ledger = Ledger::deserialize(vec.as_slice()).unwrap();
+        let other_ledger = Ledger::deserialize(&mut Codec::new(vec.as_slice())).unwrap();
         assert_eq!(ledger, other_ledger);
     }
 

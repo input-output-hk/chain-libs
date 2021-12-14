@@ -230,23 +230,21 @@ impl Payload for VoteTally {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for VoteTally {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.serialize().as_slice())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Deserialize for TallyProof {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             0 => {
-                let id = CommitteeId::deserialize(&mut codec)?;
+                let id = CommitteeId::deserialize(codec)?;
                 let signature = SingleAccountBindingSignature::deserialize(codec)?;
                 Ok(Self::Public { id, signature })
             }
             1 => {
-                let id = CommitteeId::deserialize(&mut codec)?;
+                let id = CommitteeId::deserialize(codec)?;
                 let signature = SingleAccountBindingSignature::deserialize(codec)?;
                 Ok(Self::Private { id, signature })
             }
@@ -258,11 +256,10 @@ impl Deserialize for TallyProof {
 }
 
 impl Deserialize for VoteTally {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         use std::convert::TryInto as _;
 
-        let mut codec = Codec::new(reader);
-        let id = <[u8; 32]>::deserialize(&mut codec)?.into();
+        let id = <[u8; 32]>::deserialize(codec)?.into();
         let payload_type = codec
             .get_u8()?
             .try_into()

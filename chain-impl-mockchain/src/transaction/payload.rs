@@ -68,13 +68,13 @@ impl<'a, P: ?Sized> Clone for PayloadAuthSlice<'a, P> {
 
 impl<'a, P: Payload> PayloadSlice<'a, P> {
     pub fn into_payload(self) -> P {
-        P::deserialize(self.0).unwrap()
+        P::deserialize(&mut Codec::new(self.0)).unwrap()
     }
 }
 
 impl<'a, P: Payload> PayloadAuthSlice<'a, P> {
     pub fn into_payload_auth(self) -> P::Auth {
-        P::Auth::deserialize(self.0).unwrap()
+        P::Auth::deserialize(&mut Codec::new(self.0)).unwrap()
     }
 }
 
@@ -124,13 +124,13 @@ impl<'a, P: ?Sized> PayloadAuthSlice<'a, P> {
 pub struct NoExtra;
 
 impl Serialize for NoExtra {
-    fn serialize<W: std::io::Write>(&self, _: W) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, _: &mut Codec<W>) -> Result<(), WriteError> {
         Ok(())
     }
 }
 
 impl Deserialize for NoExtra {
-    fn deserialize<R: std::io::BufRead>(_: R) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(_: &mut Codec<R>) -> Result<Self, ReadError> {
         Ok(NoExtra)
     }
 }

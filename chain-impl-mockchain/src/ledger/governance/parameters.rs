@@ -106,8 +106,7 @@ impl ParametersGovernance {
 /* Ser/De ******************************************************************* */
 
 impl Deserialize for ParametersGovernanceAction {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             0 => Ok(Self::NoOp),
             1 => {

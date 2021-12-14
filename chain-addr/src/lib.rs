@@ -419,9 +419,7 @@ impl std::str::FromStr for AddressReadable {
 }
 
 impl Serialize for Address {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
-
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let first_byte = match self.0 {
             Discrimination::Production => self.to_kind_value(),
             Discrimination::Test => self.to_kind_value() | 0b1000_0000,
@@ -443,7 +441,7 @@ impl Serialize for Address {
 
     fn serialize_as_vec(&self) -> Result<Vec<u8>, WriteError> {
         let mut data = Vec::with_capacity(self.to_size());
-        self.serialize(&mut data)?;
+        self.serialize(&mut Codec::new(&mut data))?;
         Ok(data)
     }
 }
@@ -460,8 +458,7 @@ fn chain_crypto_err(e: chain_crypto::PublicKeyError) -> ReadError {
 }
 
 impl Deserialize for Address {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let byte = codec.get_u8()?;
         let discr = get_discrimination_value(byte);
         let kind = match get_kind_value(byte) {
@@ -471,7 +468,7 @@ impl Deserialize for Address {
                 Kind::Single(spending)
             }
             ADDR_KIND_GROUP => {
-                let bytes = <[u8; 32]>::deserialize(&mut codec)?;
+                let bytes = <[u8; 32]>::deserialize(codec)?;
                 let spending = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;
                 let bytes = <[u8; 32]>::deserialize(codec)?;
                 let group = PublicKey::from_binary(&bytes[..]).map_err(chain_crypto_err)?;

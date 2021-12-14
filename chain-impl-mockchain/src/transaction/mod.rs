@@ -31,15 +31,15 @@ pub use utxo::*;
 pub use witness::*;
 
 impl<Extra: Payload> Serialize for Transaction<Extra> {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.as_ref()).map_err(|e| e.into())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.as_ref())
     }
 }
 
 impl<Extra: Payload> Deserialize for Transaction<Extra> {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let mut buf = Vec::new();
-        reader.read_to_end(&mut buf)?;
+        codec.read_to_end(&mut buf)?;
         let utx = UnverifiedTransactionSlice::from(buf.as_slice());
         match utx.check() {
             Ok(tx) => Ok(tx.to_owned()),

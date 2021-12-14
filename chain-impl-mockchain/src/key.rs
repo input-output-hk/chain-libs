@@ -178,20 +178,17 @@ where
 }
 
 impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A> {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
-        self.data.serialize(&mut codec)?;
-        serialize_signature(&self.sig, &mut codec)?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        self.data.serialize(codec)?;
+        serialize_signature(&self.sig, codec)
     }
 }
 
 impl<T: Deserialize, A: VerificationAlgorithm> Deserialize for Signed<T, A> {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         Ok(Signed {
-            data: T::deserialize(&mut codec)?,
-            sig: deserialize_signature(&mut codec)?,
+            data: T::deserialize(codec)?,
+            sig: deserialize_signature(codec)?,
         })
     }
 }
@@ -261,15 +258,14 @@ impl<'a> From<&'a Hash> for &'a [u8; 32] {
 }
 
 impl Serialize for Hash {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.0.as_hash_bytes())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.0.as_hash_bytes())
     }
 }
 
 impl Deserialize for Hash {
-    fn deserialize<R: std::io::BufRead>(buf: R) -> Result<Self, ReadError> {
-        let bytes = <[u8; crypto::Blake2b256::HASH_SIZE]>::deserialize(buf)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let bytes = <[u8; crypto::Blake2b256::HASH_SIZE]>::deserialize(codec)?;
         Ok(Hash(crypto::Blake2b256::from(bytes)))
     }
 }
@@ -325,16 +321,14 @@ impl BftLeaderId {
 }
 
 impl Serialize for BftLeaderId {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
-        serialize_public_key(&self.0, &mut codec)
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        serialize_public_key(&self.0, codec)
     }
 }
 
 impl Deserialize for BftLeaderId {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        deserialize_public_key(&mut codec).map(BftLeaderId)
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        deserialize_public_key(codec).map(BftLeaderId)
     }
 }
 
@@ -369,10 +363,9 @@ impl GenesisPraosLeader {
 }
 
 impl Deserialize for GenesisPraosLeader {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
-        let vrf_public_key = deserialize_public_key(&mut codec)?;
-        let kes_public_key = deserialize_public_key(&mut codec)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let vrf_public_key = deserialize_public_key(codec)?;
+        let kes_public_key = deserialize_public_key(codec)?;
         Ok(GenesisPraosLeader {
             kes_public_key,
             vrf_public_key,

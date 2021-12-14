@@ -80,16 +80,16 @@ impl Payload for UpdateProposal {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for UpdateProposal {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        self.changes.serialize(&mut writer)?;
-        self.proposer_id.serialize(writer)
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        self.changes.serialize(codec)?;
+        self.proposer_id.serialize(codec)
     }
 }
 
 impl Deserialize for UpdateProposal {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        let changes = ConfigParams::deserialize(&mut reader)?;
-        let proposer_id = UpdateProposerId::deserialize(reader)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let changes = ConfigParams::deserialize(codec)?;
+        let proposer_id = UpdateProposerId::deserialize(codec)?;
 
         Ok(Self::new(changes, proposer_id))
     }

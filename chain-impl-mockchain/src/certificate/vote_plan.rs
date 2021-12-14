@@ -372,27 +372,26 @@ impl Deref for Proposals {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for VotePlan {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.serialize().as_slice())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Deserialize for VotePlanProof {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        let id = vote::CommitteeId::deserialize(&mut reader)?;
-        let signature = SingleAccountBindingSignature::deserialize(reader)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let id = vote::CommitteeId::deserialize(codec)?;
+        let signature = SingleAccountBindingSignature::deserialize(codec)?;
         Ok(Self { id, signature })
     }
 }
 
 impl Deserialize for VoteAction {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             0 => Ok(Self::OffChain),
-            1 => TreasuryGovernanceAction::deserialize(&mut codec)
-                .map(|action| Self::Treasury { action }),
+            1 => {
+                TreasuryGovernanceAction::deserialize(codec).map(|action| Self::Treasury { action })
+            }
             2 => ParametersGovernanceAction::deserialize(codec)
                 .map(|action| Self::Parameters { action }),
             t => Err(ReadError::UnknownTag(t as u32)),
@@ -401,10 +400,9 @@ impl Deserialize for VoteAction {
 }
 
 impl Deserialize for VotePlan {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         use std::convert::TryInto as _;
 
-        let mut codec = Codec::new(reader);
         let vote_start = BlockDate {
             epoch: codec.get_u32()?,
             slot_id: codec.get_u32()?,
@@ -428,12 +426,12 @@ impl Deserialize for VotePlan {
             proposals: Vec::with_capacity(proposal_size),
         };
         for _ in 0..proposal_size {
-            let external_id = <[u8; 32]>::deserialize(&mut codec)?.into();
+            let external_id = <[u8; 32]>::deserialize(codec)?.into();
             let options = codec.get_u8().and_then(|num_choices| {
                 vote::Options::new_length(num_choices)
                     .map_err(|e| ReadError::StructureInvalid(e.to_string()))
             })?;
-            let action = VoteAction::deserialize(&mut codec)?;
+            let action = VoteAction::deserialize(codec)?;
 
             let proposal = Proposal {
                 external_id,
@@ -477,7 +475,7 @@ mod tests {
     fn serialize_deserialize(vote_plan: VotePlan) -> bool {
         let serialized = vote_plan.serialize();
 
-        let result = VotePlan::deserialize(serialized.as_ref());
+        let result = VotePlan::deserialize(&mut Codec::new(serialized.as_ref()));
 
         let decoded = result.expect("can decode encoded vote plan");
 

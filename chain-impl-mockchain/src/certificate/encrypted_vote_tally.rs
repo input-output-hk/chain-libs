@@ -84,23 +84,22 @@ impl Payload for EncryptedVoteTally {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for EncryptedVoteTally {
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), WriteError> {
-        writer.write_all(self.serialize().as_slice())?;
-        Ok(())
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Deserialize for EncryptedVoteTallyProof {
-    fn deserialize<R: std::io::BufRead>(mut reader: R) -> Result<Self, ReadError> {
-        let id = CommitteeId::deserialize(&mut reader)?;
-        let signature = SingleAccountBindingSignature::deserialize(reader)?;
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let id = CommitteeId::deserialize(codec)?;
+        let signature = SingleAccountBindingSignature::deserialize(codec)?;
         Ok(Self { id, signature })
     }
 }
 
 impl Deserialize for EncryptedVoteTally {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let id = <[u8; 32]>::deserialize(reader)?.into();
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let id = <[u8; 32]>::deserialize(codec)?.into();
         Ok(Self { id })
     }
 }

@@ -39,16 +39,14 @@ impl TryFrom<Vec<u8>> for TokenName {
 }
 
 impl Serialize for TokenName {
-    fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), WriteError> {
-        let mut codec = Codec::new(writer);
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(self.0.len() as u8)?;
         codec.put_bytes(self.0.as_slice())
     }
 }
 
 impl Deserialize for TokenName {
-    fn deserialize<R: std::io::BufRead>(reader: R) -> Result<Self, ReadError> {
-        let mut codec = Codec::new(reader);
+    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let name_length = codec.get_u8()? as usize;
         if name_length > TOKEN_NAME_MAX_SIZE {
             return Err(ReadError::SizeTooBig(TOKEN_NAME_MAX_SIZE, name_length));
