@@ -255,8 +255,6 @@ impl Readable for TallyProof {
 
 impl Readable for VoteTally {
     fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        use std::convert::TryInto as _;
-
         let id = <[u8; 32]>::read(buf)?.into();
         let payload_type = buf
             .get_u8()?

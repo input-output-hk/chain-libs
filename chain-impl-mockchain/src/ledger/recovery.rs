@@ -68,7 +68,6 @@ use chain_ser::deser::{Deserialize, Serialize};
 use chain_ser::packer::Codec;
 use chain_time::era::{pack_time_era, unpack_time_era};
 use imhamt::Hamt;
-use std::convert::TryFrom;
 use std::io::{self, BufRead, ErrorKind, Read, Write};
 use std::sync::Arc;
 
