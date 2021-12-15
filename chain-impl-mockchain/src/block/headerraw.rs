@@ -21,7 +21,7 @@ impl Serialize for HeaderRaw {
 }
 
 impl Deserialize for HeaderRaw {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let header_size = codec.get_u16()? as usize;
         let v = codec.get_bytes(header_size)?;
         Ok(HeaderRaw(v))

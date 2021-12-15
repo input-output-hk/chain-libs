@@ -77,7 +77,7 @@ impl Serialize for MintingPolicy {
 }
 
 impl Deserialize for MintingPolicy {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let no_entries = codec.get_u8()?;
         if no_entries != 0 {
             return Err(ReadError::InvalidData(

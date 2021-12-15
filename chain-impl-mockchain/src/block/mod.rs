@@ -112,7 +112,7 @@ impl Serialize for Block {
 }
 
 impl Deserialize for Block {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let header_raw = HeaderRaw::deserialize(codec)?;
         let header = Header::deserialize(&mut Codec::new(header_raw.as_ref()))?;
         let mut remaining_content_size = header.block_content_size() as usize;

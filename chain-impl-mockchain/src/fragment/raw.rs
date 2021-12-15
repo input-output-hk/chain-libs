@@ -28,7 +28,7 @@ impl AsRef<[u8]> for FragmentRaw {
 }
 
 impl Deserialize for FragmentRaw {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let size = codec.get_u32()? as usize;
         let v = codec.get_bytes(size)?;
         Ok(FragmentRaw(v))

@@ -262,7 +262,7 @@ impl Serialize for Hash {
 }
 
 impl Deserialize for Hash {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let bytes = <[u8; crypto::Blake2b256::HASH_SIZE]>::deserialize(codec)?;
         Ok(Hash(crypto::Blake2b256::from(bytes)))
     }

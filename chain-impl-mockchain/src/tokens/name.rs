@@ -56,7 +56,7 @@ impl Serialize for TokenName {
 }
 
 impl Deserialize for TokenName {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let name_length = codec.get_u8()? as usize;
         if name_length > TOKEN_NAME_MAX_SIZE {
             return Err(ReadError::SizeTooBig(TOKEN_NAME_MAX_SIZE, name_length));

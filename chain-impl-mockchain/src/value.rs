@@ -117,7 +117,7 @@ impl AsRef<u64> for Value {
 }
 
 impl Deserialize for Value {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         codec.get_u64().map(Value)
     }
 }

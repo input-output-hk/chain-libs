@@ -63,7 +63,7 @@ impl Serialize for OwnerStakeDelegation {
 }
 
 impl Deserialize for OwnerStakeDelegation {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let delegation = deserialize_delegation_type(codec)?;
         Ok(Self { delegation })
     }
@@ -99,7 +99,7 @@ impl Serialize for StakeDelegation {
 }
 
 impl Deserialize for StakeDelegation {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let account_identifier = <[u8; 32]>::deserialize(codec)?;
         let delegation = deserialize_delegation_type(codec)?;
         Ok(StakeDelegation {
@@ -153,7 +153,7 @@ fn serialize_delegation_type(
     }
 }
 
-fn deserialize_delegation_type<R: std::io::BufRead>(
+fn deserialize_delegation_type<R: std::io::Read>(
     codec: &mut Codec<R>,
 ) -> Result<DelegationType, ReadError> {
     let parts = codec.get_u8()?;

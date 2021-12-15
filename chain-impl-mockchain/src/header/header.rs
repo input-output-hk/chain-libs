@@ -302,7 +302,7 @@ impl Serialize for Header {
 }
 
 impl Deserialize for Header {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let mut buf = Vec::new();
         // TODO: implicitly define size of the Header object in the deserialize function, do not use read_to_end,
         // it narrows the usage of the deserialize trait for the Header struct,

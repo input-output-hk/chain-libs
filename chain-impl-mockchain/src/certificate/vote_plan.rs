@@ -386,7 +386,7 @@ impl DeserializeFromSlice for VotePlanProof {
 }
 
 impl Deserialize for VoteAction {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             0 => Ok(Self::OffChain),
             1 => {

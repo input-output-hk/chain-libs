@@ -206,7 +206,7 @@ impl Serialize for Input {
 }
 
 impl Deserialize for Input {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let index_or_account = codec.get_u8()?;
         let value = Value::deserialize(codec)?;
         let input_ptr = <[u8; INPUT_PTR_SIZE]>::deserialize(codec)?;

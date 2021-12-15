@@ -20,7 +20,7 @@ impl<Address> Output<Address> {
 }
 
 impl<Address: Deserialize> Deserialize for Output<Address> {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let address = Address::deserialize(codec)?;
         let value = Value::deserialize(codec)?;
         Ok(Output { address, value })

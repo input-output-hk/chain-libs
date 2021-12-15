@@ -94,9 +94,9 @@ impl<T: Serialize> Serialize for &T {
 }
 
 pub trait Deserialize: Sized {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError>;
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError>;
 
-    fn deserialize_validate<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<(), ReadError> {
+    fn deserialize_validate<R: std::io::Read>(codec: &mut Codec<R>) -> Result<(), ReadError> {
         Self::deserialize(codec).map(|_| ())
     }
 }
@@ -116,7 +116,7 @@ impl<T: Deserialize> DeserializeFromSlice for T {
 }
 
 impl Deserialize for () {
-    fn deserialize<R: std::io::BufRead>(_: &mut Codec<R>) -> Result<(), ReadError> {
+    fn deserialize<R: std::io::Read>(_: &mut Codec<R>) -> Result<(), ReadError> {
         Ok(())
     }
 }
@@ -125,7 +125,7 @@ macro_rules! read_array_impls {
     ($($N: expr)+) => {
         $(
         impl Deserialize for [u8; $N] {
-            fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+            fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
                 let mut buf = [0u8; $N];
                 codec.copy_to_slice(&mut buf)?;
                 Ok(buf)

@@ -180,7 +180,7 @@ impl PoolRetirement {
 }
 
 impl Deserialize for PoolRetirement {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let pool_id = <[u8; 32]>::deserialize(codec)?.into();
         let retirement_time = DurationSeconds::from(codec.get_u64()?).into();
         Ok(PoolRetirement {

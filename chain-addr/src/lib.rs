@@ -458,7 +458,7 @@ fn chain_crypto_err(e: chain_crypto::PublicKeyError) -> ReadError {
 }
 
 impl Deserialize for Address {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let byte = codec.get_u8()?;
         let discr = get_discrimination_value(byte);
         let kind = match get_kind_value(byte) {

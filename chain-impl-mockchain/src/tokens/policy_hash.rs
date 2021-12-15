@@ -30,7 +30,7 @@ impl TryFrom<&[u8]> for PolicyHash {
 }
 
 impl Deserialize for PolicyHash {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let bytes = codec
             .get_bytes(POLICY_HASH_SIZE)?
             .try_into()
