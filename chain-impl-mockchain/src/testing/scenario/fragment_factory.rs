@@ -1,8 +1,8 @@
 use crate::{
     accounting::account::{DelegationRatio, DelegationType},
     certificate::{
-        Certificate, EncryptedVoteTally, PoolId, PoolUpdate, UpdateProposal, UpdateVote, VoteCast,
-        VotePlan, VoteTally,
+        Certificate, EncryptedVoteTally, MintToken, PoolId, PoolUpdate, UpdateProposal, UpdateVote,
+        VoteCast, VotePlan, VoteTally,
     },
     date::BlockDate,
     fee::LinearFee,
@@ -17,6 +17,7 @@ use crate::{
         },
         data::{StakePool, Wallet},
         ledger::TestLedger,
+        WitnessMode,
     },
     value::Value,
 };
@@ -25,6 +26,7 @@ use crate::{
 pub struct FragmentFactory {
     pub block0_hash: Hash,
     pub fee: LinearFee,
+    pub witness_mode: WitnessMode,
 }
 
 impl FragmentFactory {
@@ -33,7 +35,16 @@ impl FragmentFactory {
     }
 
     pub fn new(block0_hash: Hash, fee: LinearFee) -> Self {
-        Self { block0_hash, fee }
+        Self {
+            block0_hash,
+            fee,
+            witness_mode: Default::default(),
+        }
+    }
+
+    pub fn witness_mode(mut self, witness_mode: WitnessMode) -> Self {
+        self.witness_mode = witness_mode;
+        self
     }
 
     pub fn transaction(
@@ -44,6 +55,7 @@ impl FragmentFactory {
         funds: u64,
     ) -> Fragment {
         TestTxBuilder::new(test_ledger.block0_hash)
+            .witness_mode(self.witness_mode)
             .move_funds(
                 test_ledger,
                 &from.as_account(),
@@ -197,6 +209,15 @@ impl FragmentFactory {
         self.transaction_with_cert(valid_until, Some(owner), &update_vote.into())
     }
 
+    pub fn mint_token(
+        &self,
+        valid_until: BlockDate,
+        owner: &Wallet,
+        min_token: MintToken,
+    ) -> Fragment {
+        self.transaction_with_cert(valid_until, Some(owner), &min_token.into())
+    }
+
     fn transaction_with_cert<'a>(
         &self,
         valid_until: BlockDate,
@@ -207,6 +228,7 @@ impl FragmentFactory {
             valid_until,
             wallets,
             certificate,
+            self.witness_mode,
         )
     }
 }

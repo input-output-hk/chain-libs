@@ -14,7 +14,7 @@ use typed_bytes::ByteBuilder;
 ///
 /// It is represented either as two hex strings separated by a dot or just a hex string when the
 /// name is empty.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TokenIdentifier {
     pub policy_hash: PolicyHash,
     pub token_name: TokenName,
@@ -110,6 +110,8 @@ impl FromStr for TokenIdentifier {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    #[allow(unused_imports)]
+    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for TokenIdentifier {
@@ -128,5 +130,15 @@ mod tests {
         let s = id.to_string();
         let id_: TokenIdentifier = s.parse().unwrap();
         assert_eq!(id, id_);
+    }
+
+    #[quickcheck_macros::quickcheck]
+    fn token_identifier_serialization_bijection(id: TokenIdentifier) -> TestResult {
+        let id_got = id.bytes();
+        let mut codec = Codec::new(id_got.as_slice());
+        let result = TokenIdentifier::deserialize(&mut codec);
+        let left = Ok(id);
+        assert_eq!(left, result);
+        TestResult::from_bool(left == result)
     }
 }

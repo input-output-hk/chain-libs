@@ -401,8 +401,6 @@ impl Deserialize for VoteAction {
 
 impl DeserializeFromSlice for VotePlan {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        use std::convert::TryInto as _;
-
         let vote_start = BlockDate {
             epoch: codec.get_u32()?,
             slot_id: codec.get_u32()?,

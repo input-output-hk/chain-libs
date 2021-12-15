@@ -2,7 +2,6 @@ use crate::vote::Choice;
 use chain_core::packer::Codec;
 use chain_core::property::ReadError;
 use chain_vote::Ciphertext;
-use std::convert::{TryFrom, TryInto as _};
 use std::hash::Hash;
 use thiserror::Error;
 use typed_bytes::{ByteArray, ByteBuilder};

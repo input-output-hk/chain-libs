@@ -1,5 +1,3 @@
-use std::convert::{TryFrom, TryInto};
-
 use chain_core::{
     packer::Codec,
     property::{Deserialize, ReadError},
@@ -8,7 +6,7 @@ use chain_core::{
 pub const POLICY_HASH_SIZE: usize = 28;
 
 /// blake2b_224 hash of a serialized minting policy
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PolicyHash([u8; POLICY_HASH_SIZE]);
 
 impl AsRef<[u8]> for PolicyHash {
@@ -44,6 +42,8 @@ impl Deserialize for PolicyHash {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    #[allow(unused_imports)]
+    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for PolicyHash {
@@ -54,5 +54,15 @@ mod tests {
             }
             Self(bytes)
         }
+    }
+
+    #[quickcheck_macros::quickcheck]
+    fn policy_hash_serialization_bijection(ph: PolicyHash) -> TestResult {
+        let ph_got = ph.as_ref();
+        let mut codec = Codec::new(ph_got);
+        let result = PolicyHash::deserialize(&mut codec);
+        let left = Ok(ph.clone());
+        assert_eq!(left, result);
+        TestResult::from_bool(left == result)
     }
 }

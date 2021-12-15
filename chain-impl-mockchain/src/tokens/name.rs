@@ -4,13 +4,14 @@ use chain_core::{
 };
 use std::convert::TryFrom;
 use thiserror::Error;
+use typed_bytes::ByteBuilder;
 
 pub const TOKEN_NAME_MAX_SIZE: usize = 32;
 
 /// A sequence of bytes serving as a token name. Tokens that share the same name but have different
 /// voting policies hashes are different tokens. A name can be empty. The maximum length of a token
 /// name is 32 bytes.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TokenName(Vec<u8>);
 
 #[derive(Debug, Error)]
@@ -22,6 +23,15 @@ pub struct TokenNameTooLong {
 impl AsRef<[u8]> for TokenName {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+
+impl TokenName {
+    pub fn bytes(&self) -> Vec<u8> {
+        let bb: ByteBuilder<Self> = ByteBuilder::new();
+        bb.u8(self.0.len() as u8)
+            .bytes(self.0.as_ref())
+            .finalize_as_vec()
     }
 }
 
@@ -59,7 +69,8 @@ impl Deserialize for TokenName {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-
+    #[allow(unused_imports)]
+    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for TokenName {
@@ -71,5 +82,15 @@ mod tests {
             }
             Self(bytes)
         }
+    }
+
+    #[quickcheck_macros::quickcheck]
+    fn token_name_serialization_bijection(token_name: TokenName) -> TestResult {
+        let token_name_got = token_name.bytes();
+        let mut codec = Codec::new(token_name_got.as_slice());
+        let result = TokenName::deserialize(&mut codec);
+        let left = Ok(token_name.clone());
+        assert_eq!(left, result);
+        TestResult::from_bool(left == result)
     }
 }

@@ -60,15 +60,13 @@ use crate::value::Value;
 use crate::vote;
 use crate::{config, key, multisig, utxo};
 use chain_addr::{Address, Discrimination};
-use chain_core::property::DeserializeFromSlice;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::digest::{DigestAlg, DigestOf};
 use chain_time::era::{pack_time_era, unpack_time_era};
 use imhamt::Hamt;
-use std::convert::TryFrom;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -872,8 +870,7 @@ fn unpack_payload_type(codec: &mut Codec<&[u8]>) -> Result<vote::PayloadType, Re
 fn pack_committee_public_keys<W: std::io::Write>(
     keys: &[chain_vote::MemberPublicKey],
     codec: &mut Codec<W>,
-) -> Result<(), WriteError> {
-    use std::convert::TryInto;
+) -> Result<(), std::io::Error> {
     codec.put_u8(keys.len().try_into().unwrap())?;
     for k in keys {
         codec.put_bytes(&k.to_bytes())?;

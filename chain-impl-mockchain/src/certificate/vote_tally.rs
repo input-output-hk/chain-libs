@@ -101,8 +101,6 @@ impl VoteTally {
     }
 
     pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
-        use std::convert::TryInto;
-
         let bb = bb.bytes(self.id().as_ref()).u8(self.tally_type() as u8);
 
         match &self.payload {
@@ -255,8 +253,6 @@ impl DeserializeFromSlice for TallyProof {
 
 impl DeserializeFromSlice for VoteTally {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        use std::convert::TryInto as _;
-
         let id = <[u8; 32]>::deserialize(codec)?.into();
         let payload_type = codec
             .get_u8()?

@@ -26,8 +26,6 @@ pub fn oldaddress_from_xpub(
 
 impl DeserializeFromSlice for UtxoDeclaration {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        use std::convert::TryFrom;
-
         let nb_entries = codec.get_u8()? as usize;
         if nb_entries >= 0xff {
             return Err(ReadError::StructureInvalid("nb entries".to_string()));
