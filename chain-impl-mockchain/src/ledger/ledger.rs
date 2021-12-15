@@ -307,6 +307,8 @@ pub enum Error {
     VoteTallyProofFailed,
     #[error("Vote tally decryption failed")]
     VoteTallyDecryptionFailed,
+    #[error("Vote Tally vote plan is not in the ledger")]
+    VotePlanNotFound,
     #[error("Pool update payload signature failed")]
     PoolUpdateSignatureFailed,
     #[error("Pool update last known registration hash doesn't match")]
@@ -1182,7 +1184,18 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let stake = StakeControl::new_with(&self.accounts, &self.utxos);
+        let voting_token = self
+            .votes
+            .plans
+            .lookup(tally.id())
+            // XXX: unsure about this.  This would be handled anyway inside
+            // `apply_commitee_result`, although with a different error.  But it needs to be
+            // checked here, unless this logic is moved to the VotePlanManager somehow.
+            .ok_or(Error::VotePlanNotFound)?
+            .plan()
+            .voting_token();
+
+        let stake = StakeControl::new_with(voting_token, &self.accounts);
 
         let mut actions = Vec::new();
 
@@ -1226,7 +1239,16 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let stake = StakeControl::new_with(&self.accounts, &self.utxos);
+        let voting_token = self
+            .votes
+            .plans
+            .lookup(tally.id())
+            // XXX: idem `apply_vote_tally`
+            .ok_or(Error::VotePlanNotFound)?
+            .plan()
+            .voting_token();
+
+        let stake = StakeControl::new_with(voting_token, &self.accounts);
 
         self.votes = self
             .votes

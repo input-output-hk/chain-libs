@@ -2,13 +2,14 @@ use crate::{
     account::{self, Identifier},
     rewards::Ratio,
     stake::Stake,
-    utxo,
+    tokens::identifier::TokenIdentifier,
 };
-use chain_addr::{Address, Kind};
 use imhamt::Hamt;
 use std::{collections::hash_map::DefaultHasher, fmt, num::NonZeroU64};
 
 #[derive(Default, Clone, Eq, PartialEq)]
+// TODO: rename this to WeightControl? VotingPowerControl?  It's a form of Stake, technically, but
+// I'm not sure about using the same term for two different things.
 pub struct StakeControl {
     assigned: Stake,
     unassigned: Stake,
@@ -21,40 +22,21 @@ impl StakeControl {
         Self::default()
     }
 
-    fn update_accounts(&self, accounts: &account::Ledger) -> Self {
+    fn update_accounts(&self, voting_token: &TokenIdentifier, accounts: &account::Ledger) -> Self {
         accounts
             .iter()
             .fold(self.clone(), |sc, (identifier, account)| {
-                sc.add_to(identifier.clone(), Stake::from_value(account.value()))
+                match account.tokens.lookup(voting_token) {
+                    Some(voting_power) => {
+                        sc.add_to(identifier.clone(), Stake::from_value(*voting_power))
+                    }
+                    None => sc,
+                }
             })
     }
 
-    fn update_utxos(&self, utxos: &utxo::Ledger<Address>) -> Self {
-        utxos.values().fold(self.clone(), |sc, output| {
-            let stake = Stake::from_value(output.value);
-
-            // We're only interested in "group" addresses
-            // (i.e. containing a spending key and a stake key).
-            match output.address.kind() {
-                Kind::Account(_) | Kind::Multisig(_) => {
-                    // single or multisig account are not present in utxos
-                    panic!("internal error: accounts in utxo")
-                }
-                Kind::Script(_) => {
-                    // scripts are not present in utxo
-                    panic!("internal error: script in utxo")
-                }
-                Kind::Group(_spending_key, account_key) => {
-                    let identifier = account_key.clone().into();
-                    sc.add_to(identifier, stake)
-                }
-                Kind::Single(_) => sc.add_unassigned(stake),
-            }
-        })
-    }
-
-    pub fn new_with(accounts: &account::Ledger, utxos: &utxo::Ledger<Address>) -> Self {
-        Self::new().update_accounts(accounts).update_utxos(utxos)
+    pub fn new_with(token: &TokenIdentifier, accounts: &account::Ledger) -> Self {
+        Self::new().update_accounts(token, accounts)
     }
 
     pub fn total(&self) -> Stake {
@@ -414,14 +396,13 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn stake_control_from_ledger(accounts: account::Ledger, utxos: ArbitaryLedgerUtxo) {
-        let stake_control = StakeControl::new_with(&accounts, &utxos.0);
+    pub fn stake_control_from_ledger(accounts: account::Ledger) {
+        let (_, account_state) = accounts.iter().next().unwrap();
+        let (voting_token, _) = account_state.tokens.iter().next().unwrap();
+
+        let stake_control = StakeControl::new_with(voting_token, &accounts);
         //verify sum
-        let accounts = accounts.get_total_value().unwrap();
-        let utxo_or_group = utxos.0.values().map(|x| x.value).sum();
-        let expected_sum = accounts
-            .checked_add(utxo_or_group)
-            .expect("cannot calculate expected total");
+        let expected_sum = accounts.get_total_value().unwrap();
         assert_eq!(stake_control.total(), expected_sum.into());
     }
 }
