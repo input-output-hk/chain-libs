@@ -10,8 +10,6 @@ use chain_evm::{
     state::{ByteCode, Key},
     Address,
 };
-#[cfg(feature = "evm")]
-use std::convert::TryInto;
 use typed_bytes::ByteBuilder;
 
 use crate::{

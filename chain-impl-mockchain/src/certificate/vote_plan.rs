@@ -2,6 +2,7 @@ use crate::{
     block::BlockDate,
     certificate::CertificateSlice,
     ledger::governance::{Governance, ParametersGovernanceAction, TreasuryGovernanceAction},
+    tokens::identifier::TokenIdentifier,
     transaction::{
         Payload, PayloadAuthData, PayloadData, PayloadSlice, SingleAccountBindingSignature,
         TransactionBindingAuthData,
@@ -49,6 +50,8 @@ pub struct VotePlan {
     payload_type: vote::PayloadType,
     /// encrypting votes public keys
     committee_public_keys: Vec<chain_vote::MemberPublicKey>,
+    /// voting token used for weigthing the votes for any proposal in this voteplan
+    voting_token: TokenIdentifier,
 }
 
 #[derive(Debug, Clone)]
@@ -191,6 +194,7 @@ impl VotePlan {
         proposals: Proposals,
         payload_type: vote::PayloadType,
         committee_public_keys: Vec<chain_vote::MemberPublicKey>,
+        voting_token: TokenIdentifier,
     ) -> Self {
         Self {
             vote_start,
@@ -199,6 +203,7 @@ impl VotePlan {
             proposals,
             payload_type,
             committee_public_keys,
+            voting_token,
         }
     }
 
@@ -248,6 +253,10 @@ impl VotePlan {
 
     pub fn committee_public_keys(&self) -> &[chain_vote::MemberPublicKey] {
         &self.committee_public_keys
+    }
+
+    pub fn voting_token(&self) -> &TokenIdentifier {
+        &self.voting_token
     }
 
     #[inline]
@@ -303,6 +312,7 @@ impl VotePlan {
             .iter8(self.committee_public_keys.iter(), |bb, key| {
                 bb.bytes(key.to_bytes().as_ref())
             })
+            .bytes(self.voting_token.bytes().as_ref())
     }
 
     pub fn serialize(&self) -> ByteArray<Self> {
@@ -449,6 +459,8 @@ impl DeserializeFromSlice for VotePlan {
             })?);
         }
 
+        let voting_token = TokenIdentifier::deserialize(codec)?;
+
         Ok(Self {
             vote_start,
             vote_end,
@@ -456,6 +468,7 @@ impl DeserializeFromSlice for VotePlan {
             proposals,
             payload_type,
             committee_public_keys,
+            voting_token,
         })
     }
 }
@@ -465,6 +478,8 @@ mod tests {
     use super::*;
     use crate::block::BlockDate;
     use crate::testing::VoteTestGen;
+    use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
+    use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
     use chain_core::property::BlockDate as BlockDateProp;
     use quickcheck_macros::quickcheck;
 
@@ -502,6 +517,10 @@ mod tests {
             VoteTestGen::proposals(1),
             vote::PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         assert!(vote_plan.vote_started(vote_start));
@@ -522,6 +541,10 @@ mod tests {
             VoteTestGen::proposals(1),
             vote::PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let before_voting = BlockDate::from_epoch_slot_id(0, 10);
@@ -554,6 +577,10 @@ mod tests {
             VoteTestGen::proposals(1),
             vote::PayloadType::Public,
             Vec::new(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
         );
 
         let before_voting = BlockDate::from_epoch_slot_id(0, 10);
