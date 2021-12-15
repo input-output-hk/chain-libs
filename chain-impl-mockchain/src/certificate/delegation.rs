@@ -154,13 +154,13 @@ fn serialize_delegation_type(
 }
 
 fn deserialize_delegation_type<R: std::io::BufRead>(
-    mut codec: &mut Codec<R>,
+    codec: &mut Codec<R>,
 ) -> Result<DelegationType, ReadError> {
     let parts = codec.get_u8()?;
     match parts {
         0 => Ok(DelegationType::NonDelegated),
         1 => {
-            let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
+            let pool_id = <[u8; 32]>::deserialize(codec)?.into();
             Ok(DelegationType::Full(pool_id))
         }
         _ => {
@@ -174,7 +174,7 @@ fn deserialize_delegation_type<R: std::io::BufRead>(
             let mut pools = Vec::with_capacity(sz as usize);
             for _ in 0..sz {
                 let pool_parts = codec.get_u8()?;
-                let pool_id = <[u8; 32]>::deserialize(&mut codec)?.into();
+                let pool_id = <[u8; 32]>::deserialize(codec)?.into();
                 pools.push((pool_id, pool_parts))
             }
             match DelegationRatio::new(parts, pools) {

@@ -232,7 +232,7 @@ impl DeserializeFromSlice for ConfigParam {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let taglen = TagLen(codec.get_u16()?);
         let bytes = codec.get_slice(taglen.get_len())?;
-        let res = match taglen.get_tag()? {
+        match taglen.get_tag()? {
             Tag::Block0Date => ConfigParamVariant::from_payload(bytes).map(ConfigParam::Block0Date),
             Tag::Discrimination => {
                 ConfigParamVariant::from_payload(bytes).map(ConfigParam::Discrimination)
@@ -308,8 +308,7 @@ impl DeserializeFromSlice for ConfigParam {
                 ConfigParamVariant::from_payload(bytes).map(ConfigParam::TransactionMaxExpiryEpochs)
             }
         }
-        .map_err(Into::into);
-        res
+        .map_err(Into::into)
     }
 }
 

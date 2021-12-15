@@ -101,8 +101,7 @@ where
     A: AsymmetricPublicKey,
 {
     let bytes = codec.get_slice(A::PUBLIC_KEY_SIZE)?;
-    let res = crypto::PublicKey::from_binary(bytes).map_err(chain_crypto_pub_err);
-    res
+    crypto::PublicKey::from_binary(bytes).map_err(chain_crypto_pub_err)
 }
 #[inline]
 pub fn deserialize_signature<A, T>(
@@ -112,8 +111,7 @@ where
     A: VerificationAlgorithm,
 {
     let bytes = codec.get_slice(A::SIGNATURE_SIZE)?;
-    let res = crypto::Signature::from_binary(bytes).map_err(chain_crypto_sig_err);
-    res
+    crypto::Signature::from_binary(bytes).map_err(chain_crypto_sig_err)
 }
 
 pub fn make_signature<T, A>(

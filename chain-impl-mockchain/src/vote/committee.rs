@@ -135,8 +135,7 @@ impl Serialize for CommitteeId {
 impl DeserializeFromSlice for CommitteeId {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let slice = codec.get_slice(Self::COMMITTEE_ID_SIZE)?;
-        let res = Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()));
-        res
+        Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()))
     }
 }
 

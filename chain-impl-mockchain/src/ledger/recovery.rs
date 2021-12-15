@@ -129,8 +129,7 @@ fn pack_digestof<H: DigestAlg, T, W: std::io::Write>(
 fn unpack_digestof<H: DigestAlg, T>(codec: &mut Codec<&[u8]>) -> Result<DigestOf<H, T>, ReadError> {
     let size = codec.get_u64()? as usize;
     let bytes = codec.get_slice(size)?;
-    let res = DigestOf::try_from(bytes).map_err(|e| ReadError::InvalidData(e.to_string()));
-    res
+    DigestOf::try_from(bytes).map_err(|e| ReadError::InvalidData(e.to_string()))
 }
 
 fn pack_account_identifier<W: std::io::Write>(
@@ -663,21 +662,21 @@ fn unpack_pool_state(codec: &mut Codec<&[u8]>) -> Result<PoolState, ReadError> {
 
 fn pack_update_proposal_state<W: std::io::Write>(
     update_proposal_state: &UpdateProposalState,
-    mut codec: &mut Codec<W>,
+    codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
     pack_update_proposal(&update_proposal_state.proposal, codec)?;
     pack_block_date(update_proposal_state.proposal_date, codec)?;
     codec.put_u64(update_proposal_state.votes.size() as u64)?;
     {
         for (voter, _) in &update_proposal_state.votes {
-            voter.serialize(&mut codec)?;
+            voter.serialize(codec)?;
         }
     }
     Ok(())
 }
 
 fn unpack_update_proposal_state(
-    mut codec: &mut Codec<&[u8]>,
+    codec: &mut Codec<&[u8]>,
 ) -> Result<UpdateProposalState, ReadError> {
     let proposal = unpack_update_proposal(codec)?;
     let proposal_date = unpack_block_date(codec)?;
@@ -685,7 +684,7 @@ fn unpack_update_proposal_state(
     let mut votes = Hamt::new();
 
     for _ in 0..total_votes {
-        let id = UpdateVoterId::deserialize_from_slice(&mut codec)?;
+        let id = UpdateVoterId::deserialize_from_slice(codec)?;
         votes = votes
             .insert(id, ())
             .map_err(|e| ReadError::InvalidData(e.to_string()))?;
@@ -810,10 +809,9 @@ fn unpack_address(codec: &mut Codec<&[u8]>) -> Result<Address, ReadError> {
     // TODO use Deserialize trait
     let size = codec.get_u64()? as usize;
     let v = codec.get_slice(size)?;
-    let res = Address::from_bytes(v).map_err(|e| {
+    Address::from_bytes(v).map_err(|e| {
         ReadError::InvalidData(format!("Error reading address from packed bytes: {}", e))
-    });
-    res
+    })
 }
 
 fn pack_vote_proposal<W: std::io::Write>(
