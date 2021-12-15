@@ -6,12 +6,12 @@ use chain_evm::{
 };
 
 #[derive(Default, Clone, PartialEq, Eq)]
-pub struct Ledger {
+pub struct EvmLedger {
     pub(crate) accounts: AccountTrie,
     pub(crate) logs: Vec<Log>,
 }
 
-impl Ledger {
+impl EvmLedger {
     pub fn new() -> Self {
         Self {
             accounts: Default::default(),
@@ -95,9 +95,9 @@ impl Ledger {
     }
 }
 
-impl Ledger {
+impl EvmLedger {
     pub(crate) fn stats(&self) -> String {
-        let Ledger { accounts, .. } = self;
+        let EvmLedger { accounts, .. } = self;
         let mut count = 0;
         let mut total = Balance::zero();
         for (_, account) in accounts {

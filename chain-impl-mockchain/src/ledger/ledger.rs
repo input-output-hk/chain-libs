@@ -3,7 +3,7 @@
 
 use super::check::{self, TxValidityError, TxVerifyError};
 #[cfg(feature = "evm")]
-use super::evm;
+use super::evm::EvmLedger;
 use super::governance::{Governance, ParametersGovernanceAction, TreasuryGovernanceAction};
 use super::leaderlog::LeadersParticipationRecord;
 use super::pots::Pots;
@@ -101,7 +101,7 @@ pub struct Ledger {
     pub(crate) votes: VotePlanLedger,
     pub(crate) governance: Governance,
     #[cfg(feature = "evm")]
-    pub(crate) evm: evm::Ledger,
+    pub(crate) evm: EvmLedger,
 }
 
 #[derive(Debug, Clone)]
@@ -357,7 +357,7 @@ impl Ledger {
             votes: VotePlanLedger::new(),
             governance: Governance::default(),
             #[cfg(feature = "evm")]
-            evm: evm::Ledger::new(),
+            evm: EvmLedger::new(),
         }
     }
 
