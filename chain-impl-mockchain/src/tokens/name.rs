@@ -2,7 +2,6 @@ use chain_core::{
     packer::Codec,
     property::{Deserialize, ReadError, Serialize, WriteError},
 };
-use std::convert::TryFrom;
 use thiserror::Error;
 use typed_bytes::ByteBuilder;
 
