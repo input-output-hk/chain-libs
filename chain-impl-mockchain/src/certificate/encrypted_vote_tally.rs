@@ -6,7 +6,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::Verification;
 use typed_bytes::{ByteArray, ByteBuilder};
@@ -89,10 +89,10 @@ impl Serialize for EncryptedVoteTally {
     }
 }
 
-impl Deserialize for EncryptedVoteTallyProof {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let id = CommitteeId::deserialize(codec)?;
-        let signature = SingleAccountBindingSignature::deserialize(codec)?;
+impl DeserializeFromSlice for EncryptedVoteTallyProof {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+        let id = CommitteeId::deserialize_from_slice(codec)?;
+        let signature = SingleAccountBindingSignature::deserialize_from_slice(codec)?;
         Ok(Self { id, signature })
     }
 }

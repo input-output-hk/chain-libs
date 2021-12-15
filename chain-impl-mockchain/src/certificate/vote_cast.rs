@@ -5,7 +5,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -84,8 +84,8 @@ impl Serialize for VoteCast {
     }
 }
 
-impl Deserialize for VoteCast {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for VoteCast {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let vote_plan = <[u8; 32]>::deserialize(codec)?.into();
         let proposal_index = codec.get_u8()?;
         let payload = vote::Payload::read(codec)?;

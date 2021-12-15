@@ -6,7 +6,7 @@ use crate::{
 
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -83,10 +83,10 @@ impl Serialize for UpdateVote {
     }
 }
 
-impl Deserialize for UpdateVote {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for UpdateVote {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let proposal_id = UpdateProposalId::deserialize(codec)?;
-        let voter_id = UpdateVoterId::deserialize(codec)?;
+        let voter_id = UpdateVoterId::deserialize_from_slice(codec)?;
 
         Ok(Self::new(proposal_id, voter_id))
     }

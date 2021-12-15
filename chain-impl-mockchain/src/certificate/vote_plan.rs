@@ -10,11 +10,11 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
 use chain_vote::MemberPublicKey;
-use std::{io::BufRead, ops::Deref};
+use std::ops::Deref;
 use typed_bytes::{ByteArray, ByteBuilder};
 
 /// abstract tag type to represent an external document, whatever it may be
@@ -377,10 +377,10 @@ impl Serialize for VotePlan {
     }
 }
 
-impl Deserialize for VotePlanProof {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let id = vote::CommitteeId::deserialize(codec)?;
-        let signature = SingleAccountBindingSignature::deserialize(codec)?;
+impl DeserializeFromSlice for VotePlanProof {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+        let id = vote::CommitteeId::deserialize_from_slice(codec)?;
+        let signature = SingleAccountBindingSignature::deserialize_from_slice(codec)?;
         Ok(Self { id, signature })
     }
 }
@@ -399,8 +399,8 @@ impl Deserialize for VoteAction {
     }
 }
 
-impl Deserialize for VotePlan {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for VotePlan {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         use std::convert::TryInto as _;
 
         let vote_start = BlockDate {
@@ -449,7 +449,6 @@ impl Deserialize for VotePlan {
             committee_public_keys.push(MemberPublicKey::from_bytes(key_buf).ok_or_else(|| {
                 ReadError::StructureInvalid("invalid public key format".to_string())
             })?);
-            codec.consume(MemberPublicKey::BYTES_LEN);
         }
 
         Ok(Self {
@@ -475,7 +474,7 @@ mod tests {
     fn serialize_deserialize(vote_plan: VotePlan) -> bool {
         let serialized = vote_plan.serialize();
 
-        let result = VotePlan::deserialize(&mut Codec::new(serialized.as_ref()));
+        let result = VotePlan::deserialize_from_slice(&mut Codec::new(serialized.as_ref()));
 
         let decoded = result.expect("can decode encoded vote plan");
 

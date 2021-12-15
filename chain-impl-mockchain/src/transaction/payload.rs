@@ -1,15 +1,15 @@
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 
 use crate::certificate::CertificateSlice;
 use std::marker::PhantomData;
 
-pub trait Payload: Deserialize {
+pub trait Payload: DeserializeFromSlice {
     const HAS_DATA: bool;
     const HAS_AUTH: bool;
-    type Auth: Deserialize;
+    type Auth: DeserializeFromSlice;
 
     fn payload_data(&self) -> PayloadData<Self>;
 
@@ -68,13 +68,13 @@ impl<'a, P: ?Sized> Clone for PayloadAuthSlice<'a, P> {
 
 impl<'a, P: Payload> PayloadSlice<'a, P> {
     pub fn into_payload(self) -> P {
-        P::deserialize(&mut Codec::new(self.0)).unwrap()
+        P::deserialize_from_slice(&mut Codec::new(self.0)).unwrap()
     }
 }
 
 impl<'a, P: Payload> PayloadAuthSlice<'a, P> {
     pub fn into_payload_auth(self) -> P::Auth {
-        P::Auth::deserialize(&mut Codec::new(self.0)).unwrap()
+        P::Auth::deserialize_from_slice(&mut Codec::new(self.0)).unwrap()
     }
 }
 
@@ -129,8 +129,8 @@ impl Serialize for NoExtra {
     }
 }
 
-impl Deserialize for NoExtra {
-    fn deserialize<R: std::io::BufRead>(_: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for NoExtra {
+    fn deserialize_from_slice(_: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         Ok(NoExtra)
     }
 }

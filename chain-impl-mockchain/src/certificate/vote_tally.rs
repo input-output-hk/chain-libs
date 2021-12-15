@@ -1,5 +1,3 @@
-use std::io::BufRead;
-
 use crate::{
     certificate::{CertificateSlice, VotePlanId},
     transaction::{
@@ -10,7 +8,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::Verification;
 use chain_vote::TallyDecryptShare;
@@ -235,17 +233,17 @@ impl Serialize for VoteTally {
     }
 }
 
-impl Deserialize for TallyProof {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for TallyProof {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             0 => {
-                let id = CommitteeId::deserialize(codec)?;
-                let signature = SingleAccountBindingSignature::deserialize(codec)?;
+                let id = CommitteeId::deserialize_from_slice(codec)?;
+                let signature = SingleAccountBindingSignature::deserialize_from_slice(codec)?;
                 Ok(Self::Public { id, signature })
             }
             1 => {
-                let id = CommitteeId::deserialize(codec)?;
-                let signature = SingleAccountBindingSignature::deserialize(codec)?;
+                let id = CommitteeId::deserialize_from_slice(codec)?;
+                let signature = SingleAccountBindingSignature::deserialize_from_slice(codec)?;
                 Ok(Self::Private { id, signature })
             }
             _ => Err(ReadError::StructureInvalid(
@@ -255,8 +253,8 @@ impl Deserialize for TallyProof {
     }
 }
 
-impl Deserialize for VoteTally {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for VoteTally {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         use std::convert::TryInto as _;
 
         let id = <[u8; 32]>::deserialize(codec)?.into();
@@ -282,7 +280,6 @@ impl Deserialize for VoteTally {
                                 "invalid decrypt share structure".to_owned(),
                             )
                         })?;
-                        codec.consume(share_bytes);
                         shares.push(share);
                     }
                     let mut decrypted = Vec::with_capacity(options_number);

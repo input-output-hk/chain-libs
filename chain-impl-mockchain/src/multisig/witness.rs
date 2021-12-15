@@ -3,7 +3,7 @@ use crate::key::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey, Verification};
 
@@ -79,8 +79,8 @@ impl Serialize for Witness {
     }
 }
 
-impl Deserialize for Witness {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for Witness {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let len = codec.get_u8()? as usize;
         if len == 0 {
             return Err(ReadError::StructureInvalid(

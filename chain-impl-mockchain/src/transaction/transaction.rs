@@ -7,10 +7,12 @@ use super::witness::Witness;
 use crate::date::BlockDate;
 use crate::value::{Value, ValueError};
 use chain_addr::Address;
-use chain_core::{packer::Codec, property::Deserialize};
+use chain_core::{
+    packer::Codec,
+    property::{Deserialize, DeserializeFromSlice},
+};
 use chain_crypto::digest::Digest;
 use std::fmt::{self, Debug};
-use std::io::Cursor;
 use std::marker::PhantomData;
 
 pub struct Transaction<P> {
@@ -129,12 +131,10 @@ impl<'a> Iterator for OutputsIter<'a> {
         if self.index == self.slice.1.len() {
             None
         } else {
-            let cursor = Cursor::new(self.slice.1);
-            let mut codec = Codec::new(cursor);
-            let position = codec.position() + self.index;
-            codec.set_position(position);
-            let output = Output::deserialize(&mut codec).unwrap();
-            self.index = codec.position();
+            let mut codec = Codec::new(self.slice.1);
+            codec.skip_bytes(self.index);
+            let output = Output::deserialize_from_slice(&mut codec).unwrap();
+            self.index = self.slice.1.len() - codec.into_inner().len();
             Some(output)
         }
     }
@@ -147,12 +147,10 @@ impl<'a> Iterator for WitnessesIter<'a> {
         if self.index == self.slice.1.len() {
             None
         } else {
-            let cursor = Cursor::new(self.slice.1);
-            let mut codec = Codec::new(cursor);
-            let position = codec.position() + self.index;
-            codec.set_position(position);
-            let output = Witness::deserialize(&mut codec).unwrap();
-            self.index = codec.position();
+            let mut codec = Codec::new(self.slice.1);
+            codec.skip_bytes(self.index);
+            let output = Witness::deserialize_from_slice(&mut codec).unwrap();
+            self.index = self.slice.1.len() - codec.into_inner().len();
             Some(output)
         }
     }
@@ -266,12 +264,12 @@ pub(super) struct TransactionStruct {
 /// Verify the structure of the transaction and return all the offsets
 fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionStructError> {
     let sz = slice.len();
-    let cursor = Cursor::new(slice);
-    let mut codec = Codec::new(cursor);
+    let mut codec = Codec::new(slice);
 
     // read payload
     if P::HAS_DATA {
-        P::deserialize_validate(&mut codec).map_err(|_| TransactionStructError::PayloadInvalid)?;
+        P::deserialize_validate_from_slice(&mut codec)
+            .map_err(|_| TransactionStructError::PayloadInvalid)?;
     }
 
     // read date
@@ -291,33 +289,32 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
         .get_u8()
         .map_err(|_| TransactionStructError::CannotReadNbOutputs)?;
 
-    let inputs_pos = codec.position();
-    let pos = codec.position() + nb_inputs as usize * INPUT_SIZE;
-    codec.set_position(pos);
-    let outputs_pos = codec.position();
+    let inputs_pos = sz - codec.bytes_left();
+    codec.skip_bytes(inputs_pos as usize * INPUT_SIZE);
+    let outputs_pos = sz - codec.bytes_left();
     for _ in 0..nb_outputs {
         Output::<Address>::deserialize_validate(&mut codec)
             .map_err(|_| TransactionStructError::OutputsInvalid)?;
     }
 
     // read witnesses
-    let witnesses_pos = codec.position();
+    let witnesses_pos = sz - codec.bytes_left();
     for _ in 0..nb_inputs {
-        Witness::deserialize_validate(&mut codec)
+        Witness::deserialize_validate_from_slice(&mut codec)
             .map_err(|_| TransactionStructError::WitnessesInvalid)?;
     }
 
     // read payload auth
-    let payload_auth_pos = codec.position();
+    let payload_auth_pos = sz - codec.bytes_left();
     if P::HAS_DATA && P::HAS_AUTH {
-        if codec.position() >= sz {
+        if codec.bytes_left() <= 0 {
             return Err(TransactionStructError::PayloadAuthMissing);
         }
-        P::Auth::deserialize_validate(&mut codec)
+        P::Auth::deserialize_validate_from_slice(&mut codec)
             .map_err(|_| TransactionStructError::PayloadAuthInvalid)?;
     }
 
-    if codec.position() < sz {
+    if codec.bytes_left() > 0 {
         return Err(TransactionStructError::SpuriousTrailingData);
     }
     Ok(TransactionStruct {

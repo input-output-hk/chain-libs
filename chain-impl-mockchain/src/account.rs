@@ -3,7 +3,7 @@ use crate::key::{deserialize_public_key, serialize_public_key};
 use crate::transaction::WitnessAccountData;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
@@ -41,8 +41,8 @@ impl Serialize for Identifier {
     }
 }
 
-impl Deserialize for Identifier {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for Identifier {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         deserialize_public_key(codec).map(Identifier)
     }
 }

@@ -8,7 +8,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -86,10 +86,10 @@ impl Serialize for UpdateProposal {
     }
 }
 
-impl Deserialize for UpdateProposal {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let changes = ConfigParams::deserialize(codec)?;
-        let proposer_id = UpdateProposerId::deserialize(codec)?;
+impl DeserializeFromSlice for UpdateProposal {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+        let changes = ConfigParams::deserialize_from_slice(codec)?;
+        let proposer_id = UpdateProposerId::deserialize_from_slice(codec)?;
 
         Ok(Self::new(changes, proposer_id))
     }

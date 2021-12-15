@@ -5,7 +5,7 @@ mod raw;
 use crate::legacy;
 use chain_core::{
     packer::Codec,
-    property::{self, Deserialize, ReadError, Serialize, WriteError},
+    property::{self, Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 
 pub use config::ConfigParams;
@@ -140,7 +140,7 @@ impl Fragment {
     }
 
     pub fn from_raw(raw: &FragmentRaw) -> Result<Self, ReadError> {
-        Fragment::deserialize(&mut Codec::new(raw.as_ref()))
+        Fragment::deserialize_from_slice(&mut Codec::new(raw.as_ref()))
     }
 
     /// The ID of a message is a hash of its serialization *without* the size.
@@ -154,9 +154,9 @@ impl Fragment {
     }
 }
 
-impl Deserialize for Fragment {
+impl DeserializeFromSlice for Fragment {
     // TODO: fix deserialization, it needs to converge to the serialization, currently is not, look into the fragment_serialization_bijection() test
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let padding_tag = codec.get_u8()?;
         if padding_tag != 0 {
             return Err(ReadError::StructureInvalid(format!(
@@ -167,9 +167,12 @@ impl Deserialize for Fragment {
 
         let tag = codec.get_u8()?;
         match FragmentTag::from_u8(tag) {
-            Some(FragmentTag::Initial) => ConfigParams::deserialize(codec).map(Fragment::Initial),
+            Some(FragmentTag::Initial) => {
+                ConfigParams::deserialize_from_slice(codec).map(Fragment::Initial)
+            }
             Some(FragmentTag::OldUtxoDeclaration) => {
-                legacy::UtxoDeclaration::deserialize(codec).map(Fragment::OldUtxoDeclaration)
+                legacy::UtxoDeclaration::deserialize_from_slice(codec)
+                    .map(Fragment::OldUtxoDeclaration)
             }
             Some(FragmentTag::Transaction) => {
                 Transaction::deserialize(codec).map(Fragment::Transaction)

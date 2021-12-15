@@ -1,12 +1,11 @@
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey};
 use std::{
     convert::TryFrom,
     fmt::{self, Debug, Display},
-    io::BufRead,
     str::FromStr,
 };
 use thiserror::Error;
@@ -133,11 +132,10 @@ impl Serialize for CommitteeId {
     }
 }
 
-impl Deserialize for CommitteeId {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for CommitteeId {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let slice = codec.get_slice(Self::COMMITTEE_ID_SIZE)?;
         let res = Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()));
-        codec.consume(Self::COMMITTEE_ID_SIZE);
         res
     }
 }
@@ -175,7 +173,7 @@ mod tests {
     #[quickcheck]
     fn serialize_readable(committee_id: CommitteeId) -> bool {
         let b_got = committee_id.serialize_as_vec().unwrap();
-        let result = CommitteeId::deserialize(&mut Codec::new(b_got.as_slice()))
+        let result = CommitteeId::deserialize_from_slice(&mut Codec::new(b_got.as_slice()))
             .expect("decode the committee ID");
         committee_id == result
     }

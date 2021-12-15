@@ -1,7 +1,7 @@
 use crate::config::ConfigParam;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -32,13 +32,13 @@ impl Serialize for ConfigParams {
     }
 }
 
-impl Deserialize for ConfigParams {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for ConfigParams {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         // FIXME: check canonical order?
         let len = codec.get_u16()?;
         let mut configs: Vec<ConfigParam> = Vec::with_capacity(len as usize);
         for _ in 0..len {
-            configs.push(ConfigParam::deserialize(codec)?);
+            configs.push(ConfigParam::deserialize_from_slice(codec)?);
         }
         Ok(ConfigParams(configs))
     }
@@ -52,7 +52,7 @@ mod tests {
         fn config_params_serialize(params: ConfigParams) -> bool {
             use chain_core::property::{Serialize as _,};
             let bytes = params.serialize_as_vec().unwrap();
-            let decoded = ConfigParams::deserialize(&mut Codec::new(bytes.as_slice())).unwrap();
+            let decoded = ConfigParams::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
 
             params == decoded
         }
@@ -60,7 +60,7 @@ mod tests {
         fn config_params_serialize_readable(params: ConfigParams) -> bool {
             use chain_core::property::Serialize as _;
             let bytes = params.serialize_as_vec().unwrap();
-            let decoded = ConfigParams::deserialize(&mut Codec::new(bytes.as_slice())).unwrap();
+            let decoded = ConfigParams::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
 
             params == decoded
         }

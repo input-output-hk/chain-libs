@@ -1,5 +1,3 @@
-use std::io::BufRead;
-
 use crate::value::Value;
 
 pub use cardano_legacy_address::Addr as OldAddress;
@@ -7,7 +5,7 @@ pub use cardano_legacy_address::AddressMatchXPub as OldAddressMatchXPub;
 
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey};
 
@@ -26,8 +24,8 @@ pub fn oldaddress_from_xpub(
     address.identical_with_pubkey_raw(&pkraw, some_bytes)
 }
 
-impl Deserialize for UtxoDeclaration {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for UtxoDeclaration {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         use std::convert::TryFrom;
 
         let nb_entries = codec.get_u8()? as usize;
@@ -41,7 +39,6 @@ impl Deserialize for UtxoDeclaration {
             let addr_size = codec.get_u16()? as usize;
             let addr = OldAddress::try_from(codec.get_slice(addr_size)?)
                 .map_err(|err| ReadError::StructureInvalid(format!("{}", err)))?;
-            codec.consume(addr_size);
             addrs.push((addr, value))
         }
 

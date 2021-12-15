@@ -8,7 +8,7 @@ use crate::key::{
 use crate::multisig;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
@@ -217,8 +217,8 @@ impl Serialize for Witness {
     }
 }
 
-impl Deserialize for Witness {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for Witness {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             WITNESS_TAG_OLDUTXO => {
                 let pk = deserialize_public_key(codec)?;
@@ -234,7 +234,7 @@ impl Deserialize for Witness {
             }
             WITNESS_TAG_MULTISIG => {
                 let nonce = codec.get_u32()?.into();
-                let msig = multisig::Witness::deserialize(codec)?;
+                let msig = multisig::Witness::deserialize_from_slice(codec)?;
                 Ok(Witness::Multisig(nonce, msig))
             }
             i => Err(ReadError::UnknownTag(i as u32)),

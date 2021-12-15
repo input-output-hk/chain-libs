@@ -11,11 +11,11 @@ use crate::{
 use chain_addr::Discrimination;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::PublicKey;
 use std::fmt::{self, Display, Formatter};
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 use std::num::{NonZeroU32, NonZeroU64};
 use strum_macros::{AsRefStr, EnumIter, EnumString};
 use typed_bytes::ByteBuilder;
@@ -228,8 +228,8 @@ impl<'a> From<&'a ConfigParam> for Tag {
     }
 }
 
-impl Deserialize for ConfigParam {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for ConfigParam {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let taglen = TagLen(codec.get_u16()?);
         let bytes = codec.get_slice(taglen.get_len())?;
         let res = match taglen.get_tag()? {
@@ -309,7 +309,6 @@ impl Deserialize for ConfigParam {
             }
         }
         .map_err(Into::into);
-        codec.consume(taglen.get_len());
         res
     }
 }
@@ -775,7 +774,7 @@ mod test {
         fn config_param_serialize_readable(param: ConfigParam) -> bool {
             use chain_core::property::Serialize as _;
             let bytes = param.serialize_as_vec().unwrap();
-            let decoded = ConfigParam::deserialize(&mut Codec::new(bytes.as_slice())).unwrap();
+            let decoded = ConfigParam::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
 
             param == decoded
         }

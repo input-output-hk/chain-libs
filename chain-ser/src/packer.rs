@@ -19,6 +19,26 @@ impl<I> Codec<I> {
     }
 }
 
+impl Codec<&[u8]> {
+    #[inline]
+    pub fn get_slice(&mut self, n: usize) -> Result<&[u8], ReadError> {
+        if self.inner.as_ref().len() < n {
+            return Err(ReadError::NotEnoughBytes(self.inner.as_ref().len(), n));
+        }
+        let res = &self.inner[..n];
+        self.inner = &self.inner[n..];
+        Ok(res)
+    }
+    #[inline]
+    pub fn skip_bytes(&mut self, pos: usize) {
+        self.inner = &self.inner[pos..];
+    }
+    #[inline]
+    pub fn bytes_left(&self) -> usize {
+        self.inner.len()
+    }
+}
+
 impl<R: std::io::Read> Codec<R> {
     #[inline]
     pub fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize, ReadError> {
@@ -80,19 +100,6 @@ impl<R: std::io::Read> Codec<R> {
     }
 }
 
-impl<R: std::io::BufRead> Codec<R> {
-    #[inline]
-    /// This is a wrapper over the std::io::BufRead::fill_buf() function,
-    /// so be aware of that you need also execute consume() function to move the reader position
-    pub fn get_slice(&mut self, n: usize) -> Result<&[u8], ReadError> {
-        let data = self.inner.fill_buf()?;
-        if data.len() < n {
-            return Err(ReadError::NotEnoughBytes(data.len(), n));
-        }
-        Ok(&data[..n])
-    }
-}
-
 impl<W: std::io::Write> Codec<W> {
     #[inline]
     pub fn put_u8(&mut self, v: u8) -> Result<(), WriteError> {
@@ -128,23 +135,5 @@ impl<T> Codec<std::io::Cursor<T>> {
     #[inline]
     pub fn set_position(&mut self, pos: usize) {
         self.inner.set_position(pos as u64)
-    }
-}
-
-impl<R: std::io::Read> std::io::Read for Codec<R> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
-    }
-}
-
-impl<BR: std::io::BufRead> std::io::BufRead for Codec<BR> {
-    #[inline]
-    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
-        self.inner.fill_buf()
-    }
-    #[inline]
-    fn consume(&mut self, amt: usize) {
-        self.inner.consume(amt)
     }
 }

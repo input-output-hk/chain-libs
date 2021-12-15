@@ -7,7 +7,7 @@ use crate::transaction::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Verification};
 use chain_time::{DurationSeconds, TimeOffsetSeconds};
@@ -155,11 +155,11 @@ impl PoolUpdate {
     }
 }
 
-impl Deserialize for PoolUpdate {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for PoolUpdate {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let pool_id = <[u8; 32]>::deserialize(codec)?.into();
         let last_pool_reg_hash = <[u8; 32]>::deserialize(codec)?.into();
-        let new_pool_reg = PoolRegistration::deserialize(codec)?;
+        let new_pool_reg = PoolRegistration::deserialize_from_slice(codec)?;
         Ok(PoolUpdate {
             pool_id,
             last_pool_reg_hash,
@@ -258,14 +258,14 @@ impl Serialize for PoolRegistration {
     }
 }
 
-impl Deserialize for PoolRegistration {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for PoolRegistration {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let serial = codec.get_u128()?;
         let start_validity = DurationSeconds::from(codec.get_u64()?).into();
         let permissions = PoolPermissions::from_u64(codec.get_u64()?).ok_or_else(|| {
             ReadError::StructureInvalid("permission value not correct".to_string())
         })?;
-        let keys = GenesisPraosLeader::deserialize(codec)?;
+        let keys = GenesisPraosLeader::deserialize_from_slice(codec)?;
 
         let owners_nb = codec.get_u8()?;
         let mut owners = Vec::with_capacity(owners_nb as usize);
@@ -413,8 +413,8 @@ impl PoolOwnersSignature {
     }
 }
 
-impl Deserialize for PoolOwnersSigned {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for PoolOwnersSigned {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let sigs_nb = codec.get_u8()? as usize;
         if sigs_nb == 0 {
             return Err(ReadError::StructureInvalid(
@@ -431,14 +431,14 @@ impl Deserialize for PoolOwnersSigned {
     }
 }
 
-impl Deserialize for PoolSignature {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for PoolSignature {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         match codec.get_u8()? {
             0 => {
                 let sig = deserialize_signature(codec)?;
                 Ok(PoolSignature::Operator(SingleAccountBindingSignature(sig)))
             }
-            1 => PoolOwnersSigned::deserialize(codec).map(PoolSignature::Owners),
+            1 => PoolOwnersSigned::deserialize_from_slice(codec).map(PoolSignature::Owners),
             code => Err(ReadError::UnknownTag(code as u32)),
         }
     }

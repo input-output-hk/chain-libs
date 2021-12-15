@@ -3,7 +3,9 @@
 //!
 use chain_core::{
     packer::Codec,
-    property::{BlockId, Deserialize, FragmentId, ReadError, Serialize, WriteError},
+    property::{
+        BlockId, Deserialize, DeserializeFromSlice, FragmentId, ReadError, Serialize, WriteError,
+    },
 };
 use chain_crypto as crypto;
 use chain_crypto::{
@@ -13,7 +15,7 @@ use chain_crypto::{
 use rand_core::{CryptoRng, RngCore};
 use typed_bytes::ByteBuilder;
 
-use std::{io::BufRead, str::FromStr};
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub enum EitherEd25519SecretKey {
@@ -92,27 +94,25 @@ pub fn serialize_signature<A: VerificationAlgorithm, T, W: std::io::Write>(
     codec.put_bytes(signature.as_ref())
 }
 #[inline]
-pub fn deserialize_public_key<A, R: std::io::BufRead>(
-    codec: &mut Codec<R>,
+pub fn deserialize_public_key<A>(
+    codec: &mut Codec<&[u8]>,
 ) -> Result<crypto::PublicKey<A>, ReadError>
 where
     A: AsymmetricPublicKey,
 {
     let bytes = codec.get_slice(A::PUBLIC_KEY_SIZE)?;
     let res = crypto::PublicKey::from_binary(bytes).map_err(chain_crypto_pub_err);
-    codec.consume(A::PUBLIC_KEY_SIZE);
     res
 }
 #[inline]
-pub fn deserialize_signature<A, T, R: std::io::BufRead>(
-    codec: &mut Codec<R>,
+pub fn deserialize_signature<A, T>(
+    codec: &mut Codec<&[u8]>,
 ) -> Result<crypto::Signature<T, A>, ReadError>
 where
     A: VerificationAlgorithm,
 {
     let bytes = codec.get_slice(A::SIGNATURE_SIZE)?;
     let res = crypto::Signature::from_binary(bytes).map_err(chain_crypto_sig_err);
-    codec.consume(A::SIGNATURE_SIZE);
     res
 }
 
@@ -184,8 +184,8 @@ impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A> {
     }
 }
 
-impl<T: Deserialize, A: VerificationAlgorithm> Deserialize for Signed<T, A> {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl<T: Deserialize, A: VerificationAlgorithm> DeserializeFromSlice for Signed<T, A> {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         Ok(Signed {
             data: T::deserialize(codec)?,
             sig: deserialize_signature(codec)?,
@@ -326,8 +326,8 @@ impl Serialize for BftLeaderId {
     }
 }
 
-impl Deserialize for BftLeaderId {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for BftLeaderId {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         deserialize_public_key(codec).map(BftLeaderId)
     }
 }
@@ -362,8 +362,8 @@ impl GenesisPraosLeader {
     }
 }
 
-impl Deserialize for GenesisPraosLeader {
-    fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+impl DeserializeFromSlice for GenesisPraosLeader {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let vrf_public_key = deserialize_public_key(codec)?;
         let kes_public_key = deserialize_public_key(codec)?;
         Ok(GenesisPraosLeader {
