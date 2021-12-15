@@ -3,7 +3,6 @@ use chain_core::{
     packer::Codec,
     property::{Deserialize, ReadError, Serialize, WriteError},
 };
-use std::convert::TryFrom;
 use std::{iter::Sum, ops};
 use thiserror::Error;
 

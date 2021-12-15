@@ -861,8 +861,6 @@ fn pack_payload_type<W: std::io::Write>(
 }
 
 fn unpack_payload_type(codec: &mut Codec<&[u8]>) -> Result<vote::PayloadType, ReadError> {
-    use std::convert::TryFrom as _;
-
     let byte = codec.get_u8()?;
     vote::PayloadType::try_from(byte).map_err(|e| ReadError::InvalidData(e.to_string()))
 }
