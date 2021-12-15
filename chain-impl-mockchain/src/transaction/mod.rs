@@ -39,6 +39,9 @@ impl<Extra: Payload> Serialize for Transaction<Extra> {
 impl<Extra: Payload> Deserialize for Transaction<Extra> {
     fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let mut buf = Vec::new();
+        // TODO: implicitly define size of the Transaction object in the deserialize function, do not use read_to_end,
+        // it narrows the usage of the deserialize trait for the Transaction struct,
+        // which is not obvious from the Deserialze trait description, so leads to mistakes
         codec.read_to_end(&mut buf)?;
         let utx = UnverifiedTransactionSlice::from(buf.as_slice());
         match utx.check() {

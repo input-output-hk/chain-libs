@@ -134,7 +134,7 @@ impl<'a> Iterator for OutputsIter<'a> {
             let mut codec = Codec::new(self.slice.1);
             codec.skip_bytes(self.index);
             let output = Output::deserialize_from_slice(&mut codec).unwrap();
-            self.index = self.slice.1.len() - codec.into_inner().len();
+            self.index = self.slice.1.len() - codec.bytes_left();
             Some(output)
         }
     }
@@ -150,7 +150,7 @@ impl<'a> Iterator for WitnessesIter<'a> {
             let mut codec = Codec::new(self.slice.1);
             codec.skip_bytes(self.index);
             let output = Witness::deserialize_from_slice(&mut codec).unwrap();
-            self.index = self.slice.1.len() - codec.into_inner().len();
+            self.index = self.slice.1.len() - codec.bytes_left();
             Some(output)
         }
     }
@@ -290,7 +290,7 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
         .map_err(|_| TransactionStructError::CannotReadNbOutputs)?;
 
     let inputs_pos = sz - codec.bytes_left();
-    codec.skip_bytes(inputs_pos as usize * INPUT_SIZE);
+    codec.skip_bytes(nb_inputs as usize * INPUT_SIZE);
     let outputs_pos = sz - codec.bytes_left();
     for _ in 0..nb_outputs {
         Output::<Address>::deserialize_validate(&mut codec)

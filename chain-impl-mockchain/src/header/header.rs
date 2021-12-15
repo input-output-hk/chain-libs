@@ -304,6 +304,9 @@ impl Serialize for Header {
 impl Deserialize for Header {
     fn deserialize<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let mut buf = Vec::new();
+        // TODO: implicitly define size of the Header object in the deserialize function, do not use read_to_end,
+        // it narrows the usage of the deserialize trait for the Header struct,
+        // which is not obvious from the Deserialze trait description, so leads to mistakes
         codec.read_to_end(&mut buf)?;
         Header::from_slice(buf.as_slice()).map_err(|e| match e {
             HeaderError::InvalidSize => ReadError::NotEnoughBytes(0, 0),
