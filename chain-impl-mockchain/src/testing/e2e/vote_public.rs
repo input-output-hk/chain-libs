@@ -133,7 +133,7 @@ pub fn vote_cast_action_action_parameters_no_op() {
 }
 
 #[test]
-pub fn vote_cast_tally_50_percent() {
+pub fn vote_cast_tally_more_than_50_percent_successful() {
     let _blank = Choice::new(0);
     let favorable = Choice::new(1);
     let rejection = Choice::new(2);
@@ -149,7 +149,7 @@ pub fn vote_cast_tally_50_percent() {
         .with_initials(vec![
             wallet(ALICE)
                 .with(1_000)
-                .with_token(voting_token.clone(), 1_000)
+                .with_token(voting_token.clone(), 1_001)
                 .owns(STAKE_POOL)
                 .committee_member(),
             wallet(BOB)
@@ -203,7 +203,7 @@ pub fn vote_cast_tally_50_percent() {
     LedgerStateVerifier::new(ledger.into())
         .info("rewards pot is increased")
         .pots()
-        .has_remaining_rewards_equals_to(&Value(1000));
+        .has_remaining_rewards_equals_to(&Value(1100));
 }
 
 #[test]
@@ -211,6 +211,8 @@ pub fn vote_cast_tally_50_percent_unsuccesful() {
     let _blank = Choice::new(0);
     let _favorable = Choice::new(1);
     let rejection = Choice::new(2);
+
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
 
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
@@ -221,10 +223,12 @@ pub fn vote_cast_tally_50_percent_unsuccesful() {
         .with_initials(vec![
             wallet(ALICE)
                 .with(1_000)
+                .with_token(voting_token.clone(), 1_000)
                 .owns(STAKE_POOL)
                 .committee_member(),
             wallet(BOB)
                 .with(1_000)
+                .with_token(voting_token, 1_000)
                 .delegates_to(STAKE_POOL)
                 .committee_member(),
         ])
