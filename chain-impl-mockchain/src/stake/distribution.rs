@@ -332,7 +332,6 @@ mod tests {
                             single_account.0.clone().into(),
                         ),
                         x.value,
-                        // TODO: maybe this is expensive?
                         x.tokens.clone(),
                     )
                 })
