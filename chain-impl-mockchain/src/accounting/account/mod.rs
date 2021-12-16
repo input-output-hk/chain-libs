@@ -276,7 +276,7 @@ mod tests {
             let voting_tokens_size = usize::arbitrary(gen);
             let arbitrary_voting_tokens = iter::from_fn(|| Some(TokenIdentifier::arbitrary(gen)))
                 .take(voting_tokens_size)
-                .collect::<Vec<_>>();
+                .collect::<HashSet<_>>();
 
             let mut ledger = Ledger::new();
 
