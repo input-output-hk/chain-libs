@@ -325,7 +325,7 @@ pub enum Error {
     UpdateVoteSignatureFailed,
     #[error("minting policy violation")]
     MintingPolicyViolation(#[from] MintingPolicyViolation),
-    #[error("evm transactions are disabled, build with the 'evm' feature")]
+    #[error("evm transactions are disabled, the node was built without the 'evm' feature")]
     DisabledEvmTransactions,
 }
 
