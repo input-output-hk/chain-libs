@@ -1,4 +1,5 @@
 use crate::testing::VoteTestGen;
+use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
 use crate::{
     fee::{LinearFee, PerCertificateFee, PerVoteCertificateFee},
     header::BlockDate,
@@ -21,6 +22,7 @@ const VOTE_PLAN: &str = "fund1";
 pub fn vote_cast_action_transfer_to_rewards() {
     let favorable = Choice::new(1);
 
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new()
@@ -29,6 +31,7 @@ pub fn vote_cast_action_transfer_to_rewards() {
         )
         .with_initials(vec![wallet(ALICE)
             .with(1_000)
+            .with_token(voting_token, 1_000)
             .owns(STAKE_POOL)
             .committee_member()])
         .with_vote_plans(vec![vote_plan(VOTE_PLAN)
@@ -135,6 +138,8 @@ pub fn vote_cast_tally_50_percent() {
     let favorable = Choice::new(1);
     let rejection = Choice::new(2);
 
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
+
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new()
@@ -144,10 +149,12 @@ pub fn vote_cast_tally_50_percent() {
         .with_initials(vec![
             wallet(ALICE)
                 .with(1_000)
+                .with_token(voting_token.clone(), 1_000)
                 .owns(STAKE_POOL)
                 .committee_member(),
             wallet(BOB)
                 .with(1_000)
+                .with_token(voting_token, 1_000)
                 .delegates_to(STAKE_POOL)
                 .committee_member(),
         ])
@@ -196,7 +203,7 @@ pub fn vote_cast_tally_50_percent() {
     LedgerStateVerifier::new(ledger.into())
         .info("rewards pot is increased")
         .pots()
-        .has_remaining_rewards_equals_to(&Value(1100));
+        .has_remaining_rewards_equals_to(&Value(1000));
 }
 
 #[test]
@@ -457,6 +464,8 @@ pub fn votes_with_fees() {
     );
     fees.per_vote_certificate_fees(vote_fees);
 
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
+
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new()
@@ -465,6 +474,7 @@ pub fn votes_with_fees() {
         )
         .with_initials(vec![wallet(ALICE)
             .with(1_000)
+            .with_token(voting_token, 1_000)
             .owns(STAKE_POOL)
             .committee_member()])
         .with_vote_plans(vec![vote_plan(VOTE_PLAN)

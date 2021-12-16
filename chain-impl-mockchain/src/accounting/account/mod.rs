@@ -212,7 +212,7 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
         let values = self
             .0
             .iter()
-            .filter_map(|(_, account_state)| account_state.tokens.lookup(&token))
+            .filter_map(|(_, account_state)| account_state.tokens.lookup(token))
             .cloned();
 
         Value::sum(values)

@@ -165,7 +165,7 @@ mod tests {
         account::{self, Identifier},
         rewards::Ratio,
         stake::Stake,
-        testing::{utxo::ArbitaryLedgerUtxo, TestGen},
+        testing::TestGen,
     };
     use quickcheck_macros::quickcheck;
     use std::num::NonZeroU64;
@@ -397,12 +397,21 @@ mod tests {
 
     #[quickcheck]
     pub fn stake_control_from_ledger(accounts: account::Ledger) {
-        let (_, account_state) = accounts.iter().next().unwrap();
-        let (voting_token, _) = account_state.tokens.iter().next().unwrap();
+        let mut voting_token = (|| {
+            for (_, account_state) in accounts.iter() {
+                if let Some((token_id, _)) = account_state.tokens.iter().next() {
+                    return Some(token_id);
+                }
+            }
 
-        let stake_control = StakeControl::new_with(voting_token, &accounts);
-        //verify sum
-        let expected_sum = accounts.get_total_value().unwrap();
-        assert_eq!(stake_control.total(), expected_sum.into());
+            None
+        })();
+
+        if let Some(voting_token) = voting_token.take() {
+            let stake_control = StakeControl::new_with(voting_token, &accounts);
+            //verify sum
+            let expected_sum = accounts.token_get_total(voting_token).unwrap();
+            assert_eq!(stake_control.total(), expected_sum.into());
+        }
     }
 }
