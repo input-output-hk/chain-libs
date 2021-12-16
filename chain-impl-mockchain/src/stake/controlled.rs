@@ -397,15 +397,17 @@ mod tests {
 
     #[quickcheck]
     pub fn stake_control_from_ledger(accounts: account::Ledger) {
-        let mut voting_token = (|| {
+        let mut voting_token = {
+            let mut first_token_found = None;
             for (_, account_state) in accounts.iter() {
                 if let Some((token_id, _)) = account_state.tokens.iter().next() {
-                    return Some(token_id);
+                    first_token_found = Some(token_id);
+                    break;
                 }
             }
 
-            None
-        })();
+            first_token_found
+        };
 
         if let Some(voting_token) = voting_token.take() {
             let stake_control = StakeControl::new_with(voting_token, &accounts);
