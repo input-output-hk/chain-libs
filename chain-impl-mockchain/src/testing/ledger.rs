@@ -420,7 +420,7 @@ impl LedgerBuilder {
                         name: token.clone(),
                         policy: MintingPolicy::new(),
                         to: faucet.to_id(),
-                        value: value.clone(),
+                        value: *value,
                     })
                     .set_expiry_date(BlockDate::first().next_epoch())
                     .set_ios(&[], &[])
