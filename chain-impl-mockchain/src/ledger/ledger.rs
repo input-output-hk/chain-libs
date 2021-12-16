@@ -325,6 +325,8 @@ pub enum Error {
     UpdateVoteSignatureFailed,
     #[error("minting policy violation")]
     MintingPolicyViolation(#[from] MintingPolicyViolation),
+    #[error("evm transactions are disabled, build with the 'evm' feature")]
+    DisabledEvmTransactions,
 }
 
 impl LedgerParameters {
@@ -524,7 +526,9 @@ impl Ledger {
                         ledger.evm.run_transaction(tx, config, environment)?;
                     }
                     #[cfg(not(feature = "evm"))]
-                    {}
+                    {
+                        return Err(Error::DisabledEvmTransactions);
+                    }
                 }
             }
         }
@@ -1044,7 +1048,9 @@ impl Ledger {
                     new_ledger.evm.run_transaction(tx, config, environment)?;
                 }
                 #[cfg(not(feature = "evm"))]
-                {}
+                {
+                    return Err(Error::DisabledEvmTransactions);
+                }
             }
         }
 
