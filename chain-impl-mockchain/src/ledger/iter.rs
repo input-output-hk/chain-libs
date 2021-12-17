@@ -8,7 +8,7 @@ use crate::config::ConfigParam;
 use crate::date::BlockDate;
 use crate::key::Hash;
 #[cfg(feature = "evm")]
-use crate::ledger::evm::EvmLedger;
+use crate::ledger::evm;
 use crate::stake::PoolsState;
 use crate::vote::{VotePlanLedger, VotePlanManager};
 use crate::{account, legacy, multisig, setting, update, utxo};
@@ -291,7 +291,7 @@ impl<'a> std::iter::FromIterator<Entry<'a>> for Result<Ledger, Error> {
         let mut votes = VotePlanLedger::new();
         let governance = Governance::default();
         #[cfg(feature = "evm")]
-        let evm = EvmLedger::new();
+        let evm = evm::Ledger::new();
 
         for entry in iter {
             match entry {
