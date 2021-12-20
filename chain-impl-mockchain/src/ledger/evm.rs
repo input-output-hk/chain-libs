@@ -1,20 +1,21 @@
 use crate::evm::Transaction;
 use crate::ledger::Error;
 use chain_evm::{
-    machine::{Config, Environment, LogsTrie, VirtualMachine},
-    state::{AccountTrie, Balance},
+    machine::{Config, Environment, VirtualMachine},
+    state::{AccountTrie, Balance, LogsState},
 };
 
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct Ledger {
     pub(crate) accounts: AccountTrie,
-    pub(crate) logs: LogsTrie,
+    pub(crate) logs: LogsState,
 }
 
 impl Ledger {
     pub fn new() -> Self {
         Self {
             accounts: Default::default(),
+            logs: Default::default(),
         }
     }
     pub fn run_transaction<'runtime>(
