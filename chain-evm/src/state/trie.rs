@@ -2,8 +2,6 @@ use imhamt::{Hamt, HamtIter, RemoveError};
 
 use std::collections::hash_map::DefaultHasher;
 use std::convert::Infallible;
-use std::error::Error;
-use std::fmt::Debug;
 use std::hash::Hash;
 
 /// An immutable structure to represent any of EVM tries.
