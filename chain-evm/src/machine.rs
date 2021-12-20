@@ -20,7 +20,7 @@ use primitive_types::{H160, H256, U256};
 
 use crate::{
     precompiles::Precompiles,
-    state::{AccountTrie, ByteCode, Key},
+    state::{AccountTrie, ByteCode, Key, Trie},
 };
 
 /// Export EVM types
@@ -74,6 +74,9 @@ pub type Value = U256;
 /// The context of the EVM runtime
 pub type RuntimeContext = Context;
 
+/// In-memory representation of all logs.
+pub type LogsTrie = Trie<BlockHash, Vec<Log>>;
+
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
 pub struct VirtualMachine<'runtime> {
@@ -82,7 +85,7 @@ pub struct VirtualMachine<'runtime> {
     environment: &'runtime Environment,
     precompiles: Precompiles,
     state: AccountTrie,
-    logs: Vec<Log>,
+    logs: LogsTrie,
 }
 
 /// Ethereum Hard-Fork variants
@@ -139,7 +142,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &[Log])> {
+    ) -> Option<(&AccountTrie, &LogsTrie)> {
         {
             let metadata = StackSubstateMetadata::new(gas_limit, self.config);
             let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -181,7 +184,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &[Log])> {
+    ) -> Option<(&AccountTrie, &LogsTrie)> {
         {
             let metadata = StackSubstateMetadata::new(gas_limit, self.config);
             let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -228,7 +231,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &[Log], ByteCode)> {
+    ) -> Option<(&AccountTrie, &LogsTrie, ByteCode)> {
         let metadata = StackSubstateMetadata::new(gas_limit, self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
         let mut executor =
@@ -375,9 +378,11 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
         }
 
         // save the logs
-        for log in logs {
-            self.logs.push(log);
-        }
+        let block_hash = self.block_hash(self.block_number());
+        self.logs = self
+            .logs
+            .clone()
+            .put(block_hash, logs.into_iter().collect());
     }
 }
 

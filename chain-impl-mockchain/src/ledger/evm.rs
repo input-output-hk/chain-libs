@@ -1,21 +1,20 @@
 use crate::evm::Transaction;
 use crate::ledger::Error;
 use chain_evm::{
-    machine::{Config, Environment, Log, VirtualMachine},
+    machine::{Config, Environment, LogsTrie, VirtualMachine},
     state::{AccountTrie, Balance},
 };
 
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct Ledger {
     pub(crate) accounts: AccountTrie,
-    pub(crate) logs: Vec<Log>,
+    pub(crate) logs: LogsTrie,
 }
 
 impl Ledger {
     pub fn new() -> Self {
         Self {
             accounts: Default::default(),
-            logs: Default::default(),
         }
     }
     pub fn run_transaction<'runtime>(
@@ -34,12 +33,12 @@ impl Ledger {
                 access_list,
             } => {
                 //
-                if let Some((new_state, logs)) =
+                if let Some((new_state, new_logs)) =
                     vm.transact_create(caller, value, init_code, gas_limit, access_list, true)
                 {
                     // update ledger state
                     self.accounts = new_state.clone();
-                    self.logs.extend_from_slice(logs);
+                    self.logs = new_logs.clone();
                 }
                 Ok(())
             }
@@ -51,7 +50,7 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                if let Some((new_state, logs)) = vm.transact_create2(
+                if let Some((new_state, new_logs)) = vm.transact_create2(
                     caller,
                     value,
                     init_code,
@@ -62,7 +61,7 @@ impl Ledger {
                 ) {
                     // update ledger state
                     self.accounts = new_state.clone();
-                    self.logs.extend_from_slice(logs);
+                    self.logs = new_logs.clone();
                 }
                 Ok(())
             }
@@ -74,12 +73,12 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                if let Some((new_state, logs, _byte_code_msg)) =
+                if let Some((new_state, new_logs, _byte_code_msg)) =
                     vm.transact_call(caller, address, value, data, gas_limit, access_list, true)
                 {
                     // update ledger state
                     self.accounts = new_state.clone();
-                    self.logs.extend_from_slice(logs);
+                    self.logs = new_logs.clone();
                 }
                 Ok(())
             }
