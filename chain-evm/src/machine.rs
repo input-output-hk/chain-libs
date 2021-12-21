@@ -14,9 +14,11 @@ use std::rc::Rc;
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic},
     executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
-    Context, Runtime,
+    Context, ExitError, ExitFatal, ExitRevert, Runtime,
 };
 use primitive_types::{H160, H256, U256};
+
+use thiserror::Error;
 
 use crate::{
     precompiles::Precompiles,
@@ -73,6 +75,19 @@ pub type Value = U256;
 
 /// The context of the EVM runtime
 pub type RuntimeContext = Context;
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum Error {
+    #[error("transaction error (machine returns a normal EVM error)")]
+    TransactionError(ExitError),
+    #[error("transaction faral error (machine encountered an error that is not supposed to be normal EVM errors, such as requiring too much memory to execute)")]
+    TransactionFatalError(ExitFatal),
+    // If the transaction reverts, there are two possible cases,
+    // it can revert because the called contract feels that it does not have enough
+    // gas left to continue, or it can revert for another reason unrelated to gas.
+    #[error("transaction has been reverted (machine encountered an explict revert)")]
+    TransactionRevertError(ExitRevert),
+}
 
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
@@ -139,7 +154,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &LogsState)> {
+    ) -> Result<(&AccountTrie, &LogsState), Error> {
         {
             let metadata = StackSubstateMetadata::new(gas_limit, self.config);
             let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -152,7 +167,7 @@ impl<'runtime> VirtualMachine<'runtime> {
             let exit_reason =
                 executor.transact_create(caller, value, init_code.to_vec(), gas_limit, access_list);
             match exit_reason {
-                ExitReason::Succeed(_succeded) => {
+                ExitReason::Succeed(_) => {
                     // apply and return state
                     // apply changes to the state, this consumes the executor
                     let state = executor.into_state();
@@ -162,9 +177,11 @@ impl<'runtime> VirtualMachine<'runtime> {
 
                     self.apply(values, logs, delete_empty);
                     //_exit_reason
-                    Some((&self.state, &self.logs))
+                    Ok((&self.state, &self.logs))
                 }
-                _ => None,
+                ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
+                ExitReason::Error(err) => Err(Error::TransactionError(err)),
+                ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
             }
         }
     }
@@ -181,7 +198,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &LogsState)> {
+    ) -> Result<(&AccountTrie, &LogsState), Error> {
         {
             let metadata = StackSubstateMetadata::new(gas_limit, self.config);
             let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -199,7 +216,7 @@ impl<'runtime> VirtualMachine<'runtime> {
                 access_list,
             );
             match exit_reason {
-                ExitReason::Succeed(_succeded) => {
+                ExitReason::Succeed(_) => {
                     // apply and return state
                     // apply changes to the state, this consumes the executor
                     let state = executor.into_state();
@@ -209,9 +226,11 @@ impl<'runtime> VirtualMachine<'runtime> {
 
                     self.apply(values, logs, delete_empty);
                     //_exit_reason
-                    Some((&self.state, &self.logs))
+                    Ok((&self.state, &self.logs))
                 }
-                _ => None,
+                ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
+                ExitReason::Error(err) => Err(Error::TransactionError(err)),
+                ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
             }
         }
     }
@@ -228,7 +247,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &LogsState, ByteCode)> {
+    ) -> Result<(&AccountTrie, &LogsState, ByteCode), Error> {
         let metadata = StackSubstateMetadata::new(gas_limit, self.config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
         let mut executor =
@@ -242,7 +261,7 @@ impl<'runtime> VirtualMachine<'runtime> {
             access_list,
         );
         match exit_reason {
-            ExitReason::Succeed(_succeded) => {
+            ExitReason::Succeed(_) => {
                 // apply and return state
                 // apply changes to the state, this consumes the executor
                 let state = executor.into_state();
@@ -252,9 +271,11 @@ impl<'runtime> VirtualMachine<'runtime> {
 
                 self.apply(values, logs, delete_empty);
                 //_exit_reason
-                Some((&self.state, &self.logs, byte_output.into_boxed_slice()))
+                Ok((&self.state, &self.logs, byte_output.into_boxed_slice()))
             }
-            _ => None,
+            ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
+            ExitReason::Error(err) => Err(Error::TransactionError(err)),
+            ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
         }
     }
 }
