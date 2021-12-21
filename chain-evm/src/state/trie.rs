@@ -45,7 +45,7 @@ impl<K: Clone + Hash + Eq, V: Clone> Trie<K, V> {
 
     /// Update or put the element at the key K
     ///
-    /// If the element is not present, then V is added, otherwise the closure F is apply
+    /// If the element is not present, then V is added, otherwise the closure F is applied
     /// to the found element. If the closure returns None, then the key is deleted
     pub fn put_or_update<F>(self, key: K, value: V, f: F) -> Self
     where
