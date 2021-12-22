@@ -114,6 +114,49 @@ fn precompiles(fork: HardFork) -> Precompiles {
 }
 
 impl<'runtime> VirtualMachine<'runtime> {
+    fn execute_transaction<F, T>(
+        &mut self,
+        gas_limit: u64,
+        delete_empty: bool,
+        f: F,
+    ) -> Result<(&AccountTrie, &LogsState, T), Error>
+    where
+        F: FnOnce(
+            &mut StackExecutor<
+                'runtime,
+                '_,
+                MemoryStackState<'_, 'runtime, VirtualMachine>,
+                Precompiles,
+            >,
+        ) -> (ExitReason, T),
+    {
+        let metadata = StackSubstateMetadata::new(gas_limit, self.config);
+        let memory_stack_state = MemoryStackState::new(metadata, self);
+        let mut executor =
+            StackExecutor::new_with_precompiles(memory_stack_state, self.config, &self.precompiles);
+
+        let (exit_reason, val) = f(&mut executor);
+        match exit_reason {
+            ExitReason::Succeed(_) => {
+                // apply and return state
+                // apply changes to the state, this consumes the executor
+                let state = executor.into_state();
+                // Next, we consume the stack state and extract the values and logs
+                // used to modify the accounts trie in the VirtualMachine.
+                let (values, logs) = state.deconstruct();
+
+                self.apply(values, logs, delete_empty);
+                //_exit_reason
+                Ok((&self.state, &self.logs, val))
+            }
+            ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
+            ExitReason::Error(err) => Err(Error::TransactionError(err)),
+            ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
+        }
+    }
+}
+
+impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
     pub fn new(config: &'runtime Config, environment: &'runtime Environment) -> Self {
         Self::new_with_state(config, environment, Default::default())
@@ -146,7 +189,7 @@ impl<'runtime> VirtualMachine<'runtime> {
 
     /// Execute a CREATE transaction
     #[allow(clippy::boxed_local)]
-    pub fn transact_create(
+    pub fn transact_create<'a>(
         &mut self,
         caller: Address,
         value: Value,
@@ -155,35 +198,20 @@ impl<'runtime> VirtualMachine<'runtime> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState), Error> {
-        {
-            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-            let memory_stack_state = MemoryStackState::new(metadata, self);
-            let mut executor = StackExecutor::new_with_precompiles(
-                memory_stack_state,
-                self.config,
-                &self.precompiles,
-            );
-
-            let exit_reason =
-                executor.transact_create(caller, value, init_code.to_vec(), gas_limit, access_list);
-            match exit_reason {
-                ExitReason::Succeed(_) => {
-                    // apply and return state
-                    // apply changes to the state, this consumes the executor
-                    let state = executor.into_state();
-                    // Next, we consume the stack state and extract the values and logs
-                    // used to modify the accounts trie in the VirtualMachine.
-                    let (values, logs) = state.deconstruct();
-
-                    self.apply(values, logs, delete_empty);
-                    //_exit_reason
-                    Ok((&self.state, &self.logs))
-                }
-                ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
-                ExitReason::Error(err) => Err(Error::TransactionError(err)),
-                ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
-            }
-        }
+        let (account_trie, logs_state, _) =
+            self.execute_transaction(gas_limit, delete_empty, |executor| {
+                (
+                    executor.transact_create(
+                        caller,
+                        value,
+                        init_code.to_vec(),
+                        gas_limit,
+                        access_list,
+                    ),
+                    (),
+                )
+            })?;
+        Ok((account_trie, logs_state))
     }
 
     /// Execute a CREATE2 transaction
@@ -199,40 +227,21 @@ impl<'runtime> VirtualMachine<'runtime> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState), Error> {
-        {
-            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-            let memory_stack_state = MemoryStackState::new(metadata, self);
-            let mut executor = StackExecutor::new_with_precompiles(
-                memory_stack_state,
-                self.config,
-                &self.precompiles,
-            );
-            let exit_reason = executor.transact_create2(
-                caller,
-                value,
-                init_code.to_vec(),
-                salt,
-                gas_limit,
-                access_list,
-            );
-            match exit_reason {
-                ExitReason::Succeed(_) => {
-                    // apply and return state
-                    // apply changes to the state, this consumes the executor
-                    let state = executor.into_state();
-                    // Next, we consume the stack state and extract the values and logs
-                    // used to modify the accounts trie in the VirtualMachine.
-                    let (values, logs) = state.deconstruct();
-
-                    self.apply(values, logs, delete_empty);
-                    //_exit_reason
-                    Ok((&self.state, &self.logs))
-                }
-                ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
-                ExitReason::Error(err) => Err(Error::TransactionError(err)),
-                ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
-            }
-        }
+        let (account_trie, logs_state, _) =
+            self.execute_transaction(gas_limit, delete_empty, |executor| {
+                (
+                    executor.transact_create2(
+                        caller,
+                        value,
+                        init_code.to_vec(),
+                        salt,
+                        gas_limit,
+                        access_list,
+                    ),
+                    (),
+                )
+            })?;
+        Ok((account_trie, logs_state))
     }
 
     /// Execute a CALL transaction
@@ -248,35 +257,18 @@ impl<'runtime> VirtualMachine<'runtime> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState, ByteCode), Error> {
-        let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-        let memory_stack_state = MemoryStackState::new(metadata, self);
-        let mut executor =
-            StackExecutor::new_with_precompiles(memory_stack_state, self.config, &self.precompiles);
-        let (exit_reason, byte_output) = executor.transact_call(
-            caller,
-            address,
-            value,
-            data.to_vec(),
-            gas_limit,
-            access_list,
-        );
-        match exit_reason {
-            ExitReason::Succeed(_) => {
-                // apply and return state
-                // apply changes to the state, this consumes the executor
-                let state = executor.into_state();
-                // Next, we consume the stack state and extract the values and logs
-                // used to modify the accounts trie in the VirtualMachine.
-                let (values, logs) = state.deconstruct();
-
-                self.apply(values, logs, delete_empty);
-                //_exit_reason
-                Ok((&self.state, &self.logs, byte_output.into_boxed_slice()))
-            }
-            ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
-            ExitReason::Error(err) => Err(Error::TransactionError(err)),
-            ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
-        }
+        let (account_trie, logs_state, byte_output) =
+            self.execute_transaction(gas_limit, delete_empty, |executor| {
+                executor.transact_call(
+                    caller,
+                    address,
+                    value,
+                    data.to_vec(),
+                    gas_limit,
+                    access_list,
+                )
+            })?;
+        Ok((account_trie, logs_state, byte_output.into_boxed_slice()))
     }
 }
 
