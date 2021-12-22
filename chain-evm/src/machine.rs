@@ -212,7 +212,7 @@ impl<'runtime> VirtualMachine<'runtime> {
 
     /// Execute a CREATE transaction
     #[allow(clippy::boxed_local)]
-    pub fn transact_create<'a>(
+    pub fn transact_create(
         &mut self,
         caller: Address,
         value: Value,
