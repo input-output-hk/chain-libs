@@ -155,6 +155,10 @@ impl<'runtime> VirtualMachine<'runtime> {
                 //_exit_reason
                 Ok((&self.state, &self.logs, val))
             }
+
+            // WARNING: such approach was followed from the https://github.com/paritytech/frontier/blob/4a77d59d4640e492ae0db43f891929b75876cf46/client/rpc/src/eth.rs#L1447
+            // need to clarify it
+
             // If the transaction reverts, there are two possible cases,
             // it can revert because the called contract feels that it does not have enough
             // gas left to continue, or it can revert for another reason unrelated to gas.
