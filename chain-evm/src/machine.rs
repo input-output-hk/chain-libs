@@ -82,11 +82,10 @@ pub enum Error {
     TransactionError(ExitError),
     #[error("transaction faral error (machine encountered an error that is not supposed to be normal EVM errors, such as requiring too much memory to execute)")]
     TransactionFatalError(ExitFatal),
-    // If the transaction reverts, there are two possible cases,
-    // it can revert because the called contract feels that it does not have enough
-    // gas left to continue, or it can revert for another reason unrelated to gas.
     #[error("transaction has been reverted (machine encountered an explict revert)")]
     TransactionRevertError(ExitRevert),
+    #[error("not enough gas")]
+    NotEnoughGas,
 }
 
 /// Top-level abstraction for the EVM with the
@@ -121,21 +120,28 @@ impl<'runtime> VirtualMachine<'runtime> {
         f: F,
     ) -> Result<(&AccountTrie, &LogsState, T), Error>
     where
-        F: FnOnce(
+        F: Fn(
             &mut StackExecutor<
                 'runtime,
                 '_,
                 MemoryStackState<'_, 'runtime, VirtualMachine>,
                 Precompiles,
             >,
+            u64,
         ) -> (ExitReason, T),
     {
-        let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-        let memory_stack_state = MemoryStackState::new(metadata, self);
-        let mut executor =
-            StackExecutor::new_with_precompiles(memory_stack_state, self.config, &self.precompiles);
+        let executable = |gas_limit| {
+            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
+            let memory_stack_state = MemoryStackState::new(metadata, self);
+            let mut executor = StackExecutor::new_with_precompiles(
+                memory_stack_state,
+                self.config,
+                &self.precompiles,
+            );
+            (f(&mut executor, gas_limit), executor)
+        };
 
-        let (exit_reason, val) = f(&mut executor);
+        let ((exit_reason, val), executor) = executable(gas_limit);
         match exit_reason {
             ExitReason::Succeed(_) => {
                 // apply and return state
@@ -149,7 +155,20 @@ impl<'runtime> VirtualMachine<'runtime> {
                 //_exit_reason
                 Ok((&self.state, &self.logs, val))
             }
-            ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
+            // If the transaction reverts, there are two possible cases,
+            // it can revert because the called contract feels that it does not have enough
+            // gas left to continue, or it can revert for another reason unrelated to gas.
+            ExitReason::Revert(err) => {
+                // If the user has provided a gas limit or a gas price, then we have executed
+                // with less block gas limit, so we must reexecute with block gas limit to
+                // know if the revert is due to a lack of gas or not.
+                let block_gas_limit = self.environment.block_gas_limit;
+                let ((exit_reason, _), _) = executable(block_gas_limit.as_u64());
+                match exit_reason {
+                    ExitReason::Succeed(_) => Err(Error::NotEnoughGas),
+                    _ => Err(Error::TransactionRevertError(err)),
+                }
+            }
             ExitReason::Error(err) => Err(Error::TransactionError(err)),
             ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
         }
@@ -199,14 +218,14 @@ impl<'runtime> VirtualMachine<'runtime> {
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState), Error> {
         let (account_trie, logs_state, _) =
-            self.execute_transaction(gas_limit, delete_empty, |executor| {
+            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
                 (
                     executor.transact_create(
                         caller,
                         value,
                         init_code.to_vec(),
                         gas_limit,
-                        access_list,
+                        access_list.clone(),
                     ),
                     (),
                 )
@@ -228,7 +247,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState), Error> {
         let (account_trie, logs_state, _) =
-            self.execute_transaction(gas_limit, delete_empty, |executor| {
+            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
                 (
                     executor.transact_create2(
                         caller,
@@ -236,7 +255,7 @@ impl<'runtime> VirtualMachine<'runtime> {
                         init_code.to_vec(),
                         salt,
                         gas_limit,
-                        access_list,
+                        access_list.clone(),
                     ),
                     (),
                 )
@@ -258,14 +277,14 @@ impl<'runtime> VirtualMachine<'runtime> {
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState, ByteCode), Error> {
         let (account_trie, logs_state, byte_output) =
-            self.execute_transaction(gas_limit, delete_empty, |executor| {
+            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
                 executor.transact_call(
                     caller,
                     address,
                     value,
                     data.to_vec(),
                     gas_limit,
-                    access_list,
+                    access_list.clone(),
                 )
             })?;
         Ok((account_trie, logs_state, byte_output.into_boxed_slice()))
