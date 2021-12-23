@@ -18,9 +18,7 @@ use crate::fee::{FeeAlgorithm, LinearFee};
 use crate::fragment::{BlockContentHash, BlockContentSize, Contents, Fragment, FragmentId};
 use crate::rewards;
 use crate::setting::ActiveSlotsCoeffError;
-use crate::stake::{
-    PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeControl, StakeDistribution,
-};
+use crate::stake::{PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeDistribution};
 use crate::tokens::identifier::TokenIdentifier;
 use crate::tokens::minting_policy::MintingPolicyViolation;
 use crate::transaction::*;
@@ -307,8 +305,6 @@ pub enum Error {
     VoteTallyProofFailed,
     #[error("Vote tally decryption failed")]
     VoteTallyDecryptionFailed,
-    #[error("Vote Tally vote plan is not in the ledger")]
-    VotePlanNotFound,
     #[error("Pool update payload signature failed")]
     PoolUpdateSignatureFailed,
     #[error("Pool update last known registration hash doesn't match")]
@@ -1184,24 +1180,11 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let voting_token = self
-            .votes
-            .plans
-            .lookup(tally.id())
-            // XXX: unsure about this.  This would be handled anyway inside
-            // `apply_commitee_result`, although with a different error.  But it needs to be
-            // checked here, unless this logic is moved to the VotePlanManager somehow.
-            .ok_or(Error::VotePlanNotFound)?
-            .plan()
-            .voting_token();
-
-        let stake = StakeControl::new_with(voting_token, &self.accounts);
-
         let mut actions = Vec::new();
 
         self.votes = self.votes.apply_committee_result(
             self.date(),
-            &stake,
+            &self.accounts,
             &self.governance,
             tally,
             sig,
@@ -1239,20 +1222,9 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let voting_token = self
-            .votes
-            .plans
-            .lookup(tally.id())
-            // XXX: idem `apply_vote_tally`
-            .ok_or(Error::VotePlanNotFound)?
-            .plan()
-            .voting_token();
-
-        let stake = StakeControl::new_with(voting_token, &self.accounts);
-
-        self.votes = self
-            .votes
-            .apply_encrypted_vote_tally(self.date(), &stake, tally, sig.id)?;
+        self.votes =
+            self.votes
+                .apply_encrypted_vote_tally(self.date(), &self.accounts, tally, sig.id)?;
 
         Ok(self)
     }

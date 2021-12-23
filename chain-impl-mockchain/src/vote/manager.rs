@@ -1,15 +1,18 @@
 use crate::{
-    certificate::DecryptedPrivateTallyProposal,
-    vote::{Choice, Payload, PayloadType, TallyError},
-};
-use crate::{
+    account,
     certificate::{DecryptedPrivateTally, Proposal, VoteAction, VoteCast, VotePlan, VotePlanId},
     date::BlockDate,
     ledger::governance::{Governance, GovernanceAcceptanceCriteria},
     rewards::Ratio,
-    stake::{Stake, StakeControl},
     transaction::UnspecifiedAccountIdentifier,
+    stake::Stake,
+    tokens::identifier::TokenIdentifier,
+    value::Value,
     vote::{self, CommitteeId, Options, Tally, TallyResult, VotePlanStatus, VoteProposalStatus},
+};
+use crate::{
+    certificate::DecryptedPrivateTallyProposal,
+    vote::{Choice, Payload, PayloadType, TallyError},
 };
 use chain_vote::{committee, Ballot, Crs, ElectionPublicKey, EncryptedTally};
 use imhamt::Hamt;
@@ -229,7 +232,8 @@ impl ProposalManager {
     #[must_use = "Compute the PublicTally in a new ProposalManager, does not modify self"]
     pub fn public_tally<F>(
         &self,
-        stake: &StakeControl,
+        voting_token: &TokenIdentifier,
+        stake: &account::Ledger,
         governance: &Governance,
         mut f: F,
     ) -> Result<Self, VoteError>
@@ -238,25 +242,43 @@ impl ProposalManager {
     {
         let mut results = TallyResult::new(self.options.clone());
 
-        for (id, payload) in self.votes_by_voters.iter() {
-            if let Some(account_id) = id.to_single_account() {
-                if let Some(stake) = stake.by(&account_id) {
-                    match payload {
-                        ValidatedPayload::Public(choice) => {
-                            results.add_vote(*choice, stake)?;
-                        }
-                        ValidatedPayload::Private(_) => {
-                            return Err(VoteError::InvalidPayloadType {
-                                expected: PayloadType::Public,
-                                received: PayloadType::Private,
-                            });
-                        }
+        for (account_id, payload) in self.votes_by_voters.iter() {
+            if let Some(stake) = stake
+                .get_state(account_id)
+                // It could be argued that this is silently hiding an error, and that's more or
+                // less true, since having a vote from an account not in the account ledger would
+                // be unexpected. But throwing an error here would abort the whole tally, and there
+                // is really no way of fixing things if that's the case.
+                //
+                // This is mostly theoretical though, since I don't think that can happen, so this
+                // `ok` should always return Some.
+                //
+                // The same applies to the private tally, since the code is the same.
+                .ok()
+                .and_then(|account_state| account_state.tokens.lookup(voting_token))
+            {
+                match payload {
+                    ValidatedPayload::Public(choice) => {
+                        results.add_vote(*choice, *stake)?;
+                    }
+                    ValidatedPayload::Private(_) => {
+                        return Err(VoteError::InvalidPayloadType {
+                            expected: PayloadType::Public,
+                            received: PayloadType::Private,
+                        });
                     }
                 }
             }
         }
 
-        if self.check(stake.assigned(), governance, &results) {
+        if self.check(
+            stake
+                .token_get_total(voting_token)
+                .unwrap_or(Value(u64::MAX))
+                .into(),
+            governance,
+            &results,
+        ) {
             f(&self.action)
         }
 
@@ -271,7 +293,8 @@ impl ProposalManager {
     #[must_use = "Compute the PrivateTally in a new ProposalManager, does not modify self"]
     pub fn private_tally(
         &self,
-        stake: &StakeControl,
+        voting_token: &TokenIdentifier,
+        stake: &account::Ledger,
         election_pk: &ElectionPublicKey,
         crs: &Crs,
     ) -> Result<Self, VoteError> {
@@ -283,20 +306,20 @@ impl ProposalManager {
             .votes_by_voters
             .iter()
             .par_bridge()
-            .filter_map(|(id, payload)| {
-                if let Some(account_id) = id.to_single_account() {
-                    if let Some(stake) = stake.by(&account_id) {
-                        match payload {
-                            ValidatedPayload::Public(_) => {
-                                return Some(Err(VoteError::InvalidPayloadType {
-                                    expected: PayloadType::Private,
-                                    received: PayloadType::Public,
-                                }))
-                            }
-                            ValidatedPayload::Private(ballot) => {
-                                return Some(Ok((ballot, stake.0)))
-                            }
+            .filter_map(|(account_id, payload)| {
+                if let Some(stake) = stake
+                    .get_state(account_id)
+                    .ok()
+                    .and_then(|account_state| account_state.tokens.lookup(voting_token))
+                {
+                    match payload {
+                        ValidatedPayload::Public(_) => {
+                            return Some(Err(VoteError::InvalidPayloadType {
+                                expected: PayloadType::Private,
+                                received: PayloadType::Public,
+                            }))
                         }
+                        ValidatedPayload::Private(ballot) => return Some(Ok((ballot, stake.0))),
                     }
                 }
                 None
@@ -318,7 +341,12 @@ impl ProposalManager {
         Ok(Self {
             votes_by_voters: self.votes_by_voters.clone(),
             options: self.options.clone(),
-            tally: Some(Tally::new_private(tally, stake.assigned())),
+            tally: Some(Tally::new_private(
+                tally,
+                stake
+                    .token_get_total(voting_token)
+                    .unwrap_or(Value(u64::MAX)),
+            )),
             action: self.action.clone(),
         })
     }
@@ -352,7 +380,7 @@ impl ProposalManager {
             result.add_vote(Choice::new(u8::try_from(choice).unwrap()), weight)?;
         }
 
-        if self.check(*total_stake, governance, &result) {
+        if self.check((*total_stake).into(), governance, &result) {
             f(&self.action);
         }
 
@@ -508,7 +536,8 @@ impl ProposalManagers {
 
     pub fn public_tally<F>(
         &self,
-        stake: &StakeControl,
+        voting_token: &TokenIdentifier,
+        stake: &account::Ledger,
         governance: &Governance,
         mut f: F,
     ) -> Result<Self, VoteError>
@@ -519,7 +548,12 @@ impl ProposalManagers {
             Self::Public { managers } => {
                 let mut proposals = Vec::with_capacity(managers.len());
                 for proposal in managers.iter() {
-                    proposals.push(proposal.public_tally(stake, governance, &mut f)?);
+                    proposals.push(proposal.public_tally(
+                        voting_token,
+                        stake,
+                        governance,
+                        &mut f,
+                    )?);
                 }
                 Ok(Self::Public {
                     managers: proposals,
@@ -567,7 +601,11 @@ impl ProposalManagers {
         })
     }
 
-    pub fn start_private_tally(&self, stake: &StakeControl) -> Result<Self, VoteError> {
+    pub fn start_private_tally(
+        &self,
+        voting_token: &TokenIdentifier,
+        stake: &account::Ledger,
+    ) -> Result<Self, VoteError> {
         use rayon::prelude::*;
 
         match self {
@@ -578,7 +616,7 @@ impl ProposalManagers {
             } => {
                 let proposals = managers
                     .par_iter()
-                    .map(|proposal| proposal.private_tally(stake, election_pk, crs))
+                    .map(|proposal| proposal.private_tally(voting_token, stake, election_pk, crs))
                     .collect::<Result<_, _>>()?;
                 Ok(Self::Private {
                     managers: proposals,
@@ -763,7 +801,7 @@ impl VotePlanManager {
     pub fn public_tally<F>(
         &self,
         block_date: BlockDate,
-        stake: &StakeControl,
+        stake: &account::Ledger,
         governance: &Governance,
         sig: CommitteeId,
         f: F,
@@ -786,7 +824,11 @@ impl VotePlanManager {
             return Err(TallyError::InvalidPrivacy.into());
         }
 
-        let proposal_managers = self.proposal_managers.public_tally(stake, governance, f)?;
+        let voting_token = self.plan.voting_token();
+
+        let proposal_managers =
+            self.proposal_managers
+                .public_tally(voting_token, stake, governance, f)?;
 
         Ok(Self {
             proposal_managers,
@@ -799,7 +841,7 @@ impl VotePlanManager {
     pub fn start_private_tally(
         &self,
         block_date: BlockDate,
-        stake: &StakeControl,
+        stake: &account::Ledger,
         sig: CommitteeId,
     ) -> Result<Self, VoteError> {
         if !self.can_committee(block_date) {
@@ -817,7 +859,8 @@ impl VotePlanManager {
             return Err(TallyError::InvalidPrivacy.into());
         }
 
-        let proposal_managers = self.proposal_managers.start_private_tally(stake)?;
+        let token = self.plan.voting_token();
+        let proposal_managers = self.proposal_managers.start_private_tally(token, stake)?;
 
         Ok(Self {
             proposal_managers,

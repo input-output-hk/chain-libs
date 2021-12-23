@@ -135,12 +135,11 @@ impl VotePlanLedger {
     /// This function may fail:
     ///
     /// * if the Committee time has elapsed
-    /// * if the tally is not a public tally
     ///
     pub fn apply_committee_result<F>(
         &self,
         block_date: BlockDate,
-        stake: &StakeControl,
+        stake: &account::Ledger,
         governance: &Governance,
         tally: &VoteTally,
         sig: TallyProof,
@@ -183,7 +182,7 @@ impl VotePlanLedger {
     pub fn apply_encrypted_vote_tally(
         &self,
         block_date: BlockDate,
-        stake: &StakeControl,
+        stake: &account::Ledger,
         encrypted_tally: &EncryptedVoteTally,
         committee_id: CommitteeId,
     ) -> Result<Self, VotePlanLedgerError> {
