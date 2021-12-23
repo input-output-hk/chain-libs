@@ -995,11 +995,20 @@ impl Ledger {
                     new_ledger.apply_transaction(&fragment_id, &tx, block_date, ledger_params)?;
 
                 // we've just verified that this is a valid transaction (i.e. contains 1 input and 1 witness)
-                let account_id = match tx.inputs().iter().next().unwrap().to_enum() {
-                    InputEnum::UtxoInput(_) => {
-                        return Err(Error::OwnerStakeDelegationInvalidTransaction);
+                let account_id = match tx
+                    .inputs()
+                    .iter()
+                    .map(|input| input.to_enum())
+                    .zip(tx.witnesses().iter())
+                    .next()
+                    .unwrap()
+                {
+                    (InputEnum::AccountInput(account_id, _), Witness::Account(_, _)) => account_id
+                        .to_single_account()
+                        .ok_or(Error::AccountIdentifierInvalid)?,
+                    (_, _) => {
+                        return Err(Error::VoteCastInvalidTransaction);
                     }
-                    InputEnum::AccountInput(account_id, _) => account_id,
                 };
 
                 new_ledger =
@@ -1155,7 +1164,7 @@ impl Ledger {
 
     pub fn apply_vote_cast(
         mut self,
-        account_id: UnspecifiedAccountIdentifier,
+        account_id: account::Identifier,
         vote: VoteCast,
     ) -> Result<Self, Error> {
         self.votes = self.votes.apply_vote(self.date(), account_id, vote)?;

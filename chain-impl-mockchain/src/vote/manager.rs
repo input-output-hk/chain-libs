@@ -4,7 +4,6 @@ use crate::{
     date::BlockDate,
     ledger::governance::{Governance, GovernanceAcceptanceCriteria},
     rewards::Ratio,
-    transaction::UnspecifiedAccountIdentifier,
     stake::Stake,
     tokens::identifier::TokenIdentifier,
     value::Value,
@@ -60,7 +59,7 @@ enum ProposalManagers {
 
 #[derive(Clone, PartialEq, Eq)]
 struct ProposalManager {
-    votes_by_voters: Hamt<DefaultHasher, UnspecifiedAccountIdentifier, ValidatedPayload>,
+    votes_by_voters: Hamt<DefaultHasher, account::Identifier, ValidatedPayload>,
     options: Options,
     tally: Option<Tally>,
     action: VoteAction,
@@ -143,7 +142,7 @@ impl ProposalManager {
     #[must_use = "Add the vote in a new ProposalManager, does not modify self"]
     pub fn vote(
         &self,
-        identifier: UnspecifiedAccountIdentifier,
+        identifier: account::Identifier,
         payload: ValidatedPayload,
     ) -> Result<Self, VoteError> {
         // Part of DDoS protection: do not record a new ballot if the account already voted for this
@@ -161,10 +160,7 @@ impl ProposalManager {
         })
     }
 
-    fn check_already_voted(
-        &self,
-        identifier: &UnspecifiedAccountIdentifier,
-    ) -> Result<(), VoteError> {
+    fn check_already_voted(&self, identifier: &account::Identifier) -> Result<(), VoteError> {
         if self.votes_by_voters.contains_key(identifier) {
             Err(VoteError::AlreadyVoted)
         } else {
@@ -174,7 +170,7 @@ impl ProposalManager {
 
     pub fn validate_public_vote(
         &self,
-        identifier: &UnspecifiedAccountIdentifier,
+        identifier: &account::Identifier,
         cast: VoteCast,
     ) -> Result<ValidatedPayload, VoteError> {
         self.check_already_voted(identifier)?;
@@ -192,7 +188,7 @@ impl ProposalManager {
 
     pub fn validate_private_vote(
         &self,
-        identifier: &UnspecifiedAccountIdentifier,
+        identifier: &account::Identifier,
         cast: VoteCast,
         crs: &Crs,
         election_pk: &ElectionPublicKey,
@@ -514,7 +510,7 @@ impl ProposalManagers {
     /// Attempt to apply the vote to one of the proposals.
     pub fn vote(
         &self,
-        identifier: UnspecifiedAccountIdentifier,
+        identifier: account::Identifier,
         vote_cast: ValidatedVoteCast,
     ) -> Result<Self, VoteError> {
         let proposal_index = vote_cast.proposal_index;
@@ -570,7 +566,7 @@ impl ProposalManagers {
     /// and the the length of the ciphertext is correct (if applicable)
     pub fn validate_vote(
         &self,
-        identifier: &UnspecifiedAccountIdentifier,
+        identifier: &account::Identifier,
         cast: VoteCast,
     ) -> Result<ValidatedVoteCast, VoteError> {
         let proposal_index = cast.proposal_index() as usize;
@@ -762,7 +758,7 @@ impl VotePlanManager {
     pub fn vote(
         &self,
         block_date: BlockDate,
-        identifier: UnspecifiedAccountIdentifier,
+        identifier: account::Identifier,
         cast: VoteCast,
     ) -> Result<Self, VoteError> {
         if cast.vote_plan() != self.id() {
@@ -919,7 +915,7 @@ mod tests {
 
         let mut proposal_manager = ProposalManager::new(vote_plan.proposals().get(0).unwrap());
 
-        let identifier = TestGen::unspecified_account_identifier();
+        let identifier = TestGen::identifier();
 
         let vote = proposal_manager
             .validate_public_vote(&identifier, vote_cast)
@@ -952,7 +948,7 @@ mod tests {
         );
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, vote_cast_payload);
 
-        let identifier = TestGen::unspecified_account_identifier();
+        let identifier = TestGen::identifier();
 
         let proposal_manager = ProposalManager::new(vote_plan.proposals().get(0).unwrap());
 
@@ -976,7 +972,7 @@ mod tests {
         let vote_cast_payload = vote::Payload::public(vote_choice);
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, vote_cast_payload);
 
-        let identifier = TestGen::unspecified_account_identifier();
+        let identifier = TestGen::identifier();
 
         let proposal_manager = ProposalManager::new(vote_plan.proposals().get(0).unwrap());
 
@@ -1074,9 +1070,8 @@ mod tests {
         let mut vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        let mut stake_controlled = StakeControl::new();
-        stake_controlled = stake_controlled.add_to(committee.public_key().into(), Stake(51));
-        //    stake_controlled = stake_controlled.add_unassigned(Stake(49));
+
+        let (ledger, _) = ledger_with_tokens(committee.public_key());
 
         let vote_block_date = BlockDate {
             epoch: 1,
@@ -1090,11 +1085,7 @@ mod tests {
         );
 
         vote_plan_manager = vote_plan_manager
-            .vote(
-                vote_block_date,
-                UnspecifiedAccountIdentifier::from_single_account(committee.public_key().into()),
-                vote_cast,
-            )
+            .vote(vote_block_date, committee.public_key().into(), vote_cast)
             .unwrap();
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
@@ -1110,13 +1101,9 @@ mod tests {
             TallyProof::Private { id, .. } => id,
         };
         vote_plan_manager
-            .public_tally(
-                block_date,
-                &stake_controlled,
-                &governance,
-                committee_id,
-                |_| action_hit = true,
-            )
+            .public_tally(block_date, &ledger, &governance, committee_id, |_| {
+                action_hit = true
+            })
             .unwrap();
         assert!(action_hit)
     }
@@ -1149,9 +1136,7 @@ mod tests {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        let mut stake_controlled = StakeControl::new();
-        stake_controlled = stake_controlled.add_to(committee.public_key().into(), Stake(51));
-        stake_controlled = stake_controlled.add_unassigned(Stake(49));
+        let (ledger, _) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
 
@@ -1169,13 +1154,7 @@ mod tests {
         assert_eq!(
             VoteError::InvalidTallyCommittee,
             vote_plan_manager
-                .public_tally(
-                    block_date,
-                    &stake_controlled,
-                    &governance,
-                    committee_id,
-                    |_| ()
-                )
+                .public_tally(block_date, &ledger, &governance, committee_id, |_| ())
                 .err()
                 .unwrap()
         );
@@ -1209,9 +1188,7 @@ mod tests {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        let mut stake_controlled = StakeControl::new();
-        stake_controlled = stake_controlled.add_to(committee.public_key().into(), Stake(51));
-        stake_controlled = stake_controlled.add_unassigned(Stake(49));
+        let (ledger, _) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
 
@@ -1234,7 +1211,7 @@ mod tests {
             vote_plan_manager
                 .public_tally(
                     invalid_block_date,
-                    &stake_controlled,
+                    &ledger,
                     &governance,
                     committee_id,
                     |_| ()
@@ -1258,8 +1235,7 @@ mod tests {
         committee_ids.insert(committee.public_key().into());
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
         let governance = governance_50_percent(blank, favorable, rejection);
-        let mut stake_controlled = StakeControl::new();
-        stake_controlled = stake_controlled.add_to(committee.public_key().into(), Stake(51));
+        let (ledger, _) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_plan.vote_start(), &committee, vote_plan.to_id());
 
@@ -1275,13 +1251,7 @@ mod tests {
 
         assert_eq!(
             vote_plan_manager
-                .public_tally(
-                    block_date,
-                    &stake_controlled,
-                    &governance,
-                    committee_id,
-                    |_| ()
-                )
+                .public_tally(block_date, &ledger, &governance, committee_id, |_| ())
                 .err()
                 .unwrap(),
             crate::vote::VoteError::CannotTallyVotes {
@@ -1317,8 +1287,7 @@ mod tests {
         committee_ids.insert(committee.public_key().into());
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
-        let mut stake_controlled = StakeControl::new();
-        stake_controlled = stake_controlled.add_to(committee.public_key().into(), Stake(51));
+        let (ledger, _) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_plan.vote_start(), &committee, vote_plan.to_id());
 
@@ -1334,7 +1303,7 @@ mod tests {
 
         assert_eq!(
             vote_plan_manager
-                .start_private_tally(block_date, &stake_controlled, committee_id)
+                .start_private_tally(block_date, &ledger, committee_id)
                 .err()
                 .unwrap(),
             crate::vote::VoteError::CannotTallyVotes {
@@ -1389,7 +1358,7 @@ mod tests {
         let mut second_proposal_manager =
             ProposalManager::new(vote_plan.proposals().get(1).unwrap());
 
-        let identifier = TestGen::unspecified_account_identifier();
+        let identifier = TestGen::identifier();
         let proposals = ProposalManagers::new(&vote_plan);
 
         let first_vote_cast = proposals
@@ -1420,18 +1389,15 @@ mod tests {
             .vote(identifier.clone(), second_vote_cast.payload.clone())
             .unwrap();
 
-        let mut stake_controlled = StakeControl::new();
-        stake_controlled =
-            stake_controlled.add_to(identifier.to_single_account().unwrap(), Stake(51));
-        stake_controlled = stake_controlled.add_unassigned(Stake(49));
+        let (ledger, token) = ledger_with_tokens(identifier.clone());
 
         let _ = proposals.vote(identifier.clone(), first_vote_cast);
         let _ = proposals.vote(identifier, second_vote_cast);
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        proposals_vote_tally_succesful(&proposals, &stake_controlled, &governance);
-        vote_tally_succesful(&first_proposal_manager, &stake_controlled, &governance);
-        vote_tally_succesful(&second_proposal_manager, &stake_controlled, &governance);
+        proposals_vote_tally_succesful(&proposals, &token, &ledger, &governance);
+        vote_tally_succesful(&first_proposal_manager, &token, &ledger, &governance);
+        vote_tally_succesful(&second_proposal_manager, &token, &ledger, &governance);
     }
 
     fn governance_50_percent(blank: Choice, favorable: Choice, rejection: Choice) -> Governance {
@@ -1463,12 +1429,13 @@ mod tests {
 
     fn proposals_vote_tally_succesful(
         proposal_managers: &ProposalManagers,
-        stake_controlled: &StakeControl,
+        voting_token: &TokenIdentifier,
+        stake_controlled: &account::Ledger,
         governance: &Governance,
     ) {
         let mut vote_action_hit = false;
         proposal_managers
-            .public_tally(stake_controlled, governance, |_vote_action| {
+            .public_tally(voting_token, stake_controlled, governance, |_vote_action| {
                 vote_action_hit = true;
             })
             .unwrap();
@@ -1476,17 +1443,37 @@ mod tests {
 
     fn vote_tally_succesful(
         proposal_manager: &ProposalManager,
-        stake_controlled: &StakeControl,
+        voting_token: &TokenIdentifier,
+        stake_controlled: &account::Ledger,
         governance: &Governance,
     ) {
         let mut vote_action_hit = false;
         proposal_manager
-            .public_tally(stake_controlled, governance, |_vote_action| {
+            .public_tally(voting_token, stake_controlled, governance, |_vote_action| {
                 vote_action_hit = true;
             })
             .unwrap();
 
         assert!(vote_action_hit);
+    }
+
+    fn ledger_with_tokens<ID: Into<account::Identifier> + Clone>(
+        wallet: ID,
+    ) -> (
+        crate::accounting::account::Ledger<account::Identifier, ()>,
+        TokenIdentifier,
+    ) {
+        let token = TokenIdentifier {
+            policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+            token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+        };
+        let ledger = account::Ledger::new()
+            .add_account(&wallet.clone().into(), Value(0), ())
+            .unwrap()
+            .token_add(&wallet.into(), token.clone(), Value(51))
+            .unwrap();
+
+        (ledger, token)
     }
 
     #[test]
@@ -1501,7 +1488,7 @@ mod tests {
 
         let mut proposal_managers = ProposalManagers::new(&vote_plan);
 
-        let identifier = TestGen::unspecified_account_identifier();
+        let identifier = TestGen::identifier();
 
         let first_vote_cast_validated = proposal_managers
             .validate_vote(&identifier, first_vote_cast)
@@ -1542,7 +1529,7 @@ mod tests {
     pub fn vote_for_nonexisting_proposal() {
         let vote_plan = VoteTestGen::vote_plan_with_proposals(1);
         let proposal_managers = ProposalManagers::new(&vote_plan);
-        let identifier = TestGen::unspecified_account_identifier();
+        let identifier = TestGen::identifier();
         assert!(proposal_managers
             .validate_vote(
                 &identifier,
@@ -1561,7 +1548,7 @@ mod tests {
 
         let mut proposal_managers = ProposalManagers::new(&vote_plan);
 
-        let identifier = TestGen::unspecified_account_identifier();
+        let identifier = TestGen::identifier();
 
         let first_vote_cast = proposal_managers
             .validate_vote(
@@ -1647,11 +1634,7 @@ mod tests {
 
         assert_eq!(
             vote_plan_manager
-                .vote(
-                    BlockDate::first(),
-                    TestGen::unspecified_account_identifier(),
-                    vote_cast.clone()
-                )
+                .vote(BlockDate::first(), TestGen::identifier(), vote_cast.clone())
                 .err()
                 .unwrap(),
             VoteError::InvalidVotePlan {
@@ -1671,7 +1654,7 @@ mod tests {
             vote_plan_manager
                 .vote(
                     vote_plan.vote_end().next_epoch(),
-                    TestGen::unspecified_account_identifier(),
+                    TestGen::identifier(),
                     vote_cast.clone()
                 )
                 .err()
@@ -1704,11 +1687,7 @@ mod tests {
 
         assert_eq!(
             vote_plan_manager
-                .vote(
-                    BlockDate::first(),
-                    TestGen::unspecified_account_identifier(),
-                    vote_cast.clone()
-                )
+                .vote(BlockDate::first(), TestGen::identifier(), vote_cast.clone())
                 .err()
                 .unwrap(),
             VoteError::NotVoteTime {
@@ -1740,7 +1719,7 @@ mod tests {
         assert!(vote_plan_manager
             .vote(
                 BlockDate::from_epoch_slot_id(1, 1),
-                TestGen::unspecified_account_identifier(),
+                TestGen::identifier(),
                 vote_cast
             )
             .is_ok());
