@@ -1,4 +1,4 @@
-use super::prelude::{vec, Borrowed, H256};
+use super::prelude::{vec, H256};
 use super::{EvmPrecompileResult, Precompile, PrecompileOutput};
 use ethabi::Address;
 use evm::{Context, ExitError};
@@ -47,7 +47,7 @@ fn internal_impl(
         }
     }
 
-    Err(ExitError::Other(Borrowed("ERR_ECRECOVER")))
+    Err(ExitError::Other("ERR_ECRECOVER".into()))
 }
 
 pub(super) struct ECRecover;
