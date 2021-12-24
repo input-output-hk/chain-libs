@@ -124,6 +124,7 @@ impl Encoder {
     }
 
     /// Terminate an array
+    #[must_use]
     pub fn struct_end(self) -> Self {
         let mut h = self.hole;
         match h.pop() {
