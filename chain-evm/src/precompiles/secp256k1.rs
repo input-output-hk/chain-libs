@@ -125,7 +125,7 @@ mod tests {
                 .unwrap();
         let signer =
             Address::from_slice(&hex::decode("1563915e194D8CfBA1943570603F7606A3115508").unwrap());
-        assert!(ecverify(hash, &signature, signer));
+        assert!(ecverify(hash, signature, signer));
     }
 
     #[test]
