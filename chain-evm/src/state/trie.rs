@@ -121,15 +121,12 @@ mod tests {
         let vec2 = vec![value1, value2];
 
         // first write
-        let storage_new1 = storage.put_or_update(
-            key,
-            vec1.clone(),
-            |val: &Vec<u8>| -> Option<Vec<u8>> {
+        let storage_new1 =
+            storage.put_or_update(key, vec1.clone(), |val: &Vec<u8>| -> Option<Vec<u8>> {
                 let mut val = val.clone();
                 val.push(value1);
                 Some(val)
-            },
-        );
+            });
         prop_assert_eq!(Some(&vec1), storage_new1.get(&key));
 
         // update value

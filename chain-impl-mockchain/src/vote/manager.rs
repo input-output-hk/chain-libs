@@ -1453,8 +1453,7 @@ mod tests {
         let second_vote_cast_payload = VoteTestGen::vote_cast_payload_for(&choice);
 
         let first_vote_cast = VoteCast::new(vote_plan.to_id(), 0, first_vote_cast_payload);
-        let second_vote_cast =
-            VoteCast::new(vote_plan.to_id(), 1, second_vote_cast_payload);
+        let second_vote_cast = VoteCast::new(vote_plan.to_id(), 1, second_vote_cast_payload);
 
         let mut proposal_managers = ProposalManagers::new(&vote_plan);
 
@@ -1482,10 +1481,7 @@ mod tests {
             .iter()
             .find(|(x, _y)| **x == identifier)
             .unwrap();
-        assert_eq!(
-            *actual_vote_cast_payload,
-            ValidatedPayload::Public(choice)
-        );
+        assert_eq!(*actual_vote_cast_payload, ValidatedPayload::Public(choice));
 
         let (_, actual_vote_cast_payload) = proposal_managers
             .managers()
@@ -1495,10 +1491,7 @@ mod tests {
             .iter()
             .find(|(x, _y)| **x == identifier)
             .unwrap();
-        assert_eq!(
-            *actual_vote_cast_payload,
-            ValidatedPayload::Public(choice)
-        );
+        assert_eq!(*actual_vote_cast_payload, ValidatedPayload::Public(choice));
     }
 
     #[test]
