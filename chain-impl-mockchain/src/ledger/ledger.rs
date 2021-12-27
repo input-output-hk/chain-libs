@@ -325,6 +325,8 @@ pub enum Error {
     UpdateVoteSignatureFailed,
     #[error("minting policy violation")]
     MintingPolicyViolation(#[from] MintingPolicyViolation),
+    #[error("evm transactions are disabled, the node was built without the 'evm' feature")]
+    DisabledEvmTransactions,
 }
 
 impl LedgerParameters {
@@ -435,7 +437,7 @@ impl Ledger {
 
             let era = TimeEra::new(slot0, TimeEpoch(0), slots_per_epoch);
 
-            let settings = setting::Settings::new().apply(&regular_ents)?;
+            let settings = setting::Settings::new().try_apply(&regular_ents)?;
 
             if settings.bft_leaders.is_empty() {
                 return Err(Error::Block0(
@@ -524,7 +526,9 @@ impl Ledger {
                         ledger.evm.run_transaction(tx, config, environment)?;
                     }
                     #[cfg(not(feature = "evm"))]
-                    {}
+                    {
+                        return Err(Error::DisabledEvmTransactions);
+                    }
                 }
             }
         }
@@ -800,11 +804,10 @@ impl Ledger {
         }
 
         // Process Update proposals if needed
-        let (updates, settings) = new_ledger.updates.process_proposals(
-            new_ledger.settings,
-            new_ledger.date,
-            block_date,
-        )?;
+        let (updates, settings) =
+            new_ledger
+                .updates
+                .process_proposals(new_ledger.settings, new_ledger.date, block_date);
         new_ledger.updates = updates;
         new_ledger.settings = settings;
 
@@ -1045,7 +1048,9 @@ impl Ledger {
                     new_ledger.evm.run_transaction(tx, config, environment)?;
                 }
                 #[cfg(not(feature = "evm"))]
-                {}
+                {
+                    return Err(Error::DisabledEvmTransactions);
+                }
             }
         }
 
@@ -1074,7 +1079,7 @@ impl Ledger {
     }
 
     pub fn apply_update(mut self, update: &UpdateProposal) -> Result<Self, Error> {
-        self.settings = self.settings.apply(update.changes())?;
+        self.settings = self.settings.try_apply(update.changes())?;
         Ok(self)
     }
 
@@ -1905,7 +1910,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn apply_empty_block_prop_test(
+    fn apply_empty_block_prop_test(
         mut context: HeaderContentEvalContext,
         ledger: ArbitraryEmptyLedger,
     ) -> TestResult {
@@ -1968,7 +1973,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn match_identifier_witness_prop_test(
+    fn match_identifier_witness_prop_test(
         id: UnspecifiedAccountIdentifier,
         witness: Witness,
     ) -> TestResult {
@@ -1985,7 +1990,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn input_single_account_verify_negative_prop_test(
+    fn input_single_account_verify_negative_prop_test(
         id: Identifier,
         account_state: AccountState<()>,
         value_to_sub: Value,
@@ -2011,7 +2016,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_input_single_account_verify_correct_account() {
+    fn test_input_single_account_verify_correct_account() {
         let account = AddressData::account(Discrimination::Test);
         let initial_value = Value(100);
         let value_to_sub = Value(80);
@@ -2047,7 +2052,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_input_single_account_verify_different_block0_hash() {
+    fn test_input_single_account_verify_different_block0_hash() {
         let account = AddressData::account(Discrimination::Test);
         let initial_value = Value(100);
         let value_to_sub = Value(80);
@@ -2083,7 +2088,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_input_account_wrong_value() {
+    fn test_input_account_wrong_value() {
         let account = AddressData::account(Discrimination::Test);
         let initial_value = Value(100);
         let value_to_sub = Value(110);
@@ -2112,7 +2117,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_input_single_account_verify_non_existing_account() {
+    fn test_input_single_account_verify_non_existing_account() {
         let account = AddressData::account(Discrimination::Test);
         let non_existing_account = AddressData::account(Discrimination::Test);
         let initial_value = Value(100);
@@ -2142,7 +2147,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn input_utxo_verify_negative_prop_test(
+    fn input_utxo_verify_negative_prop_test(
         sign_data_hash: TransactionSignDataHash,
         utxo_pointer: UtxoPointer,
         witness: Witness,
@@ -2169,7 +2174,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_input_utxo_verify_correct_utxo() {
+    fn test_input_utxo_verify_correct_utxo() {
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1000));
         let test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
             .faucet(&faucet)
@@ -2194,7 +2199,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_input_utxo_verify_incorrect_value() {
+    fn test_input_utxo_verify_incorrect_value() {
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1000));
         let test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
             .faucet(&faucet)
@@ -2218,7 +2223,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn test_internal_apply_transaction_output_property(
+    fn test_internal_apply_transaction_output_property(
         utxos: utxo::Ledger<Address>,
         accounts: account::Ledger,
         static_params: LedgerStaticParameters,
@@ -2340,7 +2345,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_output_delegation_for_existing_account() {
+    fn test_internal_apply_transaction_output_delegation_for_existing_account() {
         let params = InternalApplyTransactionTestParams::new();
 
         let multisig_ledger = multisig::Ledger::new();
@@ -2381,7 +2386,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_output_delegation_non_existing_account() {
+    fn test_internal_apply_transaction_output_delegation_non_existing_account() {
         let params = InternalApplyTransactionTestParams::new();
 
         let multisig_ledger = multisig::Ledger::new();
@@ -2414,7 +2419,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_output_account_for_existing_account() {
+    fn test_internal_apply_transaction_output_account_for_existing_account() {
         let params = InternalApplyTransactionTestParams::new();
 
         let multisig_ledger = multisig::Ledger::new();
@@ -2447,7 +2452,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_output_account_for_non_existing_account() {
+    fn test_internal_apply_transaction_output_account_for_non_existing_account() {
         let params = InternalApplyTransactionTestParams::new();
 
         let multisig_ledger = multisig::Ledger::new();
@@ -2475,7 +2480,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_output_empty() {
+    fn test_internal_apply_transaction_output_empty() {
         let params = InternalApplyTransactionTestParams::new();
 
         let multisig_ledger = multisig::Ledger::new();
@@ -2500,7 +2505,7 @@ mod tests {
 
     /// internal_apply_transaction
     #[test]
-    pub fn test_internal_apply_transaction_max_witnesses() {
+    fn test_internal_apply_transaction_max_witnesses() {
         let faucets: Vec<AddressDataValue> =
             iter::from_fn(|| Some(AddressDataValue::account(Discrimination::Test, Value(1))))
                 .take(check::CHECK_TX_MAXIMUM_INPUTS as usize)
@@ -2540,7 +2545,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_max_outputs() {
+    fn test_internal_apply_transaction_max_outputs() {
         let faucet = AddressDataValue::utxo(
             Discrimination::Test,
             Value(check::CHECK_TX_MAXIMUM_INPUTS.into()),
@@ -2568,7 +2573,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_max_inputs() {
+    fn test_internal_apply_transaction_max_inputs() {
         let faucets: Vec<AddressDataValue> =
             iter::from_fn(|| Some(AddressDataValue::account(Discrimination::Test, Value(1))))
                 .take(check::CHECK_TX_MAXIMUM_INPUTS as usize)
@@ -2594,7 +2599,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_same_witness_for_all_input() {
+    fn test_internal_apply_transaction_same_witness_for_all_input() {
         let faucets = vec![
             AddressDataValue::account(Discrimination::Test, Value(1)),
             AddressDataValue::account(Discrimination::Test, Value(1)),
@@ -2628,7 +2633,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_verify_pot() {
+    fn test_internal_apply_transaction_verify_pot() {
         let faucet = AddressDataValue::account(Discrimination::Test, Value(101));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
 
@@ -2652,7 +2657,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn test_internal_apply_transaction_is_balanced(
+    fn test_internal_apply_transaction_is_balanced(
         input_addresses: ArbitraryAddressDataValueVec,
         output_addresses: ArbitraryAddressDataValueVec,
         fee: Value,
@@ -2707,7 +2712,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_witness_collection_should_be_ordered_as_inputs() {
+    fn test_internal_apply_transaction_witness_collection_should_be_ordered_as_inputs() {
         let faucets = vec![
             AddressDataValue::account(Discrimination::Test, Value(1)),
             AddressDataValue::account(Discrimination::Test, Value(1)),
@@ -2738,7 +2743,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_no_inputs_outputs() {
+    fn test_internal_apply_transaction_no_inputs_outputs() {
         let faucet = AddressDataValue::account(Discrimination::Test, Value(1));
         let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
             .faucet(&faucet)
@@ -2757,7 +2762,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn test_internal_apply_transaction_funds_were_transfered(
+    fn test_internal_apply_transaction_funds_were_transfered(
         sender_address: AddressData,
         reciever_address: AddressData,
     ) {
@@ -2788,7 +2793,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_wrong_witness_type() {
+    fn test_internal_apply_transaction_wrong_witness_type() {
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
         let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
@@ -2819,7 +2824,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_wrong_transaction_hash() {
+    fn test_internal_apply_transaction_wrong_transaction_hash() {
         let faucet = AddressDataValue::account(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
         let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
@@ -2845,7 +2850,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_wrong_block0_hash() {
+    fn test_internal_apply_transaction_wrong_block0_hash() {
         let wrong_block0_hash = TestGen::hash();
         let faucet = AddressDataValue::account(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
@@ -2875,7 +2880,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_wrong_spending_counter() {
+    fn test_internal_apply_transaction_wrong_spending_counter() {
         let faucet =
             AddressDataValue::account_with_spending_counter(Discrimination::Test, 1, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
@@ -2905,7 +2910,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_internal_apply_transaction_wrong_private_key() {
+    fn test_internal_apply_transaction_wrong_private_key() {
         let faucet = AddressDataValue::account(Discrimination::Test, Value(1));
         let reciever = AddressDataValue::account(Discrimination::Test, Value(1));
 

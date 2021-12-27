@@ -1,5 +1,3 @@
-#[cfg(feature = "evm")]
-use super::evm;
 use super::governance::Governance;
 use super::ledger::{Error, Ledger, LedgerStaticParameters};
 use super::pots::{self, Pots};
@@ -9,6 +7,8 @@ use crate::chaintypes::ChainLength;
 use crate::config::ConfigParam;
 use crate::date::BlockDate;
 use crate::key::Hash;
+#[cfg(feature = "evm")]
+use crate::ledger::evm;
 use crate::stake::PoolsState;
 use crate::vote::{VotePlanLedger, VotePlanManager};
 use crate::{account, legacy, multisig, setting, update, utxo};
@@ -358,7 +358,7 @@ impl<'a> std::iter::FromIterator<Entry<'a>> for Result<Ledger, Error> {
             utxos: utxos.into_iter().collect(),
             oldutxos: oldutxos.into_iter().collect(),
             accounts: accounts.into_iter().collect(),
-            settings: setting::Settings::new().apply(&config_params)?,
+            settings: setting::Settings::new().try_apply(&config_params)?,
             updates,
             multisig: multisig::Ledger::restore(multisig_accounts, multisig_declarations),
             delegation,
