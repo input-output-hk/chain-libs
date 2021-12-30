@@ -152,7 +152,7 @@ impl<'runtime> VirtualMachine<'runtime> {
                 let (values, logs) = state.deconstruct();
 
                 self.apply(values, logs, delete_empty);
-                //_exit_reason
+                // exit_reason
                 Ok((&self.state, &self.logs, val))
             }
 
