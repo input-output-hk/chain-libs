@@ -78,11 +78,11 @@ pub type RuntimeContext = Context;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum Error {
-    #[error("transaction error (machine returns a normal EVM error)")]
+    #[error("transaction error: machine returns a normal EVM error")]
     TransactionError(ExitError),
-    #[error("transaction fatal error (machine encountered an error that is not supposed to be normal EVM errors, such as requiring too much memory to execute)")]
+    #[error("transaction fatal error: machine encountered an error that is not supposed to be normal EVM errors, such as requiring too much memory to execute")]
     TransactionFatalError(ExitFatal),
-    #[error("transaction has been reverted (machine encountered an explict revert)")]
+    #[error("transaction has been reverted: machine encountered an explict revert")]
     TransactionRevertError(ExitRevert),
     #[error("not enough gas")]
     NotEnoughGas,
