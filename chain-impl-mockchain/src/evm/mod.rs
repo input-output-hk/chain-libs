@@ -184,10 +184,7 @@ fn read_bytecode(
     buf: &mut chain_core::mempack::ReadBuf,
 ) -> Result<ByteCode, chain_core::mempack::ReadError> {
     match buf.get_u64()? {
-        n if n > 0 => {
-            dbg!(n);
-            Ok(ByteCode::from(buf.get_slice(n as usize)?))
-        }
+        n if n > 0 => Ok(ByteCode::from(buf.get_slice(n as usize)?)),
         _ => Ok(ByteCode::default()),
     }
 }
