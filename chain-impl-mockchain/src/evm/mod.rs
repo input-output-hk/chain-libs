@@ -69,9 +69,39 @@ impl EvmTransaction {
                 serialize_access_list(bb, access_list)
             }
             #[cfg(feature = "evm")]
-            EvmTransaction::Create2 { .. } => todo!(),
+            EvmTransaction::Create2 {
+                caller,
+                value,
+                init_code,
+                salt,
+                gas_limit,
+                access_list,
+            } => {
+                let bb = _bb.u8(1);
+                let bb = serialize_address(bb, caller);
+                let bb = serialize_u256(bb, value);
+                let bb = serialize_bytecode(bb, init_code);
+                let bb = serialize_h256(bb, salt);
+                let bb = serialize_gas_limit(bb, gas_limit);
+                serialize_access_list(bb, access_list)
+            }
             #[cfg(feature = "evm")]
-            EvmTransaction::Call { .. } => todo!(),
+            EvmTransaction::Call {
+                caller,
+                address,
+                value,
+                data,
+                gas_limit,
+                access_list,
+            } => {
+                let bb = _bb.u8(2);
+                let bb = serialize_address(bb, caller);
+                let bb = serialize_address(bb, address);
+                let bb = serialize_u256(bb, value);
+                let bb = serialize_bytecode(bb, data);
+                let bb = serialize_gas_limit(bb, gas_limit);
+                serialize_access_list(bb, access_list)
+            }
             #[cfg(not(feature = "evm"))]
             _ => unreachable!(),
         }
@@ -212,6 +242,48 @@ impl Readable for EvmTransaction {
                     caller,
                     value,
                     init_code,
+                    gas_limit,
+                    access_list,
+                })
+            }
+            #[cfg(feature = "evm")]
+            1 => {
+                // CREATE2 Transaction
+                let caller = read_address(buf)?;
+                let value = read_u256(buf)?;
+                let init_code = read_bytecode(buf)?;
+                let salt = read_h256(buf)?;
+                let gas_limit = read_gas_limit(buf)?;
+                let access_list = read_access_list(buf)?;
+
+                buf.expect_end()?;
+
+                Ok(EvmTransaction::Create2 {
+                    caller,
+                    value,
+                    init_code,
+                    salt,
+                    gas_limit,
+                    access_list,
+                })
+            }
+            #[cfg(feature = "evm")]
+            2 => {
+                // CALL Transaction
+                let caller = read_address(buf)?;
+                let address = read_address(buf)?;
+                let value = read_u256(buf)?;
+                let data = read_bytecode(buf)?;
+                let gas_limit = read_gas_limit(buf)?;
+                let access_list = read_access_list(buf)?;
+
+                buf.expect_end()?;
+
+                Ok(EvmTransaction::Call {
+                    caller,
+                    address,
+                    value,
+                    data,
                     gas_limit,
                     access_list,
                 })
