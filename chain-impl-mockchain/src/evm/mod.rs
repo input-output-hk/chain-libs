@@ -8,8 +8,6 @@ use chain_evm::{
     state::{ByteCode, Key},
     Address,
 };
-#[cfg(feature = "evm")]
-use std::convert::TryInto;
 use typed_bytes::ByteBuilder;
 
 use crate::{
@@ -113,7 +111,7 @@ fn serialize_address(
     bb: ByteBuilder<EvmTransaction>,
     caller: &Address,
 ) -> ByteBuilder<EvmTransaction> {
-    bb.u8(0).bytes(caller.as_fixed_bytes())
+    bb.bytes(caller.as_fixed_bytes())
 }
 
 #[cfg(feature = "evm")]
@@ -136,7 +134,7 @@ fn serialize_h256(
 
 #[cfg(feature = "evm")]
 fn serialize_bytecode(bb: ByteBuilder<EvmTransaction>, code: &[u8]) -> ByteBuilder<EvmTransaction> {
-    bb.u64(code.len().try_into().unwrap()).bytes(code.as_ref())
+    bb.u64(code.len() as u64).bytes(code)
 }
 
 #[cfg(feature = "evm")]
@@ -152,10 +150,10 @@ fn serialize_access_list(
     bb: ByteBuilder<EvmTransaction>,
     access_list: &[(Address, Vec<Key>)],
 ) -> ByteBuilder<EvmTransaction> {
-    bb.u64(access_list.len().try_into().unwrap())
+    bb.u64(access_list.len() as u64)
         .fold(access_list.iter(), |bb, (address, keys)| {
             serialize_address(bb, address)
-                .u64(keys.len().try_into().unwrap())
+                .u64(keys.len() as u64)
                 .fold(keys.iter(), serialize_h256)
         })
 }
@@ -186,7 +184,10 @@ fn read_bytecode(
     buf: &mut chain_core::mempack::ReadBuf,
 ) -> Result<ByteCode, chain_core::mempack::ReadError> {
     match buf.get_u64()? {
-        n if n > 0 => Ok(ByteCode::from(buf.get_slice(n.try_into().unwrap())?)),
+        n if n > 0 => {
+            dbg!(n);
+            Ok(ByteCode::from(buf.get_slice(n as usize)?))
+        }
         _ => Ok(ByteCode::default()),
     }
 }
@@ -229,7 +230,7 @@ impl Readable for EvmTransaction {
         match contract_type {
             #[cfg(feature = "evm")]
             0 => {
-                // CREATE Transaction
+                // CREATE Transactionё
                 let caller = read_address(buf)?;
                 let value = read_u256(buf)?;
                 let init_code = read_bytecode(buf)?;
