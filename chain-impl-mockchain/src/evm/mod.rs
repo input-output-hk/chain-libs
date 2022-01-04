@@ -320,7 +320,6 @@ impl Payload for EvmTransaction {
 #[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test {
     use super::*;
-    use chain_core::mempack::ReadBuf;
     use quickcheck::Arbitrary;
 
     impl Arbitrary for EvmTransaction {
@@ -361,7 +360,7 @@ mod test {
     quickcheck! {
         fn evm_transaction_serialization_bijection(b: EvmTransaction) -> bool {
             let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let decoded = EvmTransaction::read(&mut ReadBuf::from(&bytes)).unwrap();
+            let decoded = EvmTransaction::read(&mut chain_core::mempack::ReadBuf::from(&bytes)).unwrap();
             decoded == b
         }
     }
