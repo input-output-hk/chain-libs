@@ -244,7 +244,7 @@ impl Payload for EvmTransaction {
     }
 }
 
-#[cfg(all(test, feature = "evm"))]
+#[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test {
     use super::*;
     use quickcheck::Arbitrary;
