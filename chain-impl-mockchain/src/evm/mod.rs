@@ -227,14 +227,12 @@ impl Readable for EvmTransaction {
         match contract_type {
             #[cfg(feature = "evm")]
             0 => {
-                // CREATE Transactionё
+                // CREATE Transaction
                 let caller = read_address(buf)?;
                 let value = read_u256(buf)?;
                 let init_code = read_bytecode(buf)?;
                 let gas_limit = read_gas_limit(buf)?;
                 let access_list = read_access_list(buf)?;
-
-                buf.expect_end()?;
 
                 Ok(EvmTransaction::Create {
                     caller,
@@ -253,9 +251,6 @@ impl Readable for EvmTransaction {
                 let salt = read_h256(buf)?;
                 let gas_limit = read_gas_limit(buf)?;
                 let access_list = read_access_list(buf)?;
-
-                buf.expect_end()?;
-
                 Ok(EvmTransaction::Create2 {
                     caller,
                     value,
@@ -274,8 +269,6 @@ impl Readable for EvmTransaction {
                 let data = read_bytecode(buf)?;
                 let gas_limit = read_gas_limit(buf)?;
                 let access_list = read_access_list(buf)?;
-
-                buf.expect_end()?;
 
                 Ok(EvmTransaction::Call {
                     caller,
