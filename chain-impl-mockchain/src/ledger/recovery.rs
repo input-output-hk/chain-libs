@@ -1331,7 +1331,7 @@ pub mod test {
         {
             let vec = Vec::new();
             let mut codec = Codec::new(vec);
-            pack_decl_element(&decl_element, &mut codec).unwrap();
+            pack_decl_element(decl_element, &mut codec).unwrap();
 
             let inner = codec.into_inner();
             let mut codec = Codec::new(inner.as_slice());

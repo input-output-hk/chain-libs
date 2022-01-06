@@ -88,7 +88,7 @@ mod tests {
         let token_name_got = token_name.bytes();
         let mut codec = Codec::new(token_name_got.as_slice());
         let result = TokenName::deserialize(&mut codec);
-        let left = Ok(token_name.clone());
+        let left = Ok(token_name);
         assert_eq!(left, result);
         TestResult::from_bool(left == result)
     }
