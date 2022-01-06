@@ -9,7 +9,11 @@ use quickcheck_macros::quickcheck;
 
 impl Arbitrary for Fragment {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        match g.next_u32() % 16 {
+        #[cfg(not(feature = "evm"))]
+        let r = g.next_u32() % 15;
+        #[cfg(feature = "evm")]
+        let r = g.next_u32() % 16;
+        match r {
             0 => Fragment::Initial(Arbitrary::arbitrary(g)),
             1 => Fragment::OldUtxoDeclaration(Arbitrary::arbitrary(g)),
             2 => Fragment::Transaction(Arbitrary::arbitrary(g)),
