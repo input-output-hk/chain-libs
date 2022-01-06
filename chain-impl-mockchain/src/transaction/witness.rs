@@ -205,12 +205,12 @@ impl Serialize for Witness {
             }
             Witness::Account(nonce, sig) => {
                 codec.put_u8(WITNESS_TAG_ACCOUNT)?;
-                codec.put_u32((*nonce).into())?;
+                codec.put_be_u32((*nonce).into())?;
                 serialize_signature(sig, codec)
             }
             Witness::Multisig(nonce, msig) => {
                 codec.put_u8(WITNESS_TAG_MULTISIG)?;
-                codec.put_u32((*nonce).into())?;
+                codec.put_be_u32((*nonce).into())?;
                 msig.serialize(codec)
             }
         }
@@ -228,12 +228,12 @@ impl DeserializeFromSlice for Witness {
             }
             WITNESS_TAG_UTXO => deserialize_signature(codec).map(Witness::Utxo),
             WITNESS_TAG_ACCOUNT => {
-                let nonce = codec.get_u32()?.into();
+                let nonce = codec.get_be_u32()?.into();
                 let sig = deserialize_signature(codec)?;
                 Ok(Witness::Account(nonce, sig))
             }
             WITNESS_TAG_MULTISIG => {
-                let nonce = codec.get_u32()?.into();
+                let nonce = codec.get_be_u32()?.into();
                 let msig = multisig::Witness::deserialize_from_slice(codec)?;
                 Ok(Witness::Multisig(nonce, msig))
             }

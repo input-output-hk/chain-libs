@@ -34,7 +34,7 @@ impl DeserializeFromSlice for UtxoDeclaration {
         let mut addrs = Vec::with_capacity(nb_entries);
         for _ in 0..nb_entries {
             let value = Value::deserialize(codec)?;
-            let addr_size = codec.get_u16()? as usize;
+            let addr_size = codec.get_be_u16()? as usize;
             let addr = OldAddress::try_from(codec.get_slice(addr_size)?)
                 .map_err(|err| ReadError::StructureInvalid(format!("{}", err)))?;
             addrs.push((addr, value))
@@ -52,7 +52,7 @@ impl Serialize for UtxoDeclaration {
         for (b, v) in &self.addrs {
             v.serialize(codec)?;
             let bs = b.as_ref();
-            codec.put_u16(bs.len() as u16)?;
+            codec.put_be_u16(bs.len() as u16)?;
             codec.put_bytes(bs)?;
         }
         Ok(())

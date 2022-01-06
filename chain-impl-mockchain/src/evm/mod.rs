@@ -105,10 +105,7 @@ fn serialize_h256(
 }
 
 #[cfg(feature = "evm")]
-fn serialize_bytecode(
-    bb: ByteBuilder<EvmTransaction>,
-    code: &ByteCode,
-) -> ByteBuilder<EvmTransaction> {
+fn serialize_bytecode(bb: ByteBuilder<EvmTransaction>, code: &[u8]) -> ByteBuilder<EvmTransaction> {
     bb.u64(code.len().try_into().unwrap()).bytes(code.as_ref())
 }
 
@@ -228,5 +225,46 @@ impl Payload for EvmTransaction {
         _p: crate::transaction::PayloadSlice<'_, Self>,
     ) -> Option<CertificateSlice<'_>> {
         None
+    }
+}
+
+#[cfg(all(test, feature = "evm"))]
+mod test {
+    use super::*;
+    use quickcheck::Arbitrary;
+
+    impl Arbitrary for EvmTransaction {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            let caller = [u8::arbitrary(g); 20].into();
+            let value = u128::arbitrary(g).into();
+            let gas_limit = Arbitrary::arbitrary(g);
+            let access_list = Vec::new();
+            match u8::arbitrary(g) % 3 {
+                0 => Self::Create {
+                    caller,
+                    value,
+                    init_code: Arbitrary::arbitrary(g),
+                    gas_limit,
+                    access_list,
+                },
+                1 => Self::Create2 {
+                    caller,
+                    value,
+                    init_code: Arbitrary::arbitrary(g),
+                    salt: [u8::arbitrary(g); 32].into(),
+                    gas_limit,
+                    access_list,
+                },
+                2 => Self::Call {
+                    caller,
+                    address: [u8::arbitrary(g); 20].into(),
+                    value,
+                    data: Arbitrary::arbitrary(g),
+                    gas_limit,
+                    access_list,
+                },
+                _ => unreachable!(),
+            }
+        }
     }
 }

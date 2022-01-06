@@ -24,7 +24,7 @@ impl ConfigParams {
 impl Serialize for ConfigParams {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         // FIXME: put params in canonical order (e.g. sorted by tag)?
-        codec.put_u16(self.0.len() as u16)?;
+        codec.put_be_u16(self.0.len() as u16)?;
         for config in &self.0 {
             config.serialize(codec)?
         }
@@ -35,7 +35,7 @@ impl Serialize for ConfigParams {
 impl DeserializeFromSlice for ConfigParams {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         // FIXME: check canonical order?
-        let len = codec.get_u16()?;
+        let len = codec.get_be_u16()?;
         let mut configs: Vec<ConfigParam> = Vec::with_capacity(len as usize);
         for _ in 0..len {
             configs.push(ConfigParam::deserialize_from_slice(codec)?);

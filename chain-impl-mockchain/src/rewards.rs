@@ -71,10 +71,10 @@ impl TaxType {
     }
 
     pub fn read_frombuf<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let fixed = codec.get_u64().map(Value)?;
-        let num = codec.get_u64()?;
-        let denom = codec.get_u64()?;
-        let limit = codec.get_u64()?;
+        let fixed = codec.get_be_u64().map(Value)?;
+        let num = codec.get_be_u64()?;
+        let denom = codec.get_be_u64()?;
+        let limit = codec.get_be_u64()?;
         let denominator = NonZeroU64::new(denom).map_or_else(
             || {
                 Err(ReadError::StructureInvalid(

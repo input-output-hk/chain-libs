@@ -15,14 +15,14 @@ impl AsRef<[u8]> for HeaderRaw {
 
 impl Serialize for HeaderRaw {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
-        codec.put_u16(self.0.len() as u16)?;
+        codec.put_be_u16(self.0.len() as u16)?;
         codec.put_bytes(&self.0)
     }
 }
 
 impl Deserialize for HeaderRaw {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let header_size = codec.get_u16()? as usize;
+        let header_size = codec.get_be_u16()? as usize;
         let v = codec.get_bytes(header_size)?;
         Ok(HeaderRaw(v))
     }

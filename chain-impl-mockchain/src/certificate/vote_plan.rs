@@ -412,16 +412,16 @@ impl Deserialize for VoteAction {
 impl DeserializeFromSlice for VotePlan {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         let vote_start = BlockDate {
-            epoch: codec.get_u32()?,
-            slot_id: codec.get_u32()?,
+            epoch: codec.get_be_u32()?,
+            slot_id: codec.get_be_u32()?,
         };
         let vote_end = BlockDate {
-            epoch: codec.get_u32()?,
-            slot_id: codec.get_u32()?,
+            epoch: codec.get_be_u32()?,
+            slot_id: codec.get_be_u32()?,
         };
         let committee_end = BlockDate {
-            epoch: codec.get_u32()?,
-            slot_id: codec.get_u32()?,
+            epoch: codec.get_be_u32()?,
+            slot_id: codec.get_be_u32()?,
         };
 
         let payload_type = codec

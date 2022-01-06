@@ -60,7 +60,7 @@ impl Witness {
 }
 
 fn deserialize_index<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<TreeIndex, ReadError> {
-    let idx = codec.get_u16()?;
+    let idx = codec.get_be_u16()?;
     match TreeIndex::unpack(idx) {
         None => Err(ReadError::StructureInvalid("invalid index".to_string())),
         Some(ti) => Ok(ti),
@@ -71,7 +71,7 @@ impl Serialize for Witness {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(self.0.len() as u8)?;
         for (ti, pk, sig) in self.0.iter() {
-            codec.put_u16(ti.pack())?;
+            codec.put_be_u16(ti.pack())?;
             serialize_public_key(pk, codec)?;
             serialize_signature(sig, codec)?;
         }

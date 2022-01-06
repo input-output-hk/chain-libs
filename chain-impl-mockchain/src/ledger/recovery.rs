@@ -122,15 +122,15 @@ fn pack_digestof<H: DigestAlg, T, W: std::io::Write>(
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
     let inner_data = digestof.as_ref();
-    codec.put_u64(inner_data.len() as u64)?;
+    codec.put_be_u64(inner_data.len() as u64)?;
     codec.put_bytes(inner_data)?;
     Ok(())
 }
 
 fn unpack_digestof<H: DigestAlg, T>(codec: &mut Codec<&[u8]>) -> Result<DigestOf<H, T>, ReadError> {
-    let size = codec.get_u64()? as usize;
-    let bytes = codec.get_slice(size)?;
-    DigestOf::try_from(bytes).map_err(|e| ReadError::InvalidData(e.to_string()))
+    let size = codec.get_be_u64()? as usize;
+    let bytes = codec.get_bytes(size)?;
+    DigestOf::try_from(bytes.as_slice()).map_err(|e| ReadError::InvalidData(e.to_string()))
 }
 
 fn pack_account_identifier<W: std::io::Write>(
@@ -152,7 +152,7 @@ fn pack_spending_strategy<W: std::io::Write>(
 ) -> Result<(), WriteError> {
     let counters = spending_strategy.get_valid_counters();
     for counter in counters {
-        codec.put_u32(counter.into())?;
+        codec.put_be_u32(counter.into())?;
     }
     Ok(())
 }
@@ -162,7 +162,7 @@ fn unpack_spending_strategy(
 ) -> Result<SpendingCounterIncreasing, ReadError> {
     let mut counters = Vec::new();
     for _ in 0..SpendingCounterIncreasing::LANES {
-        let counter = SpendingCounter(codec.get_u32()?);
+        let counter = SpendingCounter(codec.get_be_u32()?);
         counters.push(counter);
     }
     let got_length = counters.len();
@@ -181,7 +181,7 @@ fn pack_account_state<W: std::io::Write>(
 ) -> Result<(), WriteError> {
     pack_spending_strategy(&account_state.spending, codec)?;
     pack_delegation_type(&account_state.delegation, codec)?;
-    codec.put_u64(account_state.value.0)?;
+    codec.put_be_u64(account_state.value.0)?;
     pack_last_rewards(&account_state.last_rewards, codec)?;
     Ok(())
 }
@@ -189,7 +189,7 @@ fn pack_account_state<W: std::io::Write>(
 fn unpack_account_state(codec: &mut Codec<&[u8]>) -> Result<AccountState<()>, ReadError> {
     let spending = unpack_spending_strategy(codec)?;
     let delegation = unpack_delegation_type(codec)?;
-    let value = codec.get_u64()?;
+    let value = codec.get_be_u64()?;
     let last_rewards = unpack_last_rewards(codec)?;
     Ok(AccountState {
         spending,
@@ -207,7 +207,7 @@ fn pack_delegation_ratio<W: std::io::Write>(
 ) -> Result<(), WriteError> {
     codec.put_u8(delegation_ratio.parts)?;
     // len of items in pools, for later use by the deserialize method
-    codec.put_u64(delegation_ratio.pools.len() as u64)?;
+    codec.put_be_u64(delegation_ratio.pools.len() as u64)?;
     for (pool_id, u) in delegation_ratio.pools.iter() {
         codec.put_u8(*u)?;
         pack_pool_id(pool_id, codec)?;
@@ -217,7 +217,7 @@ fn pack_delegation_ratio<W: std::io::Write>(
 
 fn unpack_delegation_ratio(codec: &mut Codec<&[u8]>) -> Result<DelegationRatio, ReadError> {
     let parts = codec.get_u8()?;
-    let pool_size = codec.get_u64()?;
+    let pool_size = codec.get_be_u64()?;
     let mut pools: Vec<(PoolId, u8)> = Vec::with_capacity(pool_size as usize);
     for _ in 0..pool_size {
         let u = codec.get_u8()?;
@@ -265,15 +265,15 @@ fn pack_last_rewards<W: std::io::Write>(
     last_rewards: &LastRewards,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    codec.put_u32(last_rewards.epoch)?;
-    codec.put_u64(last_rewards.reward.0)?;
+    codec.put_be_u32(last_rewards.epoch)?;
+    codec.put_be_u64(last_rewards.reward.0)?;
     Ok(())
 }
 
 fn unpack_last_rewards(codec: &mut Codec<&[u8]>) -> Result<LastRewards, ReadError> {
     Ok(LastRewards {
-        epoch: codec.get_u32()?,
-        reward: Value(codec.get_u64()?),
+        epoch: codec.get_be_u32()?,
+        reward: Value(codec.get_be_u64()?),
     })
 }
 
@@ -313,14 +313,14 @@ fn pack_pool_registration<W: std::io::Write>(
     let bytes = byte_array.as_slice();
     let size = bytes.len() as u64;
     // TODO: do not store extra bytes
-    codec.put_u64(size)?;
+    codec.put_be_u64(size)?;
     codec.put_bytes(bytes)?;
     Ok(())
 }
 
 fn unpack_pool_registration(codec: &mut Codec<&[u8]>) -> Result<PoolRegistration, ReadError> {
     // TODO: do not store extra bytes
-    codec.get_u64()?;
+    codec.get_be_u64()?;
     PoolRegistration::deserialize_from_slice(codec)
 }
 
@@ -339,14 +339,13 @@ fn pack_block_date<W: std::io::Write>(
     block_date: BlockDate,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    codec.put_u32(block_date.epoch)?;
-    codec.put_u32(block_date.slot_id)?;
-    Ok(())
+    codec.put_be_u32(block_date.epoch)?;
+    codec.put_be_u32(block_date.slot_id)
 }
 
 fn unpack_block_date(codec: &mut Codec<&[u8]>) -> Result<BlockDate, ReadError> {
-    let epoch = codec.get_u32()?;
-    let slot_id = codec.get_u32()?;
+    let epoch = codec.get_be_u32()?;
+    let slot_id = codec.get_be_u32()?;
     Ok(BlockDate { epoch, slot_id })
 }
 
@@ -355,9 +354,9 @@ fn pack_linear_fee<W: std::io::Write>(
     linear_fee: &LinearFee,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    codec.put_u64(linear_fee.constant)?;
-    codec.put_u64(linear_fee.coefficient)?;
-    codec.put_u64(linear_fee.certificate)?;
+    codec.put_be_u64(linear_fee.constant)?;
+    codec.put_be_u64(linear_fee.coefficient)?;
+    codec.put_be_u64(linear_fee.certificate)?;
     pack_per_certificate_fee(&linear_fee.per_certificate_fees, codec)?;
     pack_per_vote_certificate_fee(&linear_fee.per_vote_certificate_fees, codec)?;
     Ok(())
@@ -365,9 +364,9 @@ fn pack_linear_fee<W: std::io::Write>(
 
 #[cfg(test)]
 fn unpack_linear_fee(codec: &mut Codec<&[u8]>) -> Result<LinearFee, ReadError> {
-    let constant = codec.get_u64()?;
-    let coefficient = codec.get_u64()?;
-    let certificate = codec.get_u64()?;
+    let constant = codec.get_be_u64()?;
+    let coefficient = codec.get_be_u64()?;
+    let certificate = codec.get_be_u64()?;
     let per_certificate_fees = unpack_per_certificate_fee(codec)?;
     let per_vote_certificate_fees = unpack_per_vote_certificate_fee(codec)?;
     Ok(LinearFee {
@@ -384,19 +383,19 @@ fn pack_per_certificate_fee<W: std::io::Write>(
     per_certificate_fee: &PerCertificateFee,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    codec.put_u64(
+    codec.put_be_u64(
         per_certificate_fee
             .certificate_pool_registration
             .map(|v| v.get())
             .unwrap_or(0),
     )?;
-    codec.put_u64(
+    codec.put_be_u64(
         per_certificate_fee
             .certificate_stake_delegation
             .map(|v| v.get())
             .unwrap_or(0),
     )?;
-    codec.put_u64(
+    codec.put_be_u64(
         per_certificate_fee
             .certificate_owner_stake_delegation
             .map(|v| v.get())
@@ -410,13 +409,13 @@ fn pack_per_vote_certificate_fee<W: std::io::Write>(
     per_vote_certificate_fee: &PerVoteCertificateFee,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    codec.put_u64(
+    codec.put_be_u64(
         per_vote_certificate_fee
             .certificate_vote_plan
             .map(|v| v.get())
             .unwrap_or(0),
     )?;
-    codec.put_u64(
+    codec.put_be_u64(
         per_vote_certificate_fee
             .certificate_vote_cast
             .map(|v| v.get())
@@ -427,9 +426,9 @@ fn pack_per_vote_certificate_fee<W: std::io::Write>(
 
 #[cfg(test)]
 fn unpack_per_certificate_fee(codec: &mut Codec<&[u8]>) -> Result<PerCertificateFee, ReadError> {
-    let certificate_pool_registration = std::num::NonZeroU64::new(codec.get_u64()?);
-    let certificate_stake_delegation = std::num::NonZeroU64::new(codec.get_u64()?);
-    let certificate_owner_stake_delegation = std::num::NonZeroU64::new(codec.get_u64()?);
+    let certificate_pool_registration = std::num::NonZeroU64::new(codec.get_be_u64()?);
+    let certificate_stake_delegation = std::num::NonZeroU64::new(codec.get_be_u64()?);
+    let certificate_owner_stake_delegation = std::num::NonZeroU64::new(codec.get_be_u64()?);
 
     Ok(PerCertificateFee {
         certificate_pool_registration,
@@ -442,8 +441,8 @@ fn unpack_per_certificate_fee(codec: &mut Codec<&[u8]>) -> Result<PerCertificate
 fn unpack_per_vote_certificate_fee(
     codec: &mut Codec<&[u8]>,
 ) -> Result<PerVoteCertificateFee, ReadError> {
-    let certificate_vote_plan = std::num::NonZeroU64::new(codec.get_u64()?);
-    let certificate_vote_cast = std::num::NonZeroU64::new(codec.get_u64()?);
+    let certificate_vote_plan = std::num::NonZeroU64::new(codec.get_be_u64()?);
+    let certificate_vote_cast = std::num::NonZeroU64::new(codec.get_be_u64()?);
 
     Ok(PerVoteCertificateFee {
         certificate_vote_plan,
@@ -480,9 +479,9 @@ fn pack_ledger_static_parameters<W: std::io::Write>(
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
     pack_header_id(&ledger_static_parameters.block0_initial_hash, codec)?;
-    codec.put_u64(ledger_static_parameters.block0_start_time.0)?;
+    codec.put_be_u64(ledger_static_parameters.block0_start_time.0)?;
     pack_discrimination(ledger_static_parameters.discrimination, codec)?;
-    codec.put_u32(ledger_static_parameters.kes_update_speed)?;
+    codec.put_be_u32(ledger_static_parameters.kes_update_speed)?;
     Ok(())
 }
 
@@ -490,9 +489,9 @@ fn unpack_ledger_static_parameters(
     codec: &mut Codec<&[u8]>,
 ) -> Result<LedgerStaticParameters, ReadError> {
     let block0_initial_hash = unpack_header_id(codec)?;
-    let block0_start_time = config::Block0Date(codec.get_u64()?);
+    let block0_start_time = config::Block0Date(codec.get_be_u64()?);
     let discrimination = unpack_discrimination(codec)?;
-    let kes_update_speed = codec.get_u32()?;
+    let kes_update_speed = codec.get_be_u32()?;
     Ok(LedgerStaticParameters {
         block0_initial_hash,
         block0_start_time,
@@ -506,7 +505,7 @@ fn pack_globals<W: std::io::Write>(
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
     pack_block_date(globals.date, codec)?;
-    codec.put_u32(globals.chain_length.0)?;
+    codec.put_be_u32(globals.chain_length.0)?;
     pack_ledger_static_parameters(&globals.static_params, codec)?;
     pack_time_era(&globals.era, codec)?;
     Ok(())
@@ -514,7 +513,7 @@ fn pack_globals<W: std::io::Write>(
 
 fn unpack_globals(codec: &mut Codec<&[u8]>) -> Result<Globals, ReadError> {
     let date = unpack_block_date(codec)?;
-    let chain_length = ChainLength(codec.get_u32()?);
+    let chain_length = ChainLength(codec.get_be_u32()?);
     let static_params = unpack_ledger_static_parameters(codec)?;
     let era = unpack_time_era(codec)?;
     Ok(Globals {
@@ -532,15 +531,15 @@ fn pack_pot_entry<W: std::io::Write>(
     match entry {
         pots::Entry::Fees(value) => {
             codec.put_u8(0)?;
-            codec.put_u64(value.0)?;
+            codec.put_be_u64(value.0)?;
         }
         pots::Entry::Treasury(value) => {
             codec.put_u8(1)?;
-            codec.put_u64(value.0)?;
+            codec.put_be_u64(value.0)?;
         }
         pots::Entry::Rewards(value) => {
             codec.put_u8(2)?;
-            codec.put_u64(value.0)?;
+            codec.put_be_u64(value.0)?;
         }
     }
     Ok(())
@@ -548,9 +547,9 @@ fn pack_pot_entry<W: std::io::Write>(
 
 fn unpack_pot_entry(codec: &mut Codec<&[u8]>) -> Result<pots::Entry, ReadError> {
     match codec.get_u8()? {
-        0 => Ok(pots::Entry::Fees(Value(codec.get_u64()?))),
-        1 => Ok(pots::Entry::Treasury(Value(codec.get_u64()?))),
-        2 => Ok(pots::Entry::Rewards(Value(codec.get_u64()?))),
+        0 => Ok(pots::Entry::Fees(Value(codec.get_be_u64()?))),
+        1 => Ok(pots::Entry::Treasury(Value(codec.get_be_u64()?))),
+        2 => Ok(pots::Entry::Rewards(Value(codec.get_be_u64()?))),
         code => Err(ReadError::InvalidData(format!(
             "Invalid Entry type code {}",
             code
@@ -574,7 +573,7 @@ fn pack_declaration<W: std::io::Write>(
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
     codec.put_u8(declaration.threshold)?;
-    codec.put_u64(declaration.owners.len() as u64)?;
+    codec.put_be_u64(declaration.owners.len() as u64)?;
     for owner in &declaration.owners {
         pack_decl_element(owner, codec)?;
     }
@@ -583,7 +582,7 @@ fn pack_declaration<W: std::io::Write>(
 
 fn unpack_declaration(codec: &mut Codec<&[u8]>) -> Result<Declaration, ReadError> {
     let threshold = codec.get_u8()?;
-    let size = codec.get_u64()?;
+    let size = codec.get_be_u64()?;
     let mut owners: Vec<DeclElement> = Vec::with_capacity(size as usize);
     for _ in 0..size {
         let decl_element = unpack_decl_element(codec)?;
@@ -624,16 +623,16 @@ fn pack_pool_last_rewards<W: std::io::Write>(
     pool_last_rewards: &PoolLastRewards,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    codec.put_u32(pool_last_rewards.epoch)?;
-    codec.put_u64(pool_last_rewards.value_taxed.0)?;
-    codec.put_u64(pool_last_rewards.value_for_stakers.0)?;
+    codec.put_be_u32(pool_last_rewards.epoch)?;
+    codec.put_be_u64(pool_last_rewards.value_taxed.0)?;
+    codec.put_be_u64(pool_last_rewards.value_for_stakers.0)?;
     Ok(())
 }
 
 fn unpack_pool_last_rewards(codec: &mut Codec<&[u8]>) -> Result<PoolLastRewards, ReadError> {
-    let epoch = codec.get_u32()?;
-    let value_taxed = Value(codec.get_u64()?);
-    let value_for_stakers = Value(codec.get_u64()?);
+    let epoch = codec.get_be_u32()?;
+    let value_taxed = Value(codec.get_be_u64()?);
+    let value_for_stakers = Value(codec.get_be_u64()?);
 
     Ok(PoolLastRewards {
         epoch,
@@ -667,7 +666,7 @@ fn pack_update_proposal_state<W: std::io::Write>(
 ) -> Result<(), WriteError> {
     pack_update_proposal(&update_proposal_state.proposal, codec)?;
     pack_block_date(update_proposal_state.proposal_date, codec)?;
-    codec.put_u64(update_proposal_state.votes.size() as u64)?;
+    codec.put_be_u64(update_proposal_state.votes.size() as u64)?;
     {
         for (voter, _) in &update_proposal_state.votes {
             voter.serialize(codec)?;
@@ -681,7 +680,7 @@ fn unpack_update_proposal_state(
 ) -> Result<UpdateProposalState, ReadError> {
     let proposal = unpack_update_proposal(codec)?;
     let proposal_date = unpack_block_date(codec)?;
-    let total_votes = codec.get_u64()?;
+    let total_votes = codec.get_be_u64()?;
     let mut votes = Hamt::new();
 
     for _ in 0..total_votes {
@@ -763,7 +762,7 @@ where
     F: FnMut(&OutputAddress, &mut Codec<W>) -> Result<(), WriteError>,
 {
     address_packer(&output.address, codec)?;
-    codec.put_u64(output.value.0)?;
+    codec.put_be_u64(output.value.0)?;
     Ok(())
 }
 
@@ -775,7 +774,7 @@ where
     F: FnMut(&mut Codec<&[u8]>) -> Result<OutputAddress, ReadError>,
 {
     let address = address_unpacker(codec)?;
-    let value = Value(codec.get_u64()?);
+    let value = Value(codec.get_be_u64()?);
     Ok(Output { address, value })
 }
 
@@ -784,13 +783,13 @@ fn pack_old_addr<W: std::io::Write>(
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
     let bytes = addr.as_ref();
-    codec.put_u64(bytes.len() as u64)?;
+    codec.put_be_u64(bytes.len() as u64)?;
     codec.put_bytes(bytes)?;
     Ok(())
 }
 
 fn unpack_old_addr(codec: &mut Codec<&[u8]>) -> Result<legacy::OldAddress, ReadError> {
-    let size = codec.get_u64()? as usize;
+    let size = codec.get_be_u64()? as usize;
     let v = codec.get_bytes(size)?;
     Ok(legacy::OldAddress::new(v))
 }
@@ -801,14 +800,14 @@ fn pack_address<W: std::io::Write>(
 ) -> Result<(), WriteError> {
     // TODO use Deserialize trait
     let bytes = address.to_bytes();
-    codec.put_u64(bytes.len() as u64)?;
+    codec.put_be_u64(bytes.len() as u64)?;
     codec.put_bytes(&bytes)?;
     Ok(())
 }
 
 fn unpack_address(codec: &mut Codec<&[u8]>) -> Result<Address, ReadError> {
     // TODO use Deserialize trait
-    let size = codec.get_u64()? as usize;
+    let size = codec.get_be_u64()? as usize;
     let v = codec.get_slice(size)?;
     Address::from_bytes(v).map_err(|e| {
         ReadError::InvalidData(format!("Error reading address from packed bytes: {}", e))
@@ -840,7 +839,7 @@ fn pack_vote_proposals<W: std::io::Write>(
     proposals: &Proposals,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    codec.put_u64(proposals.len() as u64)?;
+    codec.put_be_u64(proposals.len() as u64)?;
     for proposal in proposals.iter() {
         pack_vote_proposal(proposal, codec)?;
     }
@@ -849,7 +848,7 @@ fn pack_vote_proposals<W: std::io::Write>(
 
 fn unpack_proposals(codec: &mut Codec<&[u8]>) -> Result<Proposals, ReadError> {
     let mut proposals = Proposals::new();
-    let size = codec.get_u64()?;
+    let size = codec.get_be_u64()?;
     for _ in 0..size {
         let _ = proposals.push(unpack_proposal(codec)?);
     }
@@ -1045,7 +1044,7 @@ fn pack_entry<W: std::io::Write>(
         Entry::LeaderParticipation((pool_id, participation)) => {
             codec.put_u8(EntrySerializeCode::LeaderParticipation as u8)?;
             pack_digestof(pool_id, codec)?;
-            codec.put_u32(**participation)?;
+            codec.put_be_u32(**participation)?;
         }
         Entry::VotePlan(vote_plan) => {
             codec.put_u8(EntrySerializeCode::VotePlan as u8)?;
@@ -1102,7 +1101,7 @@ fn unpack_entry_owned(codec: &mut Codec<&[u8]>) -> Result<EntryOwned, ReadError>
         }
         EntrySerializeCode::LeaderParticipation => {
             let pool_id = unpack_digestof(codec)?;
-            let v = codec.get_u32()?;
+            let v = codec.get_be_u32()?;
             Ok(EntryOwned::LeaderParticipation((pool_id, v)))
         }
         EntrySerializeCode::VotePlan => {

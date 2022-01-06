@@ -182,7 +182,7 @@ impl PoolRetirement {
 impl Deserialize for PoolRetirement {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let pool_id = <[u8; 32]>::deserialize(codec)?.into();
-        let retirement_time = DurationSeconds::from(codec.get_u64()?).into();
+        let retirement_time = DurationSeconds::from(codec.get_be_u64()?).into();
         Ok(PoolRetirement {
             pool_id,
             retirement_time,
@@ -260,9 +260,9 @@ impl Serialize for PoolRegistration {
 
 impl DeserializeFromSlice for PoolRegistration {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        let serial = codec.get_u128()?;
-        let start_validity = DurationSeconds::from(codec.get_u64()?).into();
-        let permissions = PoolPermissions::from_u64(codec.get_u64()?).ok_or_else(|| {
+        let serial = codec.get_be_u128()?;
+        let start_validity = DurationSeconds::from(codec.get_be_u64()?).into();
+        let permissions = PoolPermissions::from_u64(codec.get_be_u64()?).ok_or_else(|| {
             ReadError::StructureInvalid("permission value not correct".to_string())
         })?;
         let keys = GenesisPraosLeader::deserialize_from_slice(codec)?;
@@ -743,7 +743,7 @@ mod tests {
         let auth_data = builder.get_auth_data();
         let mut sigs = Vec::new();
         for (i, key) in pool_owner_with_sign.indexed_signatories_sks() {
-            let sig = SingleAccountBindingSignature::new(&auth_data, |d| key.sign_slice(&d.0));
+            let sig = SingleAccountBindingSignature::new(&auth_data, |d| key.sign_slice(d.0));
             sigs.push((i as u8, sig))
         }
         let pool_owner_signed = PoolOwnersSigned { signatures: sigs };

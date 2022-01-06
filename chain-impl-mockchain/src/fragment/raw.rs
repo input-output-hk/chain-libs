@@ -29,7 +29,7 @@ impl AsRef<[u8]> for FragmentRaw {
 
 impl Deserialize for FragmentRaw {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let size = codec.get_u32()? as usize;
+        let size = codec.get_be_u32()? as usize;
         let v = codec.get_bytes(size)?;
         Ok(FragmentRaw(v))
     }
@@ -37,7 +37,7 @@ impl Deserialize for FragmentRaw {
 
 impl Serialize for FragmentRaw {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
-        codec.put_u32(self.0.len() as u32)?;
+        codec.put_be_u32(self.0.len() as u32)?;
         codec.put_bytes(&self.0)
     }
 }

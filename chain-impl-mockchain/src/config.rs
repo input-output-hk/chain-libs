@@ -298,7 +298,7 @@ impl<'a> From<&'a ConfigParam> for Tag {
 
 impl DeserializeFromSlice for ConfigParam {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        let taglen = TagLen(codec.get_u16()?);
+        let taglen = TagLen(codec.get_be_u16()?);
         let bytes = codec.get_slice(taglen.get_len())?;
         match taglen.get_tag()? {
             Tag::Block0Date => ConfigParamVariant::from_payload(bytes).map(ConfigParam::Block0Date),
@@ -421,7 +421,7 @@ impl Serialize for ConfigParam {
                 "initial ent payload too big".to_string(),
             )
         })?;
-        codec.put_u16(taglen.0)?;
+        codec.put_be_u16(taglen.0)?;
         codec.put_bytes(&bytes)
     }
 }
@@ -467,7 +467,7 @@ impl ConfigParamVariant for Ratio {
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
         let mut codec = Codec::new(payload);
-        let num = codec.get_u64()?;
+        let num = codec.get_be_u64()?;
         let denom = codec.get_nz_u64()?;
         Ok(Ratio {
             numerator: num,
@@ -510,10 +510,10 @@ impl ConfigParamVariant for RewardParams {
         let mut codec = Codec::new(payload);
         match codec.get_u8()? {
             1 => {
-                let start = codec.get_u64()?;
-                let num = codec.get_u64()?;
+                let start = codec.get_be_u64()?;
+                let num = codec.get_be_u64()?;
                 let denom = codec.get_nz_u64()?;
-                let estart = codec.get_u32()?;
+                let estart = codec.get_be_u32()?;
                 let erate = codec.get_nz_u32()?;
                 Ok(RewardParams::Linear {
                     constant: start,
@@ -526,10 +526,10 @@ impl ConfigParamVariant for RewardParams {
                 })
             }
             2 => {
-                let start = codec.get_u64()?;
-                let num = codec.get_u64()?;
+                let start = codec.get_be_u64()?;
+                let num = codec.get_be_u64()?;
                 let denom = codec.get_nz_u64()?;
-                let estart = codec.get_u32()?;
+                let estart = codec.get_be_u32()?;
                 let erate = codec.get_nz_u32()?;
                 Ok(RewardParams::Halving {
                     constant: start,

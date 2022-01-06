@@ -52,38 +52,62 @@ impl<R: std::io::Read> Codec<R> {
         Ok(buf[0])
     }
     #[inline]
-    pub fn get_u16(&mut self) -> Result<u16, ReadError> {
+    pub fn get_be_u16(&mut self) -> Result<u16, ReadError> {
         let mut buf = [0u8; 2];
         self.inner.read_exact(&mut buf)?;
         Ok(u16::from_be_bytes(buf))
     }
     #[inline]
-    pub fn get_u32(&mut self) -> Result<u32, ReadError> {
+    pub fn get_le_u16(&mut self) -> Result<u16, ReadError> {
+        let mut buf = [0u8; 2];
+        self.inner.read_exact(&mut buf)?;
+        Ok(u16::from_le_bytes(buf))
+    }
+    #[inline]
+    pub fn get_be_u32(&mut self) -> Result<u32, ReadError> {
         let mut buf = [0u8; 4];
         self.inner.read_exact(&mut buf)?;
         Ok(u32::from_be_bytes(buf))
     }
     #[inline]
-    pub fn get_u64(&mut self) -> Result<u64, ReadError> {
+    pub fn get_le_u32(&mut self) -> Result<u32, ReadError> {
+        let mut buf = [0u8; 4];
+        self.inner.read_exact(&mut buf)?;
+        Ok(u32::from_le_bytes(buf))
+    }
+    #[inline]
+    pub fn get_be_u64(&mut self) -> Result<u64, ReadError> {
         let mut buf = [0u8; 8];
         self.inner.read_exact(&mut buf)?;
         Ok(u64::from_be_bytes(buf))
     }
     #[inline]
-    pub fn get_u128(&mut self) -> Result<u128, ReadError> {
+    pub fn get_le_u64(&mut self) -> Result<u64, ReadError> {
+        let mut buf = [0u8; 8];
+        self.inner.read_exact(&mut buf)?;
+        Ok(u64::from_le_bytes(buf))
+    }
+    #[inline]
+    pub fn get_be_u128(&mut self) -> Result<u128, ReadError> {
         let mut buf = [0u8; 16];
         self.inner.read_exact(&mut buf)?;
         Ok(u128::from_be_bytes(buf))
     }
     #[inline]
+    pub fn get_le_u128(&mut self) -> Result<u128, ReadError> {
+        let mut buf = [0u8; 16];
+        self.inner.read_exact(&mut buf)?;
+        Ok(u128::from_le_bytes(buf))
+    }
+    #[inline]
     pub fn get_nz_u32(&mut self) -> Result<NonZeroU32, ReadError> {
-        let val = self.get_u32()?;
+        let val = self.get_be_u32()?;
         NonZeroU32::new(val)
             .ok_or_else(|| ReadError::StructureInvalid("received zero u32".to_string()))
     }
     #[inline]
     pub fn get_nz_u64(&mut self) -> Result<NonZeroU64, ReadError> {
-        let val = self.get_u64()?;
+        let val = self.get_be_u64()?;
         NonZeroU64::new(val)
             .ok_or_else(|| ReadError::StructureInvalid("received zero u64".to_string()))
     }
@@ -106,20 +130,36 @@ impl<W: std::io::Write> Codec<W> {
         self.inner.write_all(&[v]).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_u16(&mut self, v: u16) -> Result<(), WriteError> {
+    pub fn put_be_u16(&mut self, v: u16) -> Result<(), WriteError> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_u32(&mut self, v: u32) -> Result<(), WriteError> {
+    pub fn put_le_u16(&mut self, v: u16) -> Result<(), WriteError> {
+        self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
+    }
+    #[inline]
+    pub fn put_be_u32(&mut self, v: u32) -> Result<(), WriteError> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_u64(&mut self, v: u64) -> Result<(), WriteError> {
+    pub fn put_le_u32(&mut self, v: u32) -> Result<(), WriteError> {
+        self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
+    }
+    #[inline]
+    pub fn put_be_u64(&mut self, v: u64) -> Result<(), WriteError> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_u128(&mut self, v: u128) -> Result<(), WriteError> {
+    pub fn put_le_u64(&mut self, v: u64) -> Result<(), WriteError> {
+        self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
+    }
+    #[inline]
+    pub fn put_be_u128(&mut self, v: u128) -> Result<(), WriteError> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
+    }
+    #[inline]
+    pub fn put_le_u128(&mut self, v: u128) -> Result<(), WriteError> {
+        self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
     }
     #[inline]
     pub fn put_bytes(&mut self, v: &[u8]) -> Result<(), WriteError> {

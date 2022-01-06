@@ -117,13 +117,13 @@ impl AsRef<u64> for Value {
 
 impl Deserialize for Value {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        codec.get_u64().map(Value)
+        codec.get_be_u64().map(Value)
     }
 }
 
 impl Serialize for Value {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
-        codec.put_u64(self.0)
+        codec.put_be_u64(self.0)
     }
 }
 

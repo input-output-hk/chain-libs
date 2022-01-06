@@ -280,7 +280,7 @@ impl DeserializeFromSlice for VoteTally {
                     }
                     let mut decrypted = Vec::with_capacity(options_number);
                     for _j in 0..options_number {
-                        decrypted.push(codec.get_u64()?);
+                        decrypted.push(codec.get_be_u64()?);
                     }
                     let shares = shares.into_boxed_slice();
                     let decrypted = decrypted.into_boxed_slice();

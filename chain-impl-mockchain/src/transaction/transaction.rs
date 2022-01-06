@@ -274,10 +274,10 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
 
     // read date
     let epoch = codec
-        .get_u32()
+        .get_be_u32()
         .map_err(|_| TransactionStructError::CannotReadExpiryDate)?;
     let slot_id = codec
-        .get_u32()
+        .get_be_u32()
         .map_err(|_| TransactionStructError::CannotReadExpiryDate)?;
     let valid_until = BlockDate { epoch, slot_id };
 
