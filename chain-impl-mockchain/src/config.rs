@@ -829,7 +829,7 @@ impl ConfigParamVariant for Box<EvmConfigParams> {
         let origin = Origin::from_slice(codec.get_slice(20)?);
         let chain_id = codec.get_slice(32)?.into();
 
-        let block_hashes = match codec.get_u64()? {
+        let block_hashes = match codec.get_be_u64()? {
             0 => Vec::new(),
             n => (0..n)
                 .map(|_| BlockHash::from_slice(codec.get_slice(32).unwrap()))

@@ -147,7 +147,7 @@ fn read_u256(codec: &mut Codec<&[u8]>) -> Result<primitive_types::U256, ReadErro
 
 #[cfg(feature = "evm")]
 fn read_bytecode(codec: &mut Codec<&[u8]>) -> Result<ByteCode, ReadError> {
-    match codec.get_u64()? {
+    match codec.get_be_u64()? {
         n if n > 0 => Ok(ByteCode::from(codec.get_slice(n.try_into().unwrap())?)),
         _ => Ok(ByteCode::default()),
     }
@@ -155,17 +155,17 @@ fn read_bytecode(codec: &mut Codec<&[u8]>) -> Result<ByteCode, ReadError> {
 
 #[cfg(feature = "evm")]
 fn read_gas_limit(codec: &mut Codec<&[u8]>) -> Result<u64, ReadError> {
-    codec.get_u64()
+    codec.get_be_u64()
 }
 
 #[cfg(feature = "evm")]
 fn read_access_list(codec: &mut Codec<&[u8]>) -> Result<Vec<(Address, Vec<Key>)>, ReadError> {
-    let count = codec.get_u64()?;
+    let count = codec.get_be_u64()?;
     let access_list = (0..count)
         .into_iter()
         .fold(Vec::new(), |mut access_list, _| {
             let address = read_address(codec).unwrap_or_default();
-            let keys_count = codec.get_u64().unwrap_or_default();
+            let keys_count = codec.get_be_u64().unwrap_or_default();
             let keys = (0..keys_count).into_iter().fold(Vec::new(), |mut keys, _| {
                 let key = read_h256(codec).unwrap_or_default();
                 if !key.is_zero() {
