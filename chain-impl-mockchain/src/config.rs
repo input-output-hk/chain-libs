@@ -817,10 +817,9 @@ impl ConfigParamVariant for Box<EvmConfigParams> {
         let mut codec = Codec::new(payload);
 
         // Read EvmConfig and match hard fork variant
-        use EvmConfig::*;
         let config = match codec.get_u8()? {
-            n if n == Istanbul as u8 => Istanbul,
-            n if n == Berlin as u8 => Berlin,
+            n if n == EvmConfig::Istanbul as u8 => EvmConfig::Istanbul,
+            n if n == EvmConfig::Berlin as u8 => EvmConfig::Berlin,
             _ => return Err(Error::InvalidTag),
         };
 
