@@ -69,9 +69,39 @@ impl EvmTransaction {
                 serialize_access_list(bb, access_list)
             }
             #[cfg(feature = "evm")]
-            EvmTransaction::Create2 { .. } => todo!(),
+            EvmTransaction::Create2 {
+                caller,
+                value,
+                init_code,
+                salt,
+                gas_limit,
+                access_list,
+            } => {
+                let bb = _bb.u8(1);
+                let bb = serialize_address(bb, caller);
+                let bb = serialize_u256(bb, value);
+                let bb = serialize_bytecode(bb, init_code);
+                let bb = serialize_h256(bb, salt);
+                let bb = serialize_gas_limit(bb, gas_limit);
+                serialize_access_list(bb, access_list)
+            }
             #[cfg(feature = "evm")]
-            EvmTransaction::Call { .. } => todo!(),
+            EvmTransaction::Call {
+                caller,
+                address,
+                value,
+                data,
+                gas_limit,
+                access_list,
+            } => {
+                let bb = _bb.u8(2);
+                let bb = serialize_address(bb, caller);
+                let bb = serialize_address(bb, address);
+                let bb = serialize_u256(bb, value);
+                let bb = serialize_bytecode(bb, data);
+                let bb = serialize_gas_limit(bb, gas_limit);
+                serialize_access_list(bb, access_list)
+            }
             #[cfg(not(feature = "evm"))]
             _ => unreachable!(),
         }
@@ -83,7 +113,7 @@ fn serialize_address(
     bb: ByteBuilder<EvmTransaction>,
     caller: &Address,
 ) -> ByteBuilder<EvmTransaction> {
-    bb.u8(0).bytes(caller.as_fixed_bytes())
+    bb.bytes(caller.as_fixed_bytes())
 }
 
 #[cfg(feature = "evm")]
@@ -106,7 +136,7 @@ fn serialize_h256(
 
 #[cfg(feature = "evm")]
 fn serialize_bytecode(bb: ByteBuilder<EvmTransaction>, code: &[u8]) -> ByteBuilder<EvmTransaction> {
-    bb.u64(code.len().try_into().unwrap()).bytes(code.as_ref())
+    bb.u64(code.len() as u64).bytes(code)
 }
 
 #[cfg(feature = "evm")]
@@ -122,10 +152,10 @@ fn serialize_access_list(
     bb: ByteBuilder<EvmTransaction>,
     access_list: &[(Address, Vec<Key>)],
 ) -> ByteBuilder<EvmTransaction> {
-    bb.u64(access_list.len().try_into().unwrap())
+    bb.u64(access_list.len() as u64)
         .fold(access_list.iter(), |bb, (address, keys)| {
             serialize_address(bb, address)
-                .u64(keys.len().try_into().unwrap())
+                .u64(keys.len() as u64)
                 .fold(keys.iter(), serialize_h256)
         })
 }
@@ -200,6 +230,43 @@ impl DeserializeFromSlice for EvmTransaction {
                     access_list,
                 })
             }
+            #[cfg(feature = "evm")]
+            1 => {
+                // CREATE2 Transaction
+                let caller = read_address(codec)?;
+                let value = read_u256(codec)?;
+                let init_code = read_bytecode(codec)?;
+                let salt = read_h256(codec)?;
+                let gas_limit = read_gas_limit(codec)?;
+                let access_list = read_access_list(codec)?;
+                Ok(EvmTransaction::Create2 {
+                    caller,
+                    value,
+                    init_code,
+                    salt,
+                    gas_limit,
+                    access_list,
+                })
+            }
+            #[cfg(feature = "evm")]
+            2 => {
+                // CALL Transaction
+                let caller = read_address(codec)?;
+                let address = read_address(codec)?;
+                let value = read_u256(codec)?;
+                let data = read_bytecode(codec)?;
+                let gas_limit = read_gas_limit(codec)?;
+                let access_list = read_access_list(codec)?;
+
+                Ok(EvmTransaction::Call {
+                    caller,
+                    address,
+                    value,
+                    data,
+                    gas_limit,
+                    access_list,
+                })
+            }
             n => Err(ReadError::UnknownTag(n as u32)),
         }
     }
@@ -228,7 +295,7 @@ impl Payload for EvmTransaction {
     }
 }
 
-#[cfg(all(test, feature = "evm"))]
+#[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test {
     use super::*;
     use quickcheck::Arbitrary;
@@ -265,6 +332,14 @@ mod test {
                 },
                 _ => unreachable!(),
             }
+        }
+    }
+
+    quickcheck! {
+        fn evm_transaction_serialization_bijection(b: EvmTransaction) -> bool {
+            let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
+            let decoded = EvmTransaction::deserialize_from_slice(&mut Codec::new(&bytes)).unwrap();
+            decoded == b
         }
     }
 }
