@@ -221,7 +221,6 @@ impl DeserializeFromSlice for EvmTransaction {
                 let init_code = read_bytecode(codec)?;
                 let gas_limit = read_gas_limit(codec)?;
                 let access_list = read_access_list(codec)?;
-
                 Ok(EvmTransaction::Create {
                     caller,
                     value,
@@ -257,7 +256,6 @@ impl DeserializeFromSlice for EvmTransaction {
                 let data = read_bytecode(codec)?;
                 let gas_limit = read_gas_limit(codec)?;
                 let access_list = read_access_list(codec)?;
-
                 Ok(EvmTransaction::Call {
                     caller,
                     address,
