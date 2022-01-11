@@ -2,7 +2,10 @@ use crate::{
     account,
     certificate::{DecryptedPrivateTally, Proposal, VoteAction, VoteCast, VotePlan, VotePlanId},
     date::BlockDate,
-    ledger::governance::{Governance, GovernanceAcceptanceCriteria},
+    ledger::{
+        governance::{Governance, GovernanceAcceptanceCriteria},
+        token_totals::TokenTotals,
+    },
     rewards::Ratio,
     stake::Stake,
     tokens::identifier::TokenIdentifier,
@@ -228,6 +231,7 @@ impl ProposalManager {
     #[must_use = "Compute the PublicTally in a new ProposalManager, does not modify self"]
     pub fn public_tally<F>(
         &self,
+        total_tokens: Value,
         voting_token: &TokenIdentifier,
         stake: &account::Ledger,
         governance: &Governance,
@@ -267,14 +271,7 @@ impl ProposalManager {
             }
         }
 
-        if self.check(
-            stake
-                .token_get_total(voting_token)
-                .unwrap_or(Value(u64::MAX))
-                .into(),
-            governance,
-            &results,
-        ) {
+        if self.check(total_tokens.into(), governance, &results) {
             f(&self.action)
         }
 
@@ -289,6 +286,7 @@ impl ProposalManager {
     #[must_use = "Compute the PrivateTally in a new ProposalManager, does not modify self"]
     pub fn private_tally(
         &self,
+        total: Value,
         voting_token: &TokenIdentifier,
         stake: &account::Ledger,
         election_pk: &ElectionPublicKey,
@@ -337,12 +335,7 @@ impl ProposalManager {
         Ok(Self {
             votes_by_voters: self.votes_by_voters.clone(),
             options: self.options.clone(),
-            tally: Some(Tally::new_private(
-                tally,
-                stake
-                    .token_get_total(voting_token)
-                    .unwrap_or(Value(u64::MAX)),
-            )),
+            tally: Some(Tally::new_private(tally, total)),
             action: self.action.clone(),
         })
     }
@@ -532,6 +525,7 @@ impl ProposalManagers {
 
     pub fn public_tally<F>(
         &self,
+        total_tokens: Value,
         voting_token: &TokenIdentifier,
         stake: &account::Ledger,
         governance: &Governance,
@@ -545,6 +539,7 @@ impl ProposalManagers {
                 let mut proposals = Vec::with_capacity(managers.len());
                 for proposal in managers.iter() {
                     proposals.push(proposal.public_tally(
+                        total_tokens,
                         voting_token,
                         stake,
                         governance,
@@ -599,6 +594,7 @@ impl ProposalManagers {
 
     pub fn start_private_tally(
         &self,
+        total_tokens: Value,
         voting_token: &TokenIdentifier,
         stake: &account::Ledger,
     ) -> Result<Self, VoteError> {
@@ -612,7 +608,9 @@ impl ProposalManagers {
             } => {
                 let proposals = managers
                     .par_iter()
-                    .map(|proposal| proposal.private_tally(voting_token, stake, election_pk, crs))
+                    .map(|proposal| {
+                        proposal.private_tally(total_tokens, voting_token, stake, election_pk, crs)
+                    })
                     .collect::<Result<_, _>>()?;
                 Ok(Self::Private {
                     managers: proposals,
@@ -796,6 +794,7 @@ impl VotePlanManager {
 
     pub fn public_tally<F>(
         &self,
+        token_totals: &TokenTotals,
         block_date: BlockDate,
         stake: &account::Ledger,
         governance: &Governance,
@@ -821,10 +820,20 @@ impl VotePlanManager {
         }
 
         let voting_token = self.plan.voting_token();
+        let total_tokens = token_totals
+            .get_total(voting_token)
+            // maybe this should be an error? but errors in the tally are not really recoverable
+            // OTOH, this will make the tally succeed but not have any effect, so it's more or less
+            // the same effect
+            .unwrap_or_else(Value::zero);
 
-        let proposal_managers =
-            self.proposal_managers
-                .public_tally(voting_token, stake, governance, f)?;
+        let proposal_managers = self.proposal_managers.public_tally(
+            total_tokens,
+            voting_token,
+            stake,
+            governance,
+            f,
+        )?;
 
         Ok(Self {
             proposal_managers,
@@ -836,6 +845,7 @@ impl VotePlanManager {
 
     pub fn start_private_tally(
         &self,
+        token_totals: &TokenTotals,
         block_date: BlockDate,
         stake: &account::Ledger,
         sig: CommitteeId,
@@ -856,7 +866,11 @@ impl VotePlanManager {
         }
 
         let token = self.plan.voting_token();
-        let proposal_managers = self.proposal_managers.start_private_tally(token, stake)?;
+        let total_tokens = token_totals.get_total(token).unwrap_or_else(Value::zero);
+
+        let proposal_managers =
+            self.proposal_managers
+                .start_private_tally(total_tokens, token, stake)?;
 
         Ok(Self {
             proposal_managers,
@@ -1071,7 +1085,7 @@ mod tests {
 
         let governance = governance_50_percent(blank, favorable, rejection);
 
-        let (ledger, _) = ledger_with_tokens(committee.public_key());
+        let (ledger, _, token_totals) = ledger_with_tokens(committee.public_key());
 
         let vote_block_date = BlockDate {
             epoch: 1,
@@ -1101,9 +1115,14 @@ mod tests {
             TallyProof::Private { id, .. } => id,
         };
         vote_plan_manager
-            .public_tally(block_date, &ledger, &governance, committee_id, |_| {
-                action_hit = true
-            })
+            .public_tally(
+                &token_totals,
+                block_date,
+                &ledger,
+                &governance,
+                committee_id,
+                |_| action_hit = true,
+            )
             .unwrap();
         assert!(action_hit)
     }
@@ -1136,7 +1155,7 @@ mod tests {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        let (ledger, _) = ledger_with_tokens(committee.public_key());
+        let (ledger, _, token_totals) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
 
@@ -1154,7 +1173,14 @@ mod tests {
         assert_eq!(
             VoteError::InvalidTallyCommittee,
             vote_plan_manager
-                .public_tally(block_date, &ledger, &governance, committee_id, |_| ())
+                .public_tally(
+                    &token_totals,
+                    block_date,
+                    &ledger,
+                    &governance,
+                    committee_id,
+                    |_| ()
+                )
                 .err()
                 .unwrap()
         );
@@ -1188,7 +1214,7 @@ mod tests {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        let (ledger, _) = ledger_with_tokens(committee.public_key());
+        let (ledger, _, token_totals) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
 
@@ -1210,6 +1236,7 @@ mod tests {
             },
             vote_plan_manager
                 .public_tally(
+                    &token_totals,
                     invalid_block_date,
                     &ledger,
                     &governance,
@@ -1235,7 +1262,7 @@ mod tests {
         committee_ids.insert(committee.public_key().into());
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
         let governance = governance_50_percent(blank, favorable, rejection);
-        let (ledger, _) = ledger_with_tokens(committee.public_key());
+        let (ledger, _, token_totals) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_plan.vote_start(), &committee, vote_plan.to_id());
 
@@ -1251,7 +1278,14 @@ mod tests {
 
         assert_eq!(
             vote_plan_manager
-                .public_tally(block_date, &ledger, &governance, committee_id, |_| ())
+                .public_tally(
+                    &token_totals,
+                    block_date,
+                    &ledger,
+                    &governance,
+                    committee_id,
+                    |_| ()
+                )
                 .err()
                 .unwrap(),
             crate::vote::VoteError::CannotTallyVotes {
@@ -1287,7 +1321,7 @@ mod tests {
         committee_ids.insert(committee.public_key().into());
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
-        let (ledger, _) = ledger_with_tokens(committee.public_key());
+        let (ledger, _, token_totals) = ledger_with_tokens(committee.public_key());
 
         let tally_proof = get_tally_proof(vote_plan.vote_start(), &committee, vote_plan.to_id());
 
@@ -1303,7 +1337,7 @@ mod tests {
 
         assert_eq!(
             vote_plan_manager
-                .start_private_tally(block_date, &ledger, committee_id)
+                .start_private_tally(&token_totals, block_date, &ledger, committee_id)
                 .err()
                 .unwrap(),
             crate::vote::VoteError::CannotTallyVotes {
@@ -1389,15 +1423,29 @@ mod tests {
             .vote(identifier.clone(), second_vote_cast.payload.clone())
             .unwrap();
 
-        let (ledger, token) = ledger_with_tokens(identifier.clone());
+        let (ledger, token, token_totals) = ledger_with_tokens(identifier.clone());
 
         let _ = proposals.vote(identifier.clone(), first_vote_cast);
         let _ = proposals.vote(identifier, second_vote_cast);
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        proposals_vote_tally_succesful(&proposals, &token, &ledger, &governance);
-        vote_tally_succesful(&first_proposal_manager, &token, &ledger, &governance);
-        vote_tally_succesful(&second_proposal_manager, &token, &ledger, &governance);
+
+        let token_total = token_totals.get_total(&token).unwrap();
+        proposals_vote_tally_succesful(&proposals, token_total, &token, &ledger, &governance);
+        vote_tally_succesful(
+            &first_proposal_manager,
+            token_total,
+            &token,
+            &ledger,
+            &governance,
+        );
+        vote_tally_succesful(
+            &second_proposal_manager,
+            token_total,
+            &token,
+            &ledger,
+            &governance,
+        );
     }
 
     fn governance_50_percent(blank: Choice, favorable: Choice, rejection: Choice) -> Governance {
@@ -1429,29 +1477,43 @@ mod tests {
 
     fn proposals_vote_tally_succesful(
         proposal_managers: &ProposalManagers,
+        token_total: Value,
         voting_token: &TokenIdentifier,
         stake_controlled: &account::Ledger,
         governance: &Governance,
     ) {
         let mut vote_action_hit = false;
         proposal_managers
-            .public_tally(voting_token, stake_controlled, governance, |_vote_action| {
-                vote_action_hit = true;
-            })
+            .public_tally(
+                token_total,
+                voting_token,
+                stake_controlled,
+                governance,
+                |_vote_action| {
+                    vote_action_hit = true;
+                },
+            )
             .unwrap();
     }
 
     fn vote_tally_succesful(
         proposal_manager: &ProposalManager,
+        token_total: Value,
         voting_token: &TokenIdentifier,
         stake_controlled: &account::Ledger,
         governance: &Governance,
     ) {
         let mut vote_action_hit = false;
         proposal_manager
-            .public_tally(voting_token, stake_controlled, governance, |_vote_action| {
-                vote_action_hit = true;
-            })
+            .public_tally(
+                token_total,
+                voting_token,
+                stake_controlled,
+                governance,
+                |_vote_action| {
+                    vote_action_hit = true;
+                },
+            )
             .unwrap();
 
         assert!(vote_action_hit);
@@ -1462,18 +1524,22 @@ mod tests {
     ) -> (
         crate::accounting::account::Ledger<account::Identifier, ()>,
         TokenIdentifier,
+        TokenTotals,
     ) {
         let token = TokenIdentifier {
             policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
             token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
         };
+        let value = Value(51);
         let ledger = account::Ledger::new()
             .add_account(&wallet.clone().into(), Value(0), ())
             .unwrap()
-            .token_add(&wallet.into(), token.clone(), Value(51))
+            .token_add(&wallet.into(), token.clone(), value)
             .unwrap();
 
-        (ledger, token)
+        let token_totals = TokenTotals::default().add(token.clone(), value).unwrap();
+
+        (ledger, token, token_totals)
     }
 
     #[test]
