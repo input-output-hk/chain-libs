@@ -8,7 +8,7 @@ use super::governance::{Governance, ParametersGovernanceAction, TreasuryGovernan
 use super::leaderlog::LeadersParticipationRecord;
 use super::pots::Pots;
 use super::reward_info::{EpochRewardsInfo, RewardsInfoParameters};
-use super::token_totals::TokenTotals;
+use super::token_distribution::{TokenDistribution, TokenTotals};
 
 use crate::certificate::MintToken;
 use crate::chaineval::HeaderContentEvalContext;
@@ -1193,13 +1193,15 @@ impl Ledger {
 
         let mut actions = Vec::new();
 
+        let token_distribution =
+            TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
+
         self.votes = self.votes.apply_committee_result(
             self.date(),
-            &self.accounts,
+            token_distribution,
             &self.governance,
             tally,
             sig,
-            &self.token_totals,
             |action: &VoteAction| actions.push(action.clone()),
         )?;
 
@@ -1234,12 +1236,14 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
+        let token_distribution =
+            TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
+
         self.votes = self.votes.apply_encrypted_vote_tally(
             self.date(),
-            &self.accounts,
+            token_distribution,
             tally,
             sig.id,
-            &self.token_totals,
         )?;
 
         Ok(self)

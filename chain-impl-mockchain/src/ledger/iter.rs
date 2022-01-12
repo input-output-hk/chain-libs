@@ -9,7 +9,7 @@ use crate::date::BlockDate;
 use crate::key::Hash;
 #[cfg(feature = "evm")]
 use crate::ledger::evm;
-use crate::ledger::token_totals::TokenTotals;
+use crate::ledger::token_distribution::TokenTotals;
 use crate::stake::PoolsState;
 use crate::vote::{VotePlanLedger, VotePlanManager};
 use crate::{account, legacy, multisig, setting, update, utxo};

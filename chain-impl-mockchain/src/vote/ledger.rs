@@ -1,5 +1,5 @@
 use crate::certificate::EncryptedVoteTally;
-use crate::ledger::token_totals::TokenTotals;
+use crate::ledger::token_distribution::TokenDistribution;
 use crate::{
     account,
     certificate::{TallyProof, VoteAction, VoteCast, VotePlan, VotePlanId, VoteTally},
@@ -139,11 +139,10 @@ impl VotePlanLedger {
     pub fn apply_committee_result<F>(
         &self,
         block_date: BlockDate,
-        stake: &account::Ledger,
+        token_distribution: TokenDistribution<()>,
         governance: &Governance,
         tally: &VoteTally,
         sig: TallyProof,
-        token_totals: &TokenTotals,
         f: F,
     ) -> Result<Self, VotePlanLedgerError>
     where
@@ -157,7 +156,7 @@ impl VotePlanLedger {
         };
         let r = self.plans.update(&id, move |v| match sig {
             TallyProof::Public { .. } => v
-                .public_tally(token_totals, block_date, stake, governance, committee_id, f)
+                .public_tally(token_distribution, block_date, governance, committee_id, f)
                 .map(Some),
             TallyProof::Private { .. } => {
                 let shares = tally.tally_decrypted().unwrap();
@@ -183,15 +182,14 @@ impl VotePlanLedger {
     pub fn apply_encrypted_vote_tally(
         &self,
         block_date: BlockDate,
-        stake: &account::Ledger,
+        token_distribution: TokenDistribution<()>,
         encrypted_tally: &EncryptedVoteTally,
         committee_id: CommitteeId,
-        token_totals: &TokenTotals,
     ) -> Result<Self, VotePlanLedgerError> {
         let id = encrypted_tally.id().clone();
 
         let r = self.plans.update(&id, move |v| {
-            v.start_private_tally(token_totals, block_date, stake, committee_id)
+            v.start_private_tally(token_distribution, block_date, committee_id)
                 .map(Some)
         });
 
