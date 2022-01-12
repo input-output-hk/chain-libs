@@ -53,20 +53,18 @@ impl TokenDistribution<TokenIdentifier> {
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]
-pub struct TokenTotals {
-    data: Hamt<DefaultHasher, TokenIdentifier, Value>,
-}
+pub struct TokenTotals(Hamt<DefaultHasher, TokenIdentifier, Value>);
 
 impl TokenTotals {
     #[must_use = "Does not modify the internal state"]
     pub fn add(&self, token: TokenIdentifier, value: Value) -> Result<TokenTotals, Error> {
-        self.data
+        self.0
             .insert_or_update(token, value, |v| v.checked_add(value).map(Some))
-            .map(|data| TokenTotals { data })
+            .map(TokenTotals)
             .map_err(Into::into)
     }
 
     pub fn get_total(&self, token: &TokenIdentifier) -> Option<Value> {
-        self.data.lookup(token).copied()
+        self.0.lookup(token).copied()
     }
 }
