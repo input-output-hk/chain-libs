@@ -37,10 +37,10 @@ impl Ledger {
     pub fn new() -> Self {
         Default::default()
     }
-    pub fn run_transaction<'runtime>(
+    pub fn run_transaction(
         &mut self,
         contract: EvmTransaction,
-        config: &'runtime Config,
+        config: &Config,
     ) -> Result<(), Error> {
         let mut vm = VirtualMachine::new_with_state(
             config,
