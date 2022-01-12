@@ -88,7 +88,7 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
-    EvmParams(Box<EvmConfigParams>),
+    EvmParams(EvmConfig),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -108,16 +108,7 @@ pub enum RewardParams {
 }
 
 #[cfg(feature = "evm")]
-#[derive(Clone, Debug, PartialEq)]
-/// EVM Configuration parameters needed for execution.
-pub struct EvmConfigParams {
-    /// EVM Block Configuration. It is boxed to reduce
-    /// size difference when used in enum variants
-    pub config: EvmConfig,
-}
-
-#[cfg(feature = "evm")]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// EVM Configuration parameters needed for execution.
 pub enum EvmConfig {
     /// Configuration for the `Istanbul` fork.
@@ -137,16 +128,11 @@ impl From<EvmConfig> for Config {
 }
 
 #[cfg(feature = "evm")]
-impl Default for EvmConfigParams {
+impl Default for EvmConfig {
     fn default() -> Self {
-        EvmConfigParams {
-            config: EvmConfig::Berlin,
-        }
+        EvmConfig::Berlin
     }
 }
-
-#[cfg(feature = "evm")]
-impl Eq for EvmConfigParams {}
 
 // Discriminants can NEVER be 1024 or higher
 #[derive(AsRefStr, Clone, Copy, Debug, EnumIter, EnumString, PartialEq)]
@@ -806,9 +792,9 @@ impl ConfigParamVariant for CommitteeId {
 }
 
 #[cfg(feature = "evm")]
-impl ConfigParamVariant for Box<EvmConfigParams> {
+impl ConfigParamVariant for EvmConfig {
     fn to_payload(&self) -> Vec<u8> {
-        let bb: ByteBuilder<EvmConfigParams> = ByteBuilder::new().u8(self.config as u8);
+        let bb: ByteBuilder<EvmConfig> = ByteBuilder::new().u8(*self as u8);
         bb.finalize_as_vec()
     }
 
@@ -816,14 +802,13 @@ impl ConfigParamVariant for Box<EvmConfigParams> {
         let mut rb = ReadBuf::from(payload);
 
         // Read EvmConfig and match hard fork variant
-        use EvmConfig::*;
         let config = match rb.get_u8()? {
-            n if n == Istanbul as u8 => Istanbul,
-            n if n == Berlin as u8 => Berlin,
+            n if n == EvmConfig::Istanbul as u8 => EvmConfig::Istanbul,
+            n if n == EvmConfig::Berlin as u8 => EvmConfig::Berlin,
             _ => return Err(Error::InvalidTag),
         };
 
-        Ok(Box::new(EvmConfigParams { config }))
+        Ok(config)
     }
 }
 
@@ -861,10 +846,10 @@ mod test {
     #[cfg(feature = "evm")]
     #[test]
     fn to_and_from_payload_evm_config_params() {
-        let evm_params = EvmConfigParams::default();
-        let payload = Box::new(evm_params.clone()).to_payload();
-        let other_evm = Box::<EvmConfigParams>::from_payload(&payload).unwrap();
-        assert_eq!(evm_params, *other_evm);
+        let evm_params = EvmConfig::default();
+        let payload = evm_params.to_payload();
+        let other_evm = EvmConfig::from_payload(&payload).unwrap();
+        assert_eq!(evm_params, other_evm);
     }
 
     quickcheck! {
@@ -954,22 +939,12 @@ mod test {
     }
 
     #[cfg(feature = "evm")]
-    impl Arbitrary for EvmConfigParams {
-        fn arbitrary<G: Gen>(_g: &mut G) -> Self {
-            Self {
-                config: EvmConfig::Berlin,
-                // environment: Environment {
-                //     gas_price: u64::arbitrary(g).into(),
-                //     origin: Origin::random(),
-                //     chain_id: u64::arbitrary(g).into(),
-                //     block_hashes: Vec::new(),
-                //     block_number: u64::arbitrary(g).into(),
-                //     block_coinbase: BlockCoinBase::random(),
-                //     block_timestamp: u64::arbitrary(g).into(),
-                //     block_difficulty: u64::arbitrary(g).into(),
-                //     block_gas_limit: u64::arbitrary(g).into(),
-                //     block_base_fee_per_gas: u64::arbitrary(g).into(),
-                // },
+    impl Arbitrary for EvmConfig {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            match u8::arbitrary(g) % 2 {
+                0 => EvmConfig::Istanbul,
+                1 => EvmConfig::Berlin,
+                _ => unreachable!(),
             }
         }
     }
