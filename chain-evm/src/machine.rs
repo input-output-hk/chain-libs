@@ -101,7 +101,7 @@ fn precompiles(fork: HardFork) -> Precompiles {
 impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
     pub fn new(config: &'runtime Config, environment: &'runtime Environment) -> Self {
-        Self::new_with_state(config, environment, Default::default())
+        Self::new_with_state(config, environment, Default::default(), Default::default())
     }
 
     /// Creates a new `VirtualMachine` given configuration params and a given account storage.
@@ -109,13 +109,14 @@ impl<'runtime> VirtualMachine<'runtime> {
         config: &'runtime Config,
         environment: &'runtime Environment,
         state: AccountTrie,
+        logs: LogsState,
     ) -> Self {
         Self {
             config,
             environment,
             precompiles: precompiles(HardFork::Berlin),
             state,
-            logs: Default::default(),
+            logs,
         }
     }
 

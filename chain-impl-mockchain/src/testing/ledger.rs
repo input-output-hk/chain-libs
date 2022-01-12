@@ -32,11 +32,6 @@ use crate::{
 };
 use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
-#[cfg(feature = "evm")]
-use chain_evm::machine::{
-    BlockCoinBase, BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Environment,
-    GasLimit, GasPrice, Origin,
-};
 use chain_time::TimeEra;
 use std::{
     collections::HashMap,
@@ -112,22 +107,6 @@ impl ConfigBuilder {
             #[cfg(feature = "evm")]
             evm_params: EvmConfigParams {
                 config: EvmConfig::Istanbul,
-                environment: Environment {
-                    // FIXME: need to set a real price
-                    gas_price: GasPrice::default(),
-                    // Define the origin address with a random H160 address
-                    origin: Origin::random(),
-                    chain_id: ChainId::zero(),
-                    block_hashes: BlockHashes::new(),
-                    block_number: BlockNumber::zero(),
-                    block_coinbase: BlockCoinBase::zero(),
-                    block_timestamp: BlockTimestamp::zero() + 1,
-                    block_difficulty: BlockDifficulty::from(131_072),
-                    // FIXME: need to set a real limit
-                    block_gas_limit: GasLimit::max_value(),
-                    // FIXME: adequate base fee
-                    block_base_fee_per_gas: 1u32.into(),
-                },
             },
         }
     }
