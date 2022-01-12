@@ -521,7 +521,7 @@ impl Ledger {
                     #[cfg(feature = "evm")]
                     {
                         let tx = _tx.as_slice().payload().into_payload();
-                        let config = &ledger.settings.evm_params.config.into();
+                        let config = &ledger.settings.evm_params.into();
                         ledger.evm.run_transaction(tx, config)?;
                     }
                     #[cfg(not(feature = "evm"))]
@@ -1042,7 +1042,7 @@ impl Ledger {
                 #[cfg(feature = "evm")]
                 {
                     let tx = _tx.as_slice().payload().into_payload();
-                    let config = &new_ledger.settings.evm_params.config.into();
+                    let config = &new_ledger.settings.evm_params.into();
                     new_ledger.evm.run_transaction(tx, config)?;
                 }
                 #[cfg(not(feature = "evm"))]
