@@ -32,6 +32,11 @@ impl Account {
 pub type AccountTrie = Trie<Address, Account>;
 
 impl AccountTrie {
+    /// Modify account
+    ///
+    /// If the element is not present, the closure F is apllied to the Default::default() value,
+    /// otherwise the closure F is applied to the found element.
+    /// If the closure returns None, then the key is deleted
     pub fn modify_account<F>(self, address: Address, f: F) -> Self
     where
         F: FnOnce(Account) -> Option<Account>,
