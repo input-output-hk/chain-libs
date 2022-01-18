@@ -376,9 +376,9 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                         for (index, value) in apply_storage {
                             account.storage = if value == crate::state::Value::default() {
                                 // value is full of zeroes, remove it
-                                account.storage.clone().remove(&index)
+                                account.storage.remove(&index)
                             } else {
-                                account.storage.clone().put(index, value)
+                                account.storage.put(index, value)
                             }
                         }
 
