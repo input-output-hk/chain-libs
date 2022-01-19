@@ -113,6 +113,28 @@ impl EvmStateBuilder {
         ]);
         self
     }
+
+    fn apply_test_account(self, address: String, account: TestAccountState) -> Self {
+        let account = Account {
+            nonce: U256::from_str(&account.nonce).expect("Can not parse nonce"),
+            balance: U256::from_str(&account.balance).expect("Can not parse balance"),
+            storage: account
+                .storage
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        H256::from_str(k).expect("Can not parse account storage key"),
+                        H256::from_str(v).expect("Can not parse account storage key"),
+                    )
+                })
+                .collect(),
+            code: hex::decode(account.code).expect("Can not parse code"),
+        };
+        self.set_account(
+            H160::from_str(&address).expect("Can not parse address"),
+            account,
+        )
+    }
 }
 
 #[derive(Deserialize)]
@@ -128,7 +150,7 @@ struct TestAccountState {
 struct TestEvmTransaction {
     data: Vec<String>,
     gas_limit: Vec<String>,
-    gasPrice: String,
+    gas_price: String,
     nonce: String,
     secret_key: String,
     sender: String,
@@ -162,12 +184,18 @@ fn run_test(path: &str) {
     let test: BTreeMap<String, TestCase> =
         serde_json::from_reader(reader).expect("Parse test cases failed");
 
-    let mut evm_state_builder = EvmStateBuilder::new();
-
     for (test_name, test_case) in test {
-        dbg!(test_name);
+        println!("Test name: {}", test_name);
 
-        evm_state_builder = evm_state_builder.apply_test_evn(test_case.env);
+        println!("Setup initial test state");
+
+        let mut evm_state_builder = EvmStateBuilder::new()
+            .set_chain_id(U256::from_str("0xff").unwrap())
+            .apply_test_evn(test_case.env);
+
+        for (address, account) in test_case.pre {
+            evm_state_builder = evm_state_builder.apply_test_account(address, account);
+        }
     }
 }
 
