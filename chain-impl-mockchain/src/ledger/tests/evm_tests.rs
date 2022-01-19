@@ -128,7 +128,13 @@ impl EvmStateBuilder {
                     )
                 })
                 .collect(),
-            code: hex::decode(account.code).expect("Can not parse code"),
+            code: hex::decode(
+                account.code[0..2]
+                    .eq("0x")
+                    .then(|| account.code[2..].to_string())
+                    .expect("Missing '0x' prefix for hex data"),
+            )
+            .expect("Can not parse code"),
         };
         self.set_account(
             H160::from_str(&address).expect("Can not parse address"),
@@ -171,8 +177,32 @@ struct TestEnv {
 }
 
 #[derive(Deserialize)]
+struct TestIndexes {
+    data: u64,
+    gas: u64,
+    value: u64,
+}
+
+#[derive(Deserialize)]
+struct TestResult {
+    hash: String,
+    indexes: TestIndexes,
+    logs: String,
+    txbytes: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct TestExpect {
+    berlin: Vec<TestResult>,
+    london: Vec<TestResult>,
+    istanbul: Vec<TestResult>,
+}
+
+#[derive(Deserialize)]
 struct TestCase {
     pre: BTreeMap<String, TestAccountState>,
+    post: TestExpect,
     env: TestEnv,
     transaction: TestEvmTransaction,
 }
