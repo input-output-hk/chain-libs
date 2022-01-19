@@ -60,7 +60,7 @@ mod tests {
         let result = PolicyHash::read(&mut buf);
         let left = Ok(ph.clone());
         assert_eq!(left, result);
-        assert_eq!(buf.get_slice_end(), &[]);
+        assert_eq!(buf.get_slice_end(), &[] as &[u8]);
         TestResult::from_bool(left == result)
     }
 }
