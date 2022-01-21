@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::str::FromStr;
 
 use chain_evm::primitive_types::{H160, H256, U256};
-use chain_evm::state::Account;
+use chain_evm::state::{Account, Trie};
 use chain_evm::Address;
 
 use crate::config::{EvmConfig, EvmConfigParams};
@@ -23,6 +23,16 @@ impl EvmStateBuilder {
             ledger: Default::default(),
             config: Default::default(),
         }
+    }
+}
+
+impl EvmStateBuilder {
+    fn get_ledger(&self) -> Ledger {
+        self.ledger.clone()
+    }
+
+    fn get_config(&self) -> EvmConfigParams {
+        self.config.clone()
     }
 }
 
@@ -89,57 +99,55 @@ impl EvmStateBuilder {
 }
 
 impl EvmStateBuilder {
-    fn apply_test_evn(mut self, env: TestEnv) -> Self {
-        self = self.set_block_base_fee_per_gas(
-            U256::from_str(&env.current_base_fee).expect("Can not parse base fee"),
-        );
-        self = self.set_block_coinbase(
-            H160::from_str(&env.current_coinbase).expect("Can not parse coinbase"),
-        );
-        self = self.set_block_difficulty(
-            U256::from_str(&env.current_difficulty).expect("Can not parse difficulty"),
-        );
-        self = self.set_block_gas_limit(
-            U256::from_str(&env.current_gas_limit).expect("Can not parse gas limit"),
-        );
-        self = self.set_block_number(
-            U256::from_str(&env.current_number).expect("Can not parse block number"),
-        );
-        self = self.set_block_timestamp(
-            U256::from_str(&env.current_timestamp).expect("Can not parse timestamp"),
-        );
-        self = self.set_block_hashes(vec![
-            H256::from_str(&env.previous_hash).expect("Can not parse previous hash")
-        ]);
+    fn try_apply_network(self, network: String) -> Result<Self, &'static str> {
+        println!("Network type: {}", network);
+        match network.as_str() {
+            "Berlin" => Ok(self.set_evm_config(EvmConfig::Berlin)),
+            "Istanbul" => Ok(self.set_evm_config(EvmConfig::Istanbul)),
+            "London" => unimplemented!(),
+            network => Err("Not known network type, {}"),
+        }
+    }
+
+    fn try_apply_account(
+        self,
+        address: String,
+        account: TestAccountState,
+    ) -> Result<Self, &'static str> {
+        Ok(self.set_account(
+            H160::from_str(&address).map_err(|_| "Can not parse address")?,
+            account.try_into()?,
+        ))
+    }
+
+    fn try_apply_block_header(
+        mut self,
+        block_header: TestBlockHeader,
+    ) -> Result<Self, &'static str> {
+        self.config.environment.block_gas_limit =
+            U256::from_str(&block_header.gas_limit).map_err(|_| "Can not parse gas limit")?;
+        self.config.environment.block_number =
+            U256::from_str(&block_header.number).map_err(|_| "Can not parse number")?;
+        self.config.environment.block_timestamp =
+            U256::from_str(&block_header.timestamp).map_err(|_| "Can not parse timestamp")?;
+        self.config.environment.block_difficulty =
+            U256::from_str(&block_header.difficulty).map_err(|_| "Can not parse difficulty")?;
+
+        self.config
+            .environment
+            .block_hashes
+            .push(H256::from_str(&block_header.hash).expect("Can not parse hash"));
+
+        Ok(self)
+    }
+
+    fn try_apply_transaction(mut self, transaction: TestEvmTransaction) -> Self {
         self
     }
 
-    fn apply_test_account(self, address: String, account: TestAccountState) -> Self {
-        let account = Account {
-            nonce: U256::from_str(&account.nonce).expect("Can not parse nonce"),
-            balance: U256::from_str(&account.balance).expect("Can not parse balance"),
-            storage: account
-                .storage
-                .iter()
-                .map(|(k, v)| {
-                    (
-                        H256::from_str(k).expect("Can not parse account storage key"),
-                        H256::from_str(v).expect("Can not parse account storage key"),
-                    )
-                })
-                .collect(),
-            code: hex::decode(
-                account.code[0..2]
-                    .eq("0x")
-                    .then(|| account.code[2..].to_string())
-                    .expect("Missing '0x' prefix for hex data"),
-            )
-            .expect("Can not parse code"),
-        };
-        self.set_account(
-            H160::from_str(&address).expect("Can not parse address"),
-            account,
-        )
+    fn try_apply_block(mut self, block: TestBlock) -> Result<Self, &'static str> {
+        self = self.try_apply_block_header(block.block_header)?;
+        Ok(self)
     }
 }
 
@@ -151,6 +159,31 @@ struct TestAccountState {
     storage: BTreeMap<String, String>,
 }
 
+impl TryFrom<TestAccountState> for Account {
+    type Error = &'static str;
+    fn try_from(account: TestAccountState) -> Result<Self, Self::Error> {
+        let mut storage = Trie::default();
+        for (k, v) in account.storage {
+            storage = storage.put(
+                H256::from_str(&k).map_err(|_| "Can not parse account storage key")?,
+                H256::from_str(&v).map_err(|_| "Can not parse account storage key")?,
+            );
+        }
+        Ok(Self {
+            nonce: U256::from_str(&account.nonce).map_err(|_| "Can not parse nonce")?,
+            balance: U256::from_str(&account.balance).map_err(|_| "Can not parse balance")?,
+            storage,
+            code: hex::decode(
+                account.code[0..2]
+                    .eq("0x")
+                    .then(|| account.code[2..].to_string())
+                    .expect("Missing '0x' prefix for hex data"),
+            )
+            .map_err(|_| "Can not parse code")?,
+        })
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TestEvmTransaction {
@@ -158,7 +191,9 @@ struct TestEvmTransaction {
     gas_limit: Vec<String>,
     gas_price: String,
     nonce: String,
-    secret_key: String,
+    r: String,
+    s: String,
+    v: String,
     sender: String,
     to: String,
     value: Vec<String>,
@@ -166,45 +201,37 @@ struct TestEvmTransaction {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TestEnv {
-    current_base_fee: String,
-    current_coinbase: String,
-    current_difficulty: String,
-    current_gas_limit: String,
-    current_number: String,
-    current_timestamp: String,
-    previous_hash: String,
-}
-
-#[derive(Deserialize)]
-struct TestIndexes {
-    data: u64,
-    gas: u64,
-    value: u64,
-}
-
-#[derive(Deserialize)]
-struct TestResult {
+struct TestBlockHeader {
+    bloom: String,
+    coinbase: String,
+    difficulty: String,
+    extra_data: String,
+    gas_limit: String,
+    gas_used: String,
     hash: String,
-    indexes: TestIndexes,
-    logs: String,
-    txbytes: String,
+    mix_hash: String,
+    nonce: String,
+    number: String,
+    parent_hash: String,
+    receipt_trie: String,
+    state_root: String,
+    timestamp: String,
+    transactionsTrie: String,
+    uncle_hash: String,
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct TestExpect {
-    berlin: Vec<TestResult>,
-    london: Vec<TestResult>,
-    istanbul: Vec<TestResult>,
+#[serde(rename_all = "camelCase")]
+struct TestBlock {
+    block_header: TestBlockHeader,
+    transactions: Vec<TestEvmTransaction>,
 }
 
 #[derive(Deserialize)]
 struct TestCase {
     pre: BTreeMap<String, TestAccountState>,
-    post: TestExpect,
-    env: TestEnv,
-    transaction: TestEvmTransaction,
+    network: String,
+    postState: BTreeMap<String, TestAccountState>,
 }
 
 fn run_test(path: &str) {
@@ -215,21 +242,31 @@ fn run_test(path: &str) {
         serde_json::from_reader(reader).expect("Parse test cases failed");
 
     for (test_name, test_case) in test {
-        println!("Test name: {}", test_name);
+        println!("\nRunning test: {} ...", test_name);
 
         println!("Setup initial test state");
 
         let mut evm_state_builder = EvmStateBuilder::new()
             .set_chain_id(U256::from_str("0xff").unwrap())
-            .apply_test_evn(test_case.env);
+            .try_apply_network(test_case.network)
+            .unwrap();
 
         for (address, account) in test_case.pre {
-            evm_state_builder = evm_state_builder.apply_test_account(address, account);
+            evm_state_builder = evm_state_builder
+                .try_apply_account(address, account)
+                .unwrap();
         }
+
+        println!("Applying state ...");
+
+        // let ledger = evm_state_builder.get_ledger();
+        // let config = evm_state_builder.get_config();
+
+        println!("Check evm state ...");
     }
 }
 
 #[test]
 fn vm_add_test() {
-    run_test("../evm-tests/GeneralStateTests/VMTests/vmArithmeticTest/add.json");
+    run_test("../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmArithmeticTest/add.json");
 }
