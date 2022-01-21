@@ -99,31 +99,34 @@ impl EvmStateBuilder {
 }
 
 impl EvmStateBuilder {
-    fn try_apply_network(self, network: String) -> Result<Self, &'static str> {
+    fn try_apply_network(self, network: String) -> Result<Self, String> {
         println!("Network type: {}", network);
         match network.as_str() {
             "Berlin" => Ok(self.set_evm_config(EvmConfig::Berlin)),
             "Istanbul" => Ok(self.set_evm_config(EvmConfig::Istanbul)),
             "London" => unimplemented!(),
-            network => Err("Not known network type, {}"),
+            network => Err(format!("Not known network type, {}", network)),
         }
     }
 
-    fn try_apply_account(
-        self,
-        address: String,
-        account: TestAccountState,
-    ) -> Result<Self, &'static str> {
+    fn try_apply_accounts<I>(mut self, iter: I) -> Result<Self, String>
+    where
+        I: Iterator<Item = (String, TestAccountState)>,
+    {
+        for (address, account) in iter {
+            self = self.try_apply_account(address, account)?;
+        }
+        Ok(self)
+    }
+
+    fn try_apply_account(self, address: String, account: TestAccountState) -> Result<Self, String> {
         Ok(self.set_account(
             H160::from_str(&address).map_err(|_| "Can not parse address")?,
             account.try_into()?,
         ))
     }
 
-    fn try_apply_block_header(
-        mut self,
-        block_header: TestBlockHeader,
-    ) -> Result<Self, &'static str> {
+    fn try_apply_block_header(mut self, block_header: TestBlockHeader) -> Result<Self, String> {
         self.config.environment.block_gas_limit =
             U256::from_str(&block_header.gas_limit).map_err(|_| "Can not parse gas limit")?;
         self.config.environment.block_number =
@@ -141,11 +144,11 @@ impl EvmStateBuilder {
         Ok(self)
     }
 
-    fn try_apply_transaction(mut self, transaction: TestEvmTransaction) -> Self {
-        self
+    fn try_apply_transaction(mut self, transaction: TestEvmTransaction) -> Result<Self, String> {
+        Ok(self)
     }
 
-    fn try_apply_block(mut self, block: TestBlock) -> Result<Self, &'static str> {
+    fn try_apply_block(mut self, block: TestBlock) -> Result<Self, String> {
         self = self.try_apply_block_header(block.block_header)?;
         Ok(self)
     }
@@ -216,7 +219,7 @@ struct TestBlockHeader {
     receipt_trie: String,
     state_root: String,
     timestamp: String,
-    transactionsTrie: String,
+    transactions_trie: String,
     uncle_hash: String,
 }
 
@@ -228,10 +231,11 @@ struct TestBlock {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct TestCase {
     pre: BTreeMap<String, TestAccountState>,
     network: String,
-    postState: BTreeMap<String, TestAccountState>,
+    post_state: BTreeMap<String, TestAccountState>,
 }
 
 fn run_test(path: &str) {
@@ -249,13 +253,9 @@ fn run_test(path: &str) {
         let mut evm_state_builder = EvmStateBuilder::new()
             .set_chain_id(U256::from_str("0xff").unwrap())
             .try_apply_network(test_case.network)
+            .unwrap()
+            .try_apply_accounts(test_case.pre.into_iter())
             .unwrap();
-
-        for (address, account) in test_case.pre {
-            evm_state_builder = evm_state_builder
-                .try_apply_account(address, account)
-                .unwrap();
-        }
 
         println!("Applying state ...");
 
