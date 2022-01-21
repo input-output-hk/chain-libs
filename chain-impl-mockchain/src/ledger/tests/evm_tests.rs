@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::BufReader;
+use std::mem::size_of;
 use std::str::FromStr;
 
 use chain_evm::primitive_types::{H160, H256, U256};
@@ -115,7 +116,6 @@ impl EvmStateBuilder {
         address: String,
         expected_state: TestAccountState,
     ) -> Result<(), String> {
-        dbg!(&address);
         self.ledger
             .accounts
             .get(&H160::from_str(&address).map_err(|_| "Can not parse address")?)
@@ -135,13 +135,25 @@ struct TestAccountState {
 }
 
 impl TryFrom<TestAccountState> for Account {
-    type Error = &'static str;
+    type Error = String;
     fn try_from(account: TestAccountState) -> Result<Self, Self::Error> {
         let mut storage = Trie::default();
         for (k, v) in account.storage {
+            let feel_zeros = |mut val: String| -> Result<String, String> {
+                val = val[0..2]
+                    .eq("0x")
+                    .then(|| val[2..].to_string())
+                    .ok_or("Missing '0x' prefix for hex data")?;
+
+                while val.len() < size_of::<H256>() * 2 {
+                    val = "00".to_string() + &val;
+                }
+                val = "0x".to_string() + &val;
+                Ok(val)
+            };
             storage = storage.put(
-                H256::from_str(&k).map_err(|_| "Can not parse account storage key")?,
-                H256::from_str(&v).map_err(|_| "Can not parse account storage key")?,
+                H256::from_str(&feel_zeros(k)?).map_err(|_| "Can not parse account storage key")?,
+                H256::from_str(&feel_zeros(v)?).map_err(|_| "Can not parse account storage key")?,
             );
         }
         Ok(Self {
@@ -221,19 +233,12 @@ fn run_test(path: &str) {
 
     for (test_name, test_case) in test {
         println!("\nRunning test: {} ...", test_name);
-
-        println!("Setup initial test state");
-
-        let mut evm_state_builder = EvmStateBuilder::new()
+        let evm_state_builder = EvmStateBuilder::new()
             .set_chain_id(U256::from_str("0xff").unwrap())
             .try_apply_network(test_case.network)
             .unwrap()
             .try_apply_accounts(test_case.pre.into_iter())
             .unwrap();
-
-        println!("Applying state ...");
-
-        println!("Check evm state ...");
 
         evm_state_builder
             .validate_accounts(test_case.post_state.into_iter())
@@ -241,6 +246,7 @@ fn run_test(path: &str) {
     }
 }
 
+// TOOD: need fix this test
 #[test]
 fn vm_add_test() {
     run_test("../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmArithmeticTest/add.json");
