@@ -162,8 +162,8 @@ impl TryFrom<TestAccountState> for Account {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TestEvmTransaction {
-    data: Vec<String>,
-    gas_limit: Vec<String>,
+    data: String,
+    gas_limit: String,
     gas_price: String,
     nonce: String,
     r: String,
@@ -171,7 +171,7 @@ struct TestEvmTransaction {
     v: String,
     sender: String,
     to: String,
-    value: Vec<String>,
+    value: String,
 }
 
 #[derive(Deserialize)]
@@ -207,6 +207,8 @@ struct TestBlock {
 struct TestCase {
     pre: BTreeMap<String, TestAccountState>,
     network: String,
+    genesis_block_header: TestBlockHeader,
+    blocks: Vec<TestBlock>,
     post_state: BTreeMap<String, TestAccountState>,
 }
 
