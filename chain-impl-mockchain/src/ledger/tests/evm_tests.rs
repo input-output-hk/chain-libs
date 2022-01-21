@@ -27,16 +27,6 @@ impl EvmStateBuilder {
 }
 
 impl EvmStateBuilder {
-    fn get_ledger(&self) -> Ledger {
-        self.ledger.clone()
-    }
-
-    fn get_config(&self) -> EvmConfigParams {
-        self.config.clone()
-    }
-}
-
-impl EvmStateBuilder {
     fn set_evm_config(mut self, config: EvmConfig) -> Self {
         self.config.config = config;
         self
@@ -47,53 +37,8 @@ impl EvmStateBuilder {
         self
     }
 
-    fn set_gas_price(mut self, gas_price: U256) -> Self {
-        self.config.environment.gas_price = gas_price;
-        self
-    }
-
-    fn set_origin(mut self, origin: H160) -> Self {
-        self.config.environment.origin = origin;
-        self
-    }
-
     fn set_chain_id(mut self, chain_id: U256) -> Self {
         self.config.environment.chain_id = chain_id;
-        self
-    }
-
-    fn set_block_hashes(mut self, block_hashes: Vec<H256>) -> Self {
-        self.config.environment.block_hashes = block_hashes;
-        self
-    }
-
-    fn set_block_number(mut self, block_number: U256) -> Self {
-        self.config.environment.block_number = block_number;
-        self
-    }
-
-    fn set_block_coinbase(mut self, block_coinbase: H160) -> Self {
-        self.config.environment.block_coinbase = block_coinbase;
-        self
-    }
-
-    fn set_block_timestamp(mut self, block_timestamp: U256) -> Self {
-        self.config.environment.block_timestamp = block_timestamp;
-        self
-    }
-
-    fn set_block_difficulty(mut self, block_difficulty: U256) -> Self {
-        self.config.environment.block_difficulty = block_difficulty;
-        self
-    }
-
-    fn set_block_gas_limit(mut self, block_gas_limit: U256) -> Self {
-        self.config.environment.block_gas_limit = block_gas_limit;
-        self
-    }
-
-    fn set_block_base_fee_per_gas(mut self, block_base_fee_per_gas: U256) -> Self {
-        self.config.environment.block_base_fee_per_gas = block_base_fee_per_gas;
         self
     }
 }
@@ -151,6 +96,33 @@ impl EvmStateBuilder {
     fn try_apply_block(mut self, block: TestBlock) -> Result<Self, String> {
         self = self.try_apply_block_header(block.block_header)?;
         Ok(self)
+    }
+}
+
+impl EvmStateBuilder {
+    fn validate_accounts<I>(&self, iter: I) -> Result<(), String>
+    where
+        I: Iterator<Item = (String, TestAccountState)>,
+    {
+        for (address, account) in iter {
+            self.validate_account(address, account)?;
+        }
+        Ok(())
+    }
+
+    fn validate_account(
+        &self,
+        address: String,
+        expected_state: TestAccountState,
+    ) -> Result<(), String> {
+        dbg!(&address);
+        self.ledger
+            .accounts
+            .get(&H160::from_str(&address).map_err(|_| "Can not parse address")?)
+            .ok_or("Can not find account")?
+            .eq(&expected_state.try_into()?)
+            .then(|| ())
+            .ok_or("Account mismatch".to_string())
     }
 }
 
@@ -259,10 +231,11 @@ fn run_test(path: &str) {
 
         println!("Applying state ...");
 
-        // let ledger = evm_state_builder.get_ledger();
-        // let config = evm_state_builder.get_config();
-
         println!("Check evm state ...");
+
+        evm_state_builder
+            .validate_accounts(test_case.post_state.into_iter())
+            .unwrap();
     }
 }
 
