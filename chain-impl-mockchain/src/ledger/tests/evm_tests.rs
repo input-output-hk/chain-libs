@@ -13,12 +13,12 @@ use crate::config::{EvmConfig, EvmConfigParams};
 use crate::evm::EvmTransaction;
 use crate::ledger::evm::Ledger;
 
-struct EvmStateBuilder {
+struct TestEvmState {
     ledger: Ledger,
     config: EvmConfigParams,
 }
 
-impl EvmStateBuilder {
+impl TestEvmState {
     fn new() -> Self {
         Self {
             ledger: Default::default(),
@@ -27,7 +27,7 @@ impl EvmStateBuilder {
     }
 }
 
-impl EvmStateBuilder {
+impl TestEvmState {
     fn set_evm_config(mut self, config: EvmConfig) -> Self {
         self.config.config = config;
         self
@@ -44,7 +44,7 @@ impl EvmStateBuilder {
     }
 }
 
-impl EvmStateBuilder {
+impl TestEvmState {
     fn try_apply_network(self, network: String) -> Result<Self, String> {
         println!("Network type: {}", network);
         match network.as_str() {
@@ -55,6 +55,13 @@ impl EvmStateBuilder {
         }
     }
 
+    fn try_apply_account(self, address: String, account: TestAccountState) -> Result<Self, String> {
+        Ok(self.set_account(
+            H160::from_str(&address).map_err(|_| "Can not parse address")?,
+            account.try_into()?,
+        ))
+    }
+
     fn try_apply_accounts<I>(mut self, iter: I) -> Result<Self, String>
     where
         I: Iterator<Item = (String, TestAccountState)>,
@@ -63,13 +70,6 @@ impl EvmStateBuilder {
             self = self.try_apply_account(address, account)?;
         }
         Ok(self)
-    }
-
-    fn try_apply_account(self, address: String, account: TestAccountState) -> Result<Self, String> {
-        Ok(self.set_account(
-            H160::from_str(&address).map_err(|_| "Can not parse address")?,
-            account.try_into()?,
-        ))
     }
 
     fn try_apply_block_header(mut self, block_header: TestBlockHeader) -> Result<Self, String> {
@@ -91,16 +91,31 @@ impl EvmStateBuilder {
     }
 
     fn try_apply_transaction(mut self, transaction: TestEvmTransaction) -> Result<Self, String> {
+        // TODO: implement it pls
         Ok(self)
     }
 
     fn try_apply_block(mut self, block: TestBlock) -> Result<Self, String> {
         self = self.try_apply_block_header(block.block_header)?;
+        for transaction in block.transactions {
+            self = self.try_apply_transaction(transaction)?;
+        }
+
+        Ok(self)
+    }
+
+    fn try_apply_blocks<I>(mut self, iter: I) -> Result<Self, String>
+    where
+        I: Iterator<Item = TestBlock>,
+    {
+        for block in iter {
+            self = self.try_apply_block(block)?;
+        }
         Ok(self)
     }
 }
 
-impl EvmStateBuilder {
+impl TestEvmState {
     fn validate_accounts<I>(&self, iter: I) -> Result<(), String>
     where
         I: Iterator<Item = (String, TestAccountState)>,
@@ -233,11 +248,15 @@ fn run_test(path: &str) {
 
     for (test_name, test_case) in test {
         println!("\nRunning test: {} ...", test_name);
-        let evm_state_builder = EvmStateBuilder::new()
+        let evm_state_builder = TestEvmState::new()
             .set_chain_id(U256::from_str("0xff").unwrap())
             .try_apply_network(test_case.network)
             .unwrap()
             .try_apply_accounts(test_case.pre.into_iter())
+            .unwrap()
+            .try_apply_block_header(test_case.genesis_block_header)
+            .unwrap()
+            .try_apply_blocks(test_case.blocks.into_iter())
             .unwrap();
 
         evm_state_builder
