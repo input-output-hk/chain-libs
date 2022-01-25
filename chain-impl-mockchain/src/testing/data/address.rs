@@ -6,7 +6,6 @@ use crate::{
     key::EitherEd25519SecretKey,
     testing::builders::make_witness_with_lane,
     testing::data::LeaderPair,
-    testing::data::LeaderPair,
     tokens::name::TokenName,
     transaction::{Input, Output, TransactionAuthData, Witness},
     utxo::Entry,

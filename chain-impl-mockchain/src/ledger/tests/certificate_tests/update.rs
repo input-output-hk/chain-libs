@@ -34,7 +34,7 @@ pub fn ledger_adopt_settings_from_update_proposal(
         testledger.date().next_epoch(),
         &leader,
         &leader,
-        update_proposal_data.proposal.clone().into(),
+        update_proposal_data.proposal.clone(),
     );
 
     leader.confirm_transaction();

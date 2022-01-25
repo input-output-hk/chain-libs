@@ -203,6 +203,7 @@ impl FragmentFactory {
             owner,
             vec![signer],
             &update_proposal.into(),
+            self.witness_mode,
         )
     }
 
@@ -218,7 +219,17 @@ impl FragmentFactory {
             owner,
             vec![signer],
             &update_vote.into(),
+            self.witness_mode,
         )
+    }
+
+    pub fn mint_token(
+        &self,
+        valid_until: BlockDate,
+        owner: &Wallet,
+        min_token: MintToken,
+    ) -> Fragment {
+        self.transaction_with_cert(valid_until, Some(owner), &min_token.into())
     }
 
     fn transaction_with_cert<'a>(
