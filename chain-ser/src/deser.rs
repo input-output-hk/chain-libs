@@ -1,43 +1,21 @@
 use crate::packer::Codec;
 
-#[derive(Debug, PartialEq, Eq)]
+use thiserror::Error;
+
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum ReadError {
-    /// Return the number of bytes left and the number of bytes demanded
+    #[error("not enough bytes: expected {0} but got {1}")]
     NotEnoughBytes(usize, usize),
-    /// Data is left in the buffer
+    #[error("unconsumed data: {0} bytes left")]
     UnconsumedData(usize),
-    /// Expecting a size that is above the limit
+    #[error("too much bytes: expected {0} but got {1}")]
     SizeTooBig(usize, usize),
-    /// Structure of data is not what it should be
+    #[error("invalid structure: {0}")]
     StructureInvalid(String),
-    /// Unknown enumeration tag
+    #[error("unknown tag: {0}")]
     UnknownTag(u32),
-    /// Structure is correct but data is not valid,
-    /// for example because an invariant does not hold
+    #[error("invalid structure: {0}")]
     InvalidData(String),
-}
-
-impl std::error::Error for ReadError {}
-
-impl std::fmt::Display for ReadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ReadError::NotEnoughBytes(left, demanded) => write!(
-                f,
-                "NotEnoughBytes: demanded {} bytes but got {}",
-                demanded, left
-            ),
-            ReadError::UnconsumedData(len) => write!(f, "Unconsumed data: {} bytes left", len),
-            ReadError::SizeTooBig(e, limit) => write!(
-                f,
-                "Ask for number of elements {} above expected limit value: {}",
-                e, limit
-            ),
-            ReadError::StructureInvalid(s) => write!(f, "Structure invalid: {}", s),
-            ReadError::UnknownTag(t) => write!(f, "Unknown tag: {}", t),
-            ReadError::InvalidData(s) => write!(f, "Invalid data: {}", s),
-        }
-    }
 }
 
 impl From<std::io::Error> for ReadError {
