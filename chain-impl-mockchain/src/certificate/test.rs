@@ -348,8 +348,6 @@ impl Arbitrary for Certificate {
 #[quickcheck]
 fn pool_reg_serialization_bijection(b: PoolRegistration) -> TestResult {
     let b_got = b.serialize();
-    let result = PoolRegistration::deserialize_from_slice(&mut Codec::new(b_got.as_ref()));
-    let left = Ok(b);
-    assert_eq!(left, result);
-    TestResult::from_bool(left == result)
+    let result = PoolRegistration::deserialize_from_slice(&mut Codec::new(b_got.as_ref())).unwrap();
+    TestResult::from_bool(b == result)
 }

@@ -87,9 +87,7 @@ mod tests {
     fn token_name_serialization_bijection(token_name: TokenName) -> TestResult {
         let token_name_got = token_name.bytes();
         let mut codec = Codec::new(token_name_got.as_slice());
-        let result = TokenName::deserialize(&mut codec);
-        let left = Ok(token_name);
-        assert_eq!(left, result);
-        TestResult::from_bool(left == result)
+        let result = TokenName::deserialize(&mut codec).unwrap();
+        TestResult::from_bool(token_name == result)
     }
 }

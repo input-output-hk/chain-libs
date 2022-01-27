@@ -136,9 +136,7 @@ mod tests {
     fn token_identifier_serialization_bijection(id: TokenIdentifier) -> TestResult {
         let id_got = id.bytes();
         let mut codec = Codec::new(id_got.as_slice());
-        let result = TokenIdentifier::deserialize(&mut codec);
-        let left = Ok(id);
-        assert_eq!(left, result);
-        TestResult::from_bool(left == result)
+        let result = TokenIdentifier::deserialize(&mut codec).unwrap();
+        TestResult::from_bool(id == result)
     }
 }

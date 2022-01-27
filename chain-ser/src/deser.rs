@@ -2,7 +2,7 @@ use crate::packer::Codec;
 
 use thiserror::Error;
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error)]
 pub enum ReadError {
     #[error("not enough bytes: expected {0} but got {1}")]
     NotEnoughBytes(usize, usize),
@@ -16,12 +16,8 @@ pub enum ReadError {
     UnknownTag(u32),
     #[error("invalid structure: {0}")]
     InvalidData(String),
-}
-
-impl From<std::io::Error> for ReadError {
-    fn from(err: std::io::Error) -> Self {
-        ReadError::InvalidData(err.to_string())
-    }
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 }
 
 /// Define that an object can be written to a `Write` object.

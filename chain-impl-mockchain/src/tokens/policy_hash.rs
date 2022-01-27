@@ -60,9 +60,7 @@ mod tests {
     fn policy_hash_serialization_bijection(ph: PolicyHash) -> TestResult {
         let ph_got = ph.as_ref();
         let mut codec = Codec::new(ph_got);
-        let result = PolicyHash::deserialize(&mut codec);
-        let left = Ok(ph.clone());
-        assert_eq!(left, result);
-        TestResult::from_bool(left == result)
+        let result = PolicyHash::deserialize(&mut codec).unwrap();
+        TestResult::from_bool(ph == result)
     }
 }
