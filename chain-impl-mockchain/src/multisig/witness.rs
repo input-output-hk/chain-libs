@@ -3,7 +3,7 @@ use crate::key::{
 };
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize},
 };
 use chain_crypto::{Ed25519, PublicKey, Verification};
 
@@ -68,7 +68,7 @@ fn deserialize_index<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<TreeIn
 }
 
 impl Serialize for Witness {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         codec.put_u8(self.0.len() as u8)?;
         for (ti, pk, sig) in self.0.iter() {
             codec.put_be_u16(ti.pack())?;

@@ -3,7 +3,7 @@ use crate::key::{deserialize_public_key, serialize_public_key};
 use crate::transaction::WitnessAccountData;
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize},
 };
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
@@ -36,7 +36,7 @@ impl AsRef<PublicKey<AccountAlg>> for Identifier {
 }
 
 impl Serialize for Identifier {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         serialize_public_key(&self.0, codec)
     }
 }

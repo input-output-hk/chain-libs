@@ -37,7 +37,7 @@ use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
 
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize},
 };
 
 #[cfg(any(test, feature = "property-test-api"))]
@@ -419,7 +419,7 @@ impl std::str::FromStr for AddressReadable {
 }
 
 impl Serialize for Address {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         let first_byte = match self.0 {
             Discrimination::Production => self.to_kind_value(),
             Discrimination::Test => self.to_kind_value() | 0b1000_0000,
@@ -439,7 +439,7 @@ impl Serialize for Address {
         Ok(())
     }
 
-    fn serialize_as_vec(&self) -> Result<Vec<u8>, WriteError> {
+    fn serialize_as_vec(&self) -> Result<Vec<u8>, std::io::Error> {
         let mut data = Vec::with_capacity(self.to_size());
         self.serialize(&mut Codec::new(&mut data))?;
         Ok(data)

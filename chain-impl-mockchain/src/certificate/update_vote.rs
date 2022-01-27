@@ -6,7 +6,8 @@ use crate::{
 
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize
+    },
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -76,7 +77,7 @@ impl Payload for UpdateVote {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for UpdateVote {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         self.proposal_id.serialize(codec)?;
         self.voter_id.serialize(codec)?;
         Ok(())

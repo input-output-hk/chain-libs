@@ -1,7 +1,7 @@
 use crate::stake::Stake;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize},
 };
 use std::{iter::Sum, ops};
 use thiserror::Error;
@@ -122,7 +122,7 @@ impl Deserialize for Value {
 }
 
 impl Serialize for Value {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         codec.put_be_u64(self.0)
     }
 }

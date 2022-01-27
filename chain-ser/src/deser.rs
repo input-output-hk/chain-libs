@@ -1,34 +1,5 @@
 use crate::packer::Codec;
 
-#[derive(Debug)]
-pub enum WriteError {
-    CannotSerialize(std::io::Error),
-}
-
-impl std::error::Error for WriteError {}
-
-impl std::fmt::Display for WriteError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            WriteError::CannotSerialize(err) => write!(f, "CannotSerialize: err {}", err),
-        }
-    }
-}
-
-impl From<std::io::Error> for WriteError {
-    fn from(err: std::io::Error) -> Self {
-        Self::CannotSerialize(err)
-    }
-}
-
-impl From<WriteError> for std::io::Error {
-    fn from(err: WriteError) -> Self {
-        match err {
-            WriteError::CannotSerialize(err) => err,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReadError {
     /// Return the number of bytes left and the number of bytes demanded
@@ -77,10 +48,10 @@ impl From<std::io::Error> for ReadError {
 
 /// Define that an object can be written to a `Write` object.
 pub trait Serialize {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError>;
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error>;
 
     /// Convenience method to serialize into a byte vector.
-    fn serialize_as_vec(&self) -> Result<Vec<u8>, WriteError> {
+    fn serialize_as_vec(&self) -> Result<Vec<u8>, std::io::Error> {
         let mut data = Vec::new();
         self.serialize(&mut Codec::new(&mut data))?;
         Ok(data)
@@ -88,7 +59,7 @@ pub trait Serialize {
 }
 
 impl<T: Serialize> Serialize for &T {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         (*self).serialize(codec)
     }
 }

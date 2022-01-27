@@ -8,7 +8,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -80,7 +80,7 @@ impl Payload for UpdateProposal {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for UpdateProposal {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         self.changes.serialize(codec)?;
         self.proposer_id.serialize(codec)
     }

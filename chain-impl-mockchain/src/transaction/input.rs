@@ -8,7 +8,7 @@ use crate::{account, multisig};
 use chain_addr::Address;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize},
 };
 use chain_crypto::PublicKey;
 
@@ -197,7 +197,7 @@ impl Input {
 }
 
 impl Serialize for Input {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         codec.put_u8(self.index_or_account)?;
         self.value.serialize(codec)?;
         codec.put_bytes(&self.input_ptr)?;

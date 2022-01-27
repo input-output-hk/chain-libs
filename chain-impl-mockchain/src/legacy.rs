@@ -5,7 +5,7 @@ pub use cardano_legacy_address::AddressMatchXPub as OldAddressMatchXPub;
 
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
 };
 use chain_crypto::{Ed25519, PublicKey};
 
@@ -45,7 +45,7 @@ impl DeserializeFromSlice for UtxoDeclaration {
 }
 
 impl Serialize for UtxoDeclaration {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         assert!(self.addrs.len() < 255);
 
         codec.put_u8(self.addrs.len() as u8)?;

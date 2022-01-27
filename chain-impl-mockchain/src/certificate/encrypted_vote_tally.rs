@@ -6,7 +6,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
 };
 use chain_crypto::Verification;
 use typed_bytes::{ByteArray, ByteBuilder};
@@ -84,7 +84,7 @@ impl Payload for EncryptedVoteTally {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for EncryptedVoteTally {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }

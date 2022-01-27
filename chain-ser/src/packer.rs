@@ -3,7 +3,7 @@
 //! This will allow us to expose some standard way of serializing
 //! data.
 
-use crate::deser::{ReadError, WriteError};
+use crate::deser::{ReadError};
 use std::num::{NonZeroU32, NonZeroU64};
 
 pub struct Codec<I> {
@@ -126,43 +126,43 @@ impl<R: std::io::Read> Codec<R> {
 
 impl<W: std::io::Write> Codec<W> {
     #[inline]
-    pub fn put_u8(&mut self, v: u8) -> Result<(), WriteError> {
+    pub fn put_u8(&mut self, v: u8) -> Result<(), std::io::Error> {
         self.inner.write_all(&[v]).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_be_u16(&mut self, v: u16) -> Result<(), WriteError> {
+    pub fn put_be_u16(&mut self, v: u16) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_le_u16(&mut self, v: u16) -> Result<(), WriteError> {
+    pub fn put_le_u16(&mut self, v: u16) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_be_u32(&mut self, v: u32) -> Result<(), WriteError> {
+    pub fn put_be_u32(&mut self, v: u32) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_le_u32(&mut self, v: u32) -> Result<(), WriteError> {
+    pub fn put_le_u32(&mut self, v: u32) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_be_u64(&mut self, v: u64) -> Result<(), WriteError> {
+    pub fn put_be_u64(&mut self, v: u64) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_le_u64(&mut self, v: u64) -> Result<(), WriteError> {
+    pub fn put_le_u64(&mut self, v: u64) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_be_u128(&mut self, v: u128) -> Result<(), WriteError> {
+    pub fn put_be_u128(&mut self, v: u128) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_be_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_le_u128(&mut self, v: u128) -> Result<(), WriteError> {
+    pub fn put_le_u128(&mut self, v: u128) -> Result<(), std::io::Error> {
         self.inner.write_all(&v.to_le_bytes()).map_err(|e| e.into())
     }
     #[inline]
-    pub fn put_bytes(&mut self, v: &[u8]) -> Result<(), WriteError> {
+    pub fn put_bytes(&mut self, v: &[u8]) -> Result<(), std::io::Error> {
         self.inner.write_all(v).map_err(|e| e.into())
     }
 }

@@ -11,7 +11,7 @@ use crate::{
 use chain_addr::Discrimination;
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize},
 };
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
@@ -383,7 +383,7 @@ impl DeserializeFromSlice for ConfigParam {
 }
 
 impl Serialize for ConfigParam {
-    fn serialize<W: Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         let tag = Tag::from(self);
         let bytes = match self {
             ConfigParam::Block0Date(data) => data.to_payload(),

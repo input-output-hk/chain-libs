@@ -1,7 +1,7 @@
 use crate::key::Hash;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize},
 };
 
 pub type FragmentId = Hash;
@@ -36,7 +36,7 @@ impl Deserialize for FragmentRaw {
 }
 
 impl Serialize for FragmentRaw {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
         codec.put_be_u32(self.0.len() as u32)?;
         codec.put_bytes(&self.0)
     }
