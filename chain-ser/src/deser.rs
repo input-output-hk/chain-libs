@@ -121,20 +121,10 @@ impl Deserialize for () {
     }
 }
 
-macro_rules! read_array_impls {
-    ($($N: expr)+) => {
-        $(
-        impl Deserialize for [u8; $N] {
-            fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-                let mut buf = [0u8; $N];
-                codec.copy_to_slice(&mut buf)?;
-                Ok(buf)
-            }
-        }
-        )+
-    };
-}
-
-read_array_impls! {
-    4 8 12 16 20 24 28 32 64 96 128
+impl<const N: usize> Deserialize for [u8; N] {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let mut buf = [0u8; N];
+        codec.copy_to_slice(&mut buf)?;
+        Ok(buf)
+    }
 }
