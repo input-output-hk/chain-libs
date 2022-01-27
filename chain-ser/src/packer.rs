@@ -37,6 +37,10 @@ impl Codec<&[u8]> {
     pub fn bytes_left(&self) -> usize {
         self.inner.len()
     }
+    #[inline]
+    pub fn has_bytes_left(&self) -> bool {
+        self.bytes_left() != 0
+    }
 }
 
 impl<R: std::io::Read> Codec<R> {

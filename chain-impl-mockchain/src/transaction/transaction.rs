@@ -307,14 +307,14 @@ fn get_spine<P: Payload>(slice: &[u8]) -> Result<TransactionStruct, TransactionS
     // read payload auth
     let payload_auth_pos = sz - codec.bytes_left();
     if P::HAS_DATA && P::HAS_AUTH {
-        if codec.bytes_left() == 0 {
+        if !codec.has_bytes_left() {
             return Err(TransactionStructError::PayloadAuthMissing);
         }
         P::Auth::deserialize_validate_from_slice(&mut codec)
             .map_err(|_| TransactionStructError::PayloadAuthInvalid)?;
     }
 
-    if codec.bytes_left() > 0 {
+    if codec.has_bytes_left() {
         return Err(TransactionStructError::SpuriousTrailingData);
     }
     Ok(TransactionStruct {
