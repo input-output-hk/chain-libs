@@ -20,7 +20,7 @@ pub enum ReadError {
     IoError(#[from] std::io::Error),
 }
 
-/// Define that an object can be written to a `Write` object.
+/// Define that an object can be written to an `std::io::Write` object.
 pub trait Serialize {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error>;
 
@@ -38,6 +38,7 @@ impl<T: Serialize> Serialize for &T {
     }
 }
 
+/// Define that an object that can be read from an `std::io::Read` object.
 pub trait Deserialize: Sized {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError>;
 
@@ -46,6 +47,10 @@ pub trait Deserialize: Sized {
     }
 }
 
+/// Define that an object can be read from a byte slice. This trait is
+/// implemented for all `Deserialize` implementors by default. The default
+/// implementation can be overridden if the user is sure they can benefit from
+/// slice-specific functions of `Codec`.
 pub trait DeserializeFromSlice: Sized {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError>;
 
