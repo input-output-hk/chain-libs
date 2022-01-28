@@ -44,7 +44,7 @@ impl AsymmetricKey for Ed25519Extended {
 
     fn compute_public(key: &Self::Secret) -> <Self::PubAlg as AsymmetricPublicKey>::Public {
         let pk = ed25519::extended_to_public(&key.0);
-        ei::Pub(pk.clone())
+        ei::Pub(pk)
     }
 
     fn secret_from_binary(data: &[u8]) -> Result<Self::Secret, SecretKeyError> {
