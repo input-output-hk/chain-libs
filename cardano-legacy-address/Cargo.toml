@@ -15,7 +15,7 @@ edition = "2021"
 [build-dependencies]
 
 [dependencies]
-cryptoxide = "0.3"
+cryptoxide = "0.4"
 cbor_event = "^2.1.3"
 ed25519-bip32 = "^0.4.0"
 chain-ser = {path = "../chain-ser"}
