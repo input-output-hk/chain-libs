@@ -1,11 +1,11 @@
 use quickcheck::{Arbitrary, Gen};
 
 #[cfg(feature = "evm")]
-use crate::config::{EvmConfig, EvmConfigParams};
+use crate::config::EvmConfig;
 use crate::{
     account::Ledger as AccountLedger,
     block::Block,
-    certificate::PoolId,
+    certificate::{MintToken, PoolId},
     chaintypes::{ChainLength, ConsensusType, ConsensusVersion, HeaderId},
     config::{Block0Date, ConfigParam, RewardParams},
     date::BlockDate,
@@ -25,6 +25,7 @@ use crate::{
         builders::{BftBlockBuilder, GenesisPraosBlockBuilder},
         data::{AddressData, AddressDataValue, LeaderPair, StakePool, Wallet},
     },
+    tokens::minting_policy::MintingPolicy,
     transaction::{Output, TxBuilder},
     utxo::{Entry, Iter},
     value::Value,
@@ -32,11 +33,6 @@ use crate::{
 };
 use chain_addr::{Address, Discrimination};
 use chain_crypto::*;
-#[cfg(feature = "evm")]
-use chain_evm::machine::{
-    BlockCoinBase, BlockDifficulty, BlockHashes, BlockNumber, BlockTimestamp, ChainId, Environment,
-    GasLimit, GasPrice, Origin,
-};
 use chain_time::TimeEra;
 use std::{
     collections::HashMap,
@@ -66,7 +62,7 @@ pub struct ConfigBuilder {
     pool_capping_ratio: Ratio,
     transaction_max_expiry_epochs: Option<u8>,
     #[cfg(feature = "evm")]
-    evm_params: EvmConfigParams,
+    evm_params: EvmConfig,
 }
 
 impl Default for ConfigBuilder {
@@ -110,25 +106,7 @@ impl ConfigBuilder {
             consensus_version: ConsensusVersion::Bft,
             transaction_max_expiry_epochs: None,
             #[cfg(feature = "evm")]
-            evm_params: EvmConfigParams {
-                config: EvmConfig::Istanbul,
-                environment: Environment {
-                    // FIXME: need to set a real price
-                    gas_price: GasPrice::default(),
-                    // Define the origin address with a random H160 address
-                    origin: Origin::random(),
-                    chain_id: ChainId::zero(),
-                    block_hashes: BlockHashes::new(),
-                    block_number: BlockNumber::zero(),
-                    block_coinbase: BlockCoinBase::zero(),
-                    block_timestamp: BlockTimestamp::zero() + 1,
-                    block_difficulty: BlockDifficulty::from(131_072),
-                    // FIXME: need to set a real limit
-                    block_gas_limit: GasLimit::max_value(),
-                    // FIXME: adequate base fee
-                    block_base_fee_per_gas: 1u32.into(),
-                },
-            },
+            evm_params: EvmConfig::Istanbul,
         }
     }
 
@@ -243,7 +221,7 @@ impl ConfigBuilder {
     }
 
     #[cfg(feature = "evm")]
-    pub fn with_evm_params(mut self, params: EvmConfigParams) -> Self {
+    pub fn with_evm_params(mut self, params: EvmConfig) -> Self {
         self.evm_params = params;
         self
     }
@@ -411,6 +389,28 @@ impl LedgerBuilder {
         self
     }
 
+    pub fn mint_tokens(mut self) -> Self {
+        for faucet in &self.faucets {
+            for (token, value) in &faucet.tokens {
+                let tx = TxBuilder::new()
+                    .set_payload(&MintToken {
+                        name: token.clone(),
+                        policy: MintingPolicy::new(),
+                        to: faucet.to_id(),
+                        value: *value,
+                    })
+                    .set_expiry_date(BlockDate::first().next_epoch())
+                    .set_ios(&[], &[])
+                    .set_witnesses(&[])
+                    .set_payload_auth(&());
+
+                self.fragments.push(Fragment::MintToken(tx));
+            }
+        }
+
+        self
+    }
+
     pub fn faucet_value(mut self, value: Value) -> Self {
         self.faucets.push(AddressDataValue::account(
             self.cfg_builder.discrimination,
@@ -460,6 +460,7 @@ impl LedgerBuilder {
         let block0_hash = HeaderId::hash_bytes(&[1, 2, 3]);
         let outputs: Vec<Output<Address>> = self.faucets.iter().map(|x| x.make_output()).collect();
         self = self.prefill_outputs(&outputs);
+        self = self.mint_tokens();
 
         let utxodb = if !self.utxo_declaration.is_empty() {
             let mut db = HashMap::new();

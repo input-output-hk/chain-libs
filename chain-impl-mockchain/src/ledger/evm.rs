@@ -5,26 +5,49 @@ use chain_evm::{
     state::{AccountTrie, Balance, LogsState},
 };
 
-#[derive(Default, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Ledger {
     pub(crate) accounts: AccountTrie,
     pub(crate) logs: LogsState,
+    pub(crate) environment: Environment,
+}
+
+impl Default for Ledger {
+    fn default() -> Self {
+        Self {
+            accounts: Default::default(),
+            logs: Default::default(),
+            environment: Environment {
+                gas_price: Default::default(),
+                origin: Default::default(),
+                chain_id: Default::default(),
+                block_hashes: Default::default(),
+                block_number: Default::default(),
+                block_coinbase: Default::default(),
+                block_timestamp: Default::default(),
+                block_difficulty: Default::default(),
+                block_gas_limit: Default::default(),
+                block_base_fee_per_gas: Default::default(),
+            },
+        }
+    }
 }
 
 impl Ledger {
     pub fn new() -> Self {
-        Self {
-            accounts: Default::default(),
-            logs: Default::default(),
-        }
+        Default::default()
     }
-    pub fn run_transaction<'runtime>(
+    pub fn run_transaction(
         &mut self,
         contract: EvmTransaction,
-        config: &'runtime Config,
-        environment: &'runtime Environment,
+        config: &Config,
     ) -> Result<(), Error> {
-        let mut vm = self.virtual_machine(config, environment);
+        let mut vm = VirtualMachine::new_with_state(
+            config,
+            &self.environment,
+            self.accounts.clone(),
+            self.logs.clone(),
+        );
         match contract {
             EvmTransaction::Create {
                 caller,
@@ -34,13 +57,11 @@ impl Ledger {
                 access_list,
             } => {
                 //
-                if let Some((new_state, new_logs)) =
-                    vm.transact_create(caller, value, init_code, gas_limit, access_list, true)
-                {
-                    // update ledger state
-                    self.accounts = new_state.clone();
-                    self.logs = new_logs.clone();
-                }
+                let (new_state, new_logs) =
+                    vm.transact_create(caller, value, init_code, gas_limit, access_list, true)?;
+                // update ledger state
+                self.accounts = new_state.clone();
+                self.logs = new_logs.clone();
                 Ok(())
             }
             EvmTransaction::Create2 {
@@ -51,7 +72,7 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                if let Some((new_state, new_logs)) = vm.transact_create2(
+                let (new_state, new_logs) = vm.transact_create2(
                     caller,
                     value,
                     init_code,
@@ -59,11 +80,10 @@ impl Ledger {
                     gas_limit,
                     access_list,
                     true,
-                ) {
-                    // update ledger state
-                    self.accounts = new_state.clone();
-                    self.logs = new_logs.clone();
-                }
+                )?;
+                // update ledger state
+                self.accounts = new_state.clone();
+                self.logs = new_logs.clone();
                 Ok(())
             }
             EvmTransaction::Call {
@@ -74,24 +94,14 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                if let Some((new_state, new_logs, _byte_code_msg)) =
-                    vm.transact_call(caller, address, value, data, gas_limit, access_list, true)
-                {
-                    // update ledger state
-                    self.accounts = new_state.clone();
-                    self.logs = new_logs.clone();
-                }
+                let (new_state, new_logs, _byte_code_msg) =
+                    vm.transact_call(caller, address, value, data, gas_limit, access_list, true)?;
+                // update ledger state
+                self.accounts = new_state.clone();
+                self.logs = new_logs.clone();
                 Ok(())
             }
         }
-    }
-
-    pub(crate) fn virtual_machine<'runtime>(
-        &self,
-        config: &'runtime Config,
-        environment: &'runtime Environment,
-    ) -> VirtualMachine<'runtime> {
-        VirtualMachine::new_with_state(config, environment, self.accounts.clone())
     }
 }
 

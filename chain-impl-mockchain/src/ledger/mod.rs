@@ -10,6 +10,7 @@ pub mod ledger;
 mod pots;
 pub mod recovery;
 mod reward_info;
+pub mod token_distribution;
 
 pub use iter::*;
 pub use leaderlog::LeadersParticipationRecord;

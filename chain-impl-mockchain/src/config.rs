@@ -89,7 +89,7 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
-    EvmParams(Box<EvmConfigParams>),
+    EvmParams(EvmConfig),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -109,18 +109,7 @@ pub enum RewardParams {
 }
 
 #[cfg(feature = "evm")]
-#[derive(Clone, Debug, PartialEq)]
-/// EVM Configuration parameters needed for execution.
-pub struct EvmConfigParams {
-    /// EVM Block Configuration. It is boxed to reduce
-    /// size difference when used in enum variants
-    pub config: EvmConfig,
-    /// EVM Block Environment.
-    pub environment: Environment,
-}
-
-#[cfg(feature = "evm")]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// EVM Configuration parameters needed for execution.
 pub enum EvmConfig {
     /// Configuration for the `Istanbul` fork.
@@ -140,28 +129,11 @@ impl From<EvmConfig> for Config {
 }
 
 #[cfg(feature = "evm")]
-impl Default for EvmConfigParams {
+impl Default for EvmConfig {
     fn default() -> Self {
-        EvmConfigParams {
-            config: EvmConfig::Berlin,
-            environment: Environment {
-                gas_price: Default::default(),
-                origin: Default::default(),
-                chain_id: Default::default(),
-                block_hashes: Default::default(),
-                block_number: Default::default(),
-                block_coinbase: Default::default(),
-                block_timestamp: Default::default(),
-                block_difficulty: Default::default(),
-                block_gas_limit: Default::default(),
-                block_base_fee_per_gas: Default::default(),
-            },
-        }
+        EvmConfig::Berlin
     }
 }
-
-#[cfg(feature = "evm")]
-impl Eq for EvmConfigParams {}
 
 // Discriminants can NEVER be 1024 or higher
 #[derive(AsRefStr, Clone, Copy, Debug, EnumIter, EnumString, PartialEq)]
@@ -787,29 +759,9 @@ impl ConfigParamVariant for CommitteeId {
 }
 
 #[cfg(feature = "evm")]
-impl ConfigParamVariant for Box<EvmConfigParams> {
+impl ConfigParamVariant for EvmConfig {
     fn to_payload(&self) -> Vec<u8> {
-        let bb: ByteBuilder<EvmConfigParams> = ByteBuilder::new().u8(self.config as u8);
-        let env = &self.environment;
-        let bb = bb
-            .bytes(&<[u8; 32]>::from(env.gas_price))
-            .bytes(env.origin.as_fixed_bytes())
-            .bytes(&<[u8; 32]>::from(env.chain_id));
-        let bb = if env.block_hashes.is_empty() {
-            bb.u64(0)
-        } else {
-            let bb = bb.u64(env.block_hashes.len().try_into().unwrap());
-            env.block_hashes
-                .iter()
-                .fold(bb, |b, h| b.bytes(h.as_fixed_bytes()))
-        };
-        let bb = bb
-            .bytes(&<[u8; 32]>::from(env.block_number))
-            .bytes(env.block_coinbase.as_fixed_bytes())
-            .bytes(&<[u8; 32]>::from(env.block_timestamp))
-            .bytes(&<[u8; 32]>::from(env.block_difficulty))
-            .bytes(&<[u8; 32]>::from(env.block_gas_limit))
-            .bytes(&<[u8; 32]>::from(env.block_base_fee_per_gas));
+        let bb: ByteBuilder<EvmConfig> = ByteBuilder::new().u8(*self as u8);
         bb.finalize_as_vec()
     }
 
@@ -823,41 +775,7 @@ impl ConfigParamVariant for Box<EvmConfigParams> {
             _ => return Err(Error::InvalidTag),
         };
 
-        // Read Environment
-        let gas_price = codec.get_slice(32)?.into();
-        let origin = Origin::from_slice(codec.get_slice(20)?);
-        let chain_id = codec.get_slice(32)?.into();
-
-        let block_hashes = match codec.get_be_u64()? {
-            0 => Vec::new(),
-            n => (0..n)
-                .map(|_| BlockHash::from_slice(codec.get_slice(32).unwrap()))
-                .collect(),
-        };
-        let block_number = codec.get_slice(32)?.into();
-        let block_coinbase = BlockCoinBase::from_slice(codec.get_slice(20)?);
-        let block_timestamp = codec.get_slice(32)?.into();
-        let block_difficulty = codec.get_slice(32)?.into();
-        let block_gas_limit = codec.get_slice(32)?.into();
-        let block_base_fee_per_gas = codec.get_slice(32)?.into();
-
-        let environment = Environment {
-            gas_price,
-            origin,
-            chain_id,
-            block_hashes,
-            block_number,
-            block_coinbase,
-            block_timestamp,
-            block_difficulty,
-            block_gas_limit,
-            block_base_fee_per_gas,
-        };
-
-        Ok(Box::new(EvmConfigParams {
-            config,
-            environment,
-        }))
+        Ok(config)
     }
 }
 
@@ -895,10 +813,10 @@ mod test {
     #[cfg(feature = "evm")]
     #[test]
     fn to_and_from_payload_evm_config_params() {
-        let evm_params = EvmConfigParams::default();
-        let payload = Box::new(evm_params.clone()).to_payload();
-        let other_evm = Box::<EvmConfigParams>::from_payload(&payload).unwrap();
-        assert_eq!(evm_params, *other_evm);
+        let evm_params = EvmConfig::default();
+        let payload = evm_params.to_payload();
+        let other_evm = EvmConfig::from_payload(&payload).unwrap();
+        assert_eq!(evm_params, other_evm);
     }
 
     quickcheck! {
@@ -978,22 +896,12 @@ mod test {
     }
 
     #[cfg(feature = "evm")]
-    impl Arbitrary for EvmConfigParams {
+    impl Arbitrary for EvmConfig {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            Self {
-                config: EvmConfig::Berlin,
-                environment: Environment {
-                    gas_price: u64::arbitrary(g).into(),
-                    origin: Origin::random(),
-                    chain_id: u64::arbitrary(g).into(),
-                    block_hashes: Vec::new(),
-                    block_number: u64::arbitrary(g).into(),
-                    block_coinbase: BlockCoinBase::random(),
-                    block_timestamp: u64::arbitrary(g).into(),
-                    block_difficulty: u64::arbitrary(g).into(),
-                    block_gas_limit: u64::arbitrary(g).into(),
-                    block_base_fee_per_gas: u64::arbitrary(g).into(),
-                },
+            match u8::arbitrary(g) % 2 {
+                0 => EvmConfig::Istanbul,
+                1 => EvmConfig::Berlin,
+                _ => unreachable!(),
             }
         }
     }

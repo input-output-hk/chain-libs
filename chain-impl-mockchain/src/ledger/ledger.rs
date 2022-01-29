@@ -8,6 +8,7 @@ use super::governance::{Governance, ParametersGovernanceAction, TreasuryGovernan
 use super::leaderlog::LeadersParticipationRecord;
 use super::pots::Pots;
 use super::reward_info::{EpochRewardsInfo, RewardsInfoParameters};
+use super::token_distribution::{TokenDistribution, TokenTotals};
 
 use crate::certificate::MintToken;
 use crate::chaineval::HeaderContentEvalContext;
@@ -18,9 +19,7 @@ use crate::fee::{FeeAlgorithm, LinearFee};
 use crate::fragment::{BlockContentHash, BlockContentSize, Contents, Fragment, FragmentId};
 use crate::rewards;
 use crate::setting::ActiveSlotsCoeffError;
-use crate::stake::{
-    PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeControl, StakeDistribution,
-};
+use crate::stake::{PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeDistribution};
 use crate::tokens::identifier::TokenIdentifier;
 use crate::tokens::minting_policy::MintingPolicyViolation;
 use crate::transaction::*;
@@ -38,7 +37,6 @@ use crate::{
 use chain_addr::{Address, Discrimination, Kind};
 use chain_crypto::Verification;
 use chain_time::{Epoch as TimeEpoch, SlotDuration, TimeEra, TimeFrame, Timeline};
-
 use std::collections::HashSet;
 use std::mem::swap;
 use std::sync::Arc;
@@ -102,6 +100,7 @@ pub struct Ledger {
     pub(crate) governance: Governance,
     #[cfg(feature = "evm")]
     pub(crate) evm: evm::Ledger,
+    pub(crate) token_totals: TokenTotals,
 }
 
 #[derive(Debug, Clone)]
@@ -327,6 +326,9 @@ pub enum Error {
     MintingPolicyViolation(#[from] MintingPolicyViolation),
     #[error("evm transactions are disabled, the node was built without the 'evm' feature")]
     DisabledEvmTransactions,
+    #[cfg(feature = "evm")]
+    #[error("evm transaction error")]
+    EvmTransactionError(#[from] chain_evm::machine::Error),
 }
 
 impl LedgerParameters {
@@ -360,6 +362,7 @@ impl Ledger {
             governance: Governance::default(),
             #[cfg(feature = "evm")]
             evm: evm::Ledger::new(),
+            token_totals: TokenTotals::default(),
         }
     }
 
@@ -521,9 +524,8 @@ impl Ledger {
                     #[cfg(feature = "evm")]
                     {
                         let tx = _tx.as_slice().payload().into_payload();
-                        let config = &ledger.settings.evm_params.config.into();
-                        let environment = &ledger.settings.evm_params.environment;
-                        ledger.evm.run_transaction(tx, config, environment)?;
+                        let config = &ledger.settings.evm_params.into();
+                        ledger.evm.run_transaction(tx, config)?;
                     }
                     #[cfg(not(feature = "evm"))]
                     {
@@ -997,11 +999,20 @@ impl Ledger {
                     new_ledger.apply_transaction(&fragment_id, &tx, block_date, ledger_params)?;
 
                 // we've just verified that this is a valid transaction (i.e. contains 1 input and 1 witness)
-                let account_id = match tx.inputs().iter().next().unwrap().to_enum() {
-                    InputEnum::UtxoInput(_) => {
-                        return Err(Error::OwnerStakeDelegationInvalidTransaction);
+                let account_id = match tx
+                    .inputs()
+                    .iter()
+                    .map(|input| input.to_enum())
+                    .zip(tx.witnesses().iter())
+                    .next()
+                    .unwrap()
+                {
+                    (InputEnum::AccountInput(account_id, _), Witness::Account(_, _)) => account_id
+                        .to_single_account()
+                        .ok_or(Error::AccountIdentifierInvalid)?,
+                    (_, _) => {
+                        return Err(Error::VoteCastInvalidTransaction);
                     }
-                    InputEnum::AccountInput(account_id, _) => account_id,
                 };
 
                 new_ledger =
@@ -1043,9 +1054,8 @@ impl Ledger {
                 #[cfg(feature = "evm")]
                 {
                     let tx = _tx.as_slice().payload().into_payload();
-                    let config = &new_ledger.settings.evm_params.config.into();
-                    let environment = &new_ledger.settings.evm_params.environment;
-                    new_ledger.evm.run_transaction(tx, config, environment)?;
+                    let config = &new_ledger.settings.evm_params.into();
+                    new_ledger.evm.run_transaction(tx, config)?;
                 }
                 #[cfg(not(feature = "evm"))]
                 {
@@ -1157,7 +1167,7 @@ impl Ledger {
 
     pub fn apply_vote_cast(
         mut self,
-        account_id: UnspecifiedAccountIdentifier,
+        account_id: account::Identifier,
         vote: VoteCast,
     ) -> Result<Self, Error> {
         self.votes = self.votes.apply_vote(self.date(), account_id, vote)?;
@@ -1182,13 +1192,14 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let stake = StakeControl::new_with(&self.accounts, &self.utxos);
-
         let mut actions = Vec::new();
+
+        let token_distribution =
+            TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
 
         self.votes = self.votes.apply_committee_result(
             self.date(),
-            &stake,
+            token_distribution,
             &self.governance,
             tally,
             sig,
@@ -1226,11 +1237,15 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let stake = StakeControl::new_with(&self.accounts, &self.utxos);
+        let token_distribution =
+            TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
 
-        self.votes = self
-            .votes
-            .apply_encrypted_vote_tally(self.date(), &stake, tally, sig.id)?;
+        self.votes = self.votes.apply_encrypted_vote_tally(
+            self.date(),
+            token_distribution,
+            tally,
+            sig.id,
+        )?;
 
         Ok(self)
     }
@@ -1348,20 +1363,9 @@ impl Ledger {
         Ok(self)
     }
 
-    pub fn mint_token(mut self, mt: MintToken) -> Result<Self, Error> {
-        let MintToken {
-            name,
-            policy,
-            to,
-            value,
-        } = mt;
-        policy.check_minting_tx()?;
-        let token = TokenIdentifier {
-            policy_hash: policy.hash(),
-            token_name: name,
-        };
-        self.accounts = self.accounts.token_add(&to, token, value)?;
-        Ok(self)
+    pub fn mint_token(self, mt: MintToken) -> Result<Self, Error> {
+        mt.policy.check_minting_tx()?;
+        self.mint_token_unchecked(mt)
     }
 
     pub fn mint_token_unchecked(mut self, mt: MintToken) -> Result<Self, Error> {
@@ -1375,7 +1379,8 @@ impl Ledger {
             policy_hash: policy.hash(),
             token_name: name,
         };
-        self.accounts = self.accounts.token_add(&to, token, value)?;
+        self.accounts = self.accounts.token_add(&to, token.clone(), value)?;
+        self.token_totals = self.token_totals.add(token, value)?;
         Ok(self)
     }
 

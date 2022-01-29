@@ -14,9 +14,11 @@ use std::rc::Rc;
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic},
     executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
-    Context, Runtime,
+    Context, ExitError, ExitFatal, ExitRevert, Runtime,
 };
 use primitive_types::{H160, H256, U256};
+
+use thiserror::Error;
 
 use crate::{
     precompiles::Precompiles,
@@ -74,6 +76,16 @@ pub type Value = U256;
 /// The context of the EVM runtime
 pub type RuntimeContext = Context;
 
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum Error {
+    #[error("transaction error: machine returned a normal EVM error")]
+    TransactionError(ExitError),
+    #[error("transaction fatal error: machine encountered an error that is not supposed to be normal EVM errors, such as requiring too much memory to execute")]
+    TransactionFatalError(ExitFatal),
+    #[error("transaction has been reverted: machine encountered an explict revert")]
+    TransactionRevertError(ExitRevert),
+}
+
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
 pub struct VirtualMachine<'runtime> {
@@ -99,9 +111,59 @@ fn precompiles(fork: HardFork) -> Precompiles {
 }
 
 impl<'runtime> VirtualMachine<'runtime> {
+    fn execute_transaction<F, T>(
+        &mut self,
+        gas_limit: u64,
+        delete_empty: bool,
+        f: F,
+    ) -> Result<(&AccountTrie, &LogsState, T), Error>
+    where
+        F: Fn(
+            &mut StackExecutor<
+                'runtime,
+                '_,
+                MemoryStackState<'_, 'runtime, VirtualMachine>,
+                Precompiles,
+            >,
+            u64,
+        ) -> (ExitReason, T),
+    {
+        let executable = |gas_limit| {
+            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
+            let memory_stack_state = MemoryStackState::new(metadata, self);
+            let mut executor = StackExecutor::new_with_precompiles(
+                memory_stack_state,
+                self.config,
+                &self.precompiles,
+            );
+            (f(&mut executor, gas_limit), executor)
+        };
+
+        let ((exit_reason, val), executor) = executable(gas_limit);
+        match exit_reason {
+            ExitReason::Succeed(_) => {
+                // apply and return state
+                // apply changes to the state, this consumes the executor
+                let state = executor.into_state();
+                // Next, we consume the stack state and extract the values and logs
+                // used to modify the accounts trie in the VirtualMachine.
+                let (values, logs) = state.deconstruct();
+
+                self.apply(values, logs, delete_empty);
+                // exit_reason
+                Ok((&self.state, &self.logs, val))
+            }
+            ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
+            ExitReason::Error(err) => Err(Error::TransactionError(err)),
+            ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
+        }
+    }
+}
+
+impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
     pub fn new(config: &'runtime Config, environment: &'runtime Environment) -> Self {
-        Self::new_with_state(config, environment, Default::default())
+        Self::new_with_state(config, environment, Default::default(), Default::default())
     }
 
     /// Creates a new `VirtualMachine` given configuration params and a given account storage.
@@ -109,13 +171,14 @@ impl<'runtime> VirtualMachine<'runtime> {
         config: &'runtime Config,
         environment: &'runtime Environment,
         state: AccountTrie,
+        logs: LogsState,
     ) -> Self {
         Self {
             config,
             environment,
             precompiles: precompiles(HardFork::Berlin),
             state,
-            logs: Default::default(),
+            logs,
         }
     }
 
@@ -138,34 +201,21 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &LogsState)> {
-        {
-            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-            let memory_stack_state = MemoryStackState::new(metadata, self);
-            let mut executor = StackExecutor::new_with_precompiles(
-                memory_stack_state,
-                self.config,
-                &self.precompiles,
-            );
-
-            let exit_reason =
-                executor.transact_create(caller, value, init_code, gas_limit, access_list);
-            match exit_reason {
-                ExitReason::Succeed(_succeded) => {
-                    // apply and return state
-                    // apply changes to the state, this consumes the executor
-                    let state = executor.into_state();
-                    // Next, we consume the stack state and extract the values and logs
-                    // used to modify the accounts trie in the VirtualMachine.
-                    let (values, logs) = state.deconstruct();
-
-                    self.apply(values, logs, delete_empty);
-                    //_exit_reason
-                    Some((&self.state, &self.logs))
-                }
-                _ => None,
-            }
-        }
+    ) -> Result<(&AccountTrie, &LogsState), Error> {
+        let (account_trie, logs_state, _) =
+            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
+                (
+                    executor.transact_create(
+                        caller,
+                        value,
+                        init_code.to_vec(),
+                        gas_limit,
+                        access_list.clone(),
+                    ),
+                    (),
+                )
+            })?;
+        Ok((account_trie, logs_state))
     }
 
     /// Execute a CREATE2 transaction
@@ -179,33 +229,22 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &LogsState)> {
-        {
-            let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-            let memory_stack_state = MemoryStackState::new(metadata, self);
-            let mut executor = StackExecutor::new_with_precompiles(
-                memory_stack_state,
-                self.config,
-                &self.precompiles,
-            );
-            let exit_reason =
-                executor.transact_create2(caller, value, init_code, salt, gas_limit, access_list);
-            match exit_reason {
-                ExitReason::Succeed(_succeded) => {
-                    // apply and return state
-                    // apply changes to the state, this consumes the executor
-                    let state = executor.into_state();
-                    // Next, we consume the stack state and extract the values and logs
-                    // used to modify the accounts trie in the VirtualMachine.
-                    let (values, logs) = state.deconstruct();
-
-                    self.apply(values, logs, delete_empty);
-                    //_exit_reason
-                    Some((&self.state, &self.logs))
-                }
-                _ => None,
-            }
-        }
+    ) -> Result<(&AccountTrie, &LogsState), Error> {
+        let (account_trie, logs_state, _) =
+            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
+                (
+                    executor.transact_create2(
+                        caller,
+                        value,
+                        init_code.to_vec(),
+                        salt,
+                        gas_limit,
+                        access_list.clone(),
+                    ),
+                    (),
+                )
+            })?;
+        Ok((account_trie, logs_state))
     }
 
     /// Execute a CALL transaction
@@ -219,28 +258,19 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Option<(&AccountTrie, &LogsState, ByteCode)> {
-        let metadata = StackSubstateMetadata::new(gas_limit, self.config);
-        let memory_stack_state = MemoryStackState::new(metadata, self);
-        let mut executor =
-            StackExecutor::new_with_precompiles(memory_stack_state, self.config, &self.precompiles);
-        let (exit_reason, byte_output) =
-            executor.transact_call(caller, address, value, data, gas_limit, access_list);
-        match exit_reason {
-            ExitReason::Succeed(_succeded) => {
-                // apply and return state
-                // apply changes to the state, this consumes the executor
-                let state = executor.into_state();
-                // Next, we consume the stack state and extract the values and logs
-                // used to modify the accounts trie in the VirtualMachine.
-                let (values, logs) = state.deconstruct();
-
-                self.apply(values, logs, delete_empty);
-                //_exit_reason
-                Some((&self.state, &self.logs, byte_output))
-            }
-            _ => None,
-        }
+    ) -> Result<(&AccountTrie, &LogsState, ByteCode), Error> {
+        let (account_trie, logs_state, byte_output) =
+            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
+                executor.transact_call(
+                    caller,
+                    address,
+                    value,
+                    data.to_vec(),
+                    gas_limit,
+                    access_list.clone(),
+                )
+            })?;
+        Ok((account_trie, logs_state, byte_output))
     }
 }
 
@@ -332,26 +362,33 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     // Then, modify the account balance, nonce, and code.
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
-                    let mut account =
-                        self.state
-                            .modify_account(&address, balance, nonce, code, reset_storage);
-
-                    // iterate over the apply_storage keys and values
-                    // and put them into the account.
-                    for (index, value) in apply_storage {
-                        account.storage = if value == crate::state::Value::default() {
-                            // value is full of zeroes, remove it
-                            account.storage.clone().remove(&index)
-                        } else {
-                            account.storage.clone().put(index, value)
+                    self.state = self.state.clone().modify_account(address, |mut account| {
+                        account.balance = balance;
+                        account.nonce = nonce;
+                        if let Some(code) = code {
+                            account.code = code
+                        };
+                        if reset_storage {
+                            account.storage = Default::default();
                         }
-                    }
 
-                    self.state = if delete_empty && account.is_empty() {
-                        self.state.clone().remove(&address)
-                    } else {
-                        self.state.clone().put(address, account)
-                    }
+                        // iterate over the apply_storage keys and values
+                        // and put them into the account.
+                        for (index, value) in apply_storage {
+                            account.storage = if value == crate::state::Value::default() {
+                                // value is full of zeroes, remove it
+                                account.storage.remove(&index)
+                            } else {
+                                account.storage.put(index, value)
+                            }
+                        }
+
+                        if delete_empty && account.is_empty() {
+                            None
+                        } else {
+                            Some(account)
+                        }
+                    });
                 }
                 Apply::Delete { address } => {
                     self.state = self.state.clone().remove(&address);

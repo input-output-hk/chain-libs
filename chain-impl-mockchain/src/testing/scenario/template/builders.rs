@@ -29,6 +29,7 @@ pub struct WalletTemplateBuilder {
     delagate_alias: Option<String>,
     ownership_alias: Option<String>,
     initial_value: Option<Value>,
+    initial_tokens: HashMap<TokenName, Value>,
     committee_member: bool,
 }
 
@@ -39,6 +40,7 @@ impl WalletTemplateBuilder {
             delagate_alias: None,
             ownership_alias: None,
             initial_value: None,
+            initial_tokens: Default::default(),
             committee_member: false,
             secret_key: None,
         }
@@ -46,6 +48,11 @@ impl WalletTemplateBuilder {
 
     pub fn with(&mut self, value: u64) -> &mut Self {
         self.initial_value = Some(Value(value));
+        self
+    }
+
+    pub fn with_token(&mut self, token: TokenName, value: u64) -> &mut Self {
+        self.initial_tokens.insert(token, Value(value));
         self
     }
 
@@ -86,6 +93,7 @@ impl WalletTemplateBuilder {
             stake_pool_delegate_alias: self.delagate_alias.clone(),
             stake_pool_owner_alias: self.ownership_alias.clone(),
             initial_value: value,
+            initial_tokens: self.initial_tokens,
             committee_member: self.committee_member,
             secret_key: self.secret_key,
         })
