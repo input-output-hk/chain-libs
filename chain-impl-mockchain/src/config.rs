@@ -15,7 +15,7 @@ use chain_core::{
 };
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
-use chain_evm::machine::{BlockCoinBase, BlockHash, Config, Environment, Origin};
+use chain_evm::machine::Config;
 use std::{
     fmt::{self, Display, Formatter},
     io::{self, Write},
