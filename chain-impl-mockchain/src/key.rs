@@ -3,9 +3,7 @@
 //!
 use chain_core::{
     packer::Codec,
-    property::{
-        BlockId, Deserialize, DeserializeFromSlice, FragmentId, ReadError, Serialize,
-    },
+    property::{BlockId, Deserialize, DeserializeFromSlice, FragmentId, ReadError, Serialize},
 };
 use chain_crypto as crypto;
 use chain_crypto::{

@@ -3,7 +3,7 @@
 //! This will allow us to expose some standard way of serializing
 //! data.
 
-use crate::deser::{ReadError};
+use crate::deser::ReadError;
 use std::num::{NonZeroU32, NonZeroU64};
 
 /// The structure to support (de)serialization of binary data format used by

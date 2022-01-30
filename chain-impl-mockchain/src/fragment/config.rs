@@ -1,8 +1,7 @@
 use crate::config::ConfigParam;
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize
-    },
+    property::{DeserializeFromSlice, ReadError, Serialize},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

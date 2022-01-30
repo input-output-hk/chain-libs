@@ -6,8 +6,7 @@ use crate::{
 
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize
-    },
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
