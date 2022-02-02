@@ -524,7 +524,7 @@ impl Ledger {
                     #[cfg(feature = "evm")]
                     {
                         let tx = _tx.as_slice().payload().into_payload();
-                        let config = &ledger.settings.evm_params.into();
+                        let config = &ledger.settings.evm_config.into();
                         ledger.evm.run_transaction(tx, config)?;
                     }
                     #[cfg(not(feature = "evm"))]

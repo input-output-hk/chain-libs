@@ -88,7 +88,9 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
-    EvmParams(EvmConfig),
+    EvmConfiguration(EvmConfig),
+    #[cfg(feature = "evm")]
+    EvmEnvironment(EvmEnvironment),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -131,6 +133,18 @@ impl From<EvmConfig> for Config {
 impl Default for EvmConfig {
     fn default() -> Self {
         EvmConfig::Berlin
+    }
+}
+
+#[cfg(feature = "evm")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// EVM Environment parameters needed for execution.
+pub struct EvmEnvironment {}
+
+#[cfg(feature = "evm")]
+impl Default for EvmEnvironment {
+    fn default() -> Self {
+        Self {}
     }
 }
 
@@ -191,7 +205,9 @@ pub enum Tag {
     TransactionMaxExpiryEpochs = 29,
     #[cfg(feature = "evm")]
     #[strum(to_string = "evm-config-params")]
-    EvmParams = 30,
+    EvmConfiguration = 30,
+    #[strum(to_string = "evm-environment-params")]
+    EvmEnvironment = 31,
 }
 
 impl Tag {
@@ -224,7 +240,9 @@ impl Tag {
             28 => Some(Tag::PerVoteCertificateFees),
             29 => Some(Tag::TransactionMaxExpiryEpochs),
             #[cfg(feature = "evm")]
-            30 => Some(Tag::EvmParams),
+            30 => Some(Tag::EvmConfiguration),
+            #[cfg(feature = "evm")]
+            31 => Some(Tag::EvmEnvironment),
             _ => None,
         }
     }
@@ -262,7 +280,9 @@ impl<'a> From<&'a ConfigParam> for Tag {
             ConfigParam::PerVoteCertificateFees(..) => Tag::PerVoteCertificateFees,
             ConfigParam::TransactionMaxExpiryEpochs(..) => Tag::TransactionMaxExpiryEpochs,
             #[cfg(feature = "evm")]
-            ConfigParam::EvmParams(_) => Tag::EvmParams,
+            ConfigParam::EvmConfiguration(_) => Tag::EvmConfiguration,
+            #[cfg(feature = "evm")]
+            ConfigParam::EvmEnvironment(_) => Tag::EvmEnvironment,
         }
     }
 }
@@ -347,7 +367,13 @@ impl Readable for ConfigParam {
                 ConfigParamVariant::from_payload(bytes).map(ConfigParam::TransactionMaxExpiryEpochs)
             }
             #[cfg(feature = "evm")]
-            Tag::EvmParams => ConfigParamVariant::from_payload(bytes).map(ConfigParam::EvmParams),
+            Tag::EvmConfiguration => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::EvmConfiguration)
+            }
+            #[cfg(feature = "evm")]
+            Tag::EvmEnvironment => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::EvmEnvironment)
+            }
         }
         .map_err(Into::into)
     }
@@ -386,7 +412,9 @@ impl property::Serialize for ConfigParam {
             ConfigParam::PerVoteCertificateFees(data) => data.to_payload(),
             ConfigParam::TransactionMaxExpiryEpochs(data) => data.to_payload(),
             #[cfg(feature = "evm")]
-            ConfigParam::EvmParams(data) => data.to_payload(),
+            ConfigParam::EvmConfiguration(data) => data.to_payload(),
+            #[cfg(feature = "evm")]
+            ConfigParam::EvmEnvironment(data) => data.to_payload(),
         };
         let taglen = TagLen::new(tag, bytes.len()).ok_or_else(|| {
             io::Error::new(
@@ -812,6 +840,21 @@ impl ConfigParamVariant for EvmConfig {
     }
 }
 
+#[cfg(feature = "evm")]
+impl ConfigParamVariant for EvmEnvironment {
+    fn to_payload(&self) -> Vec<u8> {
+        todo!("fields need to be defined");
+        //let bb: ByteBuilder<EvmEnvironment> = ByteBuilder::new().u8(*self as u8);
+        //bb.finalize_as_vec()
+    }
+
+    fn from_payload(payload: &[u8]) -> Result<Self, Error> {
+        //let mut _rb = ReadBuf::from(payload);
+
+        todo!("fields need to be defined");
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TagLen(u16);
 
@@ -989,7 +1032,9 @@ mod test {
                 28 => ConfigParam::PerCertificateFees(Arbitrary::arbitrary(g)),
                 29 => ConfigParam::TransactionMaxExpiryEpochs(Arbitrary::arbitrary(g)),
                 #[cfg(feature = "evm")]
-                30 => ConfigParam::EvmParams(Arbitrary::arbitrary(g)),
+                30 => ConfigParam::EvmConfiguration(Arbitrary::arbitrary(g)),
+                #[cfg(feature = "evm")]
+                31 => ConfigParam::EvmEnvironment(Arbitrary::arbitrary(g)),
                 _ => unreachable!(),
             }
         }
