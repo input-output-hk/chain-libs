@@ -20,12 +20,18 @@ pub enum ReadError {
     IoError(#[from] std::io::Error),
 }
 
+#[derive(Debug, Error)]
+pub enum WriteError {
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+}
+
 /// Define that an object can be written to an `std::io::Write` object.
 pub trait Serialize {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error>;
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError>;
 
     /// Convenience method to serialize into a byte vector.
-    fn serialize_as_vec(&self) -> Result<Vec<u8>, std::io::Error> {
+    fn serialize_as_vec(&self) -> Result<Vec<u8>, WriteError> {
         let mut data = Vec::new();
         self.serialize(&mut Codec::new(&mut data))?;
         Ok(data)
@@ -33,7 +39,7 @@ pub trait Serialize {
 }
 
 impl<T: Serialize> Serialize for &T {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         (*self).serialize(codec)
     }
 }

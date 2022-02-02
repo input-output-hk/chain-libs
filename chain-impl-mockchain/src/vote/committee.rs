@@ -1,6 +1,6 @@
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey};
 use std::{
@@ -126,7 +126,7 @@ impl FromStr for CommitteeId {
 /* Ser/De ****************************************************************** */
 
 impl Serialize for CommitteeId {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.as_ref())
     }
 }

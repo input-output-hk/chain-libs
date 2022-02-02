@@ -8,7 +8,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::Verification;
 use chain_vote::TallyDecryptShare;
@@ -226,7 +226,7 @@ impl Payload for VoteTally {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for VoteTally {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }

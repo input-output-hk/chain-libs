@@ -3,6 +3,7 @@ use crate::value::Value;
 pub use cardano_legacy_address::Addr as OldAddress;
 pub use cardano_legacy_address::AddressMatchXPub as OldAddressMatchXPub;
 
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
@@ -45,7 +46,7 @@ impl DeserializeFromSlice for UtxoDeclaration {
 }
 
 impl Serialize for UtxoDeclaration {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         assert!(self.addrs.len() < 255);
 
         codec.put_u8(self.addrs.len() as u8)?;

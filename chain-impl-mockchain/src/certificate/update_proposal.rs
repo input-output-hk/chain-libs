@@ -6,6 +6,7 @@ use crate::{
     key::BftLeaderId,
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{DeserializeFromSlice, ReadError, Serialize},
@@ -80,7 +81,7 @@ impl Payload for UpdateProposal {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for UpdateProposal {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         self.changes.serialize(codec)?;
         self.proposer_id.serialize(codec)
     }

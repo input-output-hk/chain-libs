@@ -3,7 +3,9 @@
 //!
 use chain_core::{
     packer::Codec,
-    property::{BlockId, Deserialize, DeserializeFromSlice, FragmentId, ReadError, Serialize},
+    property::{
+        BlockId, Deserialize, DeserializeFromSlice, FragmentId, ReadError, Serialize, WriteError,
+    },
 };
 use chain_crypto as crypto;
 use chain_crypto::{
@@ -81,14 +83,14 @@ fn chain_crypto_sig_err(e: crypto::SignatureError) -> ReadError {
 pub fn serialize_public_key<A: AsymmetricPublicKey, W: std::io::Write>(
     key: &crypto::PublicKey<A>,
     codec: &mut Codec<W>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), WriteError> {
     codec.put_bytes(key.as_ref())
 }
 #[inline]
 pub fn serialize_signature<A: VerificationAlgorithm, T, W: std::io::Write>(
     signature: &crypto::Signature<T, A>,
     codec: &mut Codec<W>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), WriteError> {
     codec.put_bytes(signature.as_ref())
 }
 #[inline]
@@ -174,7 +176,7 @@ where
 }
 
 impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A> {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         self.data.serialize(codec)?;
         serialize_signature(&self.sig, codec)
     }
@@ -254,7 +256,7 @@ impl<'a> From<&'a Hash> for &'a [u8; 32] {
 }
 
 impl Serialize for Hash {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.0.as_hash_bytes())
     }
 }
@@ -317,7 +319,7 @@ impl BftLeaderId {
 }
 
 impl Serialize for BftLeaderId {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         serialize_public_key(&self.0, codec)
     }
 }

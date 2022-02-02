@@ -1,7 +1,10 @@
 //! Split timeframe in eras
 
 use crate::timeframe::Slot;
-use chain_core::{packer::Codec, property::ReadError};
+use chain_core::{
+    packer::Codec,
+    property::{ReadError, WriteError},
+};
 use std::fmt;
 
 /// Epoch number
@@ -45,7 +48,7 @@ pub struct TimeEra {
 pub fn pack_time_era<W: std::io::Write>(
     time_era: &TimeEra,
     codec: &mut Codec<W>,
-) -> Result<(), std::io::Error> {
+) -> Result<(), WriteError> {
     codec.put_be_u32(time_era.epoch_start.0)?;
     codec.put_be_u64(time_era.slot_start.0)?;
     codec.put_be_u32(time_era.slots_per_epoch)?;

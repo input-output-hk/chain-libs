@@ -1,6 +1,6 @@
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 
 /// Block Header Bytes
@@ -14,7 +14,7 @@ impl AsRef<[u8]> for HeaderRaw {
 }
 
 impl Serialize for HeaderRaw {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_be_u16(self.0.len() as u16)?;
         codec.put_bytes(&self.0)
     }

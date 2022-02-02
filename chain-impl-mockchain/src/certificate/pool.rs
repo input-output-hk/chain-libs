@@ -5,6 +5,7 @@ use crate::transaction::{
     AccountIdentifier, Payload, PayloadAuthData, PayloadData, PayloadSlice,
     SingleAccountBindingSignature, TransactionBindingAuthData,
 };
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
@@ -191,13 +192,13 @@ impl Deserialize for PoolRetirement {
 }
 
 impl Serialize for PoolUpdate {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Serialize for PoolRetirement {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }
@@ -253,7 +254,7 @@ impl Payload for PoolRetirement {
 }
 
 impl Serialize for PoolRegistration {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }

@@ -4,6 +4,7 @@ use crate::{
     certificate::{CertificateSlice, VotePlanId},
     transaction::{Payload, PayloadAuthData, PayloadData, PayloadSlice},
 };
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
@@ -84,7 +85,7 @@ impl Payload for EncryptedVoteTally {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for EncryptedVoteTally {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }

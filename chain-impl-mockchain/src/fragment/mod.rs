@@ -5,7 +5,7 @@ mod raw;
 use crate::legacy;
 use chain_core::{
     packer::Codec,
-    property::{self, Deserialize, DeserializeFromSlice, ReadError, Serialize},
+    property::{self, Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 
 pub use config::ConfigParams;
@@ -222,7 +222,7 @@ impl DeserializeFromSlice for Fragment {
 }
 
 impl Serialize for Fragment {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         self.to_raw().serialize(codec)
     }
 }

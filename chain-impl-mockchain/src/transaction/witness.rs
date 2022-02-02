@@ -6,6 +6,7 @@ use crate::key::{
     SpendingSignature,
 };
 use crate::multisig;
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
@@ -191,7 +192,7 @@ const WITNESS_TAG_ACCOUNT: u8 = 2u8;
 const WITNESS_TAG_MULTISIG: u8 = 3u8;
 
 impl Serialize for Witness {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         match self {
             Witness::OldUtxo(pk, cc, sig) => {
                 codec.put_u8(WITNESS_TAG_OLDUTXO)?;

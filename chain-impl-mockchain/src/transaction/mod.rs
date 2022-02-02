@@ -14,7 +14,7 @@ pub mod test;
 
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 
 // to remove..
@@ -31,7 +31,7 @@ pub use utxo::*;
 pub use witness::*;
 
 impl<Extra: Payload> Serialize for Transaction<Extra> {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.as_ref())
     }
 }

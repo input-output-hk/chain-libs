@@ -11,7 +11,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Verification};
 use chain_vote::MemberPublicKey;
@@ -382,7 +382,7 @@ impl Deref for Proposals {
 /* Ser/De ******************************************************************* */
 
 impl Serialize for VotePlan {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }

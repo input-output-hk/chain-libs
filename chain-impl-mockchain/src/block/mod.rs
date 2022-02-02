@@ -2,7 +2,7 @@
 use crate::fragment::{Fragment, FragmentRaw};
 use chain_core::{
     packer::Codec,
-    property::{self, Deserialize, ReadError, Serialize},
+    property::{self, Deserialize, ReadError, Serialize, WriteError},
 };
 
 use std::slice;
@@ -95,7 +95,7 @@ impl property::Block for Block {
 }
 
 impl Serialize for Block {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let header_raw = {
             let mut v = Vec::new();
             self.header.serialize(&mut Codec::new(&mut v))?;

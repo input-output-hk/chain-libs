@@ -1,6 +1,7 @@
 use crate::accounting::account;
 use crate::key::{deserialize_public_key, serialize_public_key};
 use crate::transaction::WitnessAccountData;
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{DeserializeFromSlice, ReadError, Serialize},
@@ -36,7 +37,7 @@ impl AsRef<PublicKey<AccountAlg>> for Identifier {
 }
 
 impl Serialize for Identifier {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         serialize_public_key(&self.0, codec)
     }
 }

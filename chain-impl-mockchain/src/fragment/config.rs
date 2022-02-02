@@ -1,7 +1,7 @@
 use crate::config::ConfigParam;
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -22,7 +22,7 @@ impl ConfigParams {
 }
 
 impl Serialize for ConfigParams {
-    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), std::io::Error> {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         // FIXME: put params in canonical order (e.g. sorted by tag)?
         codec.put_be_u16(self.0.len() as u16)?;
         for config in &self.0 {
