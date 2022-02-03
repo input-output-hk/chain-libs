@@ -90,8 +90,19 @@ impl TestEvmState {
         Ok(self)
     }
 
-    fn try_apply_transaction(mut self, transaction: TestEvmTransaction) -> Result<Self, String> {
-        // TODO: implement it pls
+    fn try_apply_transaction(mut self, tx: TestEvmTransaction) -> Result<Self, String> {
+        let nonce = U256::from_str(&tx.nonce).map_err(|_| "Can not parse transaction nonce")?;
+        let gas_price = U256::from_str(&tx.gas_price)
+            .map_err(|_| "Can not parse transaction gas limit")?
+            .as_u64();
+        let address = H160::from_str(&tx.to).map_err(|_| "Can not parse transaction to")?;
+
+        // update account nonce
+        self.ledger.accounts = self
+            .ledger
+            .accounts
+            .modify_account(address, |account| Some(Account { nonce, ..account }));
+
         Ok(self)
     }
 
@@ -199,6 +210,28 @@ struct TestEvmTransaction {
     sender: String,
     to: String,
     value: String,
+}
+
+impl TryFrom<TestEvmTransaction> for EvmTransaction {
+    type Error = String;
+    fn try_from(tx: TestEvmTransaction) -> Result<Self, Self::Error> {
+        let gas_limit = U256::from_str(&tx.gas_limit)
+            .map_err(|_| "Can not parse transaction gas limit")?
+            .as_u64();
+        let value = U256::from_str(&tx.value).map_err(|_| "Can not parse transaction value")?;
+        let data = hex::decode(tx.data).map_err(|_| "Can not parse transaction data")?;
+        let caller = H160::from_str(&tx.sender).map_err(|_| "Can not parse transaction sender")?;
+        let address = H160::from_str(&tx.to).map_err(|_| "Can not parse transaction to")?;
+
+        Ok(Self::Call {
+            address,
+            gas_limit,
+            value,
+            data,
+            caller,
+            access_list: Vec::new(),
+        })
+    }
 }
 
 #[derive(Deserialize)]
