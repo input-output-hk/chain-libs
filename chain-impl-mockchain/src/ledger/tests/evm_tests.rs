@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::BufReader;
 use std::mem::size_of;
@@ -16,6 +16,7 @@ use crate::ledger::evm::Ledger;
 struct TestEvmState {
     ledger: Ledger,
     config: EvmConfig,
+    coinbase_addresses: BTreeSet<String>,
 }
 
 impl TestEvmState {
@@ -23,6 +24,7 @@ impl TestEvmState {
         Self {
             ledger: Default::default(),
             config: Default::default(),
+            coinbase_addresses: Default::default(),
         }
     }
 }
@@ -87,21 +89,20 @@ impl TestEvmState {
             .block_hashes
             .push(H256::from_str(&block_header.hash).expect("Can not parse hash"));
 
+        self.coinbase_addresses.insert(block_header.coinbase);
+
         Ok(self)
     }
 
     fn try_apply_transaction(mut self, tx: TestEvmTransaction) -> Result<Self, String> {
-        let nonce = U256::from_str(&tx.nonce).map_err(|_| "Can not parse transaction nonce")?;
-        let gas_price = U256::from_str(&tx.gas_price)
-            .map_err(|_| "Can not parse transaction gas limit")?
-            .as_u64();
-        let address = H160::from_str(&tx.to).map_err(|_| "Can not parse transaction to")?;
+        let gas_price =
+            U256::from_str(&tx.gas_price).map_err(|_| "Can not parse transaction gas limit")?;
 
-        // update account nonce
-        self.ledger.accounts = self
-            .ledger
-            .accounts
-            .modify_account(address, |account| Some(Account { nonce, ..account }));
+        self.ledger.environment.gas_price = gas_price;
+
+        self.ledger
+            .run_transaction(tx.try_into()?, &self.config.into())
+            .map_err(|e| format!("can not run transaction, err: {}", e.to_string()))?;
 
         Ok(self)
     }
@@ -142,13 +143,35 @@ impl TestEvmState {
         address: String,
         expected_state: TestAccountState,
     ) -> Result<(), String> {
-        self.ledger
-            .accounts
-            .get(&H160::from_str(&address).map_err(|_| "Can not parse address")?)
-            .ok_or("Can not find account")?
-            .eq(&expected_state.try_into()?)
-            .then(|| ())
-            .ok_or("Account mismatch".to_string())
+        // skip coinbase accounts
+        if !self.coinbase_addresses.contains(&address) {
+            let account = self
+                .ledger
+                .accounts
+                .get(&H160::from_str(&address).map_err(|_| "Can not parse address")?)
+                .ok_or("Can not find account")?;
+            let expected_account: Account = expected_state.try_into()?;
+
+            if &expected_account != account {
+                Err(format!(
+                    "Account mismatch,
+                    address: {},
+                    current: {{ balance: {}, nonce: {}, code: {} }},
+                    expected: {{ balance: {}, nonce: {}, code: {} }}",
+                    address,
+                    account.balance,
+                    account.nonce,
+                    hex::encode(&account.code),
+                    expected_account.balance,
+                    expected_account.nonce,
+                    hex::encode(expected_account.code),
+                ))
+            } else {
+                Ok(())
+            }
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -203,10 +226,6 @@ struct TestEvmTransaction {
     data: String,
     gas_limit: String,
     gas_price: String,
-    nonce: String,
-    r: String,
-    s: String,
-    v: String,
     sender: String,
     to: String,
     value: String,
@@ -219,7 +238,13 @@ impl TryFrom<TestEvmTransaction> for EvmTransaction {
             .map_err(|_| "Can not parse transaction gas limit")?
             .as_u64();
         let value = U256::from_str(&tx.value).map_err(|_| "Can not parse transaction value")?;
-        let data = hex::decode(tx.data).map_err(|_| "Can not parse transaction data")?;
+        let data = hex::decode(
+            tx.data[0..2]
+                .eq("0x")
+                .then(|| tx.data[2..].to_string())
+                .expect("Missing '0x' prefix for hex data"),
+        )
+        .map_err(|_| "Can not parse transaction data")?;
         let caller = H160::from_str(&tx.sender).map_err(|_| "Can not parse transaction sender")?;
         let address = H160::from_str(&tx.to).map_err(|_| "Can not parse transaction to")?;
 
@@ -237,22 +262,12 @@ impl TryFrom<TestEvmTransaction> for EvmTransaction {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TestBlockHeader {
-    bloom: String,
     coinbase: String,
     difficulty: String,
-    extra_data: String,
     gas_limit: String,
-    gas_used: String,
     hash: String,
-    mix_hash: String,
-    nonce: String,
     number: String,
-    parent_hash: String,
-    receipt_trie: String,
-    state_root: String,
     timestamp: String,
-    transactions_trie: String,
-    uncle_hash: String,
 }
 
 #[derive(Deserialize)]
@@ -298,7 +313,6 @@ fn run_test(path: &str) {
     }
 }
 
-// TOOD: need fix this test
 #[test]
 fn vm_add_test() {
     run_test("../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmArithmeticTest/add.json");
