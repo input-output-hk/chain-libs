@@ -102,7 +102,7 @@ impl TestEvmState {
 
         self.ledger
             .run_transaction(tx.try_into()?, &self.config.into())
-            .map_err(|e| format!("can not run transaction, err: {}", e.to_string()))?;
+            .map_err(|e| format!("can not run transaction, err: {}", e))?;
 
         Ok(self)
     }
