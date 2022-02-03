@@ -9,13 +9,13 @@ use chain_evm::primitive_types::{H160, H256, U256};
 use chain_evm::state::{Account, Trie};
 use chain_evm::Address;
 
-use crate::config::{EvmConfig, EvmConfigParams};
+use crate::config::EvmConfig;
 use crate::evm::EvmTransaction;
 use crate::ledger::evm::Ledger;
 
 struct TestEvmState {
     ledger: Ledger,
-    config: EvmConfigParams,
+    config: EvmConfig,
 }
 
 impl TestEvmState {
@@ -29,7 +29,7 @@ impl TestEvmState {
 
 impl TestEvmState {
     fn set_evm_config(mut self, config: EvmConfig) -> Self {
-        self.config.config = config;
+        self.config = config;
         self
     }
 
@@ -39,7 +39,7 @@ impl TestEvmState {
     }
 
     fn set_chain_id(mut self, chain_id: U256) -> Self {
-        self.config.environment.chain_id = chain_id;
+        self.ledger.environment.chain_id = chain_id;
         self
     }
 }
@@ -73,16 +73,16 @@ impl TestEvmState {
     }
 
     fn try_apply_block_header(mut self, block_header: TestBlockHeader) -> Result<Self, String> {
-        self.config.environment.block_gas_limit =
+        self.ledger.environment.block_gas_limit =
             U256::from_str(&block_header.gas_limit).map_err(|_| "Can not parse gas limit")?;
-        self.config.environment.block_number =
+        self.ledger.environment.block_number =
             U256::from_str(&block_header.number).map_err(|_| "Can not parse number")?;
-        self.config.environment.block_timestamp =
+        self.ledger.environment.block_timestamp =
             U256::from_str(&block_header.timestamp).map_err(|_| "Can not parse timestamp")?;
-        self.config.environment.block_difficulty =
+        self.ledger.environment.block_difficulty =
             U256::from_str(&block_header.difficulty).map_err(|_| "Can not parse difficulty")?;
 
-        self.config
+        self.ledger
             .environment
             .block_hashes
             .push(H256::from_str(&block_header.hash).expect("Can not parse hash"));
