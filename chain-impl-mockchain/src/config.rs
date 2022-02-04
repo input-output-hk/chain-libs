@@ -90,7 +90,7 @@ pub enum ConfigParam {
     #[cfg(feature = "evm")]
     EvmConfiguration(EvmConfig),
     #[cfg(feature = "evm")]
-    EvmEnvironment(Environment),
+    EvmEnvironment(EvmEnvironment),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -135,6 +135,11 @@ impl Default for EvmConfig {
         EvmConfig::Berlin
     }
 }
+
+#[cfg(feature = "evm")]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+/// EVM Environment parameters needed for execution.
+pub struct EvmEnvironment(pub(crate) Environment);
 
 // Discriminants can NEVER be 1024 or higher
 #[derive(AsRefStr, Clone, Copy, Debug, EnumIter, EnumString, PartialEq)]
@@ -830,22 +835,22 @@ impl ConfigParamVariant for EvmConfig {
 }
 
 #[cfg(feature = "evm")]
-impl ConfigParamVariant for Environment {
+impl ConfigParamVariant for EvmEnvironment {
     fn to_payload(&self) -> Vec<u8> {
         use crate::evm::{serialize_address, serialize_h256, serialize_u256};
         let bb: ByteBuilder<Environment> = ByteBuilder::new();
-        let bb = serialize_u256(bb, &self.gas_price);
-        let bb = serialize_address(bb, &self.origin);
-        let bb = serialize_u256(bb, &self.chain_id);
+        let bb = serialize_u256(bb, &self.0.gas_price);
+        let bb = serialize_address(bb, &self.0.origin);
+        let bb = serialize_u256(bb, &self.0.chain_id);
         let bb = bb
-            .u64(self.block_hashes.len() as u64)
-            .fold(self.block_hashes.iter(), serialize_h256);
-        let bb = serialize_u256(bb, &self.block_number);
-        let bb = serialize_address(bb, &self.block_coinbase);
-        let bb = serialize_u256(bb, &self.block_timestamp);
-        let bb = serialize_u256(bb, &self.block_difficulty);
-        let bb = serialize_u256(bb, &self.block_gas_limit);
-        let bb = serialize_u256(bb, &self.block_base_fee_per_gas);
+            .u64(self.0.block_hashes.len() as u64)
+            .fold(self.0.block_hashes.iter(), serialize_h256);
+        let bb = serialize_u256(bb, &self.0.block_number);
+        let bb = serialize_address(bb, &self.0.block_coinbase);
+        let bb = serialize_u256(bb, &self.0.block_timestamp);
+        let bb = serialize_u256(bb, &self.0.block_difficulty);
+        let bb = serialize_u256(bb, &self.0.block_gas_limit);
+        let bb = serialize_u256(bb, &self.0.block_base_fee_per_gas);
         bb.finalize_as_vec()
     }
 
@@ -866,7 +871,7 @@ impl ConfigParamVariant for Environment {
         let block_gas_limit = read_u256(&mut buf)?;
         let block_base_fee_per_gas = read_u256(&mut buf)?;
         buf.expect_end()?;
-        Ok(Self {
+        Ok(Self(Environment {
             gas_price,
             origin,
             chain_id,
@@ -877,7 +882,7 @@ impl ConfigParamVariant for Environment {
             block_difficulty,
             block_gas_limit,
             block_base_fee_per_gas,
-        })
+        }))
     }
 }
 
