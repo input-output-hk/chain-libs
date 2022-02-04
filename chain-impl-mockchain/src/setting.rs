@@ -2,7 +2,7 @@
 //!
 
 #[cfg(feature = "evm")]
-use crate::config::{EvmConfig, EvmEnvironment};
+use crate::config::EvmConfig;
 use crate::fragment::{config::ConfigParams, BlockContentSize};
 use crate::milli::Milli;
 use crate::update;
@@ -15,6 +15,8 @@ use crate::{
     rewards,
     vote::CommitteeId,
 };
+#[cfg(feature = "evm")]
+use chain_evm::machine::Environment as EvmEnvironment;
 use std::error::Error;
 use std::fmt;
 use std::num::NonZeroU32;
@@ -254,7 +256,7 @@ impl Settings {
                 }
                 #[cfg(feature = "evm")]
                 ConfigParam::EvmEnvironment(evm_env_params) => {
-                    new_state.evm_environment = *evm_env_params;
+                    new_state.evm_environment = evm_env_params.clone();
                 }
             }
         }

@@ -15,6 +15,9 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData},
 };
 
+#[cfg(feature = "evm")]
+pub use chain_evm::machine::{Config, Environment};
+
 /// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EvmTransaction {
@@ -107,28 +110,22 @@ impl EvmTransaction {
 }
 
 #[cfg(feature = "evm")]
-fn serialize_address(
-    bb: ByteBuilder<EvmTransaction>,
-    caller: &Address,
-) -> ByteBuilder<EvmTransaction> {
+/// Serializes H160 types as fixed bytes.
+pub fn serialize_address<T>(bb: ByteBuilder<T>, caller: &Address) -> ByteBuilder<T> {
     bb.bytes(caller.as_fixed_bytes())
 }
 
 #[cfg(feature = "evm")]
-fn serialize_u256(
-    bb: ByteBuilder<EvmTransaction>,
-    value: &primitive_types::U256,
-) -> ByteBuilder<EvmTransaction> {
+/// Serializes U256 types as fixed bytes.
+pub fn serialize_u256<T>(bb: ByteBuilder<T>, value: &primitive_types::U256) -> ByteBuilder<T> {
     let mut value_bytes = [0u8; 32];
     value.to_big_endian(&mut value_bytes);
     bb.bytes(&value_bytes)
 }
 
 #[cfg(feature = "evm")]
-fn serialize_h256(
-    bb: ByteBuilder<EvmTransaction>,
-    value: &primitive_types::H256,
-) -> ByteBuilder<EvmTransaction> {
+/// Serializes H256 types as fixed bytes.
+pub fn serialize_h256<T>(bb: ByteBuilder<T>, value: &primitive_types::H256) -> ByteBuilder<T> {
     bb.bytes(value.as_fixed_bytes())
 }
 

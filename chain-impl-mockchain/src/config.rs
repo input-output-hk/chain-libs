@@ -1,4 +1,6 @@
 use crate::date::Epoch;
+#[cfg(feature = "evm")]
+use crate::evm::{Config, Environment};
 use crate::key::BftLeaderId;
 use crate::milli::Milli;
 use crate::rewards::{Ratio, TaxType};
@@ -13,8 +15,6 @@ use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use chain_core::packer::Codec;
 use chain_core::property;
 use chain_crypto::PublicKey;
-#[cfg(feature = "evm")]
-use chain_evm::machine::Config;
 use std::{
     fmt::{self, Display, Formatter},
     io::{self, Cursor, Write},
@@ -90,7 +90,7 @@ pub enum ConfigParam {
     #[cfg(feature = "evm")]
     EvmConfiguration(EvmConfig),
     #[cfg(feature = "evm")]
-    EvmEnvironment(EvmEnvironment),
+    EvmEnvironment(Environment),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -133,18 +133,6 @@ impl From<EvmConfig> for Config {
 impl Default for EvmConfig {
     fn default() -> Self {
         EvmConfig::Berlin
-    }
-}
-
-#[cfg(feature = "evm")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// EVM Environment parameters needed for execution.
-pub struct EvmEnvironment {}
-
-#[cfg(feature = "evm")]
-impl Default for EvmEnvironment {
-    fn default() -> Self {
-        Self {}
     }
 }
 
@@ -841,11 +829,23 @@ impl ConfigParamVariant for EvmConfig {
 }
 
 #[cfg(feature = "evm")]
-impl ConfigParamVariant for EvmEnvironment {
+impl ConfigParamVariant for Environment {
     fn to_payload(&self) -> Vec<u8> {
-        todo!("fields need to be defined");
-        //let bb: ByteBuilder<EvmEnvironment> = ByteBuilder::new().u8(*self as u8);
-        //bb.finalize_as_vec()
+        use crate::evm::{serialize_address, serialize_h256, serialize_u256};
+        let bb: ByteBuilder<Environment> = ByteBuilder::new();
+        let bb = serialize_u256(bb, &self.gas_price);
+        let bb = serialize_address(bb, &self.origin);
+        let bb = serialize_u256(bb, &self.chain_id);
+        let bb = bb
+            .u64(self.block_hashes.len() as u64)
+            .fold(self.block_hashes.iter(), serialize_h256);
+        let bb = serialize_u256(bb, &self.block_number);
+        let bb = serialize_address(bb, &self.block_coinbase);
+        let bb = serialize_u256(bb, &self.block_timestamp);
+        let bb = serialize_u256(bb, &self.block_difficulty);
+        let bb = serialize_u256(bb, &self.block_gas_limit);
+        let bb = serialize_u256(bb, &self.block_base_fee_per_gas);
+        bb.finalize_as_vec()
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
