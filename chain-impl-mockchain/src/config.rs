@@ -194,6 +194,7 @@ pub enum Tag {
     #[cfg(feature = "evm")]
     #[strum(to_string = "evm-config-params")]
     EvmConfiguration = 30,
+    #[cfg(feature = "evm")]
     #[strum(to_string = "evm-environment-params")]
     EvmEnvironment = 31,
 }
