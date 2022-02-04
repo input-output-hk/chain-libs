@@ -314,6 +314,7 @@ fn run_test(path: &str) {
 }
 
 #[test]
+#[ignore]
 fn vm_add_test() {
     run_test("../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmArithmeticTest/add.json");
 }
