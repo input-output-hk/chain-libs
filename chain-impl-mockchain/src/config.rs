@@ -849,9 +849,34 @@ impl ConfigParamVariant for Environment {
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
-        //let mut _rb = ReadBuf::from(payload);
-
-        todo!("fields need to be defined");
+        use crate::evm::{read_address, read_h256, read_u256};
+        let mut buf = ReadBuf::from(payload);
+        let gas_price = read_u256(&mut buf)?;
+        let origin = read_address(&mut buf)?;
+        let chain_id = read_u256(&mut buf)?;
+        let block_hashes_len = buf.get_u64()?;
+        let block_hashes = (0..block_hashes_len)
+            .map(|_| read_h256(&mut buf).unwrap())
+            .collect();
+        let block_number = read_u256(&mut buf)?;
+        let block_coinbase = read_address(&mut buf)?;
+        let block_timestamp = read_u256(&mut buf)?;
+        let block_difficulty = read_u256(&mut buf)?;
+        let block_gas_limit = read_u256(&mut buf)?;
+        let block_base_fee_per_gas = read_u256(&mut buf)?;
+        buf.expect_end()?;
+        Ok(Self {
+            gas_price,
+            origin,
+            chain_id,
+            block_hashes,
+            block_number,
+            block_coinbase,
+            block_timestamp,
+            block_difficulty,
+            block_gas_limit,
+            block_base_fee_per_gas,
+        })
     }
 }
 

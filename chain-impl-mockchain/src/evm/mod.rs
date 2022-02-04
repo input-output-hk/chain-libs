@@ -130,6 +130,16 @@ pub fn serialize_h256<T>(bb: ByteBuilder<T>, value: &primitive_types::H256) -> B
 }
 
 #[cfg(feature = "evm")]
+/// Serializes H256 types as fixed bytes.
+pub fn serialize_h256_list<T>(
+    bb: ByteBuilder<T>,
+    value: &[primitive_types::H256],
+) -> ByteBuilder<T> {
+    bb.u64(value.len() as u64)
+        .fold(value.iter(), serialize_h256)
+}
+
+#[cfg(feature = "evm")]
 fn serialize_bytecode(bb: ByteBuilder<EvmTransaction>, code: &[u8]) -> ByteBuilder<EvmTransaction> {
     bb.u64(code.len() as u64).bytes(code)
 }
@@ -156,21 +166,21 @@ fn serialize_access_list(
 }
 
 #[cfg(feature = "evm")]
-fn read_address(
+pub fn read_address(
     buf: &mut chain_core::mempack::ReadBuf,
 ) -> Result<Address, chain_core::mempack::ReadError> {
     Ok(Address::from_slice(buf.get_slice(20)?))
 }
 
 #[cfg(feature = "evm")]
-fn read_h256(
+pub fn read_h256(
     buf: &mut chain_core::mempack::ReadBuf,
 ) -> Result<primitive_types::H256, chain_core::mempack::ReadError> {
     Ok(primitive_types::H256::from_slice(buf.get_slice(32)?))
 }
 
 #[cfg(feature = "evm")]
-fn read_u256(
+pub fn read_u256(
     buf: &mut chain_core::mempack::ReadBuf,
 ) -> Result<primitive_types::U256, chain_core::mempack::ReadError> {
     Ok(primitive_types::U256::from(buf.get_slice(32)?))
@@ -184,13 +194,6 @@ fn read_bytecode(
         n if n > 0 => Ok(ByteCode::from(buf.get_slice(n as usize)?)),
         _ => Ok(ByteCode::default()),
     }
-}
-
-#[cfg(feature = "evm")]
-fn read_gas_limit(
-    buf: &mut chain_core::mempack::ReadBuf,
-) -> Result<u64, chain_core::mempack::ReadError> {
-    buf.get_u64()
 }
 
 #[cfg(feature = "evm")]
@@ -228,7 +231,7 @@ impl Readable for EvmTransaction {
                 let caller = read_address(buf)?;
                 let value = read_u256(buf)?;
                 let init_code = read_bytecode(buf)?;
-                let gas_limit = read_gas_limit(buf)?;
+                let gas_limit = buf.get_u64()?;
                 let access_list = read_access_list(buf)?;
 
                 Ok(EvmTransaction::Create {
@@ -246,7 +249,7 @@ impl Readable for EvmTransaction {
                 let value = read_u256(buf)?;
                 let init_code = read_bytecode(buf)?;
                 let salt = read_h256(buf)?;
-                let gas_limit = read_gas_limit(buf)?;
+                let gas_limit = buf.get_u64()?;
                 let access_list = read_access_list(buf)?;
                 Ok(EvmTransaction::Create2 {
                     caller,
@@ -264,7 +267,8 @@ impl Readable for EvmTransaction {
                 let address = read_address(buf)?;
                 let value = read_u256(buf)?;
                 let data = read_bytecode(buf)?;
-                let gas_limit = read_gas_limit(buf)?;
+                let gas_limit = buf.get_u64()?;
+
                 let access_list = read_access_list(buf)?;
 
                 Ok(EvmTransaction::Call {
