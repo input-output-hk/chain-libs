@@ -113,12 +113,14 @@ fn precompiles(fork: HardFork) -> Precompiles {
 impl<'runtime> VirtualMachine<'runtime> {
     fn execute_transaction<F, T>(
         &mut self,
+        caller: Address,
         gas_limit: u64,
         delete_empty: bool,
         f: F,
     ) -> Result<(&AccountTrie, &LogsState, T), Error>
     where
         F: Fn(
+            Address,
             &mut StackExecutor<
                 'runtime,
                 '_,
@@ -136,12 +138,14 @@ impl<'runtime> VirtualMachine<'runtime> {
                 self.config,
                 &self.precompiles,
             );
-            (f(&mut executor, gas_limit), executor)
+            (f(caller, &mut executor, gas_limit), executor)
         };
 
         let ((exit_reason, val), executor) = executable(gas_limit);
         match exit_reason {
             ExitReason::Succeed(_) => {
+                let used_gas = U256::from(executor.used_gas());
+                let gas_fees = used_gas * self.gas_price();
                 // apply and return state
                 // apply changes to the state, this consumes the executor
                 let state = executor.into_state();
@@ -150,6 +154,16 @@ impl<'runtime> VirtualMachine<'runtime> {
                 let (values, logs) = state.deconstruct();
 
                 self.apply(values, logs, delete_empty);
+
+                // pay gas fees
+                self.state = self.state.clone().modify_account(caller, |mut account| {
+                    account.balance = account
+                        .balance
+                        .checked_sub(gas_fees)
+                        .expect("Acount does not have enough funds to pay gas fees");
+                    Some(account)
+                });
+
                 // exit_reason
                 Ok((&self.state, &self.logs, val))
             }
@@ -202,8 +216,11 @@ impl<'runtime> VirtualMachine<'runtime> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState), Error> {
-        let (account_trie, logs_state, _) =
-            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
+        let (account_trie, logs_state, _) = self.execute_transaction(
+            caller,
+            gas_limit,
+            delete_empty,
+            |caller, executor, gas_limit| {
                 (
                     executor.transact_create(
                         caller,
@@ -214,7 +231,8 @@ impl<'runtime> VirtualMachine<'runtime> {
                     ),
                     (),
                 )
-            })?;
+            },
+        )?;
         Ok((account_trie, logs_state))
     }
 
@@ -230,8 +248,11 @@ impl<'runtime> VirtualMachine<'runtime> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState), Error> {
-        let (account_trie, logs_state, _) =
-            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
+        let (account_trie, logs_state, _) = self.execute_transaction(
+            caller,
+            gas_limit,
+            delete_empty,
+            |caller, executor, gas_limit| {
                 (
                     executor.transact_create2(
                         caller,
@@ -243,7 +264,8 @@ impl<'runtime> VirtualMachine<'runtime> {
                     ),
                     (),
                 )
-            })?;
+            },
+        )?;
         Ok((account_trie, logs_state))
     }
 
@@ -259,8 +281,11 @@ impl<'runtime> VirtualMachine<'runtime> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(&AccountTrie, &LogsState, ByteCode), Error> {
-        let (account_trie, logs_state, byte_output) =
-            self.execute_transaction(gas_limit, delete_empty, |executor, gas_limit| {
+        let (account_trie, logs_state, byte_output) = self.execute_transaction(
+            caller,
+            gas_limit,
+            delete_empty,
+            |caller, executor, gas_limit| {
                 executor.transact_call(
                     caller,
                     address,
@@ -269,7 +294,8 @@ impl<'runtime> VirtualMachine<'runtime> {
                     gas_limit,
                     access_list.clone(),
                 )
-            })?;
+            },
+        )?;
         Ok((account_trie, logs_state, byte_output))
     }
 }
