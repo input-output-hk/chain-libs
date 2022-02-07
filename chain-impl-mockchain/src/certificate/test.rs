@@ -352,6 +352,6 @@ fn pool_reg_serialization_bijection(b: PoolRegistration) -> TestResult {
     let result = PoolRegistration::read(&mut buf);
     let left = Ok(b);
     assert_eq!(left, result);
-    assert_eq!(buf.get_slice_end(), &[] as &[u8]);
+    assert!(buf.get_slice_end().is_empty());
     TestResult::from_bool(left == result)
 }
