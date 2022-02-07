@@ -512,9 +512,6 @@ impl Ledger {
                 Fragment::VoteTally(_) => {
                     return Err(Error::Block0(Block0Error::HasVoteTally));
                 }
-                Fragment::EncryptedVoteTally(_) => {
-                    return Err(Error::Block0(Block0Error::HasVoteTally));
-                }
                 Fragment::MintToken(tx) => {
                     let tx = tx.as_slice();
                     check::valid_block0_cert_transaction(&tx)?;
@@ -1047,18 +1044,6 @@ impl Ledger {
                     tx.payload_auth().into_payload_auth(),
                 )?;
             }
-            Fragment::EncryptedVoteTally(tx) => {
-                let tx = tx.as_slice();
-
-                let (new_ledger_, _fee) =
-                    new_ledger.apply_transaction(&fragment_id, &tx, block_date, ledger_params)?;
-
-                new_ledger = new_ledger_.apply_encrypted_vote_tally(
-                    &tx.payload().into_payload(),
-                    &tx.transaction_binding_auth_data(),
-                    tx.payload_auth().into_payload_auth(),
-                )?;
-            }
             Fragment::MintToken(tx) => {
                 let tx = tx.as_slice();
 
@@ -1240,28 +1225,6 @@ impl Ledger {
                 }
             }
         }
-
-        Ok(self)
-    }
-
-    pub fn apply_encrypted_vote_tally<'a>(
-        mut self,
-        tally: &certificate::EncryptedVoteTally,
-        bad: &TransactionBindingAuthData<'a>,
-        sig: certificate::EncryptedVoteTallyProof,
-    ) -> Result<Self, Error> {
-        if sig.verify(bad) == Verification::Failed {
-            return Err(Error::VoteTallyProofFailed);
-        }
-
-        let token_distribution = self.token_distribution();
-
-        self.votes = self.votes.apply_encrypted_vote_tally(
-            self.date(),
-            token_distribution,
-            tally,
-            sig.id,
-        )?;
 
         Ok(self)
     }

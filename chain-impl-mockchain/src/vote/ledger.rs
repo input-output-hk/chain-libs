@@ -1,4 +1,3 @@
-use crate::certificate::EncryptedVoteTally;
 use crate::ledger::token_distribution::TokenDistribution;
 use crate::{
     account,
@@ -162,35 +161,6 @@ impl VotePlanLedger {
                 let shares = tally.tally_decrypted().unwrap();
                 v.finalize_private_tally(shares, governance, f).map(Some)
             }
-        });
-
-        match r {
-            Err(reason) => Err(VotePlanLedgerError::VoteError { reason, id }),
-            Ok(plans) => Ok(Self { plans }),
-        }
-    }
-
-    /// apply the committee result for the associated vote plan
-    ///
-    /// # Errors
-    ///
-    /// This function may fail:
-    ///
-    /// * if the Committee time has elapsed
-    /// * if the tally is not a private tally
-    ///
-    pub fn apply_encrypted_vote_tally(
-        &self,
-        block_date: BlockDate,
-        token_distribution: TokenDistribution<()>,
-        encrypted_tally: &EncryptedVoteTally,
-        committee_id: CommitteeId,
-    ) -> Result<Self, VotePlanLedgerError> {
-        let id = encrypted_tally.id().clone();
-
-        let r = self.plans.update(&id, move |v| {
-            v.start_private_tally(token_distribution, block_date, committee_id)
-                .map(Some)
         });
 
         match r {
