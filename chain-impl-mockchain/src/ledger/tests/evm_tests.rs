@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
 use std::io::BufReader;
 use std::mem::size_of;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use chain_evm::primitive_types::{H160, H256, U256};
@@ -287,15 +287,20 @@ struct TestCase {
     post_state: BTreeMap<String, TestAccountState>,
 }
 
-pub fn run_evm_test(path: &str) {
-    let file = File::open(path).expect("Open file failed");
+pub fn run_evm_test(path: PathBuf) {
+    println!(
+        "\n----------- Running tests: {} -----------",
+        path.file_name().unwrap().to_str().unwrap()
+    );
+
+    let file = std::fs::File::open(path).expect("Open file failed");
     let reader = BufReader::new(file);
 
     let test: BTreeMap<String, TestCase> =
         serde_json::from_reader(reader).expect("Parse test cases failed");
 
     for (test_name, test_case) in test {
-        println!("\nRunning test: {} ...", test_name);
+        println!("\nRunning test case: {} ...", test_name);
         let evm_state_builder = TestEvmState::new()
             .set_chain_id(U256::from_str("0xff").unwrap())
             .try_apply_network(test_case.network)
@@ -311,4 +316,37 @@ pub fn run_evm_test(path: &str) {
             .validate_accounts(test_case.post_state.into_iter())
             .unwrap();
     }
+}
+
+#[test]
+fn run_evm_tests() {
+    let vm_tests_dir = std::fs::read_dir("../evm-tests/BlockchainTests/GeneralStateTests/VMTests")
+        .expect("Can not find vm tests directory");
+
+    for vm_test_dir in vm_tests_dir {
+        let vm_test_dir = vm_test_dir.expect("Can not open vm tests dir entry");
+        println!(
+            "Running {} tests ...",
+            vm_test_dir.file_name().to_str().unwrap()
+        );
+
+        if vm_test_dir.file_name().to_str().unwrap() == "vmPerformance" {
+            println!("Skipping");
+            continue;
+        }
+
+        for vm_test in std::fs::read_dir(vm_test_dir.path()).unwrap() {
+            let vm_test = vm_test.expect("Can not open vm test entry");
+            run_evm_test(vm_test.path());
+        }
+    }
+}
+
+// This was left for the convinience to run and debug a separate test case
+#[test]
+#[ignore]
+fn evm_test() {
+    run_evm_test(PathBuf::from(
+        "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmArithmeticTest/add.json",
+    ));
 }
