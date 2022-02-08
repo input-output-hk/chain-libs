@@ -2,7 +2,8 @@ use crate::{account, ledger::Error, tokens::identifier::TokenIdentifier, value::
 use imhamt::Hamt;
 use std::collections::hash_map::DefaultHasher;
 
-pub struct TokenDistribution<T> {
+#[derive(Clone)]
+pub struct TokenDistribution<T: Clone> {
     token_totals: TokenTotals,
     account_ledger: account::Ledger,
     token: T,
