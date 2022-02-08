@@ -1248,58 +1248,6 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn vote_plan_manager_incorrect_tally_private() {
-        let committee = Wallet::from_value(Value(100));
-        let proposals = VoteTestGen::proposals_with_action(
-            VoteAction::Treasury {
-                action: TreasuryGovernanceAction::TransferToRewards { value: Value(30) },
-            },
-            3,
-        );
-
-        let vote_plan = VotePlan::new(
-            BlockDate::from_epoch_slot_id(1, 0),
-            BlockDate::from_epoch_slot_id(2, 0),
-            BlockDate::from_epoch_slot_id(3, 0),
-            proposals,
-            PayloadType::Public,
-            Vec::new(),
-            TokenIdentifier {
-                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
-                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
-            },
-        );
-
-        let mut committee_ids = HashSet::new();
-        committee_ids.insert(committee.public_key().into());
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
-
-        let (token_distribution, _) = ledger_with_tokens(committee.public_key());
-
-        let tally_proof = get_tally_proof(vote_plan.vote_start(), &committee, vote_plan.to_id());
-
-        let block_date = BlockDate {
-            epoch: 2,
-            slot_id: 10,
-        };
-
-        let committee_id = match tally_proof {
-            TallyProof::Public { id, .. } => id,
-            TallyProof::Private { id, .. } => id,
-        };
-
-        assert_eq!(
-            vote_plan_manager
-                .start_private_tally(token_distribution, block_date, committee_id)
-                .err()
-                .unwrap(),
-            crate::vote::VoteError::CannotTallyVotes {
-                source: crate::vote::TallyError::InvalidPrivacy
-            }
-        );
-    }
-
     fn get_tally_proof(valid_until: BlockDate, wallet: &Wallet, id: VotePlanId) -> TallyProof {
         let certificate = build_vote_tally_cert(id);
         let fragment = TestTxCertBuilder::new(TestGen::hash(), LinearFee::new(0, 0, 0))
