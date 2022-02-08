@@ -1029,8 +1029,14 @@ impl Ledger {
                     }
                 };
 
-                new_ledger =
-                    new_ledger_.apply_vote_cast(account_id, tx.payload().into_payload())?;
+                let token_distribution =
+                    TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
+
+                new_ledger = new_ledger_.apply_vote_cast(
+                    account_id,
+                    tx.payload().into_payload(),
+                    token_distribution,
+                )?;
             }
             Fragment::VoteTally(tx) => {
                 let tx = tx.as_slice();
@@ -1172,8 +1178,11 @@ impl Ledger {
         mut self,
         account_id: account::Identifier,
         vote: VoteCast,
+        token_distribution: TokenDistribution<()>,
     ) -> Result<Self, Error> {
-        self.votes = self.votes.apply_vote(self.date(), account_id, vote)?;
+        self.votes = self
+            .votes
+            .apply_vote(self.date(), account_id, vote, token_distribution)?;
         Ok(self)
     }
 
