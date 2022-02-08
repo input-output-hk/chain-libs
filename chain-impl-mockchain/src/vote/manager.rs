@@ -852,7 +852,9 @@ mod tests {
     use crate::certificate::TallyProof;
 
     use crate::fee::LinearFee;
+    use crate::fragment::Fragment;
     use crate::ledger::token_distribution::TokenTotals;
+    use crate::testing::builders::build_vote_tally_cert;
     use crate::testing::TestTxCertBuilder;
     use crate::testing::{TestGen, VoteTestGen};
     use crate::tokens::identifier::TokenIdentifier;
