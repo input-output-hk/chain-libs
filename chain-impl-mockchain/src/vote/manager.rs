@@ -122,6 +122,9 @@ pub enum VoteError {
 
     #[error("Error during private tallying {0}")]
     PrivateTallyError(String),
+
+    #[error("It's not possible to cast a vote if the tally is already decrypted")]
+    TallyAlreadyDecrypted,
 }
 
 impl ProposalManager {
@@ -218,7 +221,9 @@ impl ProposalManager {
                     },
                     _,
                 ) => {
-                    todo!("can this happen?")
+                    // I don't think this can happen, since this would be outside of the voting
+                    // date range, but just in case it's probably better not to panic.
+                    return Err(VoteError::TallyAlreadyDecrypted);
                 }
             }
         } else {
@@ -304,13 +309,15 @@ impl ProposalManager {
         token_distribution: &TokenDistribution<TokenIdentifier>,
         governance: &Governance,
         mut f: F,
-    ) -> Result<Self, VoteError>
+    ) -> Result<Self, TallyError>
     where
         F: FnMut(&VoteAction),
     {
         let results = match &self.tally {
             Tally::Public { result } => result,
-            Tally::Private { .. } => todo!(),
+            Tally::Private { .. } => {
+                return Err(TallyError::InvalidPrivacy);
+            }
         };
 
         if self.check(token_distribution.get_total().into(), governance, &results) {
@@ -542,7 +549,7 @@ impl ProposalManagers {
         token_distribution: &TokenDistribution<TokenIdentifier>,
         governance: &Governance,
         mut f: F,
-    ) -> Result<Self, VoteError>
+    ) -> Result<Self, TallyError>
     where
         F: FnMut(&VoteAction),
     {
@@ -560,10 +567,7 @@ impl ProposalManagers {
                     managers: proposals,
                 })
             }
-            _ => Err(VoteError::InvalidPayloadType {
-                expected: PayloadType::Public,
-                received: PayloadType::Private,
-            }),
+            _ => Err(TallyError::InvalidPrivacy),
         }
     }
 
