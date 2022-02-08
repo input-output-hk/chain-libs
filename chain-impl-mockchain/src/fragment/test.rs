@@ -48,14 +48,8 @@ impl Arbitrary for ConfigParams {
 }
 
 quickcheck! {
-    // TODO: enable after Fragment serde issue will solved
-    // fn fragment_serialization_bijection(b: Fragment) -> TestResult {
-    //     serialization_bijection(b)
-    // }
-
-    fn fragment_raw_bijection(b: Fragment) -> TestResult {
-        let b_got = Fragment::from_raw(&b.to_raw()).unwrap();
-        TestResult::from_bool(b == b_got)
+    fn fragment_serialization_bijection(b: Fragment) -> TestResult {
+        serialization_bijection(b)
     }
 
     fn initial_ents_serialization_bijection(config_params: ConfigParams) -> TestResult {

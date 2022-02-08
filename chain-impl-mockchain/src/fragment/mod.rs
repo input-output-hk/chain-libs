@@ -1,7 +1,7 @@
 pub mod config;
 mod content;
-mod raw;
 
+use crate::key::Hash;
 use crate::legacy;
 use chain_core::{
     packer::Codec,
@@ -9,7 +9,6 @@ use chain_core::{
 };
 
 pub use config::ConfigParams;
-pub use raw::{FragmentId, FragmentRaw};
 
 pub use content::{BlockContentHash, BlockContentSize, Contents, ContentsBuilder};
 
@@ -18,6 +17,8 @@ use crate::{
     evm::EvmTransaction,
     transaction::{NoExtra, Transaction},
 };
+
+pub type FragmentId = Hash;
 
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test;
@@ -118,51 +119,24 @@ impl Fragment {
         }
     }
 
-    /// Get the serialized representation of this message
-    pub fn to_raw(&self) -> FragmentRaw {
-        let v = Vec::new();
-        let mut codec = Codec::new(v);
-        codec.put_u8(0).unwrap();
-        codec.put_u8(self.get_tag() as u8).unwrap();
-        match self {
-            Fragment::Initial(i) => i.serialize(&mut codec).unwrap(),
-            Fragment::OldUtxoDeclaration(s) => s.serialize(&mut codec).unwrap(),
-            Fragment::Transaction(signed) => signed.serialize(&mut codec).unwrap(),
-            Fragment::OwnerStakeDelegation(od) => od.serialize(&mut codec).unwrap(),
-            Fragment::StakeDelegation(od) => od.serialize(&mut codec).unwrap(),
-            Fragment::PoolRegistration(atx) => atx.serialize(&mut codec).unwrap(),
-            Fragment::PoolRetirement(pm) => pm.serialize(&mut codec).unwrap(),
-            Fragment::PoolUpdate(pm) => pm.serialize(&mut codec).unwrap(),
-            Fragment::UpdateProposal(proposal) => proposal.serialize(&mut codec).unwrap(),
-            Fragment::UpdateVote(vote) => vote.serialize(&mut codec).unwrap(),
-            Fragment::VotePlan(vote_plan) => vote_plan.serialize(&mut codec).unwrap(),
-            Fragment::VoteCast(vote_plan) => vote_plan.serialize(&mut codec).unwrap(),
-            Fragment::VoteTally(vote_tally) => vote_tally.serialize(&mut codec).unwrap(),
-            Fragment::EncryptedVoteTally(vote_tally) => vote_tally.serialize(&mut codec).unwrap(),
-            Fragment::MintToken(mint_token) => mint_token.serialize(&mut codec).unwrap(),
-            Fragment::Evm(deployment) => deployment.serialize(&mut codec).unwrap(),
-        }
-        FragmentRaw(codec.into_inner())
-    }
-
-    pub fn from_raw(raw: &FragmentRaw) -> Result<Self, ReadError> {
-        Fragment::deserialize_from_slice(&mut Codec::new(raw.as_ref()))
-    }
-
     /// The ID of a message is a hash of its serialization *without* the size.
     pub fn hash(&self) -> FragmentId {
-        self.to_raw().id()
+        FragmentId::hash_bytes(self.serialize_as_vec().unwrap().as_slice())
     }
 
     /// How many bytes it will take up once serialized in a block
     pub fn serialized_size(&self) -> usize {
-        self.to_raw().size_bytes_plus_size()
+        self.serialize_as_vec().unwrap().len()
     }
 }
 
-impl DeserializeFromSlice for Fragment {
-    // TODO: fix deserialization, it needs to converge to the serialization, currently is not, look into the fragment_serialization_bijection() test
-    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+impl Deserialize for Fragment {
+    fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
+        let size = codec.get_be_u32()? as usize;
+        let bytes = codec.get_bytes(size)?;
+
+        let mut codec = Codec::new(bytes.as_slice());
+
         let padding_tag = codec.get_u8()?;
         if padding_tag != 0 {
             return Err(ReadError::StructureInvalid(format!(
@@ -174,48 +148,52 @@ impl DeserializeFromSlice for Fragment {
         let tag = codec.get_u8()?;
         match FragmentTag::from_u8(tag) {
             Some(FragmentTag::Initial) => {
-                ConfigParams::deserialize_from_slice(codec).map(Fragment::Initial)
+                ConfigParams::deserialize_from_slice(&mut codec).map(Fragment::Initial)
             }
             Some(FragmentTag::OldUtxoDeclaration) => {
-                legacy::UtxoDeclaration::deserialize_from_slice(codec)
+                legacy::UtxoDeclaration::deserialize_from_slice(&mut codec)
                     .map(Fragment::OldUtxoDeclaration)
             }
             Some(FragmentTag::Transaction) => {
-                Transaction::deserialize(codec).map(Fragment::Transaction)
+                Transaction::deserialize(&mut codec).map(Fragment::Transaction)
             }
             Some(FragmentTag::OwnerStakeDelegation) => {
-                Transaction::deserialize(codec).map(Fragment::OwnerStakeDelegation)
+                Transaction::deserialize(&mut codec).map(Fragment::OwnerStakeDelegation)
             }
             Some(FragmentTag::StakeDelegation) => {
-                Transaction::deserialize(codec).map(Fragment::StakeDelegation)
+                Transaction::deserialize(&mut codec).map(Fragment::StakeDelegation)
             }
             Some(FragmentTag::PoolRegistration) => {
-                Transaction::deserialize(codec).map(Fragment::PoolRegistration)
+                Transaction::deserialize(&mut codec).map(Fragment::PoolRegistration)
             }
             Some(FragmentTag::PoolRetirement) => {
-                Transaction::deserialize(codec).map(Fragment::PoolRetirement)
+                Transaction::deserialize(&mut codec).map(Fragment::PoolRetirement)
             }
             Some(FragmentTag::PoolUpdate) => {
-                Transaction::deserialize(codec).map(Fragment::PoolUpdate)
+                Transaction::deserialize(&mut codec).map(Fragment::PoolUpdate)
             }
             Some(FragmentTag::UpdateProposal) => {
-                Transaction::deserialize(codec).map(Fragment::UpdateProposal)
+                Transaction::deserialize(&mut codec).map(Fragment::UpdateProposal)
             }
             Some(FragmentTag::UpdateVote) => {
-                Transaction::deserialize(codec).map(Fragment::UpdateVote)
+                Transaction::deserialize(&mut codec).map(Fragment::UpdateVote)
             }
-            Some(FragmentTag::VotePlan) => Transaction::deserialize(codec).map(Fragment::VotePlan),
-            Some(FragmentTag::VoteCast) => Transaction::deserialize(codec).map(Fragment::VoteCast),
+            Some(FragmentTag::VotePlan) => {
+                Transaction::deserialize(&mut codec).map(Fragment::VotePlan)
+            }
+            Some(FragmentTag::VoteCast) => {
+                Transaction::deserialize(&mut codec).map(Fragment::VoteCast)
+            }
             Some(FragmentTag::VoteTally) => {
-                Transaction::deserialize(codec).map(Fragment::VoteTally)
+                Transaction::deserialize(&mut codec).map(Fragment::VoteTally)
             }
             Some(FragmentTag::EncryptedVoteTally) => {
-                Transaction::deserialize(codec).map(Fragment::EncryptedVoteTally)
+                Transaction::deserialize(&mut codec).map(Fragment::EncryptedVoteTally)
             }
             Some(FragmentTag::MintToken) => {
-                Transaction::deserialize(codec).map(Fragment::MintToken)
+                Transaction::deserialize(&mut codec).map(Fragment::MintToken)
             }
-            Some(FragmentTag::Evm) => Transaction::deserialize(codec).map(Fragment::Evm),
+            Some(FragmentTag::Evm) => Transaction::deserialize(&mut codec).map(Fragment::Evm),
             None => Err(ReadError::UnknownTag(tag as u32)),
         }
     }
@@ -223,7 +201,30 @@ impl DeserializeFromSlice for Fragment {
 
 impl Serialize for Fragment {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
-        self.to_raw().serialize(codec)
+        let mut tmp = Codec::new(Vec::new());
+        tmp.put_u8(0).unwrap();
+        tmp.put_u8(self.get_tag() as u8).unwrap();
+        match self {
+            Fragment::Initial(i) => i.serialize(&mut tmp)?,
+            Fragment::OldUtxoDeclaration(s) => s.serialize(&mut tmp)?,
+            Fragment::Transaction(signed) => signed.serialize(&mut tmp)?,
+            Fragment::OwnerStakeDelegation(od) => od.serialize(&mut tmp)?,
+            Fragment::StakeDelegation(od) => od.serialize(&mut tmp)?,
+            Fragment::PoolRegistration(atx) => atx.serialize(&mut tmp)?,
+            Fragment::PoolRetirement(pm) => pm.serialize(&mut tmp)?,
+            Fragment::PoolUpdate(pm) => pm.serialize(&mut tmp)?,
+            Fragment::UpdateProposal(proposal) => proposal.serialize(&mut tmp)?,
+            Fragment::UpdateVote(vote) => vote.serialize(&mut tmp)?,
+            Fragment::VotePlan(vote_plan) => vote_plan.serialize(&mut tmp)?,
+            Fragment::VoteCast(vote_plan) => vote_plan.serialize(&mut tmp)?,
+            Fragment::VoteTally(vote_tally) => vote_tally.serialize(&mut tmp)?,
+            Fragment::EncryptedVoteTally(vote_tally) => vote_tally.serialize(&mut tmp)?,
+            Fragment::MintToken(mint_token) => mint_token.serialize(&mut tmp)?,
+            Fragment::Evm(deployment) => deployment.serialize(&mut tmp)?,
+        };
+        let bytes = tmp.into_inner();
+        codec.put_be_u32(bytes.len() as u32)?;
+        codec.put_bytes(bytes.as_slice())
     }
 }
 

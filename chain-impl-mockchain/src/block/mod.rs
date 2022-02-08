@@ -1,5 +1,5 @@
 //! Representation of the block in the mockchain.
-use crate::fragment::{Fragment, FragmentRaw};
+use crate::fragment::Fragment;
 use chain_core::{
     packer::Codec,
     property::{self, Deserialize, ReadError, Serialize, WriteError},
@@ -104,8 +104,7 @@ impl Serialize for Block {
         header_raw.serialize(codec)?;
 
         for message in self.contents.iter() {
-            let message_raw = message.to_raw();
-            message_raw.serialize(codec)?;
+            message.serialize(codec)?;
         }
         Ok(())
     }
@@ -119,8 +118,8 @@ impl Deserialize for Block {
         let mut contents = ContentsBuilder::new();
 
         while remaining_content_size > 0 {
-            let message_raw = FragmentRaw::deserialize(codec)?;
-            let message_size = message_raw.size_bytes_plus_size();
+            let message = Fragment::deserialize(codec)?;
+            let message_size = message.serialized_size();
 
             if message_size > remaining_content_size {
                 return Err(ReadError::StructureInvalid(format!(
@@ -129,8 +128,6 @@ impl Deserialize for Block {
                 )));
             }
 
-            let message = Fragment::from_raw(&message_raw)
-                .map_err(|e| ReadError::StructureInvalid(e.to_string()))?;
             contents.push(message);
 
             remaining_content_size -= message_size;
