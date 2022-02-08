@@ -79,9 +79,6 @@ pub fn private_vote_cast_action_transfer_to_rewards_all_shares() {
         slot_id: 1,
     });
 
-    controller
-        .encrypted_tally(&alice, &vote_plan, &mut ledger)
-        .unwrap();
     alice.confirm_transaction();
 
     let vote_plans = ledger.ledger.active_vote_plans();
