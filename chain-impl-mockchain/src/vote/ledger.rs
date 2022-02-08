@@ -68,12 +68,14 @@ impl VotePlanLedger {
         block_date: BlockDate,
         identifier: account::Identifier,
         vote: VoteCast,
+        token_distribution: TokenDistribution<()>,
     ) -> Result<Self, VotePlanLedgerError> {
         let id = vote.vote_plan().clone();
 
-        let r = self
-            .plans
-            .update(&id, move |v| v.vote(block_date, identifier, vote).map(Some));
+        let r = self.plans.update(&id, move |v| {
+            v.vote(block_date, identifier, vote, token_distribution)
+                .map(Some)
+        });
 
         match r {
             Err(reason) => Err(VotePlanLedgerError::VoteError { reason, id }),
