@@ -851,7 +851,9 @@ mod tests {
     use crate::block::BlockDate;
     use crate::certificate::TallyProof;
 
+    use crate::fee::LinearFee;
     use crate::ledger::token_distribution::TokenTotals;
+    use crate::testing::TestTxCertBuilder;
     use crate::testing::{TestGen, VoteTestGen};
     use crate::tokens::identifier::TokenIdentifier;
     use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
