@@ -1,7 +1,7 @@
 use crate::evm::EvmTransaction;
 use crate::ledger::Error;
 use chain_evm::{
-    machine::{Config, Environment, VirtualMachine},
+    machine::{BlockHash, BlockNumber, Config, Environment, VirtualMachine},
     state::{AccountTrie, Balance, LogsState},
 };
 
@@ -62,7 +62,6 @@ impl Ledger {
                 // update ledger state
                 self.accounts = new_state.clone();
                 self.logs = new_logs.clone();
-                Ok(())
             }
             EvmTransaction::Create2 {
                 caller,
@@ -84,7 +83,6 @@ impl Ledger {
                 // update ledger state
                 self.accounts = new_state.clone();
                 self.logs = new_logs.clone();
-                Ok(())
             }
             EvmTransaction::Call {
                 caller,
@@ -99,9 +97,20 @@ impl Ledger {
                 // update ledger state
                 self.accounts = new_state.clone();
                 self.logs = new_logs.clone();
-                Ok(())
             }
         }
+        // update the environment
+        let next_number = self.environment.block_number + BlockNumber::one();
+        // this is a simplified block hash calculation
+        let next_hash: BlockHash = <[u8; 32]>::from(next_number).into();
+        self.environment.block_hashes.insert(0, next_hash);
+        assert_eq!(
+            BlockNumber::from(self.environment.block_hashes.len()),
+            next_number
+        );
+        self.environment.block_number = next_number;
+        // TODO: update block timestamp
+        Ok(())
     }
 }
 
