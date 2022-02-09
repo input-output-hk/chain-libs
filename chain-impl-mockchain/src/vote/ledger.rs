@@ -140,10 +140,10 @@ impl VotePlanLedger {
     pub fn apply_committee_result<F>(
         &self,
         block_date: BlockDate,
-        token_distribution: TokenDistribution<()>,
         governance: &Governance,
         tally: &VoteTally,
         sig: TallyProof,
+        token_distribution: TokenDistribution<()>,
         f: F,
     ) -> Result<Self, VotePlanLedgerError>
     where
@@ -157,11 +157,11 @@ impl VotePlanLedger {
         };
         let r = self.plans.update(&id, move |v| match sig {
             TallyProof::Public { .. } => v
-                .public_tally(token_distribution, block_date, governance, committee_id, f)
+                .public_tally(block_date, governance, committee_id, token_distribution, f)
                 .map(Some),
             TallyProof::Private { .. } => {
                 let shares = tally.tally_decrypted().unwrap();
-                v.private_tally(shares, governance, f, token_distribution)
+                v.private_tally(shares, governance, token_distribution, f)
                     .map(Some)
             }
         });

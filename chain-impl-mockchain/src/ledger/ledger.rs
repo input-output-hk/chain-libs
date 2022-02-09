@@ -1029,14 +1029,8 @@ impl Ledger {
                     }
                 };
 
-                let token_distribution =
-                    TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
-
-                new_ledger = new_ledger_.apply_vote_cast(
-                    account_id,
-                    tx.payload().into_payload(),
-                    token_distribution,
-                )?;
+                new_ledger =
+                    new_ledger_.apply_vote_cast(account_id, tx.payload().into_payload())?;
             }
             Fragment::VoteTally(tx) => {
                 let tx = tx.as_slice();
@@ -1178,11 +1172,10 @@ impl Ledger {
         mut self,
         account_id: account::Identifier,
         vote: VoteCast,
-        token_distribution: TokenDistribution<()>,
     ) -> Result<Self, Error> {
-        self.votes = self
-            .votes
-            .apply_vote(self.date(), account_id, vote, token_distribution)?;
+        self.votes =
+            self.votes
+                .apply_vote(self.date(), account_id, vote, self.token_distribution())?;
         Ok(self)
     }
 
@@ -1190,7 +1183,7 @@ impl Ledger {
         self.votes
             .plans
             .iter()
-            .map(|(_, plan)| plan.statuses())
+            .map(|(_, plan)| plan.statuses(self.token_distribution()))
             .collect()
     }
 
@@ -1206,14 +1199,12 @@ impl Ledger {
 
         let mut actions = Vec::new();
 
-        let token_distribution = self.token_distribution();
-
         self.votes = self.votes.apply_committee_result(
             self.date(),
-            token_distribution,
             &self.governance,
             tally,
             sig,
+            self.token_distribution(),
             |action: &VoteAction| actions.push(action.clone()),
         )?;
 

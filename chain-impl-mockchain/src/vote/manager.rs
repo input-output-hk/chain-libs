@@ -13,7 +13,7 @@ use crate::{
 };
 use crate::{
     certificate::DecryptedPrivateTallyProposal,
-    vote::{Choice, Payload, PayloadType, TallyError},
+    vote::{Choice, Payload, PayloadType},
 };
 use chain_vote::{committee, Ballot, Crs, ElectionPublicKey, EncryptedTally};
 use imhamt::Hamt;
@@ -23,7 +23,7 @@ use std::collections::{hash_map::DefaultHasher, HashSet};
 use std::num::NonZeroU64;
 use std::sync::Arc;
 
-use super::PrivateTallyState;
+use super::{PrivateTallyState, TallyError};
 
 /// Manage the vote plan and the associated votes in the ledger
 ///
@@ -65,8 +65,15 @@ enum ProposalManagers {
 struct ProposalManager {
     votes_by_voters: Hamt<DefaultHasher, account::Identifier, ()>,
     options: Options,
-    tally: Tally,
+    tally: IncrementalTally,
     action: VoteAction,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum IncrementalTally {
+    Public(TallyResult),
+    Private(EncryptedTally),
+    Decrypted(TallyResult),
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -142,7 +149,7 @@ impl ProposalManager {
         Self {
             votes_by_voters: Hamt::new(),
             options: proposal.options().clone(),
-            tally: Tally::new_public(results),
+            tally: IncrementalTally::Public(results),
             action: proposal.action().clone(),
         }
     }
@@ -161,7 +168,7 @@ impl ProposalManager {
         Self {
             votes_by_voters: Hamt::new(),
             options: proposal.options().clone(),
-            tally: Tally::new_private(encrypted_tally),
+            tally: IncrementalTally::Private(encrypted_tally),
             action: proposal.action().clone(),
         }
     }
@@ -188,41 +195,29 @@ impl ProposalManager {
 
         let tally = if let Some(stake) = token_distribution.get_account(&identifier) {
             match (self.tally.clone(), payload) {
-                (Tally::Public { result }, ValidatedPayload::Public(choice)) => {
+                (IncrementalTally::Public(result), ValidatedPayload::Public(choice)) => {
                     let mut result = result.clone();
                     result.add_vote(choice, stake)?;
-                    Tally::new_public(result)
+                    IncrementalTally::Public(result)
                 }
-                (
-                    Tally::Private {
-                        state: PrivateTallyState::Encrypted { encrypted_tally },
-                    },
-                    ValidatedPayload::Private(ballot),
-                ) => {
+                (IncrementalTally::Private(encrypted_tally), ValidatedPayload::Private(ballot)) => {
                     let mut encrypted_tally = encrypted_tally.clone();
                     encrypted_tally.add(&ballot, stake.0);
-                    Tally::new_private(encrypted_tally)
+                    IncrementalTally::Private(encrypted_tally)
                 }
-                (Tally::Public { .. }, ValidatedPayload::Private(_)) => {
+                (IncrementalTally::Public(_), ValidatedPayload::Private(_)) => {
                     return Err(VoteError::InvalidPayloadType {
                         received: PayloadType::Private,
                         expected: PayloadType::Public,
                     })
                 }
-                (Tally::Private { .. }, ValidatedPayload::Public(_)) => {
+                (IncrementalTally::Private(_), ValidatedPayload::Public(_)) => {
                     return Err(VoteError::InvalidPayloadType {
                         received: PayloadType::Public,
                         expected: PayloadType::Private,
                     })
                 }
-                (
-                    Tally::Private {
-                        state: PrivateTallyState::Decrypted { .. },
-                    },
-                    _,
-                ) => {
-                    // I don't think this can happen, since this would be outside of the voting
-                    // date range, but just in case it's probably better not to panic.
+                (IncrementalTally::Decrypted(_), _) => {
                     return Err(VoteError::TallyAlreadyDecrypted);
                 }
             }
@@ -314,8 +309,8 @@ impl ProposalManager {
         F: FnMut(&VoteAction),
     {
         let results = match &self.tally {
-            Tally::Public { result } => result,
-            Tally::Private { .. } => {
+            IncrementalTally::Public(result) => result,
+            IncrementalTally::Private(_) | IncrementalTally::Decrypted(..) => {
                 return Err(TallyError::InvalidPrivacy);
             }
         };
@@ -343,7 +338,13 @@ impl ProposalManager {
     where
         F: FnMut(&VoteAction),
     {
-        let encrypted_tally = self.tally.private_encrypted()?;
+        let encrypted_tally = match &self.tally {
+            IncrementalTally::Private(encrypted_tally) => encrypted_tally,
+            IncrementalTally::Public(_) => {
+                return Err(TallyError::InvalidPrivacy);
+            }
+            IncrementalTally::Decrypted(_) => return Err(TallyError::TallyAlreadyDecrypted),
+        };
 
         let verifiable_tally = chain_vote::Tally {
             votes: decrypted_proposal.tally_result.to_vec(),
@@ -374,12 +375,10 @@ impl ProposalManager {
             f(&self.action);
         }
 
-        let tally = self.tally.clone().private_set_result(result)?;
-
         Ok(Self {
             votes_by_voters: self.votes_by_voters.clone(),
             options: self.options.clone(),
-            tally,
+            tally: IncrementalTally::Decrypted(result),
             action: self.action.clone(),
         })
     }
@@ -670,7 +669,11 @@ impl VotePlanManager {
         &self.plan
     }
 
-    pub fn statuses(&self) -> VotePlanStatus {
+    pub fn statuses(&self, token_distribution: TokenDistribution<()>) -> VotePlanStatus {
+        let total_stake = token_distribution
+            .token(self.plan.voting_token())
+            .get_total();
+
         let proposals = self
             .plan()
             .proposals()
@@ -681,7 +684,18 @@ impl VotePlanManager {
                 index: index as u8,
                 proposal_id: proposal.external_id().clone(),
                 options: proposal.options().clone(),
-                tally: manager.tally.clone(),
+                tally: match manager.tally.clone() {
+                    IncrementalTally::Public(result) => Tally::Public { result },
+                    IncrementalTally::Private(encrypted_tally) => Tally::Private {
+                        state: PrivateTallyState::Encrypted {
+                            encrypted_tally,
+                            total_stake,
+                        },
+                    },
+                    IncrementalTally::Decrypted(result) => Tally::Private {
+                        state: PrivateTallyState::Decrypted { result },
+                    },
+                },
                 votes: manager.votes_by_voters.clone(),
             })
             .collect();
@@ -766,11 +780,11 @@ impl VotePlanManager {
 
         let vote = self.proposal_managers.validate_vote(&identifier, cast)?;
 
-        let token_distribution = token_distribution.token(self.plan.voting_token().clone());
-
-        let proposal_managers =
-            self.proposal_managers
-                .vote(identifier, vote, &token_distribution)?;
+        let proposal_managers = self.proposal_managers.vote(
+            identifier,
+            vote,
+            &token_distribution.token(self.plan.voting_token()),
+        )?;
 
         Ok(Self {
             proposal_managers,
@@ -780,13 +794,12 @@ impl VotePlanManager {
         })
     }
 
-    // TODO: who calls this? and when
     pub fn public_tally<F>(
         &self,
-        token_distribution: TokenDistribution<()>,
         block_date: BlockDate,
         governance: &Governance,
         sig: CommitteeId,
+        token_distribution: TokenDistribution<()>,
         f: F,
     ) -> Result<Self, VoteError>
     where
@@ -807,10 +820,11 @@ impl VotePlanManager {
             return Err(TallyError::InvalidPrivacy.into());
         }
 
-        let token_distribution = token_distribution.token(self.plan.voting_token().clone());
-        let proposal_managers =
-            self.proposal_managers
-                .public_tally(&token_distribution, governance, f)?;
+        let proposal_managers = self.proposal_managers.public_tally(
+            &token_distribution.token(self.plan.voting_token()),
+            governance,
+            f,
+        )?;
 
         Ok(Self {
             proposal_managers,
@@ -824,21 +838,20 @@ impl VotePlanManager {
         &self,
         decrypted_tally: &DecryptedPrivateTally,
         governance: &Governance,
-        f: F,
         token_distribution: TokenDistribution<()>,
+        f: F,
     ) -> Result<Self, VoteError>
     where
         F: FnMut(&VoteAction),
     {
         let committee_pks = self.plan.committee_public_keys();
 
-        let token_distribution = token_distribution.token(self.plan.voting_token().clone());
         let proposal_managers = self.proposal_managers.finalize_private_tally(
             committee_pks,
             decrypted_tally,
             governance,
             f,
-            &token_distribution,
+            &token_distribution.token(self.plan.voting_token()),
         )?;
         Ok(Self {
             proposal_managers,
@@ -891,15 +904,15 @@ mod tests {
             .unwrap();
 
         let token_distribution = TokenDistribution::new(Default::default(), account_ledger)
-            .token(vote_plan.voting_token().clone());
+            .token(vote_plan.voting_token());
 
         proposal_manager = proposal_manager
             .vote(identifier.clone(), vote.clone(), &token_distribution)
             .unwrap();
 
         let tally = match proposal_manager.tally {
-            Tally::Public { result } => result,
-            Tally::Private { .. } => unreachable!(),
+            IncrementalTally::Public(result) => result,
+            _ => unreachable!(),
         };
 
         assert_eq!(tally.results()[1], 100.into());
@@ -994,7 +1007,8 @@ mod tests {
 
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
-        let status = vote_plan_manager.statuses();
+        let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let status = vote_plan_manager.statuses(token_distribution);
 
         assert_eq!(status.id, vote_plan.to_id());
         assert_eq!(status.payload, vote_plan.payload_type());
@@ -1038,11 +1052,11 @@ mod tests {
 
         let mut committee_ids = HashSet::new();
         committee_ids.insert(committee.public_key().into());
-        let mut vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
 
         let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+        let mut vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let vote_block_date = BlockDate {
             epoch: 1,
@@ -1078,10 +1092,10 @@ mod tests {
         };
         vote_plan_manager
             .public_tally(
-                token_distribution,
                 block_date,
                 &governance,
                 committee_id,
+                token_distribution,
                 |_| action_hit = true,
             )
             .unwrap();
@@ -1113,10 +1127,10 @@ mod tests {
 
         let mut committee_ids = HashSet::new();
         committee_ids.insert(TestGen::public_key().into());
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
         let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
 
@@ -1135,11 +1149,11 @@ mod tests {
             VoteError::InvalidTallyCommittee,
             vote_plan_manager
                 .public_tally(
-                    token_distribution,
                     block_date,
                     &governance,
                     committee_id,
-                    |_| ()
+                    token_distribution,
+                    |_| (),
                 )
                 .err()
                 .unwrap()
@@ -1171,10 +1185,10 @@ mod tests {
 
         let mut committee_ids = HashSet::new();
         committee_ids.insert(committee.public_key().into());
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let governance = governance_50_percent(blank, favorable, rejection);
         let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
 
@@ -1196,11 +1210,11 @@ mod tests {
             },
             vote_plan_manager
                 .public_tally(
-                    token_distribution,
                     invalid_block_date,
                     &governance,
                     committee_id,
-                    |_| ()
+                    token_distribution,
+                    |_| (),
                 )
                 .err()
                 .unwrap()
@@ -1219,9 +1233,9 @@ mod tests {
 
         let mut committee_ids = HashSet::new();
         committee_ids.insert(committee.public_key().into());
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
         let governance = governance_50_percent(blank, favorable, rejection);
         let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let tally_proof = get_tally_proof(vote_plan.vote_start(), &committee, vote_plan.to_id());
 
@@ -1238,11 +1252,11 @@ mod tests {
         assert_eq!(
             vote_plan_manager
                 .public_tally(
-                    token_distribution,
                     block_date,
                     &governance,
                     committee_id,
-                    |_| ()
+                    token_distribution,
+                    |_| (),
                 )
                 .err()
                 .unwrap(),
@@ -1302,7 +1316,7 @@ mod tests {
         let proposals = ProposalManagers::new(&vote_plan);
 
         let (token_distribution, token) = ledger_with_tokens(identifier.clone());
-        let token_distribution = token_distribution.token(token);
+        let token_distribution = token_distribution.token(&token);
 
         let first_vote_cast = proposals
             .validate_vote(
@@ -1407,7 +1421,7 @@ mod tests {
 
     fn ledger_with_tokens<ID: Into<account::Identifier> + Clone>(
         wallet: ID,
-    ) -> (TokenDistribution<()>, TokenIdentifier) {
+    ) -> (TokenDistribution<'static, ()>, TokenIdentifier) {
         let token = TokenIdentifier {
             policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
             token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
@@ -1452,7 +1466,7 @@ mod tests {
             .unwrap();
 
         let token_distribution = TokenDistribution::new(Default::default(), account_ledger)
-            .token(vote_plan.voting_token().clone());
+            .token(&vote_plan.voting_token());
 
         proposal_managers = proposal_managers
             .vote(
@@ -1471,8 +1485,8 @@ mod tests {
 
         for manager in proposal_managers.managers() {
             let tally = match &manager.tally {
-                Tally::Public { result } => result.clone(),
-                Tally::Private { .. } => unreachable!(),
+                IncrementalTally::Public(result) => result.clone(),
+                _ => unreachable!(),
             };
 
             assert_eq!(tally.results()[choice.as_byte() as usize], 100.into());
@@ -1524,7 +1538,7 @@ mod tests {
             .unwrap();
 
         let token_distribution = TokenDistribution::new(Default::default(), account_ledger)
-            .token(vote_plan.voting_token().clone());
+            .token(vote_plan.voting_token());
 
         proposal_managers = proposal_managers
             .vote(identifier.clone(), first_vote_cast, &token_distribution)
@@ -1535,8 +1549,8 @@ mod tests {
             .is_err());
 
         let tally = match &proposal_managers.managers()[0].tally {
-            Tally::Public { result } => result.clone(),
-            Tally::Private { .. } => unreachable!(),
+            IncrementalTally::Public(result) => result.clone(),
+            _ => unreachable!(),
         };
 
         assert_eq!(tally.results()[0], 100.into());
@@ -1586,10 +1600,10 @@ mod tests {
     pub fn vote_manager_vote_cast_different_id() {
         let vote_plan = VoteTestGen::vote_plan_with_proposals(1);
         let wrong_plan = VoteTestGen::vote_plan_with_proposals(1);
-        let vote_plan_manager = VotePlanManager::new(vote_plan, HashSet::new());
         let vote_cast = VoteCast::new(wrong_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
         let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let vote_plan_manager = VotePlanManager::new(vote_plan, HashSet::new());
 
         assert_eq!(
             vote_plan_manager
@@ -1611,10 +1625,10 @@ mod tests {
     #[test]
     pub fn vote_manager_too_late_to_vote() {
         let vote_plan = VoteTestGen::vote_plan_with_proposals(1);
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
         let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
         assert_eq!(
             vote_plan_manager
@@ -1622,7 +1636,7 @@ mod tests {
                     vote_plan.vote_end().next_epoch(),
                     TestGen::identifier(),
                     vote_cast.clone(),
-                    token_distribution
+                    token_distribution,
                 )
                 .err()
                 .unwrap(),
@@ -1649,10 +1663,10 @@ mod tests {
             },
         );
 
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
         let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
         assert_eq!(
             vote_plan_manager
@@ -1687,17 +1701,17 @@ mod tests {
             },
         );
 
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
         let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
         assert!(vote_plan_manager
             .vote(
                 BlockDate::from_epoch_slot_id(1, 1),
                 TestGen::identifier(),
                 vote_cast,
-                token_distribution
+                token_distribution,
             )
             .is_ok());
     }

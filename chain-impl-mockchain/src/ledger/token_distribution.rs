@@ -2,23 +2,33 @@ use crate::{account, ledger::Error, tokens::identifier::TokenIdentifier, value::
 use imhamt::Hamt;
 use std::collections::hash_map::DefaultHasher;
 
-#[derive(Clone)]
-pub struct TokenDistribution<T: Clone> {
+#[derive(PartialEq, Eq)]
+pub struct TokenDistribution<'a, T: Clone + PartialEq + Eq> {
     token_totals: TokenTotals,
     account_ledger: account::Ledger,
-    token: T,
+    token: &'a T,
 }
 
-impl TokenDistribution<()> {
+impl Clone for TokenDistribution<'_, ()> {
+    fn clone(&self) -> Self {
+        Self {
+            token_totals: self.token_totals.clone(),
+            account_ledger: self.account_ledger.clone(),
+            token: &(),
+        }
+    }
+}
+
+impl TokenDistribution<'_, ()> {
     pub fn new(token_totals: TokenTotals, account_ledger: account::Ledger) -> Self {
         Self {
             token_totals,
             account_ledger,
-            token: (),
+            token: &(),
         }
     }
 
-    pub fn token(self, token: TokenIdentifier) -> TokenDistribution<TokenIdentifier> {
+    pub fn token<'a>(self, token: &'a TokenIdentifier) -> TokenDistribution<TokenIdentifier> {
         TokenDistribution {
             token_totals: self.token_totals,
             account_ledger: self.account_ledger,
@@ -27,7 +37,7 @@ impl TokenDistribution<()> {
     }
 }
 
-impl TokenDistribution<TokenIdentifier> {
+impl TokenDistribution<'_, TokenIdentifier> {
     pub fn get_total(&self) -> Value {
         self.token_totals
             .get_total(&self.token)
