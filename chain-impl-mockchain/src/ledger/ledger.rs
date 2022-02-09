@@ -813,6 +813,20 @@ impl Ledger {
         new_ledger.updates = updates;
         new_ledger.settings = settings;
 
+        #[cfg(feature = "evm")]
+        {
+            // Set EVM environment values derived from block0 values
+            new_ledger.evm.environment.chain_id =
+                <[u8; 32]>::from(new_ledger.static_params.block0_initial_hash).into();
+            // TODO: set Origin, coinbase, and set block timestamp when
+            // they are defined. Using default values meanwhile.
+
+            // Set EVM environment values from settings
+            new_ledger.evm.environment.gas_price = new_ledger.settings.evm_environment.gas_price;
+            new_ledger.evm.environment.block_gas_limit =
+                new_ledger.settings.evm_environment.block_gas_limit;
+        }
+
         Ok(ApplyBlockLedger {
             ledger_params: new_ledger.get_ledger_parameters(),
             ledger: new_ledger,

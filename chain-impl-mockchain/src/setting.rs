@@ -2,7 +2,7 @@
 //!
 
 #[cfg(feature = "evm")]
-use crate::config::{EvmConfig, EvmEnvironment};
+use crate::config::{EvmConfig, EvmEnvSettings};
 use crate::fragment::{config::ConfigParams, BlockContentSize};
 use crate::milli::Milli;
 use crate::update;
@@ -46,7 +46,7 @@ pub struct Settings {
     #[cfg(feature = "evm")]
     pub evm_config: EvmConfig,
     #[cfg(feature = "evm")]
-    pub evm_environment: EvmEnvironment,
+    pub evm_environment: EvmEnvSettings,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -137,7 +137,7 @@ impl Settings {
             #[cfg(feature = "evm")]
             evm_config: EvmConfig::default(),
             #[cfg(feature = "evm")]
-            evm_environment: EvmEnvironment::default(),
+            evm_environment: EvmEnvSettings::default(),
         }
     }
 
@@ -254,7 +254,7 @@ impl Settings {
                 }
                 #[cfg(feature = "evm")]
                 ConfigParam::EvmEnvironment(evm_env_params) => {
-                    new_state.evm_environment = *evm_env_params.clone();
+                    new_state.evm_environment = evm_env_params.clone();
                 }
             }
         }
@@ -303,9 +303,7 @@ impl Settings {
         #[cfg(feature = "evm")]
         params.push(ConfigParam::EvmConfiguration(self.evm_config));
         #[cfg(feature = "evm")]
-        params.push(ConfigParam::EvmEnvironment(Box::new(EvmEnvironment(
-            self.evm_environment.0.clone(),
-        ))));
+        params.push(ConfigParam::EvmEnvironment(self.evm_environment.clone()));
 
         debug_assert_eq!(self, &Settings::new().try_apply(&params).unwrap());
 

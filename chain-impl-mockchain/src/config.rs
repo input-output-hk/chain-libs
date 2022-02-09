@@ -1,6 +1,6 @@
 use crate::date::Epoch;
 #[cfg(feature = "evm")]
-use crate::evm::{Config, Environment};
+use crate::evm::{BlockGasLimit, Config, GasPrice};
 use crate::key::BftLeaderId;
 use crate::milli::Milli;
 use crate::rewards::{Ratio, TaxType};
@@ -90,7 +90,7 @@ pub enum ConfigParam {
     #[cfg(feature = "evm")]
     EvmConfiguration(EvmConfig),
     #[cfg(feature = "evm")]
-    EvmEnvironment(Box<EvmEnvironment>),
+    EvmEnvironment(EvmEnvSettings),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -138,8 +138,11 @@ impl Default for EvmConfig {
 
 #[cfg(feature = "evm")]
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
-/// EVM Environment parameters needed for execution.
-pub struct EvmEnvironment(pub(crate) Environment);
+/// Settings for EVM Environment
+pub struct EvmEnvSettings {
+    pub gas_price: GasPrice,
+    pub block_gas_limit: BlockGasLimit,
+}
 
 // Discriminants can NEVER be 1024 or higher
 #[derive(AsRefStr, Clone, Copy, Debug, EnumIter, EnumString, PartialEq)]
@@ -835,54 +838,25 @@ impl ConfigParamVariant for EvmConfig {
 }
 
 #[cfg(feature = "evm")]
-impl ConfigParamVariant for Box<EvmEnvironment> {
+impl ConfigParamVariant for EvmEnvSettings {
     fn to_payload(&self) -> Vec<u8> {
-        use crate::evm::{serialize_address, serialize_h256, serialize_u256};
-        let bb: ByteBuilder<Environment> = ByteBuilder::new();
-        let bb = serialize_u256(bb, &self.0.gas_price);
-        let bb = serialize_address(bb, &self.0.origin);
-        let bb = serialize_u256(bb, &self.0.chain_id);
-        let bb = bb
-            .u64(self.0.block_hashes.len() as u64)
-            .fold(self.0.block_hashes.iter(), serialize_h256);
-        let bb = serialize_u256(bb, &self.0.block_number);
-        let bb = serialize_address(bb, &self.0.block_coinbase);
-        let bb = serialize_u256(bb, &self.0.block_timestamp);
-        let bb = serialize_u256(bb, &self.0.block_difficulty);
-        let bb = serialize_u256(bb, &self.0.block_gas_limit);
-        let bb = serialize_u256(bb, &self.0.block_base_fee_per_gas);
+        use crate::evm::serialize_u256;
+        let bb: ByteBuilder<EvmEnvSettings> = ByteBuilder::new();
+        let bb = serialize_u256(bb, &self.gas_price);
+        let bb = serialize_u256(bb, &self.block_gas_limit);
         bb.finalize_as_vec()
     }
 
     fn from_payload(payload: &[u8]) -> Result<Self, Error> {
-        use crate::evm::{read_address, read_h256, read_u256};
+        use crate::evm::read_u256;
         let mut buf = ReadBuf::from(payload);
         let gas_price = read_u256(&mut buf)?;
-        let origin = read_address(&mut buf)?;
-        let chain_id = read_u256(&mut buf)?;
-        let block_hashes_len = buf.get_u64()?;
-        let block_hashes = (0..block_hashes_len)
-            .map(|_| read_h256(&mut buf).unwrap())
-            .collect();
-        let block_number = read_u256(&mut buf)?;
-        let block_coinbase = read_address(&mut buf)?;
-        let block_timestamp = read_u256(&mut buf)?;
-        let block_difficulty = read_u256(&mut buf)?;
         let block_gas_limit = read_u256(&mut buf)?;
-        let block_base_fee_per_gas = read_u256(&mut buf)?;
         buf.expect_end()?;
-        Ok(Box::new(EvmEnvironment(Environment {
+        Ok(EvmEnvSettings {
             gas_price,
-            origin,
-            chain_id,
-            block_hashes,
-            block_number,
-            block_coinbase,
-            block_timestamp,
-            block_difficulty,
             block_gas_limit,
-            block_base_fee_per_gas,
-        })))
+        })
     }
 }
 
@@ -1024,30 +998,12 @@ mod test {
     }
 
     #[cfg(feature = "evm")]
-    impl Arbitrary for Box<EvmEnvironment> {
+    impl Arbitrary for EvmEnvSettings {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let gas_price = [u8::arbitrary(g); 32].into();
-            let origin = [u8::arbitrary(g); 20].into();
-            let chain_id = [u8::arbitrary(g); 32].into();
-            let block_hashes = Vec::new();
-            let block_number = [u8::arbitrary(g); 32].into();
-            let block_coinbase = [u8::arbitrary(g); 20].into();
-            let block_timestamp = [u8::arbitrary(g); 32].into();
-            let block_difficulty = [u8::arbitrary(g); 32].into();
-            let block_gas_limit = [u8::arbitrary(g); 32].into();
-            let block_base_fee_per_gas = [u8::arbitrary(g); 32].into();
-            Box::new(EvmEnvironment(Environment {
-                gas_price,
-                origin,
-                chain_id,
-                block_hashes,
-                block_number,
-                block_coinbase,
-                block_timestamp,
-                block_difficulty,
-                block_gas_limit,
-                block_base_fee_per_gas,
-            }))
+            EvmEnvSettings {
+                gas_price: [u8::arbitrary(g); 32].into(),
+                block_gas_limit: [u8::arbitrary(g); 32].into(),
+            }
         }
     }
 

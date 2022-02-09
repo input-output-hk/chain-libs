@@ -99,7 +99,11 @@ impl Ledger {
                 self.logs = new_logs.clone();
             }
         }
-        // update the environment
+
+        self.update_environment();
+        Ok(())
+    }
+    fn update_environment(&mut self) {
         let next_number = self.environment.block_number + BlockNumber::one();
         // this is a simplified block hash calculation
         let next_hash: BlockHash = <[u8; 32]>::from(next_number).into();
@@ -110,7 +114,6 @@ impl Ledger {
         );
         self.environment.block_number = next_number;
         // TODO: update block timestamp
-        Ok(())
     }
 }
 

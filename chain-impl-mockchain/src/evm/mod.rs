@@ -16,7 +16,7 @@ use crate::{
 };
 
 #[cfg(feature = "evm")]
-pub use chain_evm::machine::{Config, Environment};
+pub use chain_evm::machine::{BlockGasLimit, Config, Environment, GasPrice};
 
 /// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
