@@ -195,13 +195,14 @@ impl ProposalManager {
 
         let tally = if let Some(stake) = token_distribution.get_account(&identifier) {
             match (self.tally.clone(), payload) {
-                (IncrementalTally::Public(result), ValidatedPayload::Public(choice)) => {
-                    let mut result = result.clone();
+                (IncrementalTally::Public(mut result), ValidatedPayload::Public(choice)) => {
                     result.add_vote(choice, stake)?;
                     IncrementalTally::Public(result)
                 }
-                (IncrementalTally::Private(encrypted_tally), ValidatedPayload::Private(ballot)) => {
-                    let mut encrypted_tally = encrypted_tally.clone();
+                (
+                    IncrementalTally::Private(mut encrypted_tally),
+                    ValidatedPayload::Private(ballot),
+                ) => {
                     encrypted_tally.add(&ballot, stake.0);
                     IncrementalTally::Private(encrypted_tally)
                 }
@@ -315,7 +316,7 @@ impl ProposalManager {
             }
         };
 
-        if self.check(token_distribution.get_total().into(), governance, &results) {
+        if self.check(token_distribution.get_total().into(), governance, results) {
             f(&self.action)
         }
 
@@ -472,7 +473,7 @@ impl ProposalManagers {
                 let managers = plan
                     .proposals()
                     .iter()
-                    .map(|proposal| ProposalManager::new_public(proposal))
+                    .map(ProposalManager::new_public)
                     .collect();
                 Self::Public { managers }
             }
@@ -908,7 +909,7 @@ mod tests {
             TokenDistribution::new(&token_totals, &account_ledger).token(vote_plan.voting_token());
 
         proposal_manager = proposal_manager
-            .vote(identifier.clone(), vote.clone(), &token_distribution)
+            .vote(identifier, vote, &token_distribution)
             .unwrap();
 
         let tally = match proposal_manager.tally {
@@ -1482,7 +1483,7 @@ mod tests {
 
         let token_totals = Default::default();
         let token_distribution =
-            TokenDistribution::new(&token_totals, &account_ledger).token(&vote_plan.voting_token());
+            TokenDistribution::new(&token_totals, &account_ledger).token(vote_plan.voting_token());
 
         proposal_managers = proposal_managers
             .vote(
@@ -1492,11 +1493,7 @@ mod tests {
             )
             .unwrap();
         proposal_managers = proposal_managers
-            .vote(
-                identifier.clone(),
-                second_vote_cast_validated,
-                &token_distribution,
-            )
+            .vote(identifier, second_vote_cast_validated, &token_distribution)
             .unwrap();
 
         for manager in proposal_managers.managers() {
@@ -1562,7 +1559,7 @@ mod tests {
             .unwrap();
 
         assert!(proposal_managers
-            .vote(identifier.clone(), second_vote_cast, &token_distribution)
+            .vote(identifier, second_vote_cast, &token_distribution)
             .is_err());
 
         let tally = match &proposal_managers.managers()[0].tally {
@@ -1730,7 +1727,7 @@ mod tests {
         let token_totals = Default::default();
         let account_ledger = Default::default();
         let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
-        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
+        let vote_plan_manager = VotePlanManager::new(vote_plan, HashSet::new());
 
         assert!(vote_plan_manager
             .vote(

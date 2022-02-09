@@ -12,8 +12,8 @@ pub struct TokenDistribution<'a, T: Clone + PartialEq + Eq> {
 impl Clone for TokenDistribution<'_, ()> {
     fn clone(&self) -> Self {
         Self {
-            token_totals: &self.token_totals,
-            account_ledger: &self.account_ledger,
+            token_totals: self.token_totals,
+            account_ledger: self.account_ledger,
             token: &(),
         }
     }
@@ -40,7 +40,7 @@ impl<'a> TokenDistribution<'a, ()> {
 impl<'a> TokenDistribution<'a, TokenIdentifier> {
     pub fn get_total(&self) -> Value {
         self.token_totals
-            .get_total(&self.token)
+            .get_total(self.token)
             // maybe this should be an error? but errors in the tally are not really recoverable
             // OTOH, this will make the tally succeed but not have any effect, so it's more or less
             // the same effect
@@ -58,7 +58,7 @@ impl<'a> TokenDistribution<'a, TokenIdentifier> {
             // This is mostly theoretical though, since I don't think that can happen, so this
             // `ok` should always return Some.
             .ok()
-            .and_then(|account_state| account_state.tokens.lookup(&self.token))
+            .and_then(|account_state| account_state.tokens.lookup(self.token))
             .copied()
     }
 }
