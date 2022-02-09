@@ -333,8 +333,8 @@ impl ProposalManager {
         committee_pks: &[committee::MemberPublicKey],
         decrypted_proposal: &DecryptedPrivateTallyProposal,
         governance: &Governance,
-        mut f: F,
         token_distribution: &TokenDistribution<TokenIdentifier>,
+        mut f: F,
     ) -> Result<Self, TallyError>
     where
         F: FnMut(&VoteAction),
@@ -362,8 +362,6 @@ impl ProposalManager {
         for (choice, &weight) in decrypted_proposal.tally_result.iter().enumerate() {
             result
                 .add_vote(Choice::new(u8::try_from(choice).unwrap()), weight)
-                // TODO: maybe unwrapping here would be fine? need to check where does this data
-                // come from, and whether this validation is really necessary
                 .map_err(|error| match error {
                     VoteError::InvalidChoice { options, choice } => {
                         TallyError::InvalidChoice { options, choice }
@@ -611,8 +609,8 @@ impl ProposalManagers {
         committee_pks: &[committee::MemberPublicKey],
         decrypted_tally: &DecryptedPrivateTally,
         governance: &Governance,
-        mut f: F,
         token_distribution: &TokenDistribution<TokenIdentifier>,
+        mut f: F,
     ) -> Result<Self, VoteError>
     where
         F: FnMut(&VoteAction),
@@ -631,8 +629,8 @@ impl ProposalManagers {
                         committee_pks,
                         decrypted_proposal,
                         governance,
-                        &mut f,
                         token_distribution,
+                        &mut f,
                     )?);
                 }
                 Ok(Self::Private {
@@ -851,8 +849,8 @@ impl VotePlanManager {
             committee_pks,
             decrypted_tally,
             governance,
-            f,
             &token_distribution.token(self.plan.voting_token()),
+            f,
         )?;
         Ok(Self {
             proposal_managers,
