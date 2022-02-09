@@ -4,23 +4,23 @@ use std::collections::hash_map::DefaultHasher;
 
 #[derive(PartialEq, Eq)]
 pub struct TokenDistribution<'a, T: Clone + PartialEq + Eq> {
-    token_totals: TokenTotals,
-    account_ledger: account::Ledger,
+    token_totals: &'a TokenTotals,
+    account_ledger: &'a account::Ledger,
     token: &'a T,
 }
 
 impl Clone for TokenDistribution<'_, ()> {
     fn clone(&self) -> Self {
         Self {
-            token_totals: self.token_totals.clone(),
-            account_ledger: self.account_ledger.clone(),
+            token_totals: &self.token_totals,
+            account_ledger: &self.account_ledger,
             token: &(),
         }
     }
 }
 
-impl TokenDistribution<'_, ()> {
-    pub fn new(token_totals: TokenTotals, account_ledger: account::Ledger) -> Self {
+impl<'a> TokenDistribution<'a, ()> {
+    pub fn new(token_totals: &'a TokenTotals, account_ledger: &'a account::Ledger) -> Self {
         Self {
             token_totals,
             account_ledger,
@@ -28,7 +28,7 @@ impl TokenDistribution<'_, ()> {
         }
     }
 
-    pub fn token<'a>(self, token: &'a TokenIdentifier) -> TokenDistribution<TokenIdentifier> {
+    pub fn token(self, token: &'a TokenIdentifier) -> TokenDistribution<TokenIdentifier> {
         TokenDistribution {
             token_totals: self.token_totals,
             account_ledger: self.account_ledger,
@@ -37,7 +37,7 @@ impl TokenDistribution<'_, ()> {
     }
 }
 
-impl TokenDistribution<'_, TokenIdentifier> {
+impl<'a> TokenDistribution<'a, TokenIdentifier> {
     pub fn get_total(&self) -> Value {
         self.token_totals
             .get_total(&self.token)

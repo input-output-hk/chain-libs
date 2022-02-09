@@ -903,8 +903,9 @@ mod tests {
             .token_add(&identifier, vote_plan.voting_token().clone(), Value(100))
             .unwrap();
 
-        let token_distribution = TokenDistribution::new(Default::default(), account_ledger)
-            .token(vote_plan.voting_token());
+        let token_totals = Default::default();
+        let token_distribution =
+            TokenDistribution::new(&token_totals, &account_ledger).token(vote_plan.voting_token());
 
         proposal_manager = proposal_manager
             .vote(identifier.clone(), vote.clone(), &token_distribution)
@@ -1007,7 +1008,9 @@ mod tests {
 
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
-        let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let token_totals = Default::default();
+        let account_ledger = Default::default();
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
         let status = vote_plan_manager.statuses(token_distribution);
 
         assert_eq!(status.id, vote_plan.to_id());
@@ -1055,7 +1058,9 @@ mod tests {
 
         let governance = governance_50_percent(blank, favorable, rejection);
 
-        let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+        let (token_totals, account_ledger, _) = ledger_with_tokens(committee.public_key());
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
+
         let mut vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let vote_block_date = BlockDate {
@@ -1129,7 +1134,10 @@ mod tests {
         committee_ids.insert(TestGen::public_key().into());
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+
+        let (token_totals, account_ledger, _) = ledger_with_tokens(committee.public_key());
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
+
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
@@ -1187,7 +1195,10 @@ mod tests {
         committee_ids.insert(committee.public_key().into());
 
         let governance = governance_50_percent(blank, favorable, rejection);
-        let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+
+        let (token_totals, account_ledger, _) = ledger_with_tokens(committee.public_key());
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
+
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
@@ -1234,7 +1245,10 @@ mod tests {
         let mut committee_ids = HashSet::new();
         committee_ids.insert(committee.public_key().into());
         let governance = governance_50_percent(blank, favorable, rejection);
-        let (token_distribution, _) = ledger_with_tokens(committee.public_key());
+
+        let (token_totals, account_ledger, _) = ledger_with_tokens(committee.public_key());
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
+
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
 
         let tally_proof = get_tally_proof(vote_plan.vote_start(), &committee, vote_plan.to_id());
@@ -1315,7 +1329,8 @@ mod tests {
         let identifier = TestGen::identifier();
         let proposals = ProposalManagers::new(&vote_plan);
 
-        let (token_distribution, token) = ledger_with_tokens(identifier.clone());
+        let (token_totals, account_ledger, token) = ledger_with_tokens(identifier.clone());
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
         let token_distribution = token_distribution.token(&token);
 
         let first_vote_cast = proposals
@@ -1421,7 +1436,7 @@ mod tests {
 
     fn ledger_with_tokens<ID: Into<account::Identifier> + Clone>(
         wallet: ID,
-    ) -> (TokenDistribution<'static, ()>, TokenIdentifier) {
+    ) -> (TokenTotals, account::Ledger, TokenIdentifier) {
         let token = TokenIdentifier {
             policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
             token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
@@ -1435,7 +1450,7 @@ mod tests {
 
         let token_totals = TokenTotals::default().add(token.clone(), value).unwrap();
 
-        (TokenDistribution::new(token_totals, account_ledger), token)
+        (token_totals, account_ledger, token)
     }
 
     #[test]
@@ -1465,8 +1480,9 @@ mod tests {
             .token_add(&identifier, vote_plan.voting_token().clone(), Value(100))
             .unwrap();
 
-        let token_distribution = TokenDistribution::new(Default::default(), account_ledger)
-            .token(&vote_plan.voting_token());
+        let token_totals = Default::default();
+        let token_distribution =
+            TokenDistribution::new(&token_totals, &account_ledger).token(&vote_plan.voting_token());
 
         proposal_managers = proposal_managers
             .vote(
@@ -1537,8 +1553,9 @@ mod tests {
             .token_add(&identifier, vote_plan.voting_token().clone(), Value(100))
             .unwrap();
 
-        let token_distribution = TokenDistribution::new(Default::default(), account_ledger)
-            .token(vote_plan.voting_token());
+        let token_totals = Default::default();
+        let token_distribution =
+            TokenDistribution::new(&token_totals, &account_ledger).token(vote_plan.voting_token());
 
         proposal_managers = proposal_managers
             .vote(identifier.clone(), first_vote_cast, &token_distribution)
@@ -1602,7 +1619,10 @@ mod tests {
         let wrong_plan = VoteTestGen::vote_plan_with_proposals(1);
         let vote_cast = VoteCast::new(wrong_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
-        let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let token_totals = Default::default();
+        let account_ledger = Default::default();
+
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
         let vote_plan_manager = VotePlanManager::new(vote_plan, HashSet::new());
 
         assert_eq!(
@@ -1627,7 +1647,9 @@ mod tests {
         let vote_plan = VoteTestGen::vote_plan_with_proposals(1);
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
-        let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let token_totals = Default::default();
+        let account_ledger = Default::default();
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
         assert_eq!(
@@ -1665,7 +1687,9 @@ mod tests {
 
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
-        let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let token_totals = Default::default();
+        let account_ledger = Default::default();
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
         assert_eq!(
@@ -1703,7 +1727,9 @@ mod tests {
 
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
-        let token_distribution = TokenDistribution::new(Default::default(), Default::default());
+        let token_totals = Default::default();
+        let account_ledger = Default::default();
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
 
         assert!(vote_plan_manager

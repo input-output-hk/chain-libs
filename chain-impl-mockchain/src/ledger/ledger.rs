@@ -1381,7 +1381,7 @@ impl Ledger {
     }
 
     pub fn token_distribution(&self) -> TokenDistribution<()> {
-        TokenDistribution::new(self.token_totals.clone(), self.accounts.clone())
+        TokenDistribution::new(&self.token_totals, &self.accounts)
     }
 
     pub fn get_ledger_parameters(&self) -> LedgerParameters {
