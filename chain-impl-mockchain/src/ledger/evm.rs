@@ -99,11 +99,10 @@ impl Ledger {
                 self.logs = new_logs.clone();
             }
         }
-
-        self.update_environment();
         Ok(())
     }
-    fn update_environment(&mut self) {
+    /// Updates EVM environment
+    pub fn update_environment(&mut self) {
         let next_number = self.environment.block_number + BlockNumber::one();
         // this is a simplified block hash calculation
         let next_hash: BlockHash = <[u8; 32]>::from(next_number).into();

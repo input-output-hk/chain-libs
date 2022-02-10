@@ -1723,6 +1723,9 @@ impl ApplyBlockLedger {
             }
         };
 
+        #[cfg(feature = "evm")]
+        new_ledger.evm.update_environment();
+
         new_ledger
     }
 }
