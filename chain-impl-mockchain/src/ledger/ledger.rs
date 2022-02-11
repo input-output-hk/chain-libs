@@ -858,6 +858,10 @@ impl Ledger {
         }
 
         let new_block_ledger = self.begin_block(metadata.chain_length, metadata.block_date)?;
+
+        #[cfg(feature = "evm")]
+        let new_block_ledger = new_block_ledger.update_evm_block(metadata);
+
         let new_block_ledger = contents
             .iter()
             .try_fold(new_block_ledger, |new_block_ledger, fragment| {
@@ -1707,6 +1711,16 @@ impl ApplyBlockLedger {
         })
     }
 
+    #[cfg(feature = "evm")]
+    pub fn update_evm_block(self, metadata: &HeaderContentEvalContext) -> Self {
+        let mut apply_block_ledger = self;
+        apply_block_ledger
+            .ledger
+            .evm
+            .update_block_environment(metadata);
+        apply_block_ledger
+    }
+
     pub fn finish(self, consensus_eval_context: &ConsensusEvalContext) -> Ledger {
         let mut new_ledger = self.ledger;
 
@@ -1722,9 +1736,6 @@ impl ApplyBlockLedger {
                 new_ledger.leaders_log.increase_for(pool_creator);
             }
         };
-
-        #[cfg(feature = "evm")]
-        new_ledger.evm.update_environment();
 
         new_ledger
     }

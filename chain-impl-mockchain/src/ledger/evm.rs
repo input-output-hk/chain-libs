@@ -1,3 +1,4 @@
+use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::EvmTransaction;
 use crate::ledger::Error;
 use chain_evm::{
@@ -101,17 +102,12 @@ impl Ledger {
         }
         Ok(())
     }
-    /// Updates EVM environment
-    pub fn update_environment(&mut self) {
-        let next_number = self.environment.block_number + BlockNumber::one();
-        // this is a simplified block hash calculation
-        let next_hash: BlockHash = <[u8; 32]>::from(next_number).into();
+    /// Updates block values for EVM environment
+    pub fn update_block_environment(&mut self, metadata: &HeaderContentEvalContext) {
+        // use content hash from the apply block as the EVM block hash
+        let next_hash: BlockHash = <[u8; 32]>::from(metadata.content_hash).into();
         self.environment.block_hashes.insert(0, next_hash);
-        assert_eq!(
-            BlockNumber::from(self.environment.block_hashes.len()),
-            next_number
-        );
-        self.environment.block_number = next_number;
+        self.environment.block_number = BlockNumber::from(self.environment.block_hashes.len());
         // TODO: update block timestamp
     }
 }
