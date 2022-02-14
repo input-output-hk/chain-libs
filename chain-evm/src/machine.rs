@@ -106,7 +106,7 @@ pub enum Error {
 pub struct VirtualMachine<'runtime> {
     /// EVM Block Configuration.
     config: &'runtime Config,
-    environment: &'runtime Environment,
+    environment: &'runtime mut Environment,
     precompiles: Precompiles,
     state: AccountTrie,
     logs: LogsState,
@@ -145,6 +145,8 @@ impl<'runtime> VirtualMachine<'runtime> {
             u64,
         ) -> (ExitReason, T),
     {
+        self.environment.origin = caller;
+
         let executable = |gas_limit| {
             let metadata = StackSubstateMetadata::new(gas_limit, self.config);
             let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -191,14 +193,14 @@ impl<'runtime> VirtualMachine<'runtime> {
 
 impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
-    pub fn new(config: &'runtime Config, environment: &'runtime Environment) -> Self {
+    pub fn new(config: &'runtime Config, environment: &'runtime mut Environment) -> Self {
         Self::new_with_state(config, environment, Default::default(), Default::default())
     }
 
     /// Creates a new `VirtualMachine` given configuration params and a given account storage.
     pub fn new_with_state(
         config: &'runtime Config,
-        environment: &'runtime Environment,
+        environment: &'runtime mut Environment,
         state: AccountTrie,
         logs: LogsState,
     ) -> Self {
@@ -445,16 +447,14 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
-    use evm::{Capture, ExitReason, ExitSucceed};
-
     use super::*;
+    use evm::{Capture, ExitReason, ExitSucceed};
+    use std::rc::Rc;
 
     #[test]
     fn code_to_execute_evm_runtime_with_defaults_and_no_code_no_data() {
         let config = Config::istanbul();
-        let environment = Environment {
+        let mut environment = Environment {
             gas_price: Default::default(),
             origin: Default::default(),
             chain_id: Default::default(),
@@ -467,7 +467,7 @@ mod tests {
             block_base_fee_per_gas: Default::default(),
         };
 
-        let vm = VirtualMachine::new(&config, &environment);
+        let vm = VirtualMachine::new(&config, &mut environment);
 
         let gas_limit = u64::max_value();
 
