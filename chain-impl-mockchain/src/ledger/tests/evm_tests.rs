@@ -158,12 +158,7 @@ impl TestEvmState {
                 let storage_info = |account: &Account| {
                     let mut storage = "{".to_string();
                     for (key, value) in account.storage.iter() {
-                        storage = format!(
-                            "{} |key: {} , value: {}| ",
-                            storage,
-                            key.to_string(),
-                            value.to_string()
-                        );
+                        storage = format!("{} |key: {} , value: {}| ", storage, key, value);
                     }
                     format!("{}}}", storage)
                 };
