@@ -63,9 +63,8 @@ pub(super) enum FragmentTag {
     VotePlan = 10,
     VoteCast = 11,
     VoteTally = 12,
-    // TODO: change these to 13 14?
-    MintToken = 14,
-    Evm = 15,
+    MintToken = 13,
+    Evm = 14,
 }
 
 impl FragmentTag {
@@ -84,8 +83,8 @@ impl FragmentTag {
             10 => Some(FragmentTag::VotePlan),
             11 => Some(FragmentTag::VoteCast),
             12 => Some(FragmentTag::VoteTally),
-            14 => Some(FragmentTag::MintToken),
-            15 => Some(FragmentTag::Evm),
+            13 => Some(FragmentTag::MintToken),
+            14 => Some(FragmentTag::Evm),
             _ => None,
         }
     }
