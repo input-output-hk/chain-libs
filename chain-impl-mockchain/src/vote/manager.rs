@@ -1870,6 +1870,10 @@ mod tests {
 
     #[test]
     pub fn vote_manager_correct_vote() {
+        let token_id = TokenIdentifier {
+            policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+            token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+        };
         let vote_plan = VotePlan::new(
             BlockDate::from_epoch_slot_id(1, 0),
             BlockDate::from_epoch_slot_id(2, 0),
@@ -1877,26 +1881,29 @@ mod tests {
             VoteTestGen::proposals(3),
             PayloadType::Public,
             Vec::new(),
-            TokenIdentifier {
-                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
-                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
-            },
+            token_id.clone(),
         );
 
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
 
+        let account = TestGen::identifier();
         let token_totals = Default::default();
-        let account_ledger = Default::default();
+        let account_ledger = account::Ledger::default()
+            .add_account(&account, Value(1_000), ())
+            .unwrap()
+            .token_add(&account, token_id, Value(1_000))
+            .unwrap();
+
         let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
         let vote_plan_manager = VotePlanManager::new(vote_plan, HashSet::new());
 
-        assert!(vote_plan_manager
+        vote_plan_manager
             .vote(
                 BlockDate::from_epoch_slot_id(1, 1),
-                TestGen::identifier(),
+                account,
                 vote_cast,
                 token_distribution,
             )
-            .is_ok());
+            .unwrap();
     }
 }
