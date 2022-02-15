@@ -129,6 +129,10 @@ pub enum VoteError {
 
     #[error("Error during private tallying {0}")]
     PrivateTallyError(String),
+
+    // maybe add the expected token id to the error message?
+    #[error("Account has no voting power")]
+    ZeroVotingPower,
 }
 
 impl ProposalManager {
@@ -190,7 +194,13 @@ impl ProposalManager {
             .insert(identifier.clone(), ())
             .map_err(|_| VoteError::AlreadyVoted)?;
 
-        let tally = if let Some(stake) = token_distribution.get_account(&identifier) {
+        let tally = if let Some(stake) = token_distribution
+            .get_account(&identifier)
+            // we ignore the error since at this point we know that the account exists, since it
+            // was verified with the input.
+            .ok()
+            .flatten()
+        {
             match (self.tally.clone(), payload) {
                 (IncrementalTally::Public(mut result), ValidatedPayload::Public(choice)) => {
                     result.add_vote(choice, stake)?;
@@ -220,7 +230,7 @@ impl ProposalManager {
                 }
             }
         } else {
-            self.tally.clone()
+            return Err(VoteError::ZeroVotingPower);
         };
 
         Ok(Self {
