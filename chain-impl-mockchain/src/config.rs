@@ -1,4 +1,6 @@
 use crate::date::Epoch;
+#[cfg(feature = "evm")]
+use crate::evm::{BlockGasLimit, Config, GasPrice};
 use crate::key::BftLeaderId;
 use crate::milli::Milli;
 use crate::rewards::{Ratio, TaxType};
@@ -15,8 +17,6 @@ use chain_core::{
     property::{DeserializeFromSlice, ReadError, Serialize},
 };
 use chain_crypto::PublicKey;
-#[cfg(feature = "evm")]
-use chain_evm::machine::Config;
 use std::{
     fmt::{self, Display, Formatter},
     io::{self, Write},
@@ -90,7 +90,9 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
-    EvmParams(EvmConfig),
+    EvmConfiguration(EvmConfig),
+    #[cfg(feature = "evm")]
+    EvmEnvironment(EvmEnvSettings),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -113,18 +115,24 @@ pub enum RewardParams {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// EVM Configuration parameters needed for execution.
 pub enum EvmConfig {
+    /// Configuration for the `Frontier` fork.
+    Frontier = 0,
     /// Configuration for the `Istanbul` fork.
-    Istanbul = 0,
+    Istanbul = 1,
     /// Configuration for the `Berlin` fork.
-    Berlin = 1,
+    Berlin = 2,
+    /// Configuration for the `London` fork.
+    London = 3,
 }
 
 #[cfg(feature = "evm")]
 impl From<EvmConfig> for Config {
     fn from(other: EvmConfig) -> Config {
         match other {
+            EvmConfig::Frontier => Config::frontier(),
             EvmConfig::Istanbul => Config::istanbul(),
             EvmConfig::Berlin => Config::berlin(),
+            EvmConfig::London => Config::london(),
         }
     }
 }
@@ -134,6 +142,14 @@ impl Default for EvmConfig {
     fn default() -> Self {
         EvmConfig::Berlin
     }
+}
+
+#[cfg(feature = "evm")]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+/// Settings for EVM Environment
+pub struct EvmEnvSettings {
+    pub gas_price: GasPrice,
+    pub block_gas_limit: BlockGasLimit,
 }
 
 // Discriminants can NEVER be 1024 or higher
@@ -193,7 +209,10 @@ pub enum Tag {
     TransactionMaxExpiryEpochs = 29,
     #[cfg(feature = "evm")]
     #[strum(to_string = "evm-config-params")]
-    EvmParams = 30,
+    EvmConfiguration = 30,
+    #[cfg(feature = "evm")]
+    #[strum(to_string = "evm-environment-params")]
+    EvmEnvironment = 31,
 }
 
 impl Tag {
@@ -226,7 +245,9 @@ impl Tag {
             28 => Some(Tag::PerVoteCertificateFees),
             29 => Some(Tag::TransactionMaxExpiryEpochs),
             #[cfg(feature = "evm")]
-            30 => Some(Tag::EvmParams),
+            30 => Some(Tag::EvmConfiguration),
+            #[cfg(feature = "evm")]
+            31 => Some(Tag::EvmEnvironment),
             _ => None,
         }
     }
@@ -264,7 +285,9 @@ impl<'a> From<&'a ConfigParam> for Tag {
             ConfigParam::PerVoteCertificateFees(..) => Tag::PerVoteCertificateFees,
             ConfigParam::TransactionMaxExpiryEpochs(..) => Tag::TransactionMaxExpiryEpochs,
             #[cfg(feature = "evm")]
-            ConfigParam::EvmParams(_) => Tag::EvmParams,
+            ConfigParam::EvmConfiguration(_) => Tag::EvmConfiguration,
+            #[cfg(feature = "evm")]
+            ConfigParam::EvmEnvironment(_) => Tag::EvmEnvironment,
         }
     }
 }
@@ -349,7 +372,13 @@ impl DeserializeFromSlice for ConfigParam {
                 ConfigParamVariant::from_payload(bytes).map(ConfigParam::TransactionMaxExpiryEpochs)
             }
             #[cfg(feature = "evm")]
-            Tag::EvmParams => ConfigParamVariant::from_payload(bytes).map(ConfigParam::EvmParams),
+            Tag::EvmConfiguration => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::EvmConfiguration)
+            }
+            #[cfg(feature = "evm")]
+            Tag::EvmEnvironment => {
+                ConfigParamVariant::from_payload(bytes).map(ConfigParam::EvmEnvironment)
+            }
         }
         .map_err(Into::into)
     }
@@ -386,7 +415,9 @@ impl Serialize for ConfigParam {
             ConfigParam::PerVoteCertificateFees(data) => data.to_payload(),
             ConfigParam::TransactionMaxExpiryEpochs(data) => data.to_payload(),
             #[cfg(feature = "evm")]
-            ConfigParam::EvmParams(data) => data.to_payload(),
+            ConfigParam::EvmConfiguration(data) => data.to_payload(),
+            #[cfg(feature = "evm")]
+            ConfigParam::EvmEnvironment(data) => data.to_payload(),
         };
         let taglen = TagLen::new(tag, bytes.len()).ok_or_else(|| {
             io::Error::new(
@@ -780,6 +811,28 @@ impl ConfigParamVariant for EvmConfig {
     }
 }
 
+#[cfg(feature = "evm")]
+impl ConfigParamVariant for EvmEnvSettings {
+    fn to_payload(&self) -> Vec<u8> {
+        use crate::evm::serialize_u256;
+        let bb: ByteBuilder<EvmEnvSettings> = ByteBuilder::new();
+        let bb = serialize_u256(bb, &self.gas_price);
+        let bb = serialize_u256(bb, &self.block_gas_limit);
+        bb.finalize_as_vec()
+    }
+
+    fn from_payload(payload: &[u8]) -> Result<Self, Error> {
+        use crate::evm::read_u256;
+        let mut codec = Codec::new(payload);
+        let gas_price = read_u256(&mut codec)?;
+        let block_gas_limit = read_u256(&mut codec)?;
+        Ok(EvmEnvSettings {
+            gas_price,
+            block_gas_limit,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TagLen(u16);
 
@@ -907,6 +960,16 @@ mod test {
         }
     }
 
+    #[cfg(feature = "evm")]
+    impl Arbitrary for EvmEnvSettings {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            EvmEnvSettings {
+                gas_price: [u8::arbitrary(g); 32].into(),
+                block_gas_limit: [u8::arbitrary(g); 32].into(),
+            }
+        }
+    }
+
     impl Arbitrary for ConfigParam {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             match u8::arbitrary(g) % 30 {
@@ -947,7 +1010,9 @@ mod test {
                 28 => ConfigParam::PerCertificateFees(Arbitrary::arbitrary(g)),
                 29 => ConfigParam::TransactionMaxExpiryEpochs(Arbitrary::arbitrary(g)),
                 #[cfg(feature = "evm")]
-                30 => ConfigParam::EvmParams(Arbitrary::arbitrary(g)),
+                30 => ConfigParam::EvmConfiguration(Arbitrary::arbitrary(g)),
+                #[cfg(feature = "evm")]
+                31 => ConfigParam::EvmEnvironment(Arbitrary::arbitrary(g)),
                 _ => unreachable!(),
             }
         }

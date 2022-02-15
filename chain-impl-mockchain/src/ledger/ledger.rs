@@ -524,7 +524,7 @@ impl Ledger {
                     #[cfg(feature = "evm")]
                     {
                         let tx = _tx.as_slice().payload().into_payload();
-                        let config = &ledger.settings.evm_params.into();
+                        let config = &ledger.settings.evm_config.into();
                         ledger.evm.run_transaction(tx, config)?;
                     }
                     #[cfg(not(feature = "evm"))]
@@ -813,6 +813,20 @@ impl Ledger {
         new_ledger.updates = updates;
         new_ledger.settings = settings;
 
+        #[cfg(feature = "evm")]
+        {
+            // Set EVM environment values derived from block0 values
+            new_ledger.evm.environment.chain_id =
+                <[u8; 32]>::from(new_ledger.static_params.block0_initial_hash).into();
+            // TODO: set Origin, coinbase, and set block timestamp when
+            // they are defined. Using default values meanwhile.
+
+            // Set EVM environment values from settings
+            new_ledger.evm.environment.gas_price = new_ledger.settings.evm_environment.gas_price;
+            new_ledger.evm.environment.block_gas_limit =
+                new_ledger.settings.evm_environment.block_gas_limit;
+        }
+
         Ok(ApplyBlockLedger {
             ledger_params: new_ledger.get_ledger_parameters(),
             ledger: new_ledger,
@@ -844,6 +858,10 @@ impl Ledger {
         }
 
         let new_block_ledger = self.begin_block(metadata.chain_length, metadata.block_date)?;
+
+        #[cfg(feature = "evm")]
+        let new_block_ledger = new_block_ledger.update_evm_block(metadata);
+
         let new_block_ledger = contents
             .iter()
             .try_fold(new_block_ledger, |new_block_ledger, fragment| {
@@ -1054,7 +1072,7 @@ impl Ledger {
                 #[cfg(feature = "evm")]
                 {
                     let tx = _tx.as_slice().payload().into_payload();
-                    let config = &new_ledger.settings.evm_params.into();
+                    let config = &new_ledger.settings.evm_config.into();
                     new_ledger.evm.run_transaction(tx, config)?;
                 }
                 #[cfg(not(feature = "evm"))]
@@ -1194,8 +1212,7 @@ impl Ledger {
 
         let mut actions = Vec::new();
 
-        let token_distribution =
-            TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
+        let token_distribution = self.token_distribution();
 
         self.votes = self.votes.apply_committee_result(
             self.date(),
@@ -1237,8 +1254,7 @@ impl Ledger {
             return Err(Error::VoteTallyProofFailed);
         }
 
-        let token_distribution =
-            TokenDistribution::new(self.token_totals.clone(), self.accounts.clone());
+        let token_distribution = self.token_distribution();
 
         self.votes = self.votes.apply_encrypted_vote_tally(
             self.date(),
@@ -1395,6 +1411,14 @@ impl Ledger {
 
     pub fn accounts(&self) -> &account::Ledger {
         &self.accounts
+    }
+
+    pub fn token_totals(&self) -> &TokenTotals {
+        &self.token_totals
+    }
+
+    pub fn token_distribution(&self) -> TokenDistribution<()> {
+        TokenDistribution::new(self.token_totals.clone(), self.accounts.clone())
     }
 
     pub fn get_ledger_parameters(&self) -> LedgerParameters {
@@ -1691,6 +1715,16 @@ impl ApplyBlockLedger {
             ledger,
             ..self.clone()
         })
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn update_evm_block(self, metadata: &HeaderContentEvalContext) -> Self {
+        let mut apply_block_ledger = self;
+        apply_block_ledger
+            .ledger
+            .evm
+            .update_block_environment(metadata);
+        apply_block_ledger
     }
 
     pub fn finish(self, consensus_eval_context: &ConsensusEvalContext) -> Ledger {
