@@ -835,14 +835,27 @@ impl VotePlanManager {
 
     pub fn private_tally<F>(
         &self,
+        block_date: BlockDate,
         decrypted_tally: &DecryptedPrivateTally,
         governance: &Governance,
+        sig: CommitteeId,
         token_distribution: TokenDistribution<()>,
         f: F,
     ) -> Result<Self, VoteError>
     where
         F: FnMut(&VoteAction),
     {
+        if !self.can_committee(block_date) {
+            return Err(VoteError::NotCommitteeTime {
+                start: self.plan().committee_start(),
+                end: self.plan().committee_end(),
+            });
+        }
+
+        if !self.valid_committee(&sig) {
+            return Err(VoteError::InvalidTallyCommittee);
+        }
+
         let committee_pks = self.plan.committee_public_keys();
 
         let proposal_managers = self.proposal_managers.finalize_private_tally(
@@ -870,7 +883,9 @@ mod tests {
     use crate::fee::LinearFee;
     use crate::fragment::Fragment;
     use crate::ledger::token_distribution::TokenTotals;
-    use crate::testing::{build_vote_tally_cert, TestGen, TestTxCertBuilder, VoteTestGen};
+    use crate::testing::{
+        build_vote_tally_cert, decrypt_tally, TestGen, TestTxCertBuilder, VoteTestGen,
+    };
     use crate::tokens::identifier::TokenIdentifier;
     use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
     use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
@@ -1107,7 +1122,7 @@ mod tests {
     }
 
     #[test]
-    pub fn vote_plan_manager_tally_invalid_committee() {
+    pub fn vote_plan_manager_tally_invalid_committee_public() {
         let blank = Choice::new(0);
         let favorable = Choice::new(1);
         let rejection = Choice::new(2);
@@ -1168,12 +1183,14 @@ mod tests {
     }
 
     #[test]
-    pub fn vote_plan_manager_tally_invalid_date() {
+    pub fn vote_plan_manager_tally_invalid_committee_private() {
         let blank = Choice::new(0);
         let favorable = Choice::new(1);
         let rejection = Choice::new(2);
         let committee = Wallet::from_value(Value(100));
         let proposals = VoteTestGen::proposals(3);
+
+        let members = VoteTestGen::committee_members_manager(1, 1);
 
         let vote_start = BlockDate::from_epoch_slot_id(1, 0);
         let vote_end = BlockDate::from_epoch_slot_id(2, 0);
@@ -1182,8 +1199,8 @@ mod tests {
             vote_end,
             BlockDate::from_epoch_slot_id(3, 0),
             proposals,
-            PayloadType::Public,
-            Vec::new(),
+            PayloadType::Private,
+            members.members_keys(),
             TokenIdentifier {
                 policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
                 token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
@@ -1191,7 +1208,7 @@ mod tests {
         );
 
         let mut committee_ids = HashSet::new();
-        committee_ids.insert(committee.public_key().into());
+        committee_ids.insert(TestGen::public_key().into());
 
         let governance = governance_50_percent(blank, favorable, rejection);
 
@@ -1202,8 +1219,8 @@ mod tests {
 
         let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
 
-        let invalid_block_date = BlockDate {
-            epoch: 0,
+        let block_date = BlockDate {
+            epoch: 2,
             slot_id: 10,
         };
 
@@ -1211,6 +1228,46 @@ mod tests {
             TallyProof::Public { id, .. } => id,
             TallyProof::Private { id, .. } => id,
         };
+
+        let members = VoteTestGen::committee_members_manager(1, 1);
+
+        let shares = decrypt_tally(
+            &vote_plan_manager.statuses(token_distribution.clone()),
+            &members,
+        )
+        .unwrap();
+
+        //invalid committee
+        assert_eq!(
+            VoteError::InvalidTallyCommittee,
+            vote_plan_manager
+                .private_tally(
+                    block_date,
+                    &shares,
+                    &governance,
+                    committee_id,
+                    token_distribution,
+                    |_| (),
+                )
+                .err()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    pub fn vote_plan_manager_tally_invalid_date_public() {
+        let (
+            _,
+            vote_plan,
+            governance,
+            token_totals,
+            account_ledger,
+            vote_plan_manager,
+            invalid_block_date,
+            committee_id,
+        ) = vote_plan_manager_tally_invalid_date_setup(PayloadType::Public);
+
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
 
         //not in committee time
         assert_eq!(
@@ -1229,6 +1286,105 @@ mod tests {
                 .err()
                 .unwrap()
         );
+    }
+
+    #[test]
+    pub fn vote_plan_manager_tally_invalid_date_private() {
+        let (
+            members,
+            vote_plan,
+            governance,
+            token_totals,
+            account_ledger,
+            vote_plan_manager,
+            invalid_block_date,
+            committee_id,
+        ) = vote_plan_manager_tally_invalid_date_setup(PayloadType::Private);
+
+        let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
+
+        let shares = decrypt_tally(
+            &vote_plan_manager.statuses(token_distribution.clone()),
+            &members,
+        )
+        .unwrap();
+
+        //not in committee time
+        assert_eq!(
+            VoteError::NotCommitteeTime {
+                start: vote_plan.committee_start(),
+                end: vote_plan.committee_end()
+            },
+            vote_plan_manager
+                .private_tally(
+                    invalid_block_date,
+                    &shares,
+                    &governance,
+                    committee_id,
+                    token_distribution,
+                    |_| (),
+                )
+                .err()
+                .unwrap()
+        );
+    }
+
+    fn vote_plan_manager_tally_invalid_date_setup(
+        payload_type: PayloadType,
+    ) -> (
+        crate::testing::data::CommitteeMembersManager,
+        VotePlan,
+        Governance,
+        TokenTotals,
+        account::Ledger,
+        VotePlanManager,
+        BlockDate,
+        CommitteeId,
+    ) {
+        let blank = Choice::new(0);
+        let favorable = Choice::new(1);
+        let rejection = Choice::new(2);
+        let committee = Wallet::from_value(Value(100));
+        let proposals = VoteTestGen::proposals(3);
+        let members = VoteTestGen::committee_members_manager(1, 1);
+        let vote_start = BlockDate::from_epoch_slot_id(1, 0);
+        let vote_end = BlockDate::from_epoch_slot_id(2, 0);
+        let vote_plan = VotePlan::new(
+            vote_start,
+            vote_end,
+            BlockDate::from_epoch_slot_id(3, 0),
+            proposals,
+            payload_type,
+            members.members_keys(),
+            TokenIdentifier {
+                policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+                token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+            },
+        );
+        let mut committee_ids = HashSet::new();
+        committee_ids.insert(committee.public_key().into());
+        let governance = governance_50_percent(blank, favorable, rejection);
+        let (token_totals, account_ledger, _) = ledger_with_tokens(committee.public_key());
+        let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), committee_ids);
+        let tally_proof = get_tally_proof(vote_start, &committee, vote_plan.to_id());
+        let invalid_block_date = BlockDate {
+            epoch: 0,
+            slot_id: 10,
+        };
+        let committee_id = match tally_proof {
+            TallyProof::Public { id, .. } => id,
+            TallyProof::Private { id, .. } => id,
+        };
+        (
+            members,
+            vote_plan,
+            governance,
+            token_totals,
+            account_ledger,
+            vote_plan_manager,
+            invalid_block_date,
+            committee_id,
+        )
     }
 
     #[test]
