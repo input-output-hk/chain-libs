@@ -129,9 +129,6 @@ pub enum VoteError {
 
     #[error("Error during private tallying {0}")]
     PrivateTallyError(String),
-
-    #[error("It's not possible to cast a vote if the tally is already decrypted")]
-    TallyAlreadyDecrypted,
 }
 
 impl ProposalManager {
@@ -219,7 +216,7 @@ impl ProposalManager {
                     })
                 }
                 (IncrementalTally::Decrypted(_), _) => {
-                    return Err(VoteError::TallyAlreadyDecrypted);
+                    unreachable!("tried to add vote after the voting period")
                 }
             }
         } else {
