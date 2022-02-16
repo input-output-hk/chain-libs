@@ -28,6 +28,7 @@ pub fn decrypt_tally(
         .map(|(_encrypted_tally, max_votes)| *max_votes)
         .max()
         .unwrap();
+
     let table = chain_vote::TallyOptimizationTable::generate_with_balance(absolute_max_votes, 1);
 
     let members_pks: Vec<chain_vote::MemberPublicKey> = members

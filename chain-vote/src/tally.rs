@@ -223,11 +223,17 @@ impl ValidatedTally {
     pub fn decrypt_tally(
         &self,
         max_votes: u64,
-        table: &TallyOptimizationTable,
+        table: &Option<TallyOptimizationTable>,
     ) -> Result<Tally, TallyError> {
-        let r_results = self.decrypt();
-        let votes = baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
-        Ok(Tally { votes })
+        match table {
+            None => Ok(Tally { votes: vec![] }),
+            Some(table) => {
+                let r_results = self.decrypt();
+                let votes =
+                    baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
+                Ok(Tally { votes })
+            }
+        }
     }
 }
 

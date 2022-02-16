@@ -25,7 +25,7 @@ pub struct BabyStepsTable {
 impl BabyStepsTable {
     /// Generate the table with asymmetrical steps,
     /// optimized for multiple reuse of the same table.
-    pub fn generate(max_value: u64) -> Self {
+    pub fn generate(max_value: u64) -> Option<Self> {
         Self::generate_with_balance(max_value, DEFAULT_BALANCE)
     }
 
@@ -36,7 +36,11 @@ impl BabyStepsTable {
     ///
     /// For example, a balance of 2 means that the table will precompute 2 times more
     /// baby steps than the standard O(sqrt(n)), 1 means symmetrical steps.
-    pub fn generate_with_balance(max_value: u64, balance: u64) -> Self {
+    pub fn generate_with_balance(max_value: u64, balance: u64) -> Option<Self> {
+        if max_value == 0 {
+            return None;
+        }
+
         let sqrt_step_size = (max_value as f64).sqrt().ceil() as u64;
         let baby_step_size = sqrt_step_size * balance;
         let mut bs = HashMap::new();
@@ -58,11 +62,11 @@ impl BabyStepsTable {
         }
         assert!(!bs.is_empty());
         assert!(baby_step_size > 0);
-        Self {
+        Some(Self {
             table: bs,
             baby_step_size,
             giant_step: GroupElement::generator() * Scalar::from_u64(baby_step_size).negate(),
-        }
+        })
     }
 }
 
@@ -118,14 +122,13 @@ mod tests {
     };
 
     #[test]
-    #[should_panic]
     fn table_not_empty() {
-        let _ = BabyStepsTable::generate_with_balance(0, 1);
+        assert!(BabyStepsTable::generate_with_balance(0, 1).is_none());
     }
 
     #[test]
     fn quick() {
-        let table = BabyStepsTable::generate_with_balance(25, 1);
+        let table = BabyStepsTable::generate_with_balance(25, 1).unwrap();
         let p = GroupElement::generator();
         let votes = (0..100).collect::<Vec<_>>();
         let points = votes
@@ -151,14 +154,14 @@ mod tests {
 
     fn table_generator_default() -> BoxGenerator<BabyStepsTable> {
         generator::range::<u16>(1..u16::MAX)
-            .map(|a| BabyStepsTable::generate(a as u64))
+            .map(|a| BabyStepsTable::generate(a as u64).unwrap())
             .into_boxed()
     }
 
     fn table_generator_with_balance() -> BoxGenerator<BabyStepsTable> {
         generator::range::<u16>(1..u16::MAX)
             .and(generator::range::<u8>(1..u8::MAX))
-            .map(|(n, b)| BabyStepsTable::generate_with_balance(n as u64, b as u64))
+            .map(|(n, b)| BabyStepsTable::generate_with_balance(n as u64, b as u64).unwrap())
             .into_boxed()
     }
 
