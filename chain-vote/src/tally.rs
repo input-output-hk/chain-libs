@@ -203,6 +203,10 @@ impl EncryptedTally {
 }
 
 impl ValidatedTally {
+    pub fn len(&self) -> usize {
+        self.r.len()
+    }
+
     // Given the shares of the committee members, returns the decryption of all the
     // election options in the form of `GroupElements`. To get the final results, one
     // needs to compute the discrete logarithm of these values, which is performed in
@@ -222,24 +226,15 @@ impl ValidatedTally {
     /// Given the `decrypt_shares` of all committee members, `max_votes`, and a tally optimization
     /// table, `decrypt_tally` first decrypts `self`, and then computes the discrete logarithm
     /// of each resulting plaintext.
-    pub fn decrypt_tally(&self, strategy: TallyDecryptStrategy) -> Result<Tally, TallyError> {
+    pub fn decrypt_tally(
+        &self,
+        table: &TallyOptimizationTable,
+        max_votes: NonZeroU64,
+    ) -> Result<Tally, TallyError> {
         let r_results = self.decrypt();
-        match strategy {
-            TallyDecryptStrategy::WithVotes(table, max_votes) => {
-                let votes =
-                    baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
-                Ok(Tally { votes })
-            }
-            TallyDecryptStrategy::WithoutVotes => Ok(Tally {
-                votes: vec![0; r_results.len()],
-            }),
-        }
+        let votes = baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
+        Ok(Tally { votes })
     }
-}
-
-pub enum TallyDecryptStrategy<'a> {
-    WithVotes(&'a TallyOptimizationTable, NonZeroU64),
-    WithoutVotes,
 }
 
 impl std::ops::Add for EncryptedTally {
@@ -433,10 +428,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(TallyDecryptStrategy::WithVotes(
-                &table,
-                max_votes.try_into().unwrap(),
-            ))
+            .decrypt_tally(&table, max_votes.try_into().unwrap())
             .unwrap();
 
         println!("{:?}", tr);
@@ -503,10 +495,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(TallyDecryptStrategy::WithVotes(
-                &table,
-                max_votes.try_into().unwrap(),
-            ))
+            .decrypt_tally(&table, max_votes.try_into().unwrap())
             .unwrap();
 
         println!("{:?}", tr);
@@ -562,10 +551,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(TallyDecryptStrategy::WithVotes(
-                &table,
-                max_votes.try_into().unwrap(),
-            ))
+            .decrypt_tally(&table, max_votes.try_into().unwrap())
             .unwrap();
 
         println!("{:?}", tr);
@@ -615,10 +601,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&[m1.public_key()], &shares)
             .unwrap()
-            .decrypt_tally(TallyDecryptStrategy::WithVotes(
-                &table,
-                max_votes.try_into().unwrap(),
-            ))
+            .decrypt_tally(&table, max_votes.try_into().unwrap())
             .unwrap();
 
         println!("{:?}", tr);
@@ -680,10 +663,7 @@ mod tests {
         let res = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(TallyDecryptStrategy::WithVotes(
-                &table,
-                max_votes.try_into().unwrap(),
-            ));
+            .decrypt_tally(&table, max_votes.try_into().unwrap());
 
         assert!(
             res.is_err(),

@@ -17,7 +17,6 @@ use chain_impl_mockchain::{
     value::Value,
     vote::{Choice, PayloadType},
 };
-use chain_vote::tally::TallyDecryptStrategy;
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{
     distributions::{Distribution, Uniform, WeightedIndex},
@@ -253,10 +252,7 @@ fn tally_benchmark(
                         &decrypt_shares[i],
                     )
                     .unwrap()
-                    .decrypt_tally(TallyDecryptStrategy::WithVotes(
-                        &table,
-                        total_votes_per_proposal[i].try_into().unwrap(),
-                    ))
+                    .decrypt_tally(&table, total_votes_per_proposal[i].try_into().unwrap())
                     .unwrap()
             })
             .collect::<Vec<_>>()

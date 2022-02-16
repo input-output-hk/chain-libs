@@ -8,10 +8,7 @@ use crate::{
     vote::VotePlanStatus,
 };
 
-use chain_vote::{
-    tally::TallyDecryptStrategy,
-    TallyOptimizationTable,
-};
+use chain_vote::{Tally, TallyOptimizationTable};
 use rand::thread_rng;
 
 pub fn decrypt_tally(
@@ -62,12 +59,14 @@ pub fn decrypt_tally(
                 .validate_partial_decryptions(&members_pks, &decrypt_shares)
                 .expect("Invalid shares");
 
-            let decrypt_strat = match (&table, max_votes.try_into()) {
-                (Some(table), Ok(max_votes)) => TallyDecryptStrategy::WithVotes(table, max_votes),
-                _ => TallyDecryptStrategy::WithoutVotes,
+            let tally = match (&table, max_votes.try_into()) {
+                (Some(table), Ok(max_votes)) => {
+                    validated_tally.decrypt_tally(table, max_votes).unwrap()
+                }
+                _ => Tally {
+                    votes: vec![0; validated_tally.len()],
+                },
             };
-
-            let tally = validated_tally.decrypt_tally(decrypt_strat).unwrap();
 
             DecryptedPrivateTallyProposal {
                 decrypt_shares: decrypt_shares.into_boxed_slice(),
