@@ -4,7 +4,7 @@
 use crate::Coordinate;
 use crate::{GroupElement, Scalar};
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZeroU64};
 
 // make steps asymmetric, in order to better use caching of baby steps.
 // balance of 2 means that baby steps are 2 time more than sqrt(max_votes)
@@ -25,8 +25,8 @@ pub struct BabyStepsTable {
 impl BabyStepsTable {
     /// Generate the table with asymmetrical steps,
     /// optimized for multiple reuse of the same table.
-    pub fn generate(max_value: u64) -> Option<Self> {
-        Self::generate_with_balance(max_value, DEFAULT_BALANCE)
+    pub fn generate(max_value: NonZeroU64) -> Self {
+        Self::generate_with_balance(max_value, DEFAULT_BALANCE.try_into().unwrap())
     }
 
     /// Generate the table with the given balance. Balance is used to make
@@ -36,13 +36,9 @@ impl BabyStepsTable {
     ///
     /// For example, a balance of 2 means that the table will precompute 2 times more
     /// baby steps than the standard O(sqrt(n)), 1 means symmetrical steps.
-    pub fn generate_with_balance(max_value: u64, balance: u64) -> Option<Self> {
-        if max_value == 0 {
-            return None;
-        }
-
-        let sqrt_step_size = (max_value as f64).sqrt().ceil() as u64;
-        let baby_step_size = sqrt_step_size * balance;
+    pub fn generate_with_balance(max_value: NonZeroU64, balance: NonZeroU64) -> Self {
+        let sqrt_step_size = (u64::from(max_value) as f64).sqrt().ceil() as u64;
+        let baby_step_size = sqrt_step_size * u64::from(balance);
         let mut bs = HashMap::new();
         let gen = GroupElement::generator();
         let mut e = GroupElement::zero();
@@ -61,12 +57,11 @@ impl BabyStepsTable {
             e = e + &gen;
         }
         assert!(!bs.is_empty());
-        assert!(baby_step_size > 0);
-        Some(Self {
+        Self {
             table: bs,
             baby_step_size,
             giant_step: GroupElement::generator() * Scalar::from_u64(baby_step_size).negate(),
-        })
+        }
     }
 }
 
@@ -76,9 +71,10 @@ pub struct MaxLogExceeded;
 /// Solve the discrete log on ECC using baby step giant step algorithm
 pub fn baby_step_giant_step(
     points: Vec<GroupElement>,
-    max_log: u64,
+    max_log: NonZeroU64,
     table: &BabyStepsTable,
 ) -> Result<Vec<u64>, MaxLogExceeded> {
+    let max_log: u64 = max_log.into();
     let baby_step_size = table.baby_step_size;
     let giant_step = &table.giant_step;
     let table = &table.table;
@@ -121,14 +117,14 @@ mod tests {
         Generator,
     };
 
-    #[test]
-    fn table_not_empty() {
-        assert!(BabyStepsTable::generate_with_balance(0, 1).is_none());
+    /// helper to convert a numeric type to a `NonZeroU64`
+    fn nz<N: Into<i32>>(n: N) -> NonZeroU64 {
+        (n.into() as u64).try_into().unwrap()
     }
 
     #[test]
     fn quick() {
-        let table = BabyStepsTable::generate_with_balance(25, 1).unwrap();
+        let table = BabyStepsTable::generate_with_balance(nz(25), nz(1));
         let p = GroupElement::generator();
         let votes = (0..100).collect::<Vec<_>>();
         let points = votes
@@ -138,7 +134,7 @@ mod tests {
                 &p * ks
             })
             .collect();
-        let results = baby_step_giant_step(points, 100, &table).unwrap();
+        let results = baby_step_giant_step(points, nz(100), &table).unwrap();
         assert_eq!(votes, results);
     }
 
@@ -154,14 +150,14 @@ mod tests {
 
     fn table_generator_default() -> BoxGenerator<BabyStepsTable> {
         generator::range::<u16>(1..u16::MAX)
-            .map(|a| BabyStepsTable::generate(a as u64).unwrap())
+            .map(|a| BabyStepsTable::generate(NonZeroU64::try_from(a as u64).unwrap()))
             .into_boxed()
     }
 
     fn table_generator_with_balance() -> BoxGenerator<BabyStepsTable> {
         generator::range::<u16>(1..u16::MAX)
             .and(generator::range::<u8>(1..u8::MAX))
-            .map(|(n, b)| BabyStepsTable::generate_with_balance(n as u64, b as u64).unwrap())
+            .map(|(n, b)| BabyStepsTable::generate_with_balance(nz(n), nz(b)))
             .into_boxed()
     }
 
@@ -176,7 +172,7 @@ mod tests {
 
                     property::equal(
                         ks,
-                        baby_step_giant_step(points.to_vec(), u16::MAX as u64, table).unwrap(),
+                        baby_step_giant_step(points.to_vec(), nz(u16::MAX), table).unwrap(),
                     )
                 })
                 .test(ctx);
@@ -185,7 +181,7 @@ mod tests {
                     let (points, ks): (Vec<_>, Vec<_>) = points.to_vec().into_iter().unzip();
                     property::equal(
                         ks,
-                        baby_step_giant_step(points.to_vec(), u16::MAX as u64, table).unwrap(),
+                        baby_step_giant_step(points.to_vec(), nz(u16::MAX), table).unwrap(),
                     )
                 })
                 .test(ctx);

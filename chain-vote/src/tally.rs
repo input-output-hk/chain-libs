@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use crate::{
     committee::*,
     cryptography::{Ciphertext, CorrectShareGenerationZkp},
@@ -220,21 +222,24 @@ impl ValidatedTally {
     /// Given the `decrypt_shares` of all committee members, `max_votes`, and a tally optimization
     /// table, `decrypt_tally` first decrypts `self`, and then computes the discrete logarithm
     /// of each resulting plaintext.
-    pub fn decrypt_tally(
-        &self,
-        max_votes: u64,
-        table: &Option<TallyOptimizationTable>,
-    ) -> Result<Tally, TallyError> {
-        match table {
-            None => Ok(Tally { votes: vec![] }),
-            Some(table) => {
-                let r_results = self.decrypt();
+    pub fn decrypt_tally(&self, strategy: TallyDecryptStrategy) -> Result<Tally, TallyError> {
+        let r_results = self.decrypt();
+        match strategy {
+            TallyDecryptStrategy::WithVotes(table, max_votes) => {
                 let votes =
                     baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
                 Ok(Tally { votes })
             }
+            TallyDecryptStrategy::WithoutVotes => Ok(Tally {
+                votes: vec![0; r_results.len()],
+            }),
         }
     }
+}
+
+pub enum TallyDecryptStrategy<'a> {
+    WithVotes(&'a TallyOptimizationTable, NonZeroU64),
+    WithoutVotes,
 }
 
 impl std::ops::Add for EncryptedTally {
@@ -421,11 +426,17 @@ mod tests {
         let shares = vec![tds1];
 
         println!("resulting");
-        let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
+        let table = TallyOptimizationTable::generate_with_balance(
+            max_votes.try_into().unwrap(),
+            1.try_into().unwrap(),
+        );
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(max_votes, &table)
+            .decrypt_tally(TallyDecryptStrategy::WithVotes(
+                &table,
+                max_votes.try_into().unwrap(),
+            ))
             .unwrap();
 
         println!("{:?}", tr);
@@ -485,11 +496,17 @@ mod tests {
         let shares = vec![tds1, tds2, tds3];
 
         println!("resulting");
-        let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
+        let table = TallyOptimizationTable::generate_with_balance(
+            max_votes.try_into().unwrap(),
+            1.try_into().unwrap(),
+        );
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(max_votes, &table)
+            .decrypt_tally(TallyDecryptStrategy::WithVotes(
+                &table,
+                max_votes.try_into().unwrap(),
+            ))
             .unwrap();
 
         println!("{:?}", tr);
@@ -538,11 +555,17 @@ mod tests {
         let shares = vec![tds1];
 
         println!("resulting");
-        let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
+        let table = TallyOptimizationTable::generate_with_balance(
+            max_votes.try_into().unwrap(),
+            1.try_into().unwrap(),
+        );
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(max_votes, &table)
+            .decrypt_tally(TallyDecryptStrategy::WithVotes(
+                &table,
+                max_votes.try_into().unwrap(),
+            ))
             .unwrap();
 
         println!("{:?}", tr);
@@ -585,11 +608,17 @@ mod tests {
         let shares = vec![tds1];
 
         println!("resulting");
-        let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
+        let table = TallyOptimizationTable::generate_with_balance(
+            max_votes.try_into().unwrap(),
+            1.try_into().unwrap(),
+        );
         let tr = encrypted_tally
             .validate_partial_decryptions(&[m1.public_key()], &shares)
             .unwrap()
-            .decrypt_tally(max_votes, &table)
+            .decrypt_tally(TallyDecryptStrategy::WithVotes(
+                &table,
+                max_votes.try_into().unwrap(),
+            ))
             .unwrap();
 
         println!("{:?}", tr);
@@ -644,11 +673,17 @@ mod tests {
         let shares = vec![tds1, tds2, tds3];
 
         println!("resulting");
-        let table = TallyOptimizationTable::generate_with_balance(max_votes, 1);
+        let table = TallyOptimizationTable::generate_with_balance(
+            max_votes.try_into().unwrap(),
+            1.try_into().unwrap(),
+        );
         let res = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(max_votes, &table);
+            .decrypt_tally(TallyDecryptStrategy::WithVotes(
+                &table,
+                max_votes.try_into().unwrap(),
+            ));
 
         assert!(
             res.is_err(),

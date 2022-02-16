@@ -17,6 +17,7 @@ use chain_impl_mockchain::{
     value::Value,
     vote::{Choice, PayloadType},
 };
+use chain_vote::tally::TallyDecryptStrategy;
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{
     distributions::{Distribution, Uniform, WeightedIndex},
@@ -63,7 +64,7 @@ fn tally_benchmark(
         .sample_iter(&mut rng)
         .take(voters_count)
         .collect();
-    let total_votes = voting_powers.iter().sum();
+    let total_votes: u64 = voting_powers.iter().sum();
     let token_name: TokenName = vec![0u8; TOKEN_NAME_MAX_SIZE].try_into().unwrap();
     let mut voters_wallets: Vec<_> = voters_aliases
         .iter()
@@ -233,7 +234,7 @@ fn tally_benchmark(
         .collect();
 
     let decrypt_tally = || {
-        let table = chain_vote::TallyOptimizationTable::generate(total_votes);
+        let table = chain_vote::TallyOptimizationTable::generate(total_votes.try_into().unwrap());
 
         vote_plan_status
             .proposals
@@ -252,7 +253,10 @@ fn tally_benchmark(
                         &decrypt_shares[i],
                     )
                     .unwrap()
-                    .decrypt_tally(total_votes_per_proposal[i], &table)
+                    .decrypt_tally(TallyDecryptStrategy::WithVotes(
+                        &table,
+                        total_votes_per_proposal[i].try_into().unwrap(),
+                    ))
                     .unwrap()
             })
             .collect::<Vec<_>>()
