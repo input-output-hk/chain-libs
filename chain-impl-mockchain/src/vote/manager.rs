@@ -1920,7 +1920,7 @@ mod tests {
             VoteTestGen::proposals(3),
             PayloadType::Public,
             Vec::new(),
-            token_id.clone(),
+            token_id,
         );
 
         let vote_cast = VoteCast::new(vote_plan.to_id(), 0, VoteTestGen::vote_cast_payload());
