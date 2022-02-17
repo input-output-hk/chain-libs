@@ -51,8 +51,8 @@ impl TestEvmState {
     fn try_apply_network(self, network: String) -> Result<Self, String> {
         println!("Network type: {}", network);
         match network.as_str() {
-            "Berlin" => Ok(self.set_evm_config(Config::Berlin)),
             "Istanbul" => Ok(self.set_evm_config(Config::Istanbul)),
+            "Berlin" => Ok(self.set_evm_config(Config::Berlin)),
             "London" => Ok(self.set_evm_config(Config::London)),
             network => Err(format!("Not known network type, {}", network)),
         }
