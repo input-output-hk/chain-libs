@@ -32,5 +32,3 @@ impl TallyDecryptor {
         }
     }
 }
-
-
