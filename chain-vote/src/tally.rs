@@ -11,6 +11,7 @@ use crate::{
 use crate::GroupElement;
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
+use rand::thread_rng;
 use rand_core::{CryptoRng, RngCore};
 
 mod decryptor;
@@ -54,6 +55,7 @@ impl From<(&ElectionPublicKey, &Crs)> for ElectionFingerprint {
 pub struct EncryptedTally {
     r: Vec<Ciphertext>,
     fingerprint: ElectionFingerprint,
+    max_stake: u64,
 }
 
 /// `TallyDecryptShare` contains one decryption share per existing option. All committee
@@ -112,6 +114,7 @@ impl EncryptedTally {
         EncryptedTally {
             r,
             fingerprint: (&election_pk, &crs).into(),
+            max_stake: 0,
         }
     }
 
@@ -202,7 +205,12 @@ impl EncryptedTally {
             .map(Ciphertext::from_bytes)
             .collect::<Option<Vec<_>>>()?;
 
-        Some(Self { r, fingerprint })
+        let _ = Some(Self {
+            r,
+            fingerprint,
+            max_stake: 0,
+        });
+        todo!("what should max_stake be")
     }
 }
 
@@ -259,9 +267,11 @@ impl std::ops::Add for EncryptedTally {
             .zip(rhs.r.iter())
             .map(|(left, right)| left + right)
             .collect();
+        let max_stake = std::cmp::max(self.max_stake, rhs.max_stake);
         Self {
             r,
             fingerprint: self.fingerprint,
+            max_stake,
         }
     }
 }
@@ -368,6 +378,55 @@ impl Tally {
             }
         }
         true
+    }
+}
+
+pub fn batch_decrypt<'a, T, I>(
+    encrypted_tallies: T,
+    member_pks: &[MemberPublicKey],
+    member_sks: &[&MemberSecretKey],
+) -> Result<Vec<Tally>, TallyError>
+where
+    T: IntoIterator<Item = &'a EncryptedTally>,
+    T::IntoIter: Clone,
+{
+    let encrypted_tallies = encrypted_tallies.into_iter();
+    let absolute_max_stake = encrypted_tallies
+        .clone()
+        .map(|tally| tally.max_stake)
+        .max()
+        .map(TryInto::try_into);
+
+    match absolute_max_stake {
+        Some(Ok(absolute_max_stake)) => {
+            let table = TallyOptimizationTable::generate_with_balance(
+                absolute_max_stake,
+                1.try_into().unwrap(),
+            );
+
+            encrypted_tallies
+                .map(|encrypted_tally| {
+                    let decrypt_shares: Vec<_> = member_sks
+                        .iter()
+                        .map(|sk| encrypted_tally.partial_decrypt(&mut thread_rng(), sk))
+                        .collect();
+
+                    let validated_tally = encrypted_tally
+                        .validate_partial_decryptions(member_pks, &decrypt_shares)
+                        .expect("Invalid shares");
+
+                    match encrypted_tally.max_stake.try_into() {
+                        Ok(max_stake) => validated_tally.decrypt_tally(&table, max_stake),
+                        Err(_) => Ok(Tally {
+                            votes: vec![0; validated_tally.len()],
+                        }),
+                    }
+                })
+                .collect()
+        }
+        _ => {
+            panic!()
+        }
     }
 }
 
