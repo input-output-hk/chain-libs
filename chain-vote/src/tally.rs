@@ -13,6 +13,10 @@ use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 use rand_core::{CryptoRng, RngCore};
 
+mod decryptor;
+
+pub use decryptor::TallyDecryptor;
+
 /// Secret key for opening vote
 pub type OpeningVoteKey = MemberSecretKey;
 
@@ -205,6 +209,10 @@ impl EncryptedTally {
 impl ValidatedTally {
     pub fn len(&self) -> usize {
         self.r.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     // Given the shares of the committee members, returns the decryption of all the

@@ -1,5 +1,3 @@
-use std::num::NonZeroU64;
-
 use crate::{
     certificate::{
         DecryptedPrivateTally, DecryptedPrivateTallyError, DecryptedPrivateTallyProposal,
@@ -8,7 +6,7 @@ use crate::{
     vote::VotePlanStatus,
 };
 
-use chain_vote::{Tally, TallyOptimizationTable};
+use chain_vote::tally::TallyDecryptor;
 use rand::thread_rng;
 
 pub fn decrypt_tally(
@@ -38,13 +36,7 @@ pub fn decrypt_tally(
         .map(|member| member.public_key())
         .collect();
 
-    let table = match absolute_max_votes.try_into() {
-        Ok(absolute_max_votes) => Some(TallyOptimizationTable::generate_with_balance(
-            absolute_max_votes,
-            NonZeroU64::try_from(1).unwrap(),
-        )),
-        Err(_) => None,
-    };
+    let decryptor = TallyDecryptor::with_abs_max_votes(absolute_max_votes);
 
     let proposals = encrypted_tally
         .into_iter()
@@ -59,14 +51,7 @@ pub fn decrypt_tally(
                 .validate_partial_decryptions(&members_pks, &decrypt_shares)
                 .expect("Invalid shares");
 
-            let tally = match (&table, max_votes.try_into()) {
-                (Some(table), Ok(max_votes)) => {
-                    validated_tally.decrypt_tally(table, max_votes).unwrap()
-                }
-                _ => Tally {
-                    votes: vec![0; validated_tally.len()],
-                },
-            };
+            let tally = decryptor.decrypt(&validated_tally, max_votes).unwrap();
 
             DecryptedPrivateTallyProposal {
                 decrypt_shares: decrypt_shares.into_boxed_slice(),
