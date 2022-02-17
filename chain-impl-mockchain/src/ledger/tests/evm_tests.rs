@@ -5,17 +5,18 @@ use std::mem::size_of;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use chain_evm::primitive_types::{H160, H256, U256};
-use chain_evm::state::{Account, Trie};
-use chain_evm::Address;
+use chain_evm::{
+    primitive_types::{H160, H256, U256},
+    state::{Account, Trie},
+    Address, Config,
+};
 
-use crate::config::EvmConfig;
 use crate::evm::EvmTransaction;
 use crate::ledger::evm::Ledger;
 
 struct TestEvmState {
     ledger: Ledger,
-    config: EvmConfig,
+    config: Config,
     coinbase_addresses: BTreeSet<String>,
 }
 
@@ -30,7 +31,7 @@ impl TestEvmState {
 }
 
 impl TestEvmState {
-    fn set_evm_config(mut self, config: EvmConfig) -> Self {
+    fn set_evm_config(mut self, config: Config) -> Self {
         self.config = config;
         self
     }
@@ -50,9 +51,9 @@ impl TestEvmState {
     fn try_apply_network(self, network: String) -> Result<Self, String> {
         println!("Network type: {}", network);
         match network.as_str() {
-            "Istanbul" => Ok(self.set_evm_config(EvmConfig::Istanbul)),
-            "Berlin" => Ok(self.set_evm_config(EvmConfig::Berlin)),
-            "London" => Ok(self.set_evm_config(EvmConfig::London)),
+            "Istanbul" => Ok(self.set_evm_config(Config::Istanbul)),
+            "Berlin" => Ok(self.set_evm_config(Config::Berlin)),
+            "London" => Ok(self.set_evm_config(Config::London)),
             network => Err(format!("Not known network type, {}", network)),
         }
     }
@@ -101,7 +102,7 @@ impl TestEvmState {
         self.ledger.environment.gas_price = gas_price;
 
         self.ledger
-            .run_transaction(tx.try_into()?, &self.config.into())
+            .run_transaction(tx.try_into()?, self.config)
             .map_err(|e| format!("can not run transaction, err: {}", e))?;
 
         Ok(self)
@@ -352,6 +353,6 @@ fn run_evm_tests() {
 #[ignore]
 fn evm_test() {
     run_evm_test(PathBuf::from(
-        "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmTests/blockInfo.json",
+        "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmIOandFlowOperations/loop_stacklimit.json"
     ));
 }
