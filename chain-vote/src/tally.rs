@@ -13,10 +13,6 @@ use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 use rand_core::{CryptoRng, RngCore};
 
-mod decryptor;
-
-pub use decryptor::TallyDecryptor;
-
 /// Secret key for opening vote
 pub type OpeningVoteKey = MemberSecretKey;
 
@@ -127,13 +123,13 @@ impl EncryptedTally {
     ///
     /// Note that the encrypted vote needs to have the exact same number of
     /// options as the initialised tally, otherwise an assert will trigger.
-    #[allow(clippy::ptr_arg)]
     pub fn add(&mut self, ballot: &Ballot, weight: u64) {
         assert_eq!(ballot.vote().len(), self.r.len());
         assert_eq!(ballot.fingerprint(), &self.fingerprint);
         for (ri, ci) in self.r.iter_mut().zip(ballot.vote().iter()) {
             *ri = &*ri + &(ci * weight);
         }
+        self.max_stake = std::cmp::max(self.max_stake, weight);
     }
 
     /// Given a single committee member's `secret_key`, returns a partial decryption of
@@ -394,13 +390,16 @@ impl Tally {
 }
 
 pub fn batch_decrypt(validated_tallies: &[ValidatedTally]) -> Result<Vec<Tally>, TallyError> {
-    let absolute_max_stake = validated_tallies
-        .iter()
-        .map(|tally| tally.max_stake)
-        .max()
-        .unwrap_or(0);
+    let absolute_max_stake = validated_tallies.iter().map(|tally| tally.max_stake).max();
+
+    let absolute_max_stake = match absolute_max_stake {
+        Some(stake) => stake,
+        None => return Ok(vec![]),
+    };
 
     match absolute_max_stake.try_into() {
+        // if absolute_max_stake == 0, all stakes are zero, so safe to do a trivial conversion
+        Err(_) => Ok(validated_tallies.iter().map(trivial_convert).collect()),
         Ok(absolute_max_stake) => {
             let table = TallyOptimizationTable::generate_with_balance(
                 absolute_max_stake,
@@ -410,26 +409,23 @@ pub fn batch_decrypt(validated_tallies: &[ValidatedTally]) -> Result<Vec<Tally>,
             let mut result = Vec::with_capacity(validated_tallies.len());
 
             for validated_tally in validated_tallies {
-                match validated_tally.max_stake.try_into() {
-                    Ok(max_stake) => {
-                        let tally = validated_tally.decrypt_tally(&table, max_stake)?;
-                        result.push(tally);
-                    }
-                    Err(_) => {
-                        result.push(trivial_convert(validated_tally));
-                    }
-                }
+                let tally = match validated_tally.max_stake.try_into() {
+                    Ok(max_stake) => validated_tally.decrypt_tally(&table, max_stake)?,
+                    Err(_) => trivial_convert(validated_tally),
+                };
+                result.push(tally);
             }
 
             Ok(result)
         }
-        // this path is only taken if absolute_max_stake is 0, so all stakes are 0
-        Err(_) => Ok(validated_tallies.iter().map(trivial_convert).collect()),
     }
 }
 
+/// Convert from [`ValidatedTally`] to a [`Tally`] when there are no votes cast
+///
+/// If `max_stake` is not 0, this function will panic
 fn trivial_convert(validated_tally: &ValidatedTally) -> Tally {
-    assert_eq!(validated_tally.len(), 0);
+    assert_eq!(validated_tally.max_stake, 0);
     let votes = vec![0; validated_tally.len()];
     Tally { votes }
 }
