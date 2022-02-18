@@ -11,7 +11,6 @@ use crate::{
 use crate::GroupElement;
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
-use rand::thread_rng;
 use rand_core::{CryptoRng, RngCore};
 
 mod decryptor;
@@ -80,6 +79,7 @@ pub struct TallyDecryptShare {
 pub struct ValidatedTally {
     r: Vec<Ciphertext>,
     decrypt_shares: Vec<TallyDecryptShare>,
+    max_stake: u64,
 }
 
 /// `ProvenDecryptShare` consists of a group element (the partial decryption), and `CorrectShareGenerationZkp`,
@@ -106,6 +106,8 @@ pub struct TallyError;
 pub struct DecryptionError;
 
 impl EncryptedTally {
+    const MAX_STAKE_BYTES_LEN: usize = std::mem::size_of::<u64>();
+
     /// Initialise a new tally with N different options. The `EncryptedTally` is computed using
     /// the additive homomorphic property of the elgamal `Ciphertext`s, and is therefore initialised
     /// with zero ciphertexts.
@@ -177,15 +179,20 @@ impl EncryptedTally {
         Ok(ValidatedTally {
             r: self.r.clone(),
             decrypt_shares: decrypt_shares.to_vec(),
+            max_stake: self.max_stake,
         })
     }
 
     /// Returns a byte array with every ciphertext in the `EncryptedTally`
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::with_capacity(
-            Ciphertext::BYTES_LEN * self.r.len() + ElectionFingerprint::BYTES_LEN,
+            Ciphertext::BYTES_LEN * self.r.len()
+                + ElectionFingerprint::BYTES_LEN
+                + Self::MAX_STAKE_BYTES_LEN,
         );
         bytes.extend_from_slice(&self.fingerprint.0);
+        let max_stake_bytes = self.max_stake.to_le_bytes();
+        bytes.extend_from_slice(&max_stake_bytes);
         for ri in &self.r {
             bytes.extend_from_slice(ri.to_bytes().as_ref());
         }
@@ -195,22 +202,27 @@ impl EncryptedTally {
     /// Tries to generate an `EncryptedTally` out of an array of bytes. Returns `None` if the
     /// size of the byte array is not a multiply of `Ciphertext::BYTES_LEN`.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if (bytes.len() - ElectionFingerprint::BYTES_LEN) % Ciphertext::BYTES_LEN != 0 {
+        let cyphertext_len =
+            bytes.len() - ElectionFingerprint::BYTES_LEN - Self::MAX_STAKE_BYTES_LEN;
+        if cyphertext_len % Ciphertext::BYTES_LEN != 0 {
             return None;
         }
-        let fingerprint =
-            ElectionFingerprint(bytes[0..ElectionFingerprint::BYTES_LEN].try_into().unwrap());
+        let (fingerprint_bytes, bytes) = bytes.split_at(ElectionFingerprint::BYTES_LEN);
+        let fingerprint = ElectionFingerprint(fingerprint_bytes.try_into().unwrap());
+
+        let (max_stake_bytes, bytes) = bytes.split_at(Self::MAX_STAKE_BYTES_LEN);
+        let max_stake = u64::from_le_bytes(max_stake_bytes.try_into().unwrap());
+
         let r = bytes[ElectionFingerprint::BYTES_LEN..]
             .chunks(Ciphertext::BYTES_LEN)
             .map(Ciphertext::from_bytes)
             .collect::<Option<Vec<_>>>()?;
 
-        let _ = Some(Self {
+        Some(Self {
             r,
             fingerprint,
-            max_stake: 0,
-        });
-        todo!("what should max_stake be")
+            max_stake,
+        })
     }
 }
 
@@ -381,53 +393,45 @@ impl Tally {
     }
 }
 
-pub fn batch_decrypt<'a, T, I>(
-    encrypted_tallies: T,
-    member_pks: &[MemberPublicKey],
-    member_sks: &[&MemberSecretKey],
-) -> Result<Vec<Tally>, TallyError>
-where
-    T: IntoIterator<Item = &'a EncryptedTally>,
-    T::IntoIter: Clone,
-{
-    let encrypted_tallies = encrypted_tallies.into_iter();
-    let absolute_max_stake = encrypted_tallies
-        .clone()
+pub fn batch_decrypt(validated_tallies: &[ValidatedTally]) -> Result<Vec<Tally>, TallyError> {
+    let absolute_max_stake = validated_tallies
+        .iter()
         .map(|tally| tally.max_stake)
         .max()
-        .map(TryInto::try_into);
+        .unwrap_or(0);
 
-    match absolute_max_stake {
-        Some(Ok(absolute_max_stake)) => {
+    match absolute_max_stake.try_into() {
+        Ok(absolute_max_stake) => {
             let table = TallyOptimizationTable::generate_with_balance(
                 absolute_max_stake,
                 1.try_into().unwrap(),
             );
 
-            encrypted_tallies
-                .map(|encrypted_tally| {
-                    let decrypt_shares: Vec<_> = member_sks
-                        .iter()
-                        .map(|sk| encrypted_tally.partial_decrypt(&mut thread_rng(), sk))
-                        .collect();
+            let mut result = Vec::with_capacity(validated_tallies.len());
 
-                    let validated_tally = encrypted_tally
-                        .validate_partial_decryptions(member_pks, &decrypt_shares)
-                        .expect("Invalid shares");
-
-                    match encrypted_tally.max_stake.try_into() {
-                        Ok(max_stake) => validated_tally.decrypt_tally(&table, max_stake),
-                        Err(_) => Ok(Tally {
-                            votes: vec![0; validated_tally.len()],
-                        }),
+            for validated_tally in validated_tallies {
+                match validated_tally.max_stake.try_into() {
+                    Ok(max_stake) => {
+                        let tally = validated_tally.decrypt_tally(&table, max_stake)?;
+                        result.push(tally);
                     }
-                })
-                .collect()
+                    Err(_) => {
+                        result.push(trivial_convert(validated_tally));
+                    }
+                }
+            }
+
+            Ok(result)
         }
-        _ => {
-            panic!()
-        }
+        // this path is only taken if absolute_max_stake is 0, so all stakes are 0
+        Err(_) => Ok(validated_tallies.iter().map(trivial_convert).collect()),
     }
+}
+
+fn trivial_convert(validated_tally: &ValidatedTally) -> Tally {
+    assert_eq!(validated_tally.len(), 0);
+    let votes = vec![0; validated_tally.len()];
+    Tally { votes }
 }
 
 #[cfg(test)]
