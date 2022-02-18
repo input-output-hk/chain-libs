@@ -16,6 +16,10 @@ members = [
     "typed-bytes",
 ]
 
+exclude = [
+    "evm-tests",
+]
+
 [profile.bench]
 # Embed debuginfo into benchmarks for profiling. All other settings remain the
 # same and are similar to the `release` profile.
