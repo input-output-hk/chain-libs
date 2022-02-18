@@ -209,7 +209,7 @@ impl EncryptedTally {
         let (max_stake_bytes, bytes) = bytes.split_at(Self::MAX_STAKE_BYTES_LEN);
         let max_stake = u64::from_le_bytes(max_stake_bytes.try_into().unwrap());
 
-        let r = bytes[ElectionFingerprint::BYTES_LEN..]
+        let r = bytes
             .chunks(Ciphertext::BYTES_LEN)
             .map(Ciphertext::from_bytes)
             .collect::<Option<Vec<_>>>()?;
@@ -784,6 +784,7 @@ mod tests {
         let h = Crs::from_hash(&[1u8]);
         let tally = EncryptedTally::new(3, election_key, h);
         let bytes = tally.to_bytes();
+        dbg!(bytes.len());
         let deserialized_tally = EncryptedTally::from_bytes(&bytes).unwrap();
         assert_eq!(tally, deserialized_tally);
     }
