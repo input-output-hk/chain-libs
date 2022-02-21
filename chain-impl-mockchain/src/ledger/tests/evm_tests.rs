@@ -320,10 +320,10 @@ pub fn run_evm_test(path: PathBuf) {
 }
 
 // TODO: need to fix following tests
-// "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmTests/blockInfo.json"
-// "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmTests/envInfo.json"
-// "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmIOandFlowOperations/loop_stacklimit.json"
-// "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmIOandFlowOperations/jumpToPush.json"
+// "../vmTests/blockInfo.json"
+// "../vmTests/envInfo.json"
+// "../vmIOandFlowOperations/loop_stacklimit.json"
+// "../vmIOandFlowOperations/jumpToPush.json"
 #[test]
 #[ignore]
 fn run_evm_tests() {
@@ -354,6 +354,6 @@ fn run_evm_tests() {
 #[ignore]
 fn evm_test() {
     run_evm_test(PathBuf::from(
-        "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmTests/blockInfo.json",
+        "../evm-tests/vmTests/blockInfo.json",
     ));
 }
