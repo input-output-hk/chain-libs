@@ -252,7 +252,7 @@ fn tally_benchmark(
                         &decrypt_shares[i],
                     )
                     .unwrap()
-                    .decrypt_tally(&table, total_votes_per_proposal[i])
+                    .decrypt_tally(&table)
                     .unwrap()
             })
             .collect::<Vec<_>>()
