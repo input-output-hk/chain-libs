@@ -403,12 +403,10 @@ pub fn batch_decrypt(
         Err(_) => Ok(validated_tallies.iter().map(trivial_convert).collect()),
         Ok(absolute_max_stake) => {
             let table = TallyOptimizationTable::generate(absolute_max_stake);
-            let result = validated_tallies
+            validated_tallies
                 .iter()
-                .map(|tally| tally.decrypt_tally(&table).unwrap())
-                .collect();
-
-            Ok(result)
+                .map(|tally| tally.decrypt_tally(&table))
+                .collect()
         }
     }
 }
