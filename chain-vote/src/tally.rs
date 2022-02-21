@@ -129,7 +129,7 @@ impl EncryptedTally {
         for (ri, ci) in self.r.iter_mut().zip(ballot.vote().iter()) {
             *ri = &*ri + &(ci * weight);
         }
-        self.max_stake = std::cmp::max(self.max_stake, weight);
+        self.max_stake += weight;
     }
 
     /// Given a single committee member's `secret_key`, returns a partial decryption of
@@ -253,7 +253,7 @@ impl ValidatedTally {
     pub fn decrypt_tally(
         &self,
         table: &TallyOptimizationTable,
-        max_votes: NonZeroU64,
+        max_votes: u64,
     ) -> Result<Tally, TallyError> {
         let r_results = self.decrypt();
         let votes = baby_step_giant_step(r_results, max_votes, table).map_err(|_| TallyError)?;
@@ -275,7 +275,7 @@ impl std::ops::Add for EncryptedTally {
             .zip(rhs.r.iter())
             .map(|(left, right)| left + right)
             .collect();
-        let max_stake = std::cmp::max(self.max_stake, rhs.max_stake);
+        let max_stake = self.max_stake + rhs.max_stake;
         Self {
             r,
             fingerprint: self.fingerprint,
@@ -401,24 +401,15 @@ pub fn batch_decrypt(
         None => return Ok(vec![]),
     };
 
-    match absolute_max_stake.try_into() {
+    match NonZeroU64::try_from(absolute_max_stake) {
         // if absolute_max_stake == 0, all stakes are zero, so safe to do a trivial conversion
         Err(_) => Ok(validated_tallies.iter().map(trivial_convert).collect()),
         Ok(absolute_max_stake) => {
-            let table = TallyOptimizationTable::generate_with_balance(
-                absolute_max_stake,
-                1.try_into().unwrap(),
-            );
-
-            let mut result = Vec::with_capacity(validated_tallies.len());
-
-            for validated_tally in validated_tallies {
-                let tally = match validated_tally.max_stake.try_into() {
-                    Ok(max_stake) => validated_tally.decrypt_tally(&table, max_stake)?,
-                    Err(_) => trivial_convert(validated_tally),
-                };
-                result.push(tally);
-            }
+            let table = TallyOptimizationTable::generate(absolute_max_stake);
+            let result = validated_tallies
+                .iter()
+                .map(|tally| tally.decrypt_tally(&table, tally.max_stake).unwrap())
+                .collect();
 
             Ok(result)
         }
@@ -499,7 +490,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(&table, max_votes.try_into().unwrap())
+            .decrypt_tally(&table, max_votes)
             .unwrap();
 
         println!("{:?}", tr);
@@ -566,7 +557,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(&table, max_votes.try_into().unwrap())
+            .decrypt_tally(&table, max_votes)
             .unwrap();
 
         println!("{:?}", tr);
@@ -622,7 +613,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(&table, max_votes.try_into().unwrap())
+            .decrypt_tally(&table, max_votes)
             .unwrap();
 
         println!("{:?}", tr);
@@ -672,7 +663,7 @@ mod tests {
         let tr = encrypted_tally
             .validate_partial_decryptions(&[m1.public_key()], &shares)
             .unwrap()
-            .decrypt_tally(&table, max_votes.try_into().unwrap())
+            .decrypt_tally(&table, max_votes)
             .unwrap();
 
         println!("{:?}", tr);
@@ -734,7 +725,7 @@ mod tests {
         let res = encrypted_tally
             .validate_partial_decryptions(&participants, &shares)
             .unwrap()
-            .decrypt_tally(&table, max_votes.try_into().unwrap());
+            .decrypt_tally(&table, max_votes);
 
         assert!(
             res.is_err(),

@@ -71,10 +71,9 @@ pub struct MaxLogExceeded;
 /// Solve the discrete log on ECC using baby step giant step algorithm
 pub fn baby_step_giant_step(
     points: Vec<GroupElement>,
-    max_log: NonZeroU64,
+    max_log: u64,
     table: &BabyStepsTable,
 ) -> Result<Vec<u64>, MaxLogExceeded> {
-    let max_log: u64 = max_log.into();
     let baby_step_size = table.baby_step_size;
     let giant_step = &table.giant_step;
     let table = &table.table;
@@ -134,7 +133,7 @@ mod tests {
                 &p * ks
             })
             .collect();
-        let results = baby_step_giant_step(points, nz(100), &table).unwrap();
+        let results = baby_step_giant_step(points, 100, &table).unwrap();
         assert_eq!(votes, results);
     }
 
@@ -172,7 +171,7 @@ mod tests {
 
                     property::equal(
                         ks,
-                        baby_step_giant_step(points.to_vec(), nz(u16::MAX), table).unwrap(),
+                        baby_step_giant_step(points.to_vec(), u16::MAX.into(), table).unwrap(),
                     )
                 })
                 .test(ctx);
@@ -181,7 +180,7 @@ mod tests {
                     let (points, ks): (Vec<_>, Vec<_>) = points.to_vec().into_iter().unzip();
                     property::equal(
                         ks,
-                        baby_step_giant_step(points.to_vec(), nz(u16::MAX), table).unwrap(),
+                        baby_step_giant_step(points.to_vec(), u16::MAX.into(), table).unwrap(),
                     )
                 })
                 .test(ctx);
