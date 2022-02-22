@@ -72,62 +72,7 @@ type PrecompileFn = fn(&[u8], Option<u64>, &Context, bool) -> EvmPrecompileResul
 pub struct Precompiles(pub prelude::BTreeMap<prelude::Address, PrecompileFn>);
 
 impl Precompiles {
-    #[allow(dead_code)]
-    pub fn new_homestead() -> Self {
-        let addresses = prelude::vec![
-            ECRecover::ADDRESS,
-            SHA256::ADDRESS,
-            RIPEMD160::ADDRESS,
-            ExitToNear::ADDRESS,
-            ExitToEthereum::ADDRESS,
-        ];
-        let fun: prelude::Vec<PrecompileFn> = prelude::vec![
-            ECRecover::run,
-            SHA256::run,
-            RIPEMD160::run,
-            ExitToNear::run,
-            ExitToEthereum::run,
-        ];
-        let map = addresses.into_iter().zip(fun).collect();
-
-        Precompiles(map)
-    }
-
-    #[allow(dead_code)]
-    pub fn new_byzantium() -> Self {
-        let addresses = prelude::vec![
-            ECRecover::ADDRESS,
-            SHA256::ADDRESS,
-            RIPEMD160::ADDRESS,
-            Identity::ADDRESS,
-            ModExp::ADDRESS,
-            Bn128Add::ADDRESS,
-            Bn128Mul::ADDRESS,
-            Bn128Pair::ADDRESS,
-            ExitToNear::ADDRESS,
-            ExitToEthereum::ADDRESS,
-        ];
-        let fun: prelude::Vec<PrecompileFn> = prelude::vec![
-            ECRecover::run,
-            SHA256::run,
-            RIPEMD160::run,
-            Identity::run,
-            ModExp::run,
-            Bn128Add::run,
-            Bn128Mul::run,
-            Bn128Pair::run,
-            ExitToNear::run,
-            ExitToEthereum::run,
-        ];
-        let mut map = prelude::BTreeMap::new();
-        for (address, fun) in addresses.into_iter().zip(fun) {
-            map.insert(address, fun);
-        }
-
-        Precompiles(map)
-    }
-
-    pub fn new_istanbul() -> Self {
+    pub fn new() -> Self {
         let addresses = prelude::vec![
             ECRecover::ADDRESS,
             SHA256::ADDRESS,
@@ -160,11 +105,6 @@ impl Precompiles {
         }
 
         Precompiles(map)
-    }
-
-    #[allow(dead_code)]
-    pub fn new_berlin() -> Self {
-        Self::new_istanbul()
     }
 }
 

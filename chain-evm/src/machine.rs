@@ -139,14 +139,6 @@ pub struct VirtualMachine<'runtime> {
     logs: LogsState,
 }
 
-fn precompiles(config: Config) -> Precompiles {
-    match config {
-        Config::Istanbul => Precompiles::new_istanbul(),
-        Config::Berlin => Precompiles::new_berlin(),
-        config => unimplemented!("EVM precompiles for the {:?} config", config),
-    }
-}
-
 impl<'runtime> VirtualMachine<'runtime> {
     fn execute_transaction<F, T>(
         &mut self,
@@ -221,7 +213,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         Self {
             config,
             environment,
-            precompiles: precompiles(config),
+            precompiles: Precompiles::new(),
             state,
             logs,
         }
@@ -480,7 +472,7 @@ mod test {
 
         let metadata = StackSubstateMetadata::new(gas_limit, &evm_config);
         let memory_stack_state = MemoryStackState::new(metadata, &vm);
-        let precompiles = precompiles(config);
+        let precompiles = Precompiles::new();
         let mut executor =
             StackExecutor::new_with_precompiles(memory_stack_state, &evm_config, &precompiles);
 
