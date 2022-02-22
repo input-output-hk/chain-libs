@@ -246,7 +246,6 @@ fn tally_benchmark(
                     .unwrap()
                     .private_encrypted()
                     .unwrap()
-                    .0
                     .validate_partial_decryptions(
                         vote_plan.committee_public_keys(),
                         &decrypt_shares[i],
