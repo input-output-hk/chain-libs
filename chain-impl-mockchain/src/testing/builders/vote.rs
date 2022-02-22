@@ -23,8 +23,7 @@ pub fn decrypt_tally(
         .proposals
         .iter()
         .map(|proposal| {
-            let tally_state = proposal.tally;
-            let encrypted_tally = tally_state.private_encrypted().unwrap().clone();
+            let encrypted_tally = proposal.tally.private_encrypted().unwrap();
             let decrypt_shares = members
                 .members()
                 .iter()
