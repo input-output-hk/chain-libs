@@ -313,7 +313,7 @@ impl ProposalManager {
         Ok(Self {
             votes_by_voters: self.votes_by_voters.clone(),
             options: self.options.clone(),
-            tally: Some(Tally::new_private(tally, token_distribution.get_total())),
+            tally: Some(Tally::new_private(tally)),
             action: self.action.clone(),
         })
     }
@@ -347,7 +347,7 @@ impl ProposalManager {
             result.add_vote(Choice::new(u8::try_from(choice).unwrap()), weight)?;
         }
 
-        if self.check((*total_stake).into(), governance, &result) {
+        if self.check(total_stake.into(), governance, &result) {
             f(&self.action);
         }
 

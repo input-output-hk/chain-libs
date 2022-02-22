@@ -116,6 +116,10 @@ impl EncryptedTally {
         }
     }
 
+    pub fn max_stake(&self) -> u64 {
+        self.max_stake
+    }
+
     /// Add a submitted `ballot`, with a specific `weight` to the tally.
     /// Remember that a vote is only valid for a specific election (i.e. pair of
     /// election public key and crs), and trying to add a ballot validated for a
