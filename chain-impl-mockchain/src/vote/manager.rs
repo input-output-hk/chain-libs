@@ -329,7 +329,7 @@ impl ProposalManager {
         F: FnMut(&VoteAction),
     {
         let tally = self.tally.as_ref().ok_or(TallyError::NoEncryptedTally)?;
-        let (encrypted_tally, total_stake) = tally.private_encrypted()?;
+        let encrypted_tally = tally.private_encrypted()?;
 
         let verifiable_tally = chain_vote::Tally {
             votes: decrypted_proposal.tally_result.to_vec(),
@@ -347,7 +347,7 @@ impl ProposalManager {
             result.add_vote(Choice::new(u8::try_from(choice).unwrap()), weight)?;
         }
 
-        if self.check(total_stake.into(), governance, &result) {
+        if self.check(Stake(encrypted_tally.max_stake), governance, &result) {
             f(&self.action);
         }
 

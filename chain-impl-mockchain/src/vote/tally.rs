@@ -90,11 +90,11 @@ impl Tally {
         }
     }
 
-    pub fn private_encrypted(&self) -> Result<(&EncryptedTally, Value), TallyError> {
+    pub fn private_encrypted(&self) -> Result<&EncryptedTally, TallyError> {
         match self {
             Self::Private {
                 state: PrivateTallyState::Encrypted { encrypted_tally },
-            } => Ok((encrypted_tally, Value(encrypted_tally.max_stake()))),
+            } => Ok(encrypted_tally),
             Self::Private {
                 state: PrivateTallyState::Decrypted { .. },
             } => Err(TallyError::TallyAlreadyDecrypted),
@@ -106,7 +106,7 @@ impl Tally {
         match self {
             Self::Private {
                 state: PrivateTallyState::Encrypted { encrypted_tally },
-            } => Ok(encrypted_tally.max_stake()),
+            } => Ok(encrypted_tally.max_stake),
             Self::Private {
                 state: PrivateTallyState::Decrypted { .. },
             } => Err(TallyError::TallyAlreadyDecrypted),

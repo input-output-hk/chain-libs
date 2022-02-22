@@ -50,7 +50,7 @@ impl From<(&ElectionPublicKey, &Crs)> for ElectionFingerprint {
 pub struct EncryptedTally {
     r: Vec<Ciphertext>,
     fingerprint: ElectionFingerprint,
-    max_stake: u64,
+    pub max_stake: u64,
 }
 
 /// `TallyDecryptShare` contains one decryption share per existing option. All committee
@@ -114,10 +114,6 @@ impl EncryptedTally {
             fingerprint: (&election_pk, &crs).into(),
             max_stake: 0,
         }
-    }
-
-    pub fn max_stake(&self) -> u64 {
-        self.max_stake
     }
 
     /// Add a submitted `ballot`, with a specific `weight` to the tally.
