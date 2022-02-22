@@ -67,29 +67,6 @@ pub trait Precompile {
     ) -> EvmPrecompileResult;
 }
 
-/// Hard fork marker.
-pub trait HardFork {}
-
-/// Homestead hard fork marker.
-pub struct Homestead;
-
-/// Homestead hard fork marker.
-pub struct Byzantium;
-
-/// Homestead hard fork marker.
-pub struct Istanbul;
-
-/// Homestead hard fork marker.
-pub struct Berlin;
-
-impl HardFork for Homestead {}
-
-impl HardFork for Byzantium {}
-
-impl HardFork for Istanbul {}
-
-impl HardFork for Berlin {}
-
 type PrecompileFn = fn(&[u8], Option<u64>, &Context, bool) -> EvmPrecompileResult;
 
 pub struct Precompiles(pub prelude::BTreeMap<prelude::Address, PrecompileFn>);
@@ -123,10 +100,10 @@ impl Precompiles {
             SHA256::ADDRESS,
             RIPEMD160::ADDRESS,
             Identity::ADDRESS,
-            ModExp::<Byzantium>::ADDRESS,
-            Bn128Add::<Byzantium>::ADDRESS,
-            Bn128Mul::<Byzantium>::ADDRESS,
-            Bn128Pair::<Byzantium>::ADDRESS,
+            ModExp::ADDRESS,
+            Bn128Add::ADDRESS,
+            Bn128Mul::ADDRESS,
+            Bn128Pair::ADDRESS,
             ExitToNear::ADDRESS,
             ExitToEthereum::ADDRESS,
         ];
@@ -135,10 +112,10 @@ impl Precompiles {
             SHA256::run,
             RIPEMD160::run,
             Identity::run,
-            ModExp::<Byzantium>::run,
-            Bn128Add::<Byzantium>::run,
-            Bn128Mul::<Byzantium>::run,
-            Bn128Pair::<Byzantium>::run,
+            ModExp::run,
+            Bn128Add::run,
+            Bn128Mul::run,
+            Bn128Pair::run,
             ExitToNear::run,
             ExitToEthereum::run,
         ];
@@ -156,10 +133,10 @@ impl Precompiles {
             SHA256::ADDRESS,
             RIPEMD160::ADDRESS,
             Identity::ADDRESS,
-            ModExp::<Byzantium>::ADDRESS,
-            Bn128Add::<Istanbul>::ADDRESS,
-            Bn128Mul::<Istanbul>::ADDRESS,
-            Bn128Pair::<Istanbul>::ADDRESS,
+            ModExp::ADDRESS,
+            Bn128Add::ADDRESS,
+            Bn128Mul::ADDRESS,
+            Bn128Pair::ADDRESS,
             Blake2F::ADDRESS,
             ExitToNear::ADDRESS,
             ExitToEthereum::ADDRESS,
@@ -169,10 +146,10 @@ impl Precompiles {
             SHA256::run,
             RIPEMD160::run,
             Identity::run,
-            ModExp::<Byzantium>::run,
-            Bn128Add::<Istanbul>::run,
-            Bn128Mul::<Istanbul>::run,
-            Bn128Pair::<Istanbul>::run,
+            ModExp::run,
+            Bn128Add::run,
+            Bn128Mul::run,
+            Bn128Pair::run,
             Blake2F::run,
             ExitToNear::run,
             ExitToEthereum::run,
@@ -292,7 +269,7 @@ pub fn keccak(data: &[u8]) -> prelude::H256 {
 
 #[cfg(test)]
 mod tests {
-    use super::{prelude, Byzantium, Istanbul};
+    use super::prelude;
     use rand::Rng;
 
     #[test]
@@ -301,10 +278,10 @@ mod tests {
         assert_eq!(super::hash::SHA256::ADDRESS, u8_to_address(2));
         assert_eq!(super::hash::RIPEMD160::ADDRESS, u8_to_address(3));
         assert_eq!(super::identity::Identity::ADDRESS, u8_to_address(4));
-        assert_eq!(super::ModExp::<Byzantium>::ADDRESS, u8_to_address(5));
-        assert_eq!(super::Bn128Add::<Istanbul>::ADDRESS, u8_to_address(6));
-        assert_eq!(super::Bn128Mul::<Istanbul>::ADDRESS, u8_to_address(7));
-        assert_eq!(super::Bn128Pair::<Istanbul>::ADDRESS, u8_to_address(8));
+        assert_eq!(super::ModExp::ADDRESS, u8_to_address(5));
+        assert_eq!(super::Bn128Add::ADDRESS, u8_to_address(6));
+        assert_eq!(super::Bn128Mul::ADDRESS, u8_to_address(7));
+        assert_eq!(super::Bn128Pair::ADDRESS, u8_to_address(8));
         assert_eq!(super::blake2::Blake2F::ADDRESS, u8_to_address(9));
     }
 
