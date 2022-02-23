@@ -11,10 +11,24 @@ pub struct Ledger {
     pub(crate) accounts: AccountTrie,
     pub(crate) logs: LogsState,
     pub(crate) environment: Environment,
+    pub(crate) current_epoch: BlockEpoch,
 }
 
 impl Default for Ledger {
     fn default() -> Self {
+        Ledger::new()
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct BlockEpoch {
+    epoch: u32,
+    slots_per_epoch: u32,
+    slot_duration: u8,
+}
+
+impl Ledger {
+    pub fn new() -> Self {
         Self {
             accounts: Default::default(),
             logs: Default::default(),
@@ -30,13 +44,12 @@ impl Default for Ledger {
                 block_gas_limit: Default::default(),
                 block_base_fee_per_gas: Default::default(),
             },
+            current_epoch: BlockEpoch {
+                epoch: 0,
+                slots_per_epoch: 1,
+                slot_duration: 10,
+            },
         }
-    }
-}
-
-impl Ledger {
-    pub fn new() -> Self {
-        Default::default()
     }
     pub fn run_transaction(
         &mut self,

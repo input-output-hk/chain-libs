@@ -254,7 +254,7 @@ impl Settings {
                 }
                 #[cfg(feature = "evm")]
                 ConfigParam::EvmEnvironment(evm_env_params) => {
-                    new_state.evm_environment = evm_env_params.clone();
+                    new_state.evm_environment = *evm_env_params;
                 }
             }
         }

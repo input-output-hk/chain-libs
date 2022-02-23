@@ -344,7 +344,7 @@ impl Ledger {
         era: TimeEra,
         pots: Pots,
     ) -> Self {
-        Ledger {
+        let ledger = Ledger {
             utxos: utxo::Ledger::new(),
             oldutxos: utxo::Ledger::new(),
             accounts: account::Ledger::new(),
@@ -363,7 +363,10 @@ impl Ledger {
             #[cfg(feature = "evm")]
             evm: evm::Ledger::new(),
             token_totals: TokenTotals::default(),
-        }
+        };
+        #[cfg(feature = "evm")]
+        let ledger = ledger.set_evm_block0();
+        ledger
     }
 
     pub fn new<'a, I>(block0_initial_hash: HeaderId, contents: I) -> Result<Self, Error>
@@ -447,7 +450,8 @@ impl Ledger {
                     Block0Error::InitialMessageNoConsensusLeaderId,
                 ));
             }
-            Ledger::empty(settings, static_params, era, pots)
+            let ledger = Ledger::empty(settings, static_params, era, pots);
+            ledger
         };
 
         let params = ledger.get_ledger_parameters();
@@ -533,6 +537,15 @@ impl Ledger {
 
         ledger.validate_utxo_total_value()?;
         Ok(ledger)
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn set_evm_block0(self) -> Self {
+        let mut ledger = self;
+        ledger.evm.environment.chain_id =
+            <[u8; 32]>::from(ledger.static_params.block0_initial_hash).into();
+        ledger.evm.environment.block_timestamp = ledger.static_params.block0_start_time.0.into();
+        ledger
     }
 
     pub fn can_distribute_reward(&self) -> bool {
