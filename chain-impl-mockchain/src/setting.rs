@@ -303,7 +303,7 @@ impl Settings {
         #[cfg(feature = "evm")]
         params.push(ConfigParam::EvmConfiguration(self.evm_config));
         #[cfg(feature = "evm")]
-        params.push(ConfigParam::EvmEnvironment(self.evm_environment.clone()));
+        params.push(ConfigParam::EvmEnvironment(self.evm_environment));
 
         debug_assert_eq!(self, &Settings::new().try_apply(&params).unwrap());
 

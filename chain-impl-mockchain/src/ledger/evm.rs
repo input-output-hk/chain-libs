@@ -1,8 +1,9 @@
 use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::EvmTransaction;
+use crate::header::BlockDate;
 use crate::ledger::Error;
 use chain_evm::{
-    machine::{BlockHash, BlockNumber, Config, Environment, VirtualMachine},
+    machine::{BlockHash, BlockNumber, BlockTimestamp, Config, Environment, VirtualMachine},
     state::{AccountTrie, Balance, LogsState},
 };
 
@@ -23,6 +24,7 @@ impl Default for Ledger {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BlockEpoch {
     epoch: u32,
+    epoch_start: BlockTimestamp,
     slots_per_epoch: u32,
     slot_duration: u8,
 }
@@ -46,6 +48,7 @@ impl Ledger {
             },
             current_epoch: BlockEpoch {
                 epoch: 0,
+                epoch_start: BlockTimestamp::default(),
                 slots_per_epoch: 1,
                 slot_duration: 10,
             },
@@ -116,12 +119,53 @@ impl Ledger {
         Ok(())
     }
     /// Updates block values for EVM environment
-    pub fn update_block_environment(&mut self, metadata: &HeaderContentEvalContext) {
+    pub fn update_block_environment(
+        &mut self,
+        metadata: &HeaderContentEvalContext,
+        slots_per_epoch: u32,
+        slot_duration: u8,
+    ) {
         // use content hash from the apply block as the EVM block hash
         let next_hash: BlockHash = <[u8; 32]>::from(metadata.content_hash).into();
         self.environment.block_hashes.insert(0, next_hash);
         self.environment.block_number = BlockNumber::from(self.environment.block_hashes.len());
-        // TODO: update block timestamp
+        self.update_block_timestamp(metadata.block_date, slots_per_epoch, slot_duration);
+    }
+    /// Updates the block timestamp for EVM environment
+    fn update_block_timestamp(
+        &mut self,
+        block_date: BlockDate,
+        slots_per_epoch: u32,
+        slot_duration: u8,
+    ) {
+        let BlockDate {
+            epoch: this_epoch,
+            slot_id,
+        } = block_date;
+
+        // update block epoch if needed
+        if this_epoch > self.current_epoch.epoch {
+            let BlockEpoch {
+                epoch: _,
+                epoch_start,
+                slots_per_epoch: spe,
+                slot_duration: sdur,
+            } = self.current_epoch;
+            let new_epoch = this_epoch;
+            let new_epoch_start = epoch_start + spe as u64 * sdur as u64;
+            self.current_epoch = BlockEpoch {
+                epoch: new_epoch,
+                epoch_start: new_epoch_start,
+                slots_per_epoch,
+                slot_duration,
+            };
+        }
+
+        // calculate the U256 value from epoch and slot parameters
+        let block_timestamp = self.current_epoch.epoch_start
+            + slot_id as u64 * self.current_epoch.slot_duration as u64;
+        // update EVM enviroment
+        self.environment.block_timestamp = block_timestamp;
     }
 }
 

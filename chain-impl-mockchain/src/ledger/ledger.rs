@@ -365,7 +365,7 @@ impl Ledger {
             token_totals: TokenTotals::default(),
         };
         #[cfg(feature = "evm")]
-        let ledger = ledger.set_evm_block0();
+        let ledger = ledger.set_evm_block0().set_evm_environment();
         ledger
     }
 
@@ -450,8 +450,7 @@ impl Ledger {
                     Block0Error::InitialMessageNoConsensusLeaderId,
                 ));
             }
-            let ledger = Ledger::empty(settings, static_params, era, pots);
-            ledger
+            Ledger::empty(settings, static_params, era, pots)
         };
 
         let params = ledger.get_ledger_parameters();
@@ -545,6 +544,14 @@ impl Ledger {
         ledger.evm.environment.chain_id =
             <[u8; 32]>::from(ledger.static_params.block0_initial_hash).into();
         ledger.evm.environment.block_timestamp = ledger.static_params.block0_start_time.0.into();
+        ledger
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn set_evm_environment(self) -> Self {
+        let mut ledger = self;
+        ledger.evm.environment.gas_price = ledger.settings.evm_environment.gas_price;
+        ledger.evm.environment.block_gas_limit = ledger.settings.evm_environment.block_gas_limit;
         ledger
     }
 
@@ -822,20 +829,6 @@ impl Ledger {
         new_ledger.updates = updates;
         new_ledger.settings = settings;
 
-        #[cfg(feature = "evm")]
-        {
-            // Set EVM environment values derived from block0 values
-            new_ledger.evm.environment.chain_id =
-                <[u8; 32]>::from(new_ledger.static_params.block0_initial_hash).into();
-            // TODO: set Origin, coinbase, and set block timestamp when
-            // they are defined. Using default values meanwhile.
-
-            // Set EVM environment values from settings
-            new_ledger.evm.environment.gas_price = new_ledger.settings.evm_environment.gas_price;
-            new_ledger.evm.environment.block_gas_limit =
-                new_ledger.settings.evm_environment.block_gas_limit;
-        }
-
         Ok(ApplyBlockLedger {
             ledger_params: new_ledger.get_ledger_parameters(),
             ledger: new_ledger,
@@ -869,7 +862,7 @@ impl Ledger {
         let new_block_ledger = self.begin_block(metadata.chain_length, metadata.block_date)?;
 
         #[cfg(feature = "evm")]
-        let new_block_ledger = new_block_ledger.update_evm_block(metadata);
+        let new_block_ledger = new_block_ledger.begin_evm_block(metadata);
 
         let new_block_ledger = contents
             .iter()
@@ -1694,12 +1687,15 @@ impl ApplyBlockLedger {
     }
 
     #[cfg(feature = "evm")]
-    pub fn update_evm_block(self, metadata: &HeaderContentEvalContext) -> Self {
+    pub fn begin_evm_block(self, metadata: &HeaderContentEvalContext) -> Self {
         let mut apply_block_ledger = self;
-        apply_block_ledger
-            .ledger
-            .evm
-            .update_block_environment(metadata);
+        let slots_per_epoch = apply_block_ledger.ledger.settings.slots_per_epoch;
+        let slot_duration = apply_block_ledger.ledger.settings.slot_duration;
+        apply_block_ledger.ledger.evm.update_block_environment(
+            metadata,
+            slots_per_epoch,
+            slot_duration,
+        );
         apply_block_ledger
     }
 

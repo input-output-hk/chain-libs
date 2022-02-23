@@ -377,7 +377,7 @@ impl<'a> std::iter::FromIterator<Entry<'a>> for Result<Ledger, Error> {
             token_totals,
         };
         #[cfg(feature = "evm")]
-        let ledger = ledger.set_evm_block0();
+        let ledger = ledger.set_evm_block0().set_evm_environment();
         Ok(ledger)
     }
 }
