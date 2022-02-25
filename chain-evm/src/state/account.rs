@@ -4,6 +4,14 @@ use crate::Address;
 use primitive_types::U256;
 
 pub type Nonce = U256;
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("balance values cannot exceed 64 significant bits")]
+    BalanceOverflow,
+}
+
+/// Ethereum account balance which uses the least 64 significant bits of the `U256` type.
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd)]
 pub struct Balance(U256);
 
@@ -14,24 +22,28 @@ impl std::fmt::Display for Balance {
 }
 
 impl TryFrom<U256> for Balance {
-    type Error = &'static str;
-    fn try_from(value: U256) -> Result<Self, Self::Error> {
-        if value > U256::from(u64::max_value()) {
-            Err("Balance values cannot exceed 64 significant bits")
-        } else {
-            Ok(Balance(value))
+    type Error = Error;
+    fn try_from(other: U256) -> Result<Self, Self::Error> {
+        match other {
+            U256([_, 0, 0, 0]) => Ok(Balance(other)),
+            _ => Err(Error::BalanceOverflow),
         }
     }
 }
 
 impl TryFrom<Balance> for u64 {
-    type Error = &'static str;
-    fn try_from(value: Balance) -> Result<Self, Self::Error> {
-        if value > Balance(U256::from(u64::max_value())) {
-            Err("Balance values cannot exceed 64 significant bits")
-        } else {
-            Ok(value.0.as_u64())
+    type Error = Error;
+    fn try_from(other: Balance) -> Result<Self, Self::Error> {
+        match other {
+            Balance(U256([value, 0, 0, 0])) => Ok(value),
+            _ => Err(Error::BalanceOverflow),
         }
+    }
+}
+
+impl From<u64> for Balance {
+    fn from(other: u64) -> Self {
+        Balance(U256([other, 0, 0, 0]))
     }
 }
 
@@ -42,9 +54,12 @@ impl From<Balance> for U256 {
 }
 
 impl Balance {
+    /// Zero (additive identity) of this type.
     pub fn zero() -> Self {
         Balance(U256::zero())
     }
+    /// Checked substraction of `U256` types. Returns `Some(balance)` or `None` if overflow
+    /// occurred.
     pub fn checked_sub(self, other: U256) -> Option<Balance> {
         self.0.checked_sub(other).map(Balance)
     }
@@ -94,5 +109,39 @@ impl AccountTrie {
             Some(account) => self.put(address, account),
             None => self.remove(&address),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn account_balance_zero() {
+        assert_eq!(Balance::zero(), Balance(U256([0, 0, 0, 0])));
+    }
+
+    #[test]
+    fn account_balance_checked_sub() {
+        assert_eq!(
+            Balance::from(100u64).checked_sub(U256::from(0u64)),
+            Some(Balance(U256([100, 0, 0, 0])))
+        );
+        assert_eq!(Balance::from(0u64).checked_sub(U256::from(1u64)), None);
+    }
+
+    #[test]
+    fn account_balance_can_never_use_more_than_64_bits() {
+        // convert from u64
+        assert_eq!(Balance::from(u64::MAX), Balance(U256([u64::MAX, 0, 0, 0])));
+        // try to convert from U256
+        assert!(Balance::try_from(U256::from(u64::MAX)).is_ok());
+        assert!(Balance::try_from(U256::from(u64::MAX) + U256::from(1_u64)).is_err());
+
+        // Anything larger than the least significant 64 bits
+        // returns error
+        assert!(Balance::try_from(U256([0, 1, 0, 0])).is_err());
+        assert!(Balance::try_from(U256([0, 0, 1, 0])).is_err());
+        assert!(Balance::try_from(U256([0, 0, 0, 1])).is_err());
     }
 }

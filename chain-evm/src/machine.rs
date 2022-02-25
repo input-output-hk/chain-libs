@@ -188,10 +188,7 @@ impl<'runtime> VirtualMachine<'runtime> {
 
                 // pay gas fees
                 self.state = self.state.clone().modify_account(caller, |mut account| {
-                    account.balance = account
-                        .balance
-                        .checked_sub(gas_fees)
-                        .expect("Acount does not have enough funds to pay gas fees");
+                    account.balance = account.balance.checked_sub(gas_fees)?;
                     Some(account)
                 });
 
@@ -398,9 +395,7 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
                     self.state = self.state.clone().modify_account(address, |mut account| {
-                        account.balance = balance
-                            .try_into()
-                            .expect("Account balance cannot exceed 64 significant bits");
+                        account.balance = balance.try_into().unwrap();
                         account.nonce = nonce;
                         if let Some(code) = code {
                             account.code = code
