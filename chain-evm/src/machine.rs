@@ -355,7 +355,7 @@ impl<'runtime> Backend for VirtualMachine<'runtime> {
         self.state
             .get(&address)
             .map(|a| Basic {
-                balance: a.balance,
+                balance: a.balance.into(),
                 nonce: a.nonce,
             })
             .unwrap_or_default()
@@ -398,7 +398,9 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
                     self.state = self.state.clone().modify_account(address, |mut account| {
-                        account.balance = balance;
+                        account.balance = balance
+                            .try_into()
+                            .expect("Account balance cannot exceed 64 significant bits");
                         account.nonce = nonce;
                         if let Some(code) = code {
                             account.code = code
