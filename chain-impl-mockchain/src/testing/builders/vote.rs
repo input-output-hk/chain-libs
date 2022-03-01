@@ -23,13 +23,15 @@ pub fn decrypt_tally(
         .proposals
         .iter()
         .map(|proposal| {
-            let tally_state = proposal.tally.as_ref().unwrap();
-            let encrypted_tally = tally_state.private_encrypted().unwrap().clone();
+            let encrypted_tally = proposal.tally.private_encrypted().unwrap();
             let decrypt_shares = members
                 .members()
                 .iter()
                 .map(|member| member.secret_key())
-                .map(|secret_key| encrypted_tally.partial_decrypt(&mut thread_rng(), secret_key))
+                .map(|secret_key| {
+                    encrypted_tally
+                        .partial_decrypt(&mut thread_rng(), secret_key)
+                })
                 .collect::<Vec<_>>();
             let validated_tally = encrypted_tally
                 .validate_partial_decryptions(&members_pks, &decrypt_shares)
