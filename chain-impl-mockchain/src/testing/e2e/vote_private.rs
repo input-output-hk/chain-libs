@@ -79,11 +79,6 @@ pub fn private_vote_cast_action_transfer_to_rewards_all_shares() {
         slot_id: 1,
     });
 
-    controller
-        .encrypted_tally(&alice, &vote_plan, &mut ledger)
-        .unwrap();
-    alice.confirm_transaction();
-
     let vote_plans = ledger.ledger.active_vote_plans();
     let vote_plan_status = vote_plans
         .iter()
@@ -110,6 +105,52 @@ pub fn private_vote_cast_action_transfer_to_rewards_all_shares() {
         .info("rewards pot is increased")
         .pots()
         .has_remaining_rewards_equals_to(&Value(1100));
+}
+
+#[test]
+pub fn shouldnt_panic_when_no_initial_tokens_and_no_votes() {
+    let members = VoteTestGen::committee_members_manager(MEMBERS_NO, THRESHOLD);
+
+    let (mut ledger, controller) = prepare_scenario()
+        .with_config(
+            ConfigBuilder::new()
+                .with_fee(LinearFee::new(1, 1, 1))
+                .with_rewards(Value(1000)),
+        )
+        .with_initials(vec![wallet(ALICE)
+            .with(1_000)
+            .owns(STAKE_POOL)
+            .committee_member()])
+        .with_vote_plans(vec![vote_plan(VOTE_PLAN)
+            .owner(ALICE)
+            .consecutive_epoch_dates()
+            .payload_type(PayloadType::Private)
+            .committee_keys(members.members_keys())
+            .with_proposal(
+                proposal(VoteTestGen::external_proposal_id())
+                    .options(3)
+                    .action_transfer_to_rewards(100),
+            )])
+        .build()
+        .unwrap();
+
+    let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
+
+    ledger.fast_forward_to(BlockDate {
+        epoch: 1,
+        slot_id: 1,
+    });
+
+    let vote_plans = ledger.ledger.active_vote_plans();
+    let vote_plan_status = vote_plans
+        .iter()
+        .find(|c_vote_plan| {
+            let vote_plan: VotePlan = vote_plan.clone().into();
+            c_vote_plan.id == vote_plan.to_id()
+        })
+        .unwrap();
+
+    decrypt_tally(vote_plan_status, &members).unwrap();
 }
 
 #[test]
@@ -148,6 +189,8 @@ pub fn vote_on_same_proposal() {
 
     let members = VoteTestGen::committee_members_manager(MEMBERS_NO, THRESHOLD);
 
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
+
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new()
@@ -156,6 +199,7 @@ pub fn vote_on_same_proposal() {
         )
         .with_initials(vec![wallet(ALICE)
             .with(1_000)
+            .with_token(voting_token, 1_000)
             .owns(STAKE_POOL)
             .committee_member()])
         .with_vote_plans(vec![vote_plan(VOTE_PLAN)
@@ -217,6 +261,8 @@ pub fn vote_on_different_proposal() {
 
     let members = VoteTestGen::committee_members_manager(MEMBERS_NO, THRESHOLD);
 
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
+
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new()
@@ -225,6 +271,7 @@ pub fn vote_on_different_proposal() {
         )
         .with_initials(vec![wallet(ALICE)
             .with(1_000)
+            .with_token(voting_token, 1_000)
             .owns(STAKE_POOL)
             .committee_member()])
         .with_vote_plans(vec![vote_plan(VOTE_PLAN)

@@ -39,7 +39,6 @@ pub enum Fragment {
     VotePlan(Transaction<certificate::VotePlan>),
     VoteCast(Transaction<certificate::VoteCast>),
     VoteTally(Transaction<certificate::VoteTally>),
-    EncryptedVoteTally(Transaction<certificate::EncryptedVoteTally>),
     MintToken(Transaction<certificate::MintToken>),
     Evm(Transaction<EvmTransaction>),
 }
@@ -67,9 +66,8 @@ pub(super) enum FragmentTag {
     VotePlan = 10,
     VoteCast = 11,
     VoteTally = 12,
-    EncryptedVoteTally = 13,
-    MintToken = 14,
-    Evm = 15,
+    MintToken = 13,
+    Evm = 14,
 }
 
 impl FragmentTag {
@@ -88,9 +86,8 @@ impl FragmentTag {
             10 => Some(FragmentTag::VotePlan),
             11 => Some(FragmentTag::VoteCast),
             12 => Some(FragmentTag::VoteTally),
-            13 => Some(FragmentTag::EncryptedVoteTally),
-            14 => Some(FragmentTag::MintToken),
-            15 => Some(FragmentTag::Evm),
+            13 => Some(FragmentTag::MintToken),
+            14 => Some(FragmentTag::Evm),
             _ => None,
         }
     }
@@ -113,7 +110,6 @@ impl Fragment {
             Fragment::VotePlan(_) => FragmentTag::VotePlan,
             Fragment::VoteCast(_) => FragmentTag::VoteCast,
             Fragment::VoteTally(_) => FragmentTag::VoteTally,
-            Fragment::EncryptedVoteTally(_) => FragmentTag::EncryptedVoteTally,
             Fragment::MintToken(_) => FragmentTag::MintToken,
             Fragment::Evm(_) => FragmentTag::Evm,
         }
@@ -187,9 +183,6 @@ impl Deserialize for Fragment {
             Some(FragmentTag::VoteTally) => {
                 Transaction::deserialize(&mut codec).map(Fragment::VoteTally)
             }
-            Some(FragmentTag::EncryptedVoteTally) => {
-                Transaction::deserialize(&mut codec).map(Fragment::EncryptedVoteTally)
-            }
             Some(FragmentTag::MintToken) => {
                 Transaction::deserialize(&mut codec).map(Fragment::MintToken)
             }
@@ -218,7 +211,6 @@ impl Serialize for Fragment {
             Fragment::VotePlan(vote_plan) => vote_plan.serialize(&mut tmp)?,
             Fragment::VoteCast(vote_plan) => vote_plan.serialize(&mut tmp)?,
             Fragment::VoteTally(vote_tally) => vote_tally.serialize(&mut tmp)?,
-            Fragment::EncryptedVoteTally(vote_tally) => vote_tally.serialize(&mut tmp)?,
             Fragment::MintToken(mint_token) => mint_token.serialize(&mut tmp)?,
             Fragment::Evm(deployment) => deployment.serialize(&mut tmp)?,
         };
