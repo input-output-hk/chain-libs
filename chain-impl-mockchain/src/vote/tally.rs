@@ -102,18 +102,6 @@ impl Tally {
         }
     }
 
-    pub fn private_total_power(&self) -> Result<u64, TallyError> {
-        match self {
-            Self::Private {
-                state: PrivateTallyState::Encrypted { encrypted_tally },
-            } => Ok(encrypted_tally.max_stake),
-            Self::Private {
-                state: PrivateTallyState::Decrypted { .. },
-            } => Err(TallyError::TallyAlreadyDecrypted),
-            Self::Public { .. } => Err(TallyError::InvalidPrivacy),
-        }
-    }
-
     pub fn private_set_result(mut self, result: TallyResult) -> Result<Self, TallyError> {
         match &mut self {
             Self::Private { state } => {

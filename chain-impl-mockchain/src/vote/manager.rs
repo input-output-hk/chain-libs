@@ -347,7 +347,7 @@ impl ProposalManager {
             result.add_vote(Choice::new(u8::try_from(choice).unwrap()), weight)?;
         }
 
-        if self.check(Stake(encrypted_tally.max_stake), governance, &result) {
+        if self.check(result.participation(), governance, &result) {
             f(&self.action);
         }
 

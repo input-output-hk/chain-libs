@@ -50,7 +50,7 @@ impl From<(&ElectionPublicKey, &Crs)> for ElectionFingerprint {
 pub struct EncryptedTally {
     r: Vec<Ciphertext>,
     fingerprint: ElectionFingerprint,
-    pub max_stake: u64,
+    max_stake: u64,
 }
 
 /// `TallyDecryptShare` contains one decryption share per existing option. All committee
