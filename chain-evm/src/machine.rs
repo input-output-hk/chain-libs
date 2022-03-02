@@ -175,8 +175,7 @@ impl<'runtime> VirtualMachine<'runtime> {
         let (exit_reason, val) = f(&mut executor, gas_limit);
         match exit_reason {
             ExitReason::Succeed(_) => {
-                let used_gas = U256::from(executor.used_gas());
-                let gas_fees = used_gas * self.gas_price();
+                let gas_fees = executor.fee(self.gas_price());
                 // apply and return state
                 // apply changes to the state, this consumes the executor
                 let state = executor.into_state();
