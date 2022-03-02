@@ -28,10 +28,7 @@ pub fn decrypt_tally(
                 .members()
                 .iter()
                 .map(|member| member.secret_key())
-                .map(|secret_key| {
-                    encrypted_tally
-                        .partial_decrypt(&mut thread_rng(), secret_key)
-                })
+                .map(|secret_key| encrypted_tally.partial_decrypt(&mut thread_rng(), secret_key))
                 .collect::<Vec<_>>();
             let validated_tally = encrypted_tally
                 .validate_partial_decryptions(&members_pks, &decrypt_shares)

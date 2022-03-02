@@ -1228,11 +1228,7 @@ mod tests {
 
         let members = VoteTestGen::committee_members_manager(1, 1);
 
-        let shares = decrypt_tally(
-            &vote_plan_manager.statuses(),
-            &members,
-        )
-        .unwrap();
+        let shares = decrypt_tally(&vote_plan_manager.statuses(), &members).unwrap();
 
         //invalid committee
         assert_eq!(
@@ -1300,11 +1296,7 @@ mod tests {
 
         let token_distribution = TokenDistribution::new(&token_totals, &account_ledger);
 
-        let shares = decrypt_tally(
-            &vote_plan_manager.statuses(),
-            &members,
-        )
-        .unwrap();
+        let shares = decrypt_tally(&vote_plan_manager.statuses(), &members).unwrap();
 
         //not in committee time
         assert_eq!(
