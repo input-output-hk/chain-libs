@@ -26,3 +26,9 @@ impl From<Error> for crate::machine::Error {
         Self::StateError(other)
     }
 }
+
+impl From<Error> for String {
+    fn from(other: Error) -> Self {
+        format!("{:?}", other)
+    }
+}
