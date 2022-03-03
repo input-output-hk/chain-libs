@@ -1,15 +1,9 @@
-use crate::state::{storage::Storage, trie::Trie};
+use crate::state::{storage::Storage, trie::Trie, Error as StateError};
 use crate::Address;
 
 use primitive_types::U256;
 
 pub type Nonce = U256;
-
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("balance values cannot exceed 64 significant bits")]
-    BalanceOverflow,
-}
 
 /// Ethereum account balance which uses the least 64 significant bits of the `U256` type.
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd)]
@@ -22,21 +16,21 @@ impl std::fmt::Display for Balance {
 }
 
 impl TryFrom<U256> for Balance {
-    type Error = Error;
+    type Error = StateError;
     fn try_from(other: U256) -> Result<Self, Self::Error> {
         match other {
             U256([_, 0, 0, 0]) => Ok(Balance(other)),
-            _ => Err(Error::BalanceOverflow),
+            _ => Err(StateError::BalanceOverflow),
         }
     }
 }
 
 impl TryFrom<Balance> for u64 {
-    type Error = Error;
+    type Error = StateError;
     fn try_from(other: Balance) -> Result<Self, Self::Error> {
         match other {
             Balance(U256([value, 0, 0, 0])) => Ok(value),
-            _ => Err(Error::BalanceOverflow),
+            _ => Err(StateError::BalanceOverflow),
         }
     }
 }

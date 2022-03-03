@@ -19,7 +19,7 @@ use thiserror::Error;
 
 use crate::{
     precompiles::Precompiles,
-    state::{AccountTrie, ByteCode, Key, LogsState},
+    state::{AccountTrie, ByteCode, Error as StateError, Key, LogsState},
 };
 
 /// Export EVM types
@@ -126,6 +126,8 @@ pub enum Error {
     TransactionFatalError(ExitFatal),
     #[error("transaction has been reverted: machine encountered an explict revert")]
     TransactionRevertError(ExitRevert),
+    #[error("state error: {0}")]
+    StateError(StateError),
 }
 
 /// Top-level abstraction for the EVM with the
