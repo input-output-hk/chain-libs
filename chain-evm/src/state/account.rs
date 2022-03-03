@@ -117,9 +117,10 @@ mod test {
 
     #[test]
     fn account_balance_checked_sub() {
+        let val = 100u64;
         assert_eq!(
-            Balance::from(100u64).checked_sub(U256::from(0u64)),
-            Some(Balance(U256([100, 0, 0, 0])))
+            Balance::from(val).checked_sub(U256::from(0u64)),
+            Some(Balance(U256([val, 0, 0, 0])))
         );
         assert_eq!(Balance::from(0u64).checked_sub(U256::from(1u64)), None);
     }

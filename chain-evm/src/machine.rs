@@ -177,8 +177,9 @@ impl<'runtime> VirtualMachine<'runtime> {
         let (exit_reason, val) = f(&mut executor, gas_limit);
         match exit_reason {
             ExitReason::Succeed(_) => {
+                // calculate the gas fees given the
+                // gas price in the environment
                 let gas_fees = executor.fee(self.gas_price());
-                // apply and return state
                 // apply changes to the state, this consumes the executor
                 let state = executor.into_state();
                 // Next, we consume the stack state and extract the values and logs
