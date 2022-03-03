@@ -310,18 +310,10 @@ fn pack_pool_registration<W: std::io::Write>(
     pool_registration: &PoolRegistration,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    let byte_array = pool_registration.serialize();
-    let bytes = byte_array.as_slice();
-    let size = bytes.len() as u64;
-    // TODO: do not store extra bytes
-    codec.put_be_u64(size)?;
-    codec.put_bytes(bytes)?;
-    Ok(())
+    Serialize::serialize(&pool_registration, codec)
 }
 
 fn unpack_pool_registration(codec: &mut Codec<&[u8]>) -> Result<PoolRegistration, ReadError> {
-    // TODO: do not store extra bytes
-    codec.get_be_u64()?;
     PoolRegistration::deserialize_from_slice(codec)
 }
 
