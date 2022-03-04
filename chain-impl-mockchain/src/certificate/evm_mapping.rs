@@ -102,14 +102,36 @@ impl property::Deserialize for EvmMapping {
 }
 
 impl Readable for EvmMapping {
-    fn read(buf: &mut ReadBuf) -> Result<Self, ReadError> {
+    fn read(_buf: &mut ReadBuf) -> Result<Self, ReadError> {
         #[cfg(feature = "evm")]
         {
             Ok(Self {
-                evm_address: Address::from_slice(buf.get_slice(Address::len_bytes())?),
+                evm_address: Address::from_slice(_buf.get_slice(Address::len_bytes())?),
             })
         }
         #[cfg(not(feature = "evm"))]
         unimplemented!()
+    }
+}
+
+#[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
+mod test {
+    use super::*;
+    use quickcheck::Arbitrary;
+
+    impl Arbitrary for EvmMapping {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                evm_address: [u8::arbitrary(g); Address::len_bytes()].into(),
+            }
+        }
+    }
+
+    quickcheck! {
+        fn evm_transaction_serialization_bijection(b: EvmMapping) -> bool {
+            let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
+            let decoded = EvmMapping::read(&mut chain_core::mempack::ReadBuf::from(&bytes)).unwrap();
+            decoded == b
+        }
     }
 }

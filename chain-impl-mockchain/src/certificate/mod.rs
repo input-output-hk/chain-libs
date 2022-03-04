@@ -13,7 +13,6 @@ mod test;
 
 use crate::transaction::{Payload, PayloadData, PayloadSlice};
 
-use self::evm_mapping::EvmMapping;
 pub use self::vote_cast::VoteCast;
 pub use self::vote_plan::{
     ExternalProposalDocument, ExternalProposalId, Proposal, Proposals, PushProposal, VoteAction,
@@ -24,6 +23,7 @@ pub use self::vote_tally::{
     VoteTally, VoteTallyPayload,
 };
 pub use delegation::{OwnerStakeDelegation, StakeDelegation};
+pub use evm_mapping::EvmMapping;
 pub use mint_token::MintToken;
 pub use pool::{
     GenesisPraosLeaderHash, IndexSignatures, ManagementThreshold, PoolId, PoolOwnersSigned,
@@ -339,6 +339,7 @@ pub enum SignedCertificate {
     VoteTally(VoteTally, <VoteTally as Payload>::Auth),
     UpdateProposal(UpdateProposal, <UpdateProposal as Payload>::Auth),
     UpdateVote(UpdateVote, <UpdateVote as Payload>::Auth),
+    EvmMapping(EvmMapping, <EvmMapping as Payload>::Auth),
 }
 
 #[cfg(test)]
