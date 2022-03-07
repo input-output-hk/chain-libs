@@ -19,7 +19,7 @@ use thiserror::Error;
 
 use crate::{
     precompiles::Precompiles,
-    state::{AccountTrie, ByteCode, Key, LogsState},
+    state::{AccountTrie, ByteCode, Error as StateError, Key, LogsState},
 };
 
 /// Export EVM types
@@ -126,6 +126,8 @@ pub enum Error {
     TransactionFatalError(ExitFatal),
     #[error("transaction has been reverted: machine encountered an explict revert")]
     TransactionRevertError(ExitRevert),
+    #[error("state error: {0}")]
+    StateError(StateError),
 }
 
 /// Top-level abstraction for the EVM with the
@@ -133,7 +135,7 @@ pub enum Error {
 pub struct VirtualMachine<'runtime> {
     /// EVM Block Configuration.
     config: Config,
-    environment: &'runtime Environment,
+    environment: &'runtime mut Environment,
     precompiles: Precompiles,
     state: AccountTrie,
     logs: LogsState,
@@ -168,6 +170,7 @@ impl<'runtime> VirtualMachine<'runtime> {
             u64,
         ) -> (ExitReason, T),
     {
+        self.environment.origin = caller;
         let config = &(self.config.into());
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -177,9 +180,9 @@ impl<'runtime> VirtualMachine<'runtime> {
         let (exit_reason, val) = f(&mut executor, gas_limit);
         match exit_reason {
             ExitReason::Succeed(_) => {
-                let used_gas = U256::from(executor.used_gas());
-                let gas_fees = used_gas * self.gas_price();
-                // apply and return state
+                // calculate the gas fees given the
+                // gas price in the environment
+                let gas_fees = executor.fee(self.gas_price());
                 // apply changes to the state, this consumes the executor
                 let state = executor.into_state();
                 // Next, we consume the stack state and extract the values and logs
@@ -190,10 +193,7 @@ impl<'runtime> VirtualMachine<'runtime> {
 
                 // pay gas fees
                 self.state = self.state.clone().modify_account(caller, |mut account| {
-                    account.balance = account
-                        .balance
-                        .checked_sub(gas_fees)
-                        .expect("Acount does not have enough funds to pay gas fees");
+                    account.balance = account.balance.checked_sub(gas_fees)?;
                     Some(account)
                 });
 
@@ -209,14 +209,14 @@ impl<'runtime> VirtualMachine<'runtime> {
 
 impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
-    pub fn new(config: Config, environment: &'runtime Environment) -> Self {
+    pub fn new(config: Config, environment: &'runtime mut Environment) -> Self {
         Self::new_with_state(config, environment, Default::default(), Default::default())
     }
 
     /// Creates a new `VirtualMachine` given configuration params and a given account storage.
     pub fn new_with_state(
         config: Config,
-        environment: &'runtime Environment,
+        environment: &'runtime mut Environment,
         state: AccountTrie,
         logs: LogsState,
     ) -> Self {
@@ -357,7 +357,7 @@ impl<'runtime> Backend for VirtualMachine<'runtime> {
         self.state
             .get(&address)
             .map(|a| Basic {
-                balance: a.balance,
+                balance: a.balance.into(),
                 nonce: a.nonce,
             })
             .unwrap_or_default()
@@ -400,7 +400,7 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
                     self.state = self.state.clone().modify_account(address, |mut account| {
-                        account.balance = balance;
+                        account.balance = balance.try_into().unwrap();
                         account.nonce = nonce;
                         if let Some(code) = code {
                             account.code = code
@@ -470,7 +470,7 @@ mod test {
         use std::rc::Rc;
 
         let config = Config::Istanbul;
-        let environment = Environment {
+        let mut environment = Environment {
             gas_price: Default::default(),
             origin: Default::default(),
             chain_id: Default::default(),
@@ -485,7 +485,7 @@ mod test {
 
         let evm_config = config.into();
 
-        let vm = VirtualMachine::new(config, &environment);
+        let vm = VirtualMachine::new(config, &mut environment);
 
         let gas_limit = u64::max_value();
 
