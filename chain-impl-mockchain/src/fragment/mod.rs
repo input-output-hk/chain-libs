@@ -41,6 +41,7 @@ pub enum Fragment {
     VoteTally(Transaction<certificate::VoteTally>),
     MintToken(Transaction<certificate::MintToken>),
     Evm(Transaction<EvmTransaction>),
+    EvmMapping(Transaction<certificate::EvmMapping>),
 }
 
 impl PartialEq for Fragment {
@@ -68,6 +69,7 @@ pub(super) enum FragmentTag {
     VoteTally = 12,
     MintToken = 13,
     Evm = 14,
+    EvmMapping = 15,
 }
 
 impl FragmentTag {
@@ -112,6 +114,7 @@ impl Fragment {
             Fragment::VoteTally(_) => FragmentTag::VoteTally,
             Fragment::MintToken(_) => FragmentTag::MintToken,
             Fragment::Evm(_) => FragmentTag::Evm,
+            Fragment::EvmMapping(_) => FragmentTag::EvmMapping,
         }
     }
 
@@ -187,6 +190,9 @@ impl Deserialize for Fragment {
                 Transaction::deserialize(&mut codec).map(Fragment::MintToken)
             }
             Some(FragmentTag::Evm) => Transaction::deserialize(&mut codec).map(Fragment::Evm),
+            Some(FragmentTag::EvmMapping) => {
+                Transaction::deserialize(&mut codec).map(Fragment::EvmMapping)
+            }
             None => Err(ReadError::UnknownTag(tag as u32)),
         }
     }
@@ -213,6 +219,7 @@ impl Serialize for Fragment {
             Fragment::VoteTally(vote_tally) => vote_tally.serialize(&mut tmp)?,
             Fragment::MintToken(mint_token) => mint_token.serialize(&mut tmp)?,
             Fragment::Evm(deployment) => deployment.serialize(&mut tmp)?,
+            Fragment::EvmMapping(evm_mapping) => evm_mapping.serialize(&mut tmp)?,
         };
         let bytes = tmp.into_inner();
         codec.put_be_u32(bytes.len() as u32)?;
