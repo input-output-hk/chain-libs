@@ -135,7 +135,7 @@ pub enum Error {
 pub struct VirtualMachine<'runtime> {
     /// EVM Block Configuration.
     config: Config,
-    environment: &'runtime Environment,
+    environment: &'runtime mut Environment,
     precompiles: Precompiles,
     state: AccountTrie,
     logs: LogsState,
@@ -145,6 +145,8 @@ fn precompiles(config: Config) -> Precompiles {
     match config {
         Config::Istanbul => Precompiles::new_istanbul(),
         Config::Berlin => Precompiles::new_berlin(),
+        // TODO: change it to new_london() after it will be implemented
+        Config::London => Precompiles::new_berlin(),
         config => unimplemented!("EVM precompiles for the {:?} config", config),
     }
 }
@@ -168,6 +170,7 @@ impl<'runtime> VirtualMachine<'runtime> {
             u64,
         ) -> (ExitReason, T),
     {
+        self.environment.origin = caller;
         let config = &(self.config.into());
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
@@ -206,14 +209,14 @@ impl<'runtime> VirtualMachine<'runtime> {
 
 impl<'runtime> VirtualMachine<'runtime> {
     /// Creates a new `VirtualMachine` given configuration parameters.
-    pub fn new(config: Config, environment: &'runtime Environment) -> Self {
+    pub fn new(config: Config, environment: &'runtime mut Environment) -> Self {
         Self::new_with_state(config, environment, Default::default(), Default::default())
     }
 
     /// Creates a new `VirtualMachine` given configuration params and a given account storage.
     pub fn new_with_state(
         config: Config,
-        environment: &'runtime Environment,
+        environment: &'runtime mut Environment,
         state: AccountTrie,
         logs: LogsState,
     ) -> Self {
@@ -389,7 +392,7 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     address,
                     basic: Basic { balance, nonce },
                     code,
-                    storage: apply_storage,
+                    storage,
                     reset_storage,
                 } => {
                     // get the account if stored, else use Default::default().
@@ -406,10 +409,19 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                             account.storage = Default::default();
                         }
 
+                        // cleanup storage from zero values
+                        // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
+                        account.storage = account
+                            .storage
+                            .iter()
+                            .filter(|(_, v)| v != &&Default::default())
+                            .map(|(k, v)| (*k, *v))
+                            .collect();
+
                         // iterate over the apply_storage keys and values
                         // and put them into the account.
-                        for (index, value) in apply_storage {
-                            account.storage = if value == crate::state::Value::default() {
+                        for (index, value) in storage {
+                            account.storage = if value == Default::default() {
                                 // value is full of zeroes, remove it
                                 account.storage.remove(&index)
                             } else {
@@ -458,7 +470,7 @@ mod test {
         use std::rc::Rc;
 
         let config = Config::Istanbul;
-        let environment = Environment {
+        let mut environment = Environment {
             gas_price: Default::default(),
             origin: Default::default(),
             chain_id: Default::default(),
@@ -473,7 +485,7 @@ mod test {
 
         let evm_config = config.into();
 
-        let vm = VirtualMachine::new(config, &environment);
+        let vm = VirtualMachine::new(config, &mut environment);
 
         let gas_limit = u64::max_value();
 
