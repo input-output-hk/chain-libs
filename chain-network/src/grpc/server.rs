@@ -166,7 +166,9 @@ where
         let peers = service.peers(req.into_inner().limit).await?;
         let res = proto::node::PeersResponse {
             peers: peers
-                .nodes.iter().cloned()
+                .nodes
+                .iter()
+                .cloned()
                 .map(|node| node.into_bytes())
                 .collect(),
         };
