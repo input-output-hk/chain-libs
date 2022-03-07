@@ -84,6 +84,8 @@ impl TestEvmState {
             U256::from_str(&block_header.timestamp).map_err(|_| "Can not parse timestamp")?;
         self.ledger.environment.block_difficulty =
             U256::from_str(&block_header.difficulty).map_err(|_| "Can not parse difficulty")?;
+        self.ledger.environment.block_coinbase =
+            H160::from_str(&block_header.coinbase).map_err(|_| "Can not parse coinbase")?;
 
         self.ledger
             .environment
@@ -154,18 +156,31 @@ impl TestEvmState {
             let expected_account: Account = expected_state.try_into()?;
 
             if &expected_account != account {
+                let storage_info = |account: &Account| {
+                    let mut storage = "{".to_string();
+                    for (key, value) in account.storage.iter() {
+                        storage = format!("{} |key: {} , value: {}| ", storage, key, value);
+                    }
+                    format!("{}}}", storage)
+                };
+
+                let expected_storage = storage_info(&expected_account);
+                let account_storage = storage_info(account);
+
                 Err(format!(
                     "Account mismatch,
                     address: {},
-                    current: {{ balance: {}, nonce: {}, code: {} }},
-                    expected: {{ balance: {}, nonce: {}, code: {} }}",
+                    current: {{ balance: {}, nonce: {}, code: {}, storage: {} }},
+                    expected: {{ balance: {}, nonce: {}, code: {}, storage: {} }}",
                     address,
                     account.balance,
                     account.nonce,
                     hex::encode(&account.code),
+                    account_storage,
                     expected_account.balance,
                     expected_account.nonce,
                     hex::encode(expected_account.code),
+                    expected_storage
                 ))
             } else {
                 Ok(())
@@ -208,7 +223,9 @@ impl TryFrom<TestAccountState> for Account {
         }
         Ok(Self {
             nonce: U256::from_str(&account.nonce).map_err(|_| "Can not parse nonce")?,
-            balance: U256::from_str(&account.balance).map_err(|_| "Can not parse balance")?,
+            balance: U256::from_str(&account.balance)
+                .map_err(|_| "Can not parse balance")?
+                .try_into()?,
             storage,
             code: hex::decode(
                 account.code[0..2]
@@ -319,12 +336,7 @@ pub fn run_evm_test(path: PathBuf) {
     }
 }
 
-// TODO: need to fix following tests
-// "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmTests/blockInfo.json"
-// "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmTests/envInfo.json"
-// "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmIOandFlowOperations/loop_stacklimit.json"
 #[test]
-#[ignore]
 fn run_evm_tests() {
     let vm_tests_dir = std::fs::read_dir("../evm-tests/BlockchainTests/GeneralStateTests/VMTests")
         .expect("Can not find vm tests directory");
@@ -336,6 +348,7 @@ fn run_evm_tests() {
             vm_test_dir.file_name().to_str().unwrap()
         );
 
+        // Heavy perfomance tests, so we just skip them
         if vm_test_dir.file_name().to_str().unwrap() == "vmPerformance" {
             println!("Skipping");
             continue;
@@ -349,6 +362,7 @@ fn run_evm_tests() {
             // which we dont need to implement in our implementation currently as we are not emulating Ethereum blockchain structure
             if vm_test.file_name().to_str().unwrap() == "jumpToPush.json" {
                 println!("Skipping");
+                continue;
             }
             run_evm_test(vm_test.path());
         }
@@ -360,6 +374,6 @@ fn run_evm_tests() {
 #[ignore]
 fn evm_test() {
     run_evm_test(PathBuf::from(
-        "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmTests/blockInfo.json",
+        "../evm-tests/BlockchainTests/GeneralStateTests/VMTests/vmIOandFlowOperations/loop_stacklimit.json"
     ));
 }
