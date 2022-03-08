@@ -80,8 +80,8 @@ pub enum Config {
     London = 3,
 }
 
-impl From<&Config> for evm::Config {
-    fn from(other: &Config) -> Self {
+impl From<Config> for evm::Config {
+    fn from(other: Config) -> Self {
         match other {
             Config::Frontier => Self::frontier(),
             Config::Istanbul => Self::istanbul(),
@@ -133,9 +133,7 @@ pub enum Error {
 pub trait EvmState {
     fn environment(&self) -> &Environment;
 
-    fn config(&self) -> &Config;
-
-    fn state(&self) -> &AccountTrie;
+    fn accounts(&self) -> &AccountTrie;
 
     fn logs(&self) -> &LogsState;
 
@@ -146,7 +144,7 @@ pub trait EvmState {
     fn update_env_origin(&mut self, origin: H160);
 }
 
-fn precompiles(config: &Config) -> Precompiles {
+fn precompiles(config: Config) -> Precompiles {
     match config {
         Config::Istanbul => Precompiles::new_istanbul(),
         Config::Berlin => Precompiles::new_berlin(),
@@ -169,6 +167,7 @@ impl<'a, T> VirtualMachine<'a, T> {
 impl<'a, State: EvmState> VirtualMachine<'a, State> {
     fn execute_transaction<F, T>(
         &mut self,
+        config: Config,
         caller: Address,
         gas_limit: u64,
         delete_empty: bool,
@@ -181,10 +180,10 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         ) -> (ExitReason, T),
     {
         self.0.update_env_origin(caller);
-        let config = &(self.0.config().into());
+        let precompiles = precompiles(config);
+        let config = &(config.into());
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
-        let precompiles = precompiles(self.0.config());
         let mut executor =
             StackExecutor::new_with_precompiles(memory_stack_state, config, &precompiles);
 
@@ -205,7 +204,7 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
                 // pay gas fees
                 let new_state = self
                     .0
-                    .state()
+                    .accounts()
                     .clone()
                     .modify_account(caller, |mut account| {
                         account.balance = account.balance.checked_sub(gas_fees)?;
@@ -226,6 +225,7 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
     /// Execute a CREATE transaction
     pub fn transact_create(
         &mut self,
+        config: Config,
         caller: Address,
         value: Value,
         init_code: ByteCode,
@@ -233,24 +233,31 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
-        self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-            (
-                executor.transact_create(
-                    caller,
-                    value,
-                    init_code.to_vec(),
-                    gas_limit,
-                    access_list.clone(),
-                ),
-                (),
-            )
-        })
+        self.execute_transaction(
+            config,
+            caller,
+            gas_limit,
+            delete_empty,
+            |executor, gas_limit| {
+                (
+                    executor.transact_create(
+                        caller,
+                        value,
+                        init_code.to_vec(),
+                        gas_limit,
+                        access_list.clone(),
+                    ),
+                    (),
+                )
+            },
+        )
     }
 
     /// Execute a CREATE2 transaction
     #[allow(clippy::too_many_arguments)]
     pub fn transact_create2(
         &mut self,
+        config: Config,
         caller: Address,
         value: Value,
         init_code: ByteCode,
@@ -259,25 +266,32 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
-        self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-            (
-                executor.transact_create2(
-                    caller,
-                    value,
-                    init_code.to_vec(),
-                    salt,
-                    gas_limit,
-                    access_list.clone(),
-                ),
-                (),
-            )
-        })
+        self.execute_transaction(
+            config,
+            caller,
+            gas_limit,
+            delete_empty,
+            |executor, gas_limit| {
+                (
+                    executor.transact_create2(
+                        caller,
+                        value,
+                        init_code.to_vec(),
+                        salt,
+                        gas_limit,
+                        access_list.clone(),
+                    ),
+                    (),
+                )
+            },
+        )
     }
 
     /// Execute a CALL transaction
     #[allow(clippy::too_many_arguments)]
     pub fn transact_call(
         &mut self,
+        config: Config,
         caller: Address,
         address: Address,
         value: Value,
@@ -286,16 +300,22 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<ByteCode, Error> {
-        self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-            executor.transact_call(
-                caller,
-                address,
-                value,
-                data.to_vec(),
-                gas_limit,
-                access_list.clone(),
-            )
-        })
+        self.execute_transaction(
+            config,
+            caller,
+            gas_limit,
+            delete_empty,
+            |executor, gas_limit| {
+                executor.transact_call(
+                    caller,
+                    address,
+                    value,
+                    data.to_vec(),
+                    gas_limit,
+                    access_list.clone(),
+                )
+            },
+        )
     }
 }
 
@@ -339,11 +359,11 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
         self.0.environment().chain_id
     }
     fn exists(&self, address: H160) -> bool {
-        self.0.state().contains(&address)
+        self.0.accounts().contains(&address)
     }
     fn basic(&self, address: H160) -> Basic {
         self.0
-            .state()
+            .accounts()
             .get(&address)
             .map(|a| Basic {
                 balance: a.balance.into(),
@@ -353,14 +373,14 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
     }
     fn code(&self, address: H160) -> Vec<u8> {
         self.0
-            .state()
+            .accounts()
             .get(&address)
             .map(|val| val.code.to_vec())
             .unwrap_or_default()
     }
     fn storage(&self, address: H160, index: H256) -> H256 {
         self.0
-            .state()
+            .accounts()
             .get(&address)
             .map(|val| val.storage.get(&index).cloned().unwrap_or_default())
             .unwrap_or_default()
@@ -392,7 +412,7 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
                     // set to be Default::default().
                     let new_state =
                         self.0
-                            .state()
+                            .accounts()
                             .clone()
                             .modify_account(address, |mut account| {
                                 account.balance = balance.try_into().unwrap();
@@ -434,7 +454,7 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
                     self.0.update_state(new_state);
                 }
                 Apply::Delete { address } => {
-                    let new_state = self.0.state().clone().remove(&address);
+                    let new_state = self.0.accounts().clone().remove(&address);
                     self.0.update_state(new_state);
                 }
             }
@@ -453,7 +473,6 @@ mod test {
     use super::*;
 
     struct TestEvmState {
-        config: Config,
         environment: Environment,
         accounts: AccountTrie,
         logs: LogsState,
@@ -464,11 +483,7 @@ mod test {
             &self.environment
         }
 
-        fn config(&self) -> &Config {
-            &self.config
-        }
-
-        fn state(&self) -> &AccountTrie {
+        fn accounts(&self) -> &AccountTrie {
             &self.accounts
         }
 
@@ -520,10 +535,9 @@ mod test {
             block_base_fee_per_gas: Default::default(),
         };
 
-        let evm_config = (&config).into();
+        let evm_config = config.into();
 
         let mut evm_state = TestEvmState {
-            config: config.clone(),
             environment,
             accounts: Default::default(),
             logs: Default::default(),
@@ -535,7 +549,7 @@ mod test {
 
         let metadata = StackSubstateMetadata::new(gas_limit, &evm_config);
         let memory_stack_state = MemoryStackState::new(metadata, &vm);
-        let precompiles = precompiles(&config);
+        let precompiles = precompiles(config);
         let mut executor =
             StackExecutor::new_with_precompiles(memory_stack_state, &evm_config, &precompiles);
 

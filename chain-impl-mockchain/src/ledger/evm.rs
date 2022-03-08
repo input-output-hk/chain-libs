@@ -15,7 +15,6 @@ pub struct Ledger {
     pub(crate) accounts: AccountTrie,
     pub(crate) logs: LogsState,
     pub(crate) environment: Environment,
-    pub(crate) config: Config,
     pub(crate) current_epoch: BlockEpoch,
 }
 
@@ -30,11 +29,7 @@ impl EvmState for Ledger {
         &self.environment
     }
 
-    fn config(&self) -> &Config {
-        &self.config
-    }
-
-    fn state(&self) -> &AccountTrie {
+    fn accounts(&self) -> &AccountTrie {
         &self.accounts
     }
 
@@ -80,7 +75,6 @@ impl Ledger {
                 block_gas_limit: Default::default(),
                 block_base_fee_per_gas: Default::default(),
             },
-            config: Default::default(),
             current_epoch: BlockEpoch {
                 epoch: 0,
                 epoch_start: BlockTimestamp::default(),
@@ -94,7 +88,6 @@ impl Ledger {
         contract: EvmTransaction,
         config: Config,
     ) -> Result<(), Error> {
-        self.config = config;
         let mut vm = VirtualMachine::new(self);
         match contract {
             EvmTransaction::Create {
@@ -104,7 +97,15 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                vm.transact_create(caller, value, init_code, gas_limit, access_list, true)?;
+                vm.transact_create(
+                    config,
+                    caller,
+                    value,
+                    init_code,
+                    gas_limit,
+                    access_list,
+                    true,
+                )?;
             }
             EvmTransaction::Create2 {
                 caller,
@@ -114,7 +115,16 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                vm.transact_create2(caller, value, init_code, salt, gas_limit, access_list, true)?;
+                vm.transact_create2(
+                    config,
+                    caller,
+                    value,
+                    init_code,
+                    salt,
+                    gas_limit,
+                    access_list,
+                    true,
+                )?;
             }
             EvmTransaction::Call {
                 caller,
@@ -124,8 +134,16 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let _byte_code_msg =
-                    vm.transact_call(caller, address, value, data, gas_limit, access_list, true)?;
+                let _byte_code_msg = vm.transact_call(
+                    config,
+                    caller,
+                    address,
+                    value,
+                    data,
+                    gas_limit,
+                    access_list,
+                    true,
+                )?;
             }
         }
         Ok(())
