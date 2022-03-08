@@ -52,9 +52,6 @@ pub type BlockGasLimit = U256;
 /// A block's base fee per gas.
 pub type BlockBaseFeePerGas = U256;
 
-/// A block's origin
-pub type Origin = H160;
-
 /// A block's coinbase
 pub type BlockCoinBase = H160;
 
@@ -101,7 +98,6 @@ impl Default for Config {
 /// EVM Environment parameters needed for execution.
 pub struct Environment {
     pub gas_price: GasPrice,
-    pub origin: Origin,
     pub chain_id: ChainId,
     pub block_hashes: BlockHashes,
     pub block_number: BlockNumber,
@@ -137,11 +133,9 @@ pub trait EvmState {
 
     fn logs(&self) -> &LogsState;
 
-    fn update_state(&mut self, state: AccountTrie);
+    fn update_accounts(&mut self, state: AccountTrie);
 
     fn update_logs(&mut self, logs: LogsState);
-
-    fn update_env_origin(&mut self, origin: H160);
 }
 
 fn precompiles(config: Config) -> Precompiles {
@@ -154,11 +148,17 @@ fn precompiles(config: Config) -> Precompiles {
     }
 }
 
-pub struct VirtualMachine<'a, T>(&'a mut T);
+pub struct VirtualMachine<'a, T> {
+    state: &'a mut T,
+    origin: H160,
+}
 
 impl<'a, T> VirtualMachine<'a, T> {
     pub fn new(state: &'a mut T) -> Self {
-        Self(state)
+        Self {
+            state,
+            origin: Default::default(),
+        }
     }
 }
 
@@ -179,7 +179,7 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
             u64,
         ) -> (ExitReason, T),
     {
-        self.0.update_env_origin(caller);
+        self.origin = caller;
         let precompiles = precompiles(config);
         let config = &(config.into());
         let metadata = StackSubstateMetadata::new(gas_limit, config);
@@ -202,16 +202,16 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
                 self.apply(values, logs, delete_empty);
 
                 // pay gas fees
-                let new_state = self
-                    .0
-                    .accounts()
-                    .clone()
-                    .modify_account(caller, |mut account| {
-                        account.balance = account.balance.checked_sub(gas_fees)?;
-                        Some(account)
-                    });
+                let new_accounts =
+                    self.state
+                        .accounts()
+                        .clone()
+                        .modify_account(caller, |mut account| {
+                            account.balance = account.balance.checked_sub(gas_fees)?;
+                            Some(account)
+                        });
 
-                self.0.update_state(new_state);
+                self.state.update_accounts(new_accounts);
 
                 // exit_reason
                 Ok(val)
@@ -321,48 +321,48 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
 
 impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
     fn gas_price(&self) -> U256 {
-        self.0.environment().gas_price
+        self.state.environment().gas_price
     }
     fn origin(&self) -> H160 {
-        self.0.environment().origin
+        self.origin
     }
     fn block_hash(&self, number: U256) -> H256 {
-        if number >= self.0.environment().block_number
-            || self.0.environment().block_number - number - U256::one()
-                >= U256::from(self.0.environment().block_hashes.len())
+        if number >= self.state.environment().block_number
+            || self.state.environment().block_number - number - U256::one()
+                >= U256::from(self.state.environment().block_hashes.len())
         {
             H256::default()
         } else {
-            let index = (self.0.environment().block_number - number - U256::one()).as_usize();
-            self.0.environment().block_hashes[index]
+            let index = (self.state.environment().block_number - number - U256::one()).as_usize();
+            self.state.environment().block_hashes[index]
         }
     }
     fn block_number(&self) -> U256 {
-        self.0.environment().block_number
+        self.state.environment().block_number
     }
     fn block_coinbase(&self) -> H160 {
-        self.0.environment().block_coinbase
+        self.state.environment().block_coinbase
     }
     fn block_timestamp(&self) -> U256 {
-        self.0.environment().block_timestamp
+        self.state.environment().block_timestamp
     }
     fn block_difficulty(&self) -> U256 {
-        self.0.environment().block_difficulty
+        self.state.environment().block_difficulty
     }
     fn block_gas_limit(&self) -> U256 {
-        self.0.environment().block_gas_limit
+        self.state.environment().block_gas_limit
     }
     fn block_base_fee_per_gas(&self) -> U256 {
-        self.0.environment().block_base_fee_per_gas
+        self.state.environment().block_base_fee_per_gas
     }
     fn chain_id(&self) -> U256 {
-        self.0.environment().chain_id
+        self.state.environment().chain_id
     }
     fn exists(&self, address: H160) -> bool {
-        self.0.accounts().contains(&address)
+        self.state.accounts().contains(&address)
     }
     fn basic(&self, address: H160) -> Basic {
-        self.0
+        self.state
             .accounts()
             .get(&address)
             .map(|a| Basic {
@@ -372,14 +372,14 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
             .unwrap_or_default()
     }
     fn code(&self, address: H160) -> Vec<u8> {
-        self.0
+        self.state
             .accounts()
             .get(&address)
             .map(|val| val.code.to_vec())
             .unwrap_or_default()
     }
     fn storage(&self, address: H160, index: H256) -> H256 {
-        self.0
+        self.state
             .accounts()
             .get(&address)
             .map(|val| val.storage.get(&index).cloned().unwrap_or_default())
@@ -410,8 +410,8 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
                     // Then, modify the account balance, nonce, and code.
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
-                    let new_state =
-                        self.0
+                    let new_accounts =
+                        self.state
                             .accounts()
                             .clone()
                             .modify_account(address, |mut account| {
@@ -451,20 +451,20 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
                                 }
                             });
 
-                    self.0.update_state(new_state);
+                    self.state.update_accounts(new_accounts);
                 }
                 Apply::Delete { address } => {
-                    let new_state = self.0.accounts().clone().remove(&address);
-                    self.0.update_state(new_state);
+                    let new_accounts = self.state.accounts().clone().remove(&address);
+                    self.state.update_accounts(new_accounts);
                 }
             }
         }
 
         // save the logs
         let block_hash = self.block_hash(self.block_number());
-        let mut new_logs = self.0.logs().clone();
+        let mut new_logs = self.state.logs().clone();
         new_logs.put(block_hash, logs.into_iter().collect());
-        self.0.update_logs(new_logs);
+        self.state.update_logs(new_logs);
     }
 }
 
@@ -491,16 +491,12 @@ mod test {
             &self.logs
         }
 
-        fn update_state(&mut self, accounts: AccountTrie) {
+        fn update_accounts(&mut self, accounts: AccountTrie) {
             self.accounts = accounts;
         }
 
         fn update_logs(&mut self, logs: LogsState) {
             self.logs = logs;
-        }
-
-        fn update_env_origin(&mut self, origin: H160) {
-            self.environment.origin = origin;
         }
     }
 
@@ -524,7 +520,6 @@ mod test {
         let config = Config::Istanbul;
         let environment = Environment {
             gas_price: Default::default(),
-            origin: Default::default(),
             chain_id: Default::default(),
             block_hashes: Default::default(),
             block_number: Default::default(),

@@ -6,7 +6,7 @@ use chain_evm::{
     machine::{
         BlockHash, BlockNumber, BlockTimestamp, Config, Environment, EvmState, VirtualMachine,
     },
-    primitive_types::{H160, U256},
+    primitive_types::U256,
     state::{AccountTrie, LogsState},
 };
 
@@ -37,16 +37,12 @@ impl EvmState for Ledger {
         &self.logs
     }
 
-    fn update_state(&mut self, state: AccountTrie) {
-        self.accounts = state;
+    fn update_accounts(&mut self, accounts: AccountTrie) {
+        self.accounts = accounts;
     }
 
     fn update_logs(&mut self, logs: LogsState) {
         self.logs = logs;
-    }
-
-    fn update_env_origin(&mut self, origin: H160) {
-        self.environment.origin = origin;
     }
 }
 
@@ -65,7 +61,6 @@ impl Ledger {
             logs: Default::default(),
             environment: Environment {
                 gas_price: Default::default(),
-                origin: Default::default(),
                 chain_id: Default::default(),
                 block_hashes: Default::default(),
                 block_number: Default::default(),
