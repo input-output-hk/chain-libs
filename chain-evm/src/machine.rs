@@ -223,6 +223,7 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
     }
 
     /// Execute a CREATE transaction
+    #[allow(clippy::too_many_arguments)]
     pub fn transact_create(
         &mut self,
         config: Config,
