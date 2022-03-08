@@ -80,8 +80,8 @@ pub enum Config {
     London = 3,
 }
 
-impl From<Config> for evm::Config {
-    fn from(other: Config) -> Self {
+impl From<&Config> for evm::Config {
+    fn from(other: &Config) -> Self {
         match other {
             Config::Frontier => Self::frontier(),
             Config::Istanbul => Self::istanbul(),
@@ -130,18 +130,23 @@ pub enum Error {
     StateError(StateError),
 }
 
-/// Top-level abstraction for the EVM with the
-/// necessary types used to get the runtime going.
-pub struct VirtualMachine<'runtime> {
-    /// EVM Block Configuration.
-    config: Config,
-    environment: &'runtime mut Environment,
-    precompiles: Precompiles,
-    state: AccountTrie,
-    logs: LogsState,
+pub trait EvmState {
+    fn environment(&self) -> &Environment;
+
+    fn config(&self) -> &Config;
+
+    fn state(&self) -> &AccountTrie;
+
+    fn logs(&self) -> &LogsState;
+
+    fn update_state(&mut self, state: AccountTrie);
+
+    fn update_logs(&mut self, logs: LogsState);
+
+    fn update_env_origin(&mut self, origin: H160);
 }
 
-fn precompiles(config: Config) -> Precompiles {
+fn precompiles(config: &Config) -> Precompiles {
     match config {
         Config::Istanbul => Precompiles::new_istanbul(),
         Config::Berlin => Precompiles::new_berlin(),
@@ -151,31 +156,37 @@ fn precompiles(config: Config) -> Precompiles {
     }
 }
 
-impl<'runtime> VirtualMachine<'runtime> {
+pub struct VirtualMachine<'a, T>(&'a mut T);
+
+impl<'a, T> VirtualMachine<'a, T> {
+    pub fn new(state: &'a mut T) -> Self {
+        Self(state)
+    }
+}
+
+/// Top-level abstraction for the EVM with the
+/// necessary types used to get the runtime going.
+impl<'a, State: EvmState> VirtualMachine<'a, State> {
     fn execute_transaction<F, T>(
         &mut self,
         caller: Address,
         gas_limit: u64,
         delete_empty: bool,
         f: F,
-    ) -> Result<(&AccountTrie, &LogsState, T), Error>
+    ) -> Result<T, Error>
     where
         for<'config> F: FnOnce(
-            &mut StackExecutor<
-                'config,
-                '_,
-                MemoryStackState<'_, 'config, VirtualMachine>,
-                Precompiles,
-            >,
+            &mut StackExecutor<'config, '_, MemoryStackState<'_, 'config, Self>, Precompiles>,
             u64,
         ) -> (ExitReason, T),
     {
-        self.environment.origin = caller;
-        let config = &(self.config.into());
+        self.0.update_env_origin(caller);
+        let config = &(self.0.config().into());
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
+        let precompiles = precompiles(self.0.config());
         let mut executor =
-            StackExecutor::new_with_precompiles(memory_stack_state, config, &self.precompiles);
+            StackExecutor::new_with_precompiles(memory_stack_state, config, &precompiles);
 
         let (exit_reason, val) = f(&mut executor, gas_limit);
         match exit_reason {
@@ -192,40 +203,23 @@ impl<'runtime> VirtualMachine<'runtime> {
                 self.apply(values, logs, delete_empty);
 
                 // pay gas fees
-                self.state = self.state.clone().modify_account(caller, |mut account| {
-                    account.balance = account.balance.checked_sub(gas_fees)?;
-                    Some(account)
-                });
+                let new_state = self
+                    .0
+                    .state()
+                    .clone()
+                    .modify_account(caller, |mut account| {
+                        account.balance = account.balance.checked_sub(gas_fees)?;
+                        Some(account)
+                    });
+
+                self.0.update_state(new_state);
 
                 // exit_reason
-                Ok((&self.state, &self.logs, val))
+                Ok(val)
             }
             ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
             ExitReason::Error(err) => Err(Error::TransactionError(err)),
             ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
-        }
-    }
-}
-
-impl<'runtime> VirtualMachine<'runtime> {
-    /// Creates a new `VirtualMachine` given configuration parameters.
-    pub fn new(config: Config, environment: &'runtime mut Environment) -> Self {
-        Self::new_with_state(config, environment, Default::default(), Default::default())
-    }
-
-    /// Creates a new `VirtualMachine` given configuration params and a given account storage.
-    pub fn new_with_state(
-        config: Config,
-        environment: &'runtime mut Environment,
-        state: AccountTrie,
-        logs: LogsState,
-    ) -> Self {
-        Self {
-            config,
-            environment,
-            precompiles: precompiles(config),
-            state,
-            logs,
         }
     }
 
@@ -238,21 +232,19 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Result<(&AccountTrie, &LogsState), Error> {
-        let (account_trie, logs_state, _) =
-            self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-                (
-                    executor.transact_create(
-                        caller,
-                        value,
-                        init_code.to_vec(),
-                        gas_limit,
-                        access_list.clone(),
-                    ),
-                    (),
-                )
-            })?;
-        Ok((account_trie, logs_state))
+    ) -> Result<(), Error> {
+        self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
+            (
+                executor.transact_create(
+                    caller,
+                    value,
+                    init_code.to_vec(),
+                    gas_limit,
+                    access_list.clone(),
+                ),
+                (),
+            )
+        })
     }
 
     /// Execute a CREATE2 transaction
@@ -266,22 +258,20 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Result<(&AccountTrie, &LogsState), Error> {
-        let (account_trie, logs_state, _) =
-            self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-                (
-                    executor.transact_create2(
-                        caller,
-                        value,
-                        init_code.to_vec(),
-                        salt,
-                        gas_limit,
-                        access_list.clone(),
-                    ),
-                    (),
-                )
-            })?;
-        Ok((account_trie, logs_state))
+    ) -> Result<(), Error> {
+        self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
+            (
+                executor.transact_create2(
+                    caller,
+                    value,
+                    init_code.to_vec(),
+                    salt,
+                    gas_limit,
+                    access_list.clone(),
+                ),
+                (),
+            )
+        })
     }
 
     /// Execute a CALL transaction
@@ -295,66 +285,65 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Result<(&AccountTrie, &LogsState, ByteCode), Error> {
-        let (account_trie, logs_state, byte_output) =
-            self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-                executor.transact_call(
-                    caller,
-                    address,
-                    value,
-                    data.to_vec(),
-                    gas_limit,
-                    access_list.clone(),
-                )
-            })?;
-        Ok((account_trie, logs_state, byte_output))
+    ) -> Result<ByteCode, Error> {
+        self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
+            executor.transact_call(
+                caller,
+                address,
+                value,
+                data.to_vec(),
+                gas_limit,
+                access_list.clone(),
+            )
+        })
     }
 }
 
-impl<'runtime> Backend for VirtualMachine<'runtime> {
+impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
     fn gas_price(&self) -> U256 {
-        self.environment.gas_price
+        self.0.environment().gas_price
     }
     fn origin(&self) -> H160 {
-        self.environment.origin
+        self.0.environment().origin
     }
     fn block_hash(&self, number: U256) -> H256 {
-        if number >= self.environment.block_number
-            || self.environment.block_number - number - U256::one()
-                >= U256::from(self.environment.block_hashes.len())
+        if number >= self.0.environment().block_number
+            || self.0.environment().block_number - number - U256::one()
+                >= U256::from(self.0.environment().block_hashes.len())
         {
             H256::default()
         } else {
-            let index = (self.environment.block_number - number - U256::one()).as_usize();
-            self.environment.block_hashes[index]
+            let index = (self.0.environment().block_number - number - U256::one()).as_usize();
+            self.0.environment().block_hashes[index]
         }
     }
     fn block_number(&self) -> U256 {
-        self.environment.block_number
+        self.0.environment().block_number
     }
     fn block_coinbase(&self) -> H160 {
-        self.environment.block_coinbase
+        self.0.environment().block_coinbase
     }
     fn block_timestamp(&self) -> U256 {
-        self.environment.block_timestamp
+        self.0.environment().block_timestamp
     }
     fn block_difficulty(&self) -> U256 {
-        self.environment.block_difficulty
+        self.0.environment().block_difficulty
     }
     fn block_gas_limit(&self) -> U256 {
-        self.environment.block_gas_limit
+        self.0.environment().block_gas_limit
     }
     fn block_base_fee_per_gas(&self) -> U256 {
-        self.environment.block_base_fee_per_gas
+        self.0.environment().block_base_fee_per_gas
     }
     fn chain_id(&self) -> U256 {
-        self.environment.chain_id
+        self.0.environment().chain_id
     }
     fn exists(&self, address: H160) -> bool {
-        self.state.contains(&address)
+        self.0.state().contains(&address)
     }
     fn basic(&self, address: H160) -> Basic {
-        self.state
+        self.0
+            .state()
             .get(&address)
             .map(|a| Basic {
                 balance: a.balance.into(),
@@ -363,13 +352,15 @@ impl<'runtime> Backend for VirtualMachine<'runtime> {
             .unwrap_or_default()
     }
     fn code(&self, address: H160) -> Vec<u8> {
-        self.state
+        self.0
+            .state()
             .get(&address)
             .map(|val| val.code.to_vec())
             .unwrap_or_default()
     }
     fn storage(&self, address: H160, index: H256) -> H256 {
-        self.state
+        self.0
+            .state()
             .get(&address)
             .map(|val| val.storage.get(&index).cloned().unwrap_or_default())
             .unwrap_or_default()
@@ -379,7 +370,7 @@ impl<'runtime> Backend for VirtualMachine<'runtime> {
     }
 }
 
-impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
+impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
     fn apply<A, I, L>(&mut self, values: A, logs: L, delete_empty: bool)
     where
         A: IntoIterator<Item = Apply<I>>,
@@ -399,58 +390,104 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     // Then, modify the account balance, nonce, and code.
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
-                    self.state = self.state.clone().modify_account(address, |mut account| {
-                        account.balance = balance.try_into().unwrap();
-                        account.nonce = nonce;
-                        if let Some(code) = code {
-                            account.code = code
-                        };
-                        if reset_storage {
-                            account.storage = Default::default();
-                        }
+                    let new_state =
+                        self.0
+                            .state()
+                            .clone()
+                            .modify_account(address, |mut account| {
+                                account.balance = balance.try_into().unwrap();
+                                account.nonce = nonce;
+                                if let Some(code) = code {
+                                    account.code = code
+                                };
+                                if reset_storage {
+                                    account.storage = Default::default();
+                                }
 
-                        // cleanup storage from zero values
-                        // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
-                        account.storage = account
-                            .storage
-                            .iter()
-                            .filter(|(_, v)| v != &&Default::default())
-                            .map(|(k, v)| (*k, *v))
-                            .collect();
+                                // cleanup storage from zero values
+                                // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
+                                account.storage = account
+                                    .storage
+                                    .iter()
+                                    .filter(|(_, v)| v != &&Default::default())
+                                    .map(|(k, v)| (*k, *v))
+                                    .collect();
 
-                        // iterate over the apply_storage keys and values
-                        // and put them into the account.
-                        for (index, value) in storage {
-                            account.storage = if value == Default::default() {
-                                // value is full of zeroes, remove it
-                                account.storage.remove(&index)
-                            } else {
-                                account.storage.put(index, value)
-                            }
-                        }
+                                // iterate over the apply_storage keys and values
+                                // and put them into the account.
+                                for (index, value) in storage {
+                                    account.storage = if value == Default::default() {
+                                        // value is full of zeroes, remove it
+                                        account.storage.remove(&index)
+                                    } else {
+                                        account.storage.put(index, value)
+                                    }
+                                }
 
-                        if delete_empty && account.is_empty() {
-                            None
-                        } else {
-                            Some(account)
-                        }
-                    });
+                                if delete_empty && account.is_empty() {
+                                    None
+                                } else {
+                                    Some(account)
+                                }
+                            });
+
+                    self.0.update_state(new_state);
                 }
                 Apply::Delete { address } => {
-                    self.state = self.state.clone().remove(&address);
+                    let new_state = self.0.state().clone().remove(&address);
+                    self.0.update_state(new_state);
                 }
             }
         }
 
         // save the logs
         let block_hash = self.block_hash(self.block_number());
-        self.logs.put(block_hash, logs.into_iter().collect());
+        let mut new_logs = self.0.logs().clone();
+        new_logs.put(block_hash, logs.into_iter().collect());
+        self.0.update_logs(new_logs);
     }
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
     use super::*;
+
+    struct TestEvmState {
+        config: Config,
+        environment: Environment,
+        accounts: AccountTrie,
+        logs: LogsState,
+    }
+
+    impl EvmState for TestEvmState {
+        fn environment(&self) -> &Environment {
+            &self.environment
+        }
+
+        fn config(&self) -> &Config {
+            &self.config
+        }
+
+        fn state(&self) -> &AccountTrie {
+            &self.accounts
+        }
+
+        fn logs(&self) -> &LogsState {
+            &self.logs
+        }
+
+        fn update_state(&mut self, accounts: AccountTrie) {
+            self.accounts = accounts;
+        }
+
+        fn update_logs(&mut self, logs: LogsState) {
+            self.logs = logs;
+        }
+
+        fn update_env_origin(&mut self, origin: H160) {
+            self.environment.origin = origin;
+        }
+    }
 
     impl quickcheck::Arbitrary for Config {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
@@ -470,7 +507,7 @@ mod test {
         use std::rc::Rc;
 
         let config = Config::Istanbul;
-        let mut environment = Environment {
+        let environment = Environment {
             gas_price: Default::default(),
             origin: Default::default(),
             chain_id: Default::default(),
@@ -483,15 +520,22 @@ mod test {
             block_base_fee_per_gas: Default::default(),
         };
 
-        let evm_config = config.into();
+        let evm_config = (&config).into();
 
-        let vm = VirtualMachine::new(config, &mut environment);
+        let mut evm_state = TestEvmState {
+            config: config.clone(),
+            environment,
+            accounts: Default::default(),
+            logs: Default::default(),
+        };
+
+        let vm = VirtualMachine::new(&mut evm_state);
 
         let gas_limit = u64::max_value();
 
         let metadata = StackSubstateMetadata::new(gas_limit, &evm_config);
         let memory_stack_state = MemoryStackState::new(metadata, &vm);
-        let precompiles = precompiles(config);
+        let precompiles = precompiles(&config);
         let mut executor =
             StackExecutor::new_with_precompiles(memory_stack_state, &evm_config, &precompiles);
 
