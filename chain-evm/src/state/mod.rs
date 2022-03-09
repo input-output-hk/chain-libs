@@ -10,7 +10,9 @@ mod storage;
 mod trie;
 
 pub use account::{Account, AccountTrie, Balance, ByteCode, Nonce};
+use evm::ExitError;
 pub use logs::LogsState;
+use std::borrow::Cow;
 pub use storage::{Key, Storage, Value};
 pub use trie::Trie;
 
@@ -23,7 +25,7 @@ pub enum Error {
 
 impl From<Error> for crate::machine::Error {
     fn from(other: Error) -> Self {
-        Self::StateError(other)
+        Self::TransactionError(ExitError::Other(Cow::from(String::from(other))))
     }
 }
 
