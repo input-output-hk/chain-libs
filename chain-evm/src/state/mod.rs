@@ -17,8 +17,8 @@ pub use trie::Trie;
 /// Definition for state-related errors.
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum Error {
-    #[error("account balance values cannot exceed 64 significant bits")]
-    BalanceOverflow,
+    #[error("EVM values cannot exceed 64 significant bits")]
+    ValueOverflow,
 }
 
 impl From<Error> for crate::machine::Error {

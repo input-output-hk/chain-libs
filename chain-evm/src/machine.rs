@@ -19,7 +19,7 @@ use thiserror::Error;
 
 use crate::{
     precompiles::Precompiles,
-    state::{Account, AccountTrie, ByteCode, Error as StateError, Key, LogsState},
+    state::{Account, ByteCode, Error as StateError, Key},
 };
 
 /// Export EVM types
@@ -106,6 +106,55 @@ pub struct Environment {
     pub block_difficulty: BlockDifficulty,
     pub block_gas_limit: BlockGasLimit,
     pub block_base_fee_per_gas: BlockBaseFeePerGas,
+}
+
+/// `U256` type that is capped to the least 64 significant bits for compatibility with jormungandr
+/// types.
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd)]
+pub struct CappedU256(pub(crate) u64);
+
+impl std::fmt::Display for CappedU256 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<U256> for CappedU256 {
+    type Error = StateError;
+    fn try_from(other: U256) -> Result<Self, Self::Error> {
+        match other {
+            U256([val, 0, 0, 0]) => Ok(CappedU256(val)),
+            _ => Err(StateError::ValueOverflow),
+        }
+    }
+}
+
+impl From<u64> for CappedU256 {
+    fn from(other: u64) -> Self {
+        CappedU256(other)
+    }
+}
+
+impl From<CappedU256> for U256 {
+    fn from(other: CappedU256) -> U256 {
+        U256([other.0, 0, 0, 0])
+    }
+}
+
+impl CappedU256 {
+    /// Zero (additive identity) of this type.
+    pub fn zero() -> Self {
+        CappedU256(0u64)
+    }
+    /// Checked substraction of `U256` types. Returns `Some(balance)` or `None` if overflow
+    /// occurred.
+    pub fn checked_sub(self, other: U256) -> Option<CappedU256> {
+        if let Ok(other) = other.try_into() {
+            self.0.checked_sub(other).map(CappedU256)
+        } else {
+            None
+        }
+    }
 }
 
 /// Integer of the value sent with an EVM transaction.
@@ -440,6 +489,7 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
     use super::*;
+    use crate::state::{AccountTrie, LogsState};
 
     struct TestEvmState {
         environment: Environment,
