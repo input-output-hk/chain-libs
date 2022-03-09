@@ -453,7 +453,7 @@ mod test {
         }
 
         fn account(&self, address: Address) -> Option<Account> {
-            self.accounts.get(&address).map(|account| account.clone())
+            self.accounts.get(&address).cloned()
         }
 
         fn contains(&self, address: Address) -> bool {

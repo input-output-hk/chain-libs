@@ -31,10 +31,7 @@ impl EvmState for super::Ledger {
     }
 
     fn account(&self, address: Address) -> Option<Account> {
-        self.evm
-            .accounts
-            .get(&address)
-            .map(|account| account.clone())
+        self.evm.accounts.get(&address).cloned()
     }
 
     fn contains(&self, address: Address) -> bool {
