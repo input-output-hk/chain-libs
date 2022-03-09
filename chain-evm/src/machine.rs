@@ -146,6 +146,15 @@ impl CappedU256 {
     pub fn zero() -> Self {
         CappedU256(0u64)
     }
+    /// Checked addition of `U256` types. Returns `Some(balance)` or `None` if overflow
+    /// occurred.
+    pub fn checked_add(self, other: U256) -> Option<CappedU256> {
+        if let Ok(other) = other.try_into() {
+            self.0.checked_add(other).map(CappedU256)
+        } else {
+            None
+        }
+    }
     /// Checked substraction of `U256` types. Returns `Some(balance)` or `None` if overflow
     /// occurred.
     pub fn checked_sub(self, other: U256) -> Option<CappedU256> {
