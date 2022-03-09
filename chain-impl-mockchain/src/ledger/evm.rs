@@ -4,10 +4,11 @@ use crate::header::BlockDate;
 use crate::ledger::Error;
 use chain_evm::{
     machine::{
-        BlockHash, BlockNumber, BlockTimestamp, Config, Environment, EvmState, VirtualMachine,
+        BlockHash, BlockNumber, BlockTimestamp, Config, Environment, EvmState, Log, VirtualMachine,
     },
-    primitive_types::U256,
-    state::{AccountTrie, LogsState},
+    primitive_types::{H256, U256},
+    state::{Account, AccountTrie, LogsState},
+    Address,
 };
 
 #[derive(Clone, PartialEq, Eq)]
@@ -29,20 +30,23 @@ impl EvmState for Ledger {
         &self.environment
     }
 
-    fn accounts(&self) -> &AccountTrie {
-        &self.accounts
+    fn account(&self, address: Address) -> Option<Account> {
+        self.accounts.get(&address).map(|account| account.clone())
     }
 
-    fn logs(&self) -> &LogsState {
-        &self.logs
+    fn contains(&self, address: Address) -> bool {
+        self.accounts.contains(&address)
     }
 
-    fn update_accounts(&mut self, accounts: AccountTrie) {
-        self.accounts = accounts;
+    fn modify_account<F>(&mut self, address: Address, f: F)
+    where
+        F: FnOnce(Account) -> Option<Account>,
+    {
+        self.accounts = self.accounts.clone().modify_account(address, f);
     }
 
-    fn update_logs(&mut self, logs: LogsState) {
-        self.logs = logs;
+    fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
+        self.logs.put(block_hash, logs);
     }
 }
 
