@@ -10,8 +10,7 @@ pub mod spending;
 
 use crate::tokens::identifier::TokenIdentifier;
 use crate::{date::Epoch, value::*};
-use imhamt::{Hamt, InsertError, UpdateError};
-use std::collections::hash_map::DefaultHasher;
+use imhamt::{InsertError, Trie, UpdateError};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 use thiserror::Error;
@@ -56,7 +55,7 @@ impl From<InsertError> for LedgerError {
 
 /// The public ledger of all accounts associated with their current state
 #[derive(Clone, PartialEq, Eq)]
-pub struct Ledger<ID: Hash + Eq, Extra>(Hamt<DefaultHasher, ID, AccountState<Extra>>);
+pub struct Ledger<ID: Hash + Eq, Extra>(Trie<ID, AccountState<Extra>>);
 
 impl<ID: Clone + Eq + Hash, Extra: Clone> Default for Ledger<ID, Extra> {
     fn default() -> Self {
@@ -67,7 +66,7 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Default for Ledger<ID, Extra> {
 impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
     /// Create a new empty account ledger
     pub fn new() -> Self {
-        Ledger(Hamt::new())
+        Ledger(Trie::new())
     }
 
     /// Add a new account into this ledger.
@@ -230,7 +229,7 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> std::iter::FromIterator<(ID, AccountSt
     for Ledger<ID, Extra>
 {
     fn from_iter<I: IntoIterator<Item = (ID, AccountState<Extra>)>>(iter: I) -> Self {
-        Ledger(Hamt::from_iter(iter))
+        Ledger(Trie::from_iter(iter))
     }
 }
 
@@ -427,7 +426,7 @@ mod tests {
                     },
                     delegation: DelegationType::Full(stake_pool_id),
                     value: value_after_reward,
-                    tokens: Hamt::new(),
+                    tokens: Trie::new(),
                     extra: (),
                 };
 

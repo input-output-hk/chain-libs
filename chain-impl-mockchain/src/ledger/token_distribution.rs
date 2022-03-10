@@ -4,8 +4,7 @@ use crate::{
     tokens::identifier::TokenIdentifier,
     value::Value,
 };
-use imhamt::Hamt;
-use std::collections::hash_map::DefaultHasher;
+use imhamt::Trie;
 
 #[derive(PartialEq, Eq)]
 pub struct TokenDistribution<'a, T: Clone + PartialEq + Eq> {
@@ -60,7 +59,7 @@ impl<'a> TokenDistribution<'a, TokenIdentifier> {
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]
-pub struct TokenTotals(Hamt<DefaultHasher, TokenIdentifier, Value>);
+pub struct TokenTotals(Trie<TokenIdentifier, Value>);
 
 impl TokenTotals {
     #[must_use = "Does not modify the internal state"]

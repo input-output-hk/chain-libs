@@ -1,5 +1,4 @@
-use imhamt::{Hamt, HamtIter, InsertError, RemoveError};
-use std::collections::hash_map::DefaultHasher;
+use imhamt::{HamtIter, InsertError, RemoveError, Trie};
 use thiserror::Error;
 
 use super::declaration::{Declaration, DeclarationError, Identifier};
@@ -11,7 +10,7 @@ pub struct Ledger {
     // TODO : investigate about merging the declarations and the accounts in
     // one with an extension on the account::Ledger
     accounts: account::Ledger<Identifier, ()>,
-    declarations: Hamt<DefaultHasher, Identifier, Declaration>,
+    declarations: Trie<Identifier, Declaration>,
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -49,7 +48,7 @@ impl Ledger {
     pub fn new() -> Self {
         Ledger {
             accounts: account::Ledger::new(),
-            declarations: Hamt::new(),
+            declarations: Trie::new(),
         }
     }
 

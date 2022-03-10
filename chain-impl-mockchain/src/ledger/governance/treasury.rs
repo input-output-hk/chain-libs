@@ -1,7 +1,6 @@
 use crate::{ledger::governance::GovernanceAcceptanceCriteria, value::Value};
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
-use imhamt::Hamt;
-use std::collections::hash_map::DefaultHasher;
+use imhamt::Trie;
 use typed_bytes::ByteBuilder;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -19,7 +18,7 @@ pub enum TreasuryGovernanceActionType {
 #[derive(Default, Clone, Eq, PartialEq)]
 pub struct TreasuryGovernance {
     acceptance_criteria_per_action:
-        Hamt<DefaultHasher, TreasuryGovernanceActionType, GovernanceAcceptanceCriteria>,
+        Trie<TreasuryGovernanceActionType, GovernanceAcceptanceCriteria>,
 
     default_acceptance_criteria: GovernanceAcceptanceCriteria,
 }

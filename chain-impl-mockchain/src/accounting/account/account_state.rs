@@ -1,8 +1,7 @@
 use crate::date::Epoch;
 use crate::value::*;
 use crate::{certificate::PoolId, tokens::identifier::TokenIdentifier};
-use imhamt::{Hamt, HamtIter};
-use std::collections::hash_map::DefaultHasher;
+use imhamt::{HamtIter, Trie};
 
 use super::spending::{SpendingCounter, SpendingCounterIncreasing};
 use super::{LastRewards, LedgerError};
@@ -82,7 +81,7 @@ pub struct AccountState<Extra> {
     pub spending: SpendingCounterIncreasing,
     pub delegation: DelegationType,
     pub value: Value,
-    pub tokens: Hamt<DefaultHasher, TokenIdentifier, Value>,
+    pub tokens: Trie<TokenIdentifier, Value>,
     pub last_rewards: LastRewards,
     pub extra: Extra,
 }
@@ -94,7 +93,7 @@ impl<Extra> AccountState<Extra> {
             spending: SpendingCounterIncreasing::default(),
             delegation: DelegationType::NonDelegated,
             value: v,
-            tokens: Hamt::new(),
+            tokens: Trie::new(),
             last_rewards: LastRewards::default(),
             extra: e,
         }
@@ -196,7 +195,7 @@ mod tests {
     use crate::{
         certificate::PoolId, testing::builders::StakePoolBuilder, testing::TestGen, value::Value,
     };
-    use imhamt::Hamt;
+    use imhamt::Trie;
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
     use std::iter;
@@ -324,7 +323,7 @@ mod tests {
                 spending: spending_strat,
                 delegation,
                 value: result_value,
-                tokens: Hamt::new(),
+                tokens: Trie::new(),
                 last_rewards: LastRewards::default(),
                 extra: (),
             }

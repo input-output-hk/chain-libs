@@ -16,10 +16,10 @@ use crate::{
     vote::{Choice, Payload, PayloadType},
 };
 use chain_vote::{committee, Ballot, Crs, ElectionPublicKey, EncryptedTally};
-use imhamt::Hamt;
+use imhamt::Trie;
 use thiserror::Error;
 
-use std::collections::{hash_map::DefaultHasher, HashSet};
+use std::collections::HashSet;
 use std::num::NonZeroU64;
 use std::sync::Arc;
 
@@ -63,7 +63,7 @@ enum ProposalManagers {
 
 #[derive(Clone, PartialEq, Eq)]
 struct ProposalManager {
-    votes_by_voters: Hamt<DefaultHasher, account::Identifier, ()>,
+    votes_by_voters: Trie<account::Identifier, ()>,
     options: Options,
     tally: IncrementalTally,
     action: VoteAction,
@@ -148,7 +148,7 @@ impl ProposalManager {
         let results = TallyResult::new(proposal.options().clone());
 
         Self {
-            votes_by_voters: Hamt::new(),
+            votes_by_voters: Trie::new(),
             options: proposal.options().clone(),
             tally: IncrementalTally::Public(results),
             action: proposal.action().clone(),
@@ -167,7 +167,7 @@ impl ProposalManager {
 
         let encrypted_tally = EncryptedTally::new(tally_size, election_pk, crs);
         Self {
-            votes_by_voters: Hamt::new(),
+            votes_by_voters: Trie::new(),
             options: proposal.options().clone(),
             tally: IncrementalTally::Private(encrypted_tally),
             action: proposal.action().clone(),

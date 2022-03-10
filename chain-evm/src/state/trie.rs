@@ -1,12 +1,10 @@
-use imhamt::{Hamt, HamtIter, RemoveError};
-
-use std::collections::hash_map::DefaultHasher;
+use imhamt::{HamtIter, RemoveError};
 use std::convert::Infallible;
 use std::hash::Hash;
 
 /// An immutable structure to represent any of EVM tries.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Trie<K: Eq + Hash, V>(Hamt<DefaultHasher, K, V>);
+pub struct Trie<K: Eq + Hash, V>(imhamt::Trie<K, V>);
 
 impl<K: Hash + Eq, V> Default for Trie<K, V> {
     fn default() -> Self {
@@ -16,7 +14,7 @@ impl<K: Hash + Eq, V> Default for Trie<K, V> {
 
 impl<K: Clone + Hash + Eq, V: Clone> Trie<K, V> {
     pub fn new() -> Self {
-        Self(Hamt::new())
+        Self(imhamt::Trie::new())
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {

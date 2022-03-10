@@ -1,15 +1,14 @@
 use crate::certificate::{PoolId, PoolRegistration, PoolRegistrationHash};
 use crate::date::Epoch;
 use crate::value::Value;
-use imhamt::Hamt;
-use std::collections::hash_map::DefaultHasher;
+use imhamt::Trie;
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
 /// A structure that keeps track of stake keys and stake pools.
 #[derive(Clone, PartialEq, Eq, Default)]
 pub struct PoolsState {
-    pub(crate) stake_pools: Hamt<DefaultHasher, PoolId, PoolState>,
+    pub(crate) stake_pools: Trie<PoolId, PoolState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,7 +88,7 @@ impl std::error::Error for PoolError {}
 impl PoolsState {
     pub fn new() -> Self {
         PoolsState {
-            stake_pools: Hamt::new(),
+            stake_pools: Trie::new(),
         }
     }
 

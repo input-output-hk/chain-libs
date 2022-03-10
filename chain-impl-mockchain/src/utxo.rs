@@ -8,12 +8,11 @@ use crate::fragment::FragmentId;
 use crate::transaction::{Output, TransactionIndex};
 use chain_addr::Address;
 use sparse_array::{FastSparseArray, FastSparseArrayBuilder, FastSparseArrayIter};
-use std::collections::hash_map::DefaultHasher;
 use std::convert::Infallible;
 use std::fmt;
 use thiserror::Error;
 
-use imhamt::{Hamt, HamtIter, InsertError, RemoveError, ReplaceError, UpdateError};
+use imhamt::{HamtIter, InsertError, RemoveError, ReplaceError, Trie, UpdateError};
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -78,7 +77,7 @@ impl<OutAddress: Clone> TransactionUnspents<OutAddress> {
 
 /// Ledger of UTXO
 #[derive(Clone, PartialEq, Eq)]
-pub struct Ledger<OutAddress>(Hamt<DefaultHasher, FragmentId, TransactionUnspents<OutAddress>>);
+pub struct Ledger<OutAddress>(Trie<FragmentId, TransactionUnspents<OutAddress>>);
 
 pub struct Iter<'a, V> {
     hamt_iter: HamtIter<'a, FragmentId, TransactionUnspents<V>>,
@@ -202,7 +201,7 @@ impl<OutAddress: Clone> Default for Ledger<OutAddress> {
 impl<OutAddress: Clone> Ledger<OutAddress> {
     /// Create a new empty UTXO Ledger
     pub fn new() -> Self {
-        Ledger(Hamt::new())
+        Ledger(Trie::new())
     }
 
     /// Add new outputs associated with a specific transaction

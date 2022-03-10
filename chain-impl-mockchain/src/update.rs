@@ -2,18 +2,17 @@
 use crate::certificate::{UpdateProposal, UpdateProposalId, UpdateVote, UpdateVoterId};
 use crate::date::BlockDate;
 use crate::setting::{ActiveSlotsCoeffError, Settings};
-use imhamt::Hamt;
-use std::collections::hash_map::DefaultHasher;
+use imhamt::Trie;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UpdateState {
-    pub proposals: Hamt<DefaultHasher, UpdateProposalId, UpdateProposalState>,
+    pub proposals: Trie<UpdateProposalId, UpdateProposalState>,
 }
 
 impl UpdateState {
     pub fn new() -> Self {
         UpdateState {
-            proposals: Hamt::new(),
+            proposals: Trie::new(),
         }
     }
 
@@ -40,7 +39,7 @@ impl UpdateState {
                 UpdateProposalState {
                     proposal: proposal.clone(),
                     proposal_date: cur_date,
-                    votes: Hamt::new(),
+                    votes: Trie::new(),
                 },
             )
             .map_err(|_| Error::DuplicateProposal(proposal_id))?;
@@ -139,7 +138,7 @@ impl Default for UpdateState {
 pub struct UpdateProposalState {
     pub proposal: UpdateProposal,
     pub proposal_date: BlockDate,
-    pub votes: Hamt<DefaultHasher, UpdateVoterId, ()>,
+    pub votes: Trie<UpdateVoterId, ()>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

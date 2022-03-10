@@ -1,12 +1,11 @@
 use crate::certificate::PoolId;
-use imhamt::{Hamt, HamtIter, InsertError};
-use std::collections::hash_map::DefaultHasher;
+use imhamt::{HamtIter, InsertError, Trie};
 
 /// Count how many blocks have been created by a specific Pool
 #[derive(Clone, PartialEq, Eq)]
 pub struct LeadersParticipationRecord {
     total: u32,
-    log: Hamt<DefaultHasher, PoolId, u32>,
+    log: Trie<PoolId, u32>,
 }
 
 impl Default for LeadersParticipationRecord {
@@ -28,7 +27,7 @@ impl LeadersParticipationRecord {
     pub fn new() -> Self {
         Self {
             total: 0,
-            log: Hamt::new(),
+            log: Trie::new(),
         }
     }
 

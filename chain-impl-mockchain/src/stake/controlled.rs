@@ -5,15 +5,15 @@ use crate::{
     utxo,
 };
 use chain_addr::{Address, Kind};
-use imhamt::Hamt;
-use std::{collections::hash_map::DefaultHasher, fmt, num::NonZeroU64};
+use imhamt::Trie;
+use std::{fmt, num::NonZeroU64};
 
 #[derive(Default, Clone, Eq, PartialEq)]
 pub struct StakeControl {
     assigned: Stake,
     unassigned: Stake,
 
-    control: Hamt<DefaultHasher, Identifier, Stake>,
+    control: Trie<Identifier, Stake>,
 }
 
 impl StakeControl {

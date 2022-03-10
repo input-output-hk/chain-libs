@@ -6,8 +6,7 @@ use crate::{
     vote::{Options, PayloadType, Tally},
 };
 use chain_vote::MemberPublicKey;
-use imhamt::Hamt;
-use std::collections::hash_map::DefaultHasher;
+use imhamt::Trie;
 
 pub struct VotePlanStatus {
     pub id: VotePlanId,
@@ -25,5 +24,5 @@ pub struct VoteProposalStatus {
     pub proposal_id: ExternalProposalId,
     pub options: Options,
     pub tally: Tally,
-    pub votes: Hamt<DefaultHasher, account::Identifier, ()>,
+    pub votes: Trie<account::Identifier, ()>,
 }

@@ -6,13 +6,13 @@ use crate::{
     ledger::governance::Governance,
     vote::{CommitteeId, PayloadType, VoteError, VotePlanManager},
 };
-use imhamt::{Hamt, InsertError, UpdateError};
-use std::collections::{hash_map::DefaultHasher, HashSet};
+use imhamt::{InsertError, Trie, UpdateError};
+use std::collections::HashSet;
 use thiserror::Error;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct VotePlanLedger {
-    pub(crate) plans: Hamt<DefaultHasher, VotePlanId, VotePlanManager>,
+    pub(crate) plans: Trie<VotePlanId, VotePlanManager>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -50,7 +50,7 @@ pub enum VotePlanLedgerError {
 
 impl VotePlanLedger {
     pub fn new() -> Self {
-        Self { plans: Hamt::new() }
+        Self { plans: Trie::new() }
     }
 
     /// attempt to apply the vote to the appropriate Vote Proposal

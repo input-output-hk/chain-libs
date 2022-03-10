@@ -8,7 +8,11 @@ mod node;
 mod operation;
 mod sharedref;
 
+use std::collections::hash_map::DefaultHasher;
+
 pub use hamt::*;
+
+pub type Trie<K, V> = Hamt<DefaultHasher, K, V>;
 
 #[cfg(test)]
 mod tests {
