@@ -1,3 +1,11 @@
+use crate::machine::test::TestEvmState;
+use crate::machine::{Value, VirtualMachine};
+use crate::state::{ByteCode, Key};
+use crate::{
+    primitive_types::{H160, H256, U256},
+    state::{Account, Trie},
+    Address, Config,
+};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::BufReader;
@@ -5,56 +13,44 @@ use std::mem::size_of;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use chain_evm::{
-    primitive_types::{H160, H256, U256},
-    state::{Account, Trie},
-    Address, Config,
-};
-
-use crate::evm::EvmTransaction;
-use crate::ledger::{Ledger, Pots};
-use crate::setting::Settings;
-use crate::testing::TestGen;
-
-struct TestEvmState {
-    ledger: Ledger,
+struct TestEvmLedger {
+    state: TestEvmState,
     config: Config,
     coinbase_addresses: BTreeSet<String>,
 }
 
-impl TestEvmState {
+impl TestEvmLedger {
     fn new() -> Self {
         Self {
-            ledger: Ledger::empty(
-                Settings::new(),
-                TestGen::static_parameters(),
-                TestGen::time_era(),
-                Pots::zero(),
-            ),
+            state: TestEvmState {
+                environment: Default::default(),
+                accounts: Default::default(),
+                logs: Default::default(),
+            },
             config: Default::default(),
             coinbase_addresses: Default::default(),
         }
     }
 }
 
-impl TestEvmState {
+impl TestEvmLedger {
     fn set_evm_config(mut self, config: Config) -> Self {
         self.config = config;
         self
     }
 
     fn set_account(mut self, address: Address, account: Account) -> Self {
-        self.ledger.evm.accounts = self.ledger.evm.accounts.put(address, account);
+        self.state.accounts = self.state.accounts.put(address, account);
         self
     }
 
     fn set_chain_id(mut self, chain_id: U256) -> Self {
-        self.ledger.evm.environment.chain_id = chain_id;
+        self.state.environment.chain_id = chain_id;
         self
     }
 }
 
-impl TestEvmState {
+impl TestEvmLedger {
     fn try_apply_network(self, network: String) -> Result<Self, String> {
         println!("Network type: {}", network);
         match network.as_str() {
@@ -83,19 +79,18 @@ impl TestEvmState {
     }
 
     fn try_apply_block_header(mut self, block_header: TestBlockHeader) -> Result<Self, String> {
-        self.ledger.evm.environment.block_gas_limit =
+        self.state.environment.block_gas_limit =
             U256::from_str(&block_header.gas_limit).map_err(|_| "Can not parse gas limit")?;
-        self.ledger.evm.environment.block_number =
+        self.state.environment.block_number =
             U256::from_str(&block_header.number).map_err(|_| "Can not parse number")?;
-        self.ledger.evm.environment.block_timestamp =
+        self.state.environment.block_timestamp =
             U256::from_str(&block_header.timestamp).map_err(|_| "Can not parse timestamp")?;
-        self.ledger.evm.environment.block_difficulty =
+        self.state.environment.block_difficulty =
             U256::from_str(&block_header.difficulty).map_err(|_| "Can not parse difficulty")?;
-        self.ledger.evm.environment.block_coinbase =
+        self.state.environment.block_coinbase =
             H160::from_str(&block_header.coinbase).map_err(|_| "Can not parse coinbase")?;
 
-        self.ledger
-            .evm
+        self.state
             .environment
             .block_hashes
             .push(H256::from_str(&block_header.hash).expect("Can not parse hash"));
@@ -109,11 +104,21 @@ impl TestEvmState {
         let gas_price =
             U256::from_str(&tx.gas_price).map_err(|_| "Can not parse transaction gas limit")?;
 
-        self.ledger.evm.environment.gas_price = gas_price;
+        self.state.environment.gas_price = gas_price;
 
-        self.ledger
-            .run_transaction(tx.try_into()?, self.config)
-            .map_err(|e| format!("can not run transaction, err: {}", e))?;
+        let mut vm = VirtualMachine::new(&mut self.state);
+        let tx: EvmTransaction = tx.try_into().unwrap();
+        vm.transact_call(
+            self.config,
+            tx.caller,
+            tx.address,
+            tx.value,
+            tx.data,
+            tx.gas_limit,
+            tx.access_list,
+            true,
+        )
+        .map_err(|e| format!("can not run transaction, err: {}", e))?;
 
         Ok(self)
     }
@@ -138,7 +143,7 @@ impl TestEvmState {
     }
 }
 
-impl TestEvmState {
+impl TestEvmLedger {
     fn validate_accounts<I>(&self, iter: I) -> Result<(), String>
     where
         I: Iterator<Item = (String, TestAccountState)>,
@@ -157,8 +162,7 @@ impl TestEvmState {
         // skip coinbase accounts
         if !self.coinbase_addresses.contains(&address) {
             let account = self
-                .ledger
-                .evm
+                .state
                 .accounts
                 .get(&H160::from_str(&address).map_err(|_| "Can not parse address")?)
                 .ok_or("Can not find account")?;
@@ -258,6 +262,15 @@ struct TestEvmTransaction {
     value: String,
 }
 
+struct EvmTransaction {
+    caller: Address,
+    address: Address,
+    value: Value,
+    data: ByteCode,
+    gas_limit: u64,
+    access_list: Vec<(Address, Vec<Key>)>,
+}
+
 impl TryFrom<TestEvmTransaction> for EvmTransaction {
     type Error = String;
     fn try_from(tx: TestEvmTransaction) -> Result<Self, Self::Error> {
@@ -275,7 +288,7 @@ impl TryFrom<TestEvmTransaction> for EvmTransaction {
         let caller = H160::from_str(&tx.sender).map_err(|_| "Can not parse transaction sender")?;
         let address = H160::from_str(&tx.to).map_err(|_| "Can not parse transaction to")?;
 
-        Ok(Self::Call {
+        Ok(Self {
             address,
             gas_limit,
             value,
@@ -328,7 +341,7 @@ pub fn run_evm_test(path: PathBuf) {
 
     for (test_name, test_case) in test {
         println!("\nRunning test case: {} ...", test_name);
-        let evm_state_builder = TestEvmState::new()
+        let evm_state_builder = TestEvmLedger::new()
             .set_chain_id(U256::from_str("0xff").unwrap())
             .try_apply_network(test_case.network)
             .unwrap()

@@ -438,13 +438,13 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
-mod test {
+pub mod test {
     use super::*;
 
-    struct TestEvmState {
-        environment: Environment,
-        accounts: AccountTrie,
-        logs: LogsState,
+    pub struct TestEvmState {
+        pub environment: Environment,
+        pub accounts: AccountTrie,
+        pub logs: LogsState,
     }
 
     impl EvmState for TestEvmState {
