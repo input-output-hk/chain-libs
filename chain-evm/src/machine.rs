@@ -8,19 +8,17 @@
 //! ## Handler <- EVM Context Handler
 //! ## StackState<'config>
 //!
+use crate::{
+    precompiles::Precompiles,
+    state::{Account, AccountTrie, ByteCode, Error as StateError, Key, LogsState},
+};
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic},
     executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
     Context, ExitError, ExitFatal, ExitReason, ExitRevert,
 };
 use primitive_types::{H160, H256, U256};
-
 use thiserror::Error;
-
-use crate::{
-    precompiles::Precompiles,
-    state::{Account, AccountTrie, ByteCode, Error as StateError, Key, LogsState},
-};
 
 /// Export EVM types
 pub use evm::backend::Log;

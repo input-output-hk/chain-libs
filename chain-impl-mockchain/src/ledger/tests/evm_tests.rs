@@ -18,7 +18,6 @@ use crate::testing::TestGen;
 
 struct TestEvmState {
     ledger: Ledger,
-    config: Config,
     coinbase_addresses: BTreeSet<String>,
 }
 
@@ -31,7 +30,6 @@ impl TestEvmState {
                 TestGen::time_era(),
                 Pots::zero(),
             ),
-            config: Default::default(),
             coinbase_addresses: Default::default(),
         }
     }
@@ -39,7 +37,7 @@ impl TestEvmState {
 
 impl TestEvmState {
     fn set_evm_config(mut self, config: Config) -> Self {
-        self.config = config;
+        self.ledger.settings.evm_config = config;
         self
     }
 
@@ -111,8 +109,9 @@ impl TestEvmState {
 
         self.ledger.evm.environment.gas_price = gas_price;
 
-        self.ledger
-            .run_transaction(tx.try_into()?, self.config)
+        self.ledger = self
+            .ledger
+            .run_transaction(tx.try_into()?)
             .map_err(|e| format!("can not run transaction, err: {}", e))?;
 
         Ok(self)
