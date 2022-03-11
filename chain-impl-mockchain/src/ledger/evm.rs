@@ -36,6 +36,7 @@ impl AddressMapping {
         }
     }
 
+    #[allow(dead_code)]
     fn evm_address(&self, jor_id: JorAddress) -> Option<EvmAddress> {
         self.jor_to_evm.lookup(&jor_id).cloned()
     }
@@ -47,12 +48,9 @@ impl AddressMapping {
     fn map_accounts(&mut self, jor_id: JorAddress, evm_id: EvmAddress) -> Result<(), Error> {
         (!self.evm_to_jor.contains_key(&evm_id) && !self.jor_to_evm.contains_key(&jor_id))
             .then(|| ())
-            .ok_or(Error::ExistedMapping(jor_id.clone(), evm_id.clone()))?;
+            .ok_or_else(|| Error::ExistedMapping(jor_id.clone(), evm_id))?;
 
-        self.evm_to_jor = self
-            .evm_to_jor
-            .insert(evm_id.clone(), jor_id.clone())
-            .unwrap();
+        self.evm_to_jor = self.evm_to_jor.insert(evm_id, jor_id.clone()).unwrap();
         self.jor_to_evm = self.jor_to_evm.insert(jor_id, evm_id).unwrap();
         Ok(())
     }
@@ -288,58 +286,40 @@ mod test {
         let jor_id2 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[1; 32]).unwrap());
 
         assert_eq!(address_mapping.evm_address(jor_id1.clone()), None);
-        assert_eq!(address_mapping.jor_address(evm_id1.clone()), None);
+        assert_eq!(address_mapping.jor_address(evm_id1), None);
         assert_eq!(address_mapping.evm_address(jor_id2.clone()), None);
-        assert_eq!(address_mapping.jor_address(evm_id2.clone()), None);
+        assert_eq!(address_mapping.jor_address(evm_id2), None);
 
         assert_eq!(
-            address_mapping.map_accounts(jor_id1.clone(), evm_id1.clone()),
+            address_mapping.map_accounts(jor_id1.clone(), evm_id1),
             Ok(())
         );
 
-        assert_eq!(
-            address_mapping.evm_address(jor_id1.clone()),
-            Some(evm_id1.clone())
-        );
-        assert_eq!(
-            address_mapping.jor_address(evm_id1.clone()),
-            Some(jor_id1.clone())
-        );
+        assert_eq!(address_mapping.evm_address(jor_id1.clone()), Some(evm_id1));
+        assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1.clone()));
         assert_eq!(address_mapping.evm_address(jor_id2.clone()), None);
-        assert_eq!(address_mapping.jor_address(evm_id2.clone()), None);
+        assert_eq!(address_mapping.jor_address(evm_id2), None);
 
         assert_eq!(
-            address_mapping.map_accounts(jor_id1.clone(), evm_id1.clone()),
-            Err(Error::ExistedMapping(jor_id1.clone(), evm_id1.clone()))
+            address_mapping.map_accounts(jor_id1.clone(), evm_id1),
+            Err(Error::ExistedMapping(jor_id1.clone(), evm_id1))
         );
         assert_eq!(
-            address_mapping.map_accounts(jor_id2.clone(), evm_id1.clone()),
-            Err(Error::ExistedMapping(jor_id2.clone(), evm_id1.clone()))
+            address_mapping.map_accounts(jor_id2.clone(), evm_id1),
+            Err(Error::ExistedMapping(jor_id2.clone(), evm_id1))
         );
         assert_eq!(
-            address_mapping.map_accounts(jor_id1.clone(), evm_id2.clone()),
-            Err(Error::ExistedMapping(jor_id1.clone(), evm_id2.clone()))
+            address_mapping.map_accounts(jor_id1.clone(), evm_id2),
+            Err(Error::ExistedMapping(jor_id1.clone(), evm_id2))
         );
         assert_eq!(
-            address_mapping.map_accounts(jor_id2.clone(), evm_id2.clone()),
+            address_mapping.map_accounts(jor_id2.clone(), evm_id2),
             Ok(())
         );
 
-        assert_eq!(
-            address_mapping.evm_address(jor_id1.clone()),
-            Some(evm_id1.clone())
-        );
-        assert_eq!(
-            address_mapping.jor_address(evm_id1.clone()),
-            Some(jor_id1.clone())
-        );
-        assert_eq!(
-            address_mapping.evm_address(jor_id2.clone()),
-            Some(evm_id2.clone())
-        );
-        assert_eq!(
-            address_mapping.jor_address(evm_id2.clone()),
-            Some(jor_id2.clone())
-        );
+        assert_eq!(address_mapping.evm_address(jor_id1.clone()), Some(evm_id1));
+        assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1));
+        assert_eq!(address_mapping.evm_address(jor_id2.clone()), Some(evm_id2));
+        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2));
     }
 }

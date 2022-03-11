@@ -1115,7 +1115,7 @@ impl Ledger {
                         }
                     };
 
-                    let evm_id = tx.payload().into_payload().evm_address().clone();
+                    let evm_id = *tx.payload().into_payload().evm_address();
                     new_ledger = new_ledger_.map_accounts(jor_id, evm_id)?;
                 }
                 #[cfg(not(feature = "evm"))]
