@@ -10,7 +10,7 @@
 //!
 use crate::{
     precompiles::Precompiles,
-    state::{Account, AccountTrie, ByteCode, Error as StateError, Key, LogsState},
+    state::{Account, Balance, ByteCode, Key},
 };
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic},
@@ -120,8 +120,6 @@ pub enum Error {
     TransactionFatalError(ExitFatal),
     #[error("transaction has been reverted: machine encountered an explict revert")]
     TransactionRevertError(ExitRevert),
-    #[error("state error: {0}")]
-    StateError(StateError),
 }
 
 pub trait EvmState {
@@ -229,6 +227,9 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
         self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
             (
                 executor.transact_create(
@@ -256,6 +257,9 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
         self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
             (
                 executor.transact_create2(
@@ -284,6 +288,14 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<ByteCode, Error> {
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
+        if let Some(expected_balance) = self.basic(address).balance.checked_add(value) {
+            if let Err(e) = Balance::try_from(expected_balance) {
+                return Err(e.into());
+            }
+        }
         self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
             executor.transact_call(
                 caller,
@@ -438,6 +450,7 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
     use super::*;
+    use crate::state::{AccountTrie, LogsState};
 
     struct TestEvmState {
         environment: Environment,
