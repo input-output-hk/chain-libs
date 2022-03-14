@@ -356,20 +356,27 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
             .account(address)
             .map(|account| Basic {
                 balance: account.balance.into(),
-                nonce: account.nonce,
+                nonce: account.state.nonce,
             })
             .unwrap_or_default()
     }
     fn code(&self, address: H160) -> Vec<u8> {
         self.state
             .account(address)
-            .map(|account| account.code)
+            .map(|account| account.state.code)
             .unwrap_or_default()
     }
     fn storage(&self, address: H160, index: H256) -> H256 {
         self.state
             .account(address)
-            .map(|account| account.storage.get(&index).cloned().unwrap_or_default())
+            .map(|account| {
+                account
+                    .state
+                    .storage
+                    .get(&index)
+                    .cloned()
+                    .unwrap_or_default()
+            })
             .unwrap_or_default()
     }
     fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
@@ -399,17 +406,18 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
                     // set to be Default::default().
                     self.state.modify_account(address, |mut account| {
                         account.balance = balance.try_into().unwrap();
-                        account.nonce = nonce;
+                        account.state.nonce = nonce;
                         if let Some(code) = code {
-                            account.code = code
+                            account.state.code = code
                         };
                         if reset_storage {
-                            account.storage = Default::default();
+                            account.state.storage = Default::default();
                         }
 
                         // cleanup storage from zero values
                         // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
-                        account.storage = account
+                        account.state.storage = account
+                            .state
                             .storage
                             .iter()
                             .filter(|(_, v)| v != &&Default::default())
@@ -419,11 +427,11 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
                         // iterate over the apply_storage keys and values
                         // and put them into the account.
                         for (index, value) in storage {
-                            account.storage = if value == Default::default() {
+                            account.state.storage = if value == Default::default() {
                                 // value is full of zeroes, remove it
-                                account.storage.remove(&index)
+                                account.state.storage.remove(&index)
                             } else {
-                                account.storage.put(index, value)
+                                account.state.storage.put(index, value)
                             }
                         }
 

@@ -221,6 +221,8 @@ fn unpack_account_state<R: std::io::BufRead>(
         delegation,
         value: Value(value),
         tokens: Hamt::new(),
+        #[cfg(feature = "evm")]
+        evm_state: chain_evm::state::AccountState::default(),
         last_rewards,
         extra: (),
     })

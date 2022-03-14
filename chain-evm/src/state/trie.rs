@@ -5,7 +5,7 @@ use std::convert::Infallible;
 use std::hash::Hash;
 
 /// An immutable structure to represent any of EVM tries.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Trie<K: Eq + Hash, V>(Hamt<DefaultHasher, K, V>);
 
 impl<K: Hash + Eq, V> Default for Trie<K, V> {

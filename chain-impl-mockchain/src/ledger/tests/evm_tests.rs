@@ -1,3 +1,4 @@
+use chain_evm::state::AccountState;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::BufReader;
@@ -166,7 +167,7 @@ impl TestEvmState {
             if &expected_account != account {
                 let storage_info = |account: &Account| {
                     let mut storage = "{".to_string();
-                    for (key, value) in account.storage.iter() {
+                    for (key, value) in account.state.storage.iter() {
                         storage = format!("{} |key: {} , value: {}| ", storage, key, value);
                     }
                     format!("{}}}", storage)
@@ -182,12 +183,12 @@ impl TestEvmState {
                     expected: {{ balance: {}, nonce: {}, code: {}, storage: {} }}",
                     address,
                     account.balance,
-                    account.nonce,
-                    hex::encode(&account.code),
+                    account.state.nonce,
+                    hex::encode(&account.state.code),
                     account_storage,
                     expected_account.balance,
-                    expected_account.nonce,
-                    hex::encode(expected_account.code),
+                    expected_account.state.nonce,
+                    hex::encode(expected_account.state.code),
                     expected_storage
                 ))
             } else {
@@ -230,18 +231,20 @@ impl TryFrom<TestAccountState> for Account {
             );
         }
         Ok(Self {
-            nonce: U256::from_str(&account.nonce).map_err(|_| "Can not parse nonce")?,
             balance: U256::from_str(&account.balance)
                 .map_err(|_| "Can not parse balance")?
                 .try_into()?,
-            storage,
-            code: hex::decode(
-                account.code[0..2]
-                    .eq("0x")
-                    .then(|| account.code[2..].to_string())
-                    .expect("Missing '0x' prefix for hex data"),
-            )
-            .map_err(|_| "Can not parse code")?,
+            state: AccountState {
+                storage,
+                code: hex::decode(
+                    account.code[0..2]
+                        .eq("0x")
+                        .then(|| account.code[2..].to_string())
+                        .expect("Missing '0x' prefix for hex data"),
+                )
+                .map_err(|_| "Can not parse code")?,
+                nonce: U256::from_str(&account.nonce).map_err(|_| "Can not parse nonce")?,
+            },
         })
     }
 }

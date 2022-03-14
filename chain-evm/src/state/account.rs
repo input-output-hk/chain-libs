@@ -68,19 +68,28 @@ pub type ByteCode = Vec<u8>;
 /// A represantation of an EVM account.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Account {
-    /// Account nonce. A number of value transfers from this account.
-    pub nonce: Nonce,
     /// Account balance.
     pub balance: Balance,
+    /// Account state.
+    pub state: AccountState,
+}
+
+/// A represantation of an EVM account state.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AccountState {
     /// Account data storage.
     pub storage: Storage,
     /// EVM bytecode of this account.
     pub code: ByteCode,
+    /// Account nonce. A number of value transfers from this account.
+    pub nonce: Nonce,
 }
 
 impl Account {
     pub fn is_empty(&self) -> bool {
-        self.nonce == Nonce::zero() && self.balance == Balance::zero() && self.storage.is_empty()
+        self.state.nonce.is_zero()
+            && self.balance == Balance::zero()
+            && self.state.storage.is_empty()
     }
 }
 

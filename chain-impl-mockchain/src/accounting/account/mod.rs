@@ -428,6 +428,8 @@ mod tests {
                     delegation: DelegationType::Full(stake_pool_id),
                     value: value_after_reward,
                     tokens: Hamt::new(),
+                    #[cfg(feature = "evm")]
+                    evm_state: chain_evm::state::AccountState::default(),
                     extra: (),
                 };
 
