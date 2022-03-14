@@ -200,38 +200,39 @@ mod tests {
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
     use std::iter;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    pub fn account_sub_is_consistent(
-        init_value: Value,
-        sub_value: Value,
-        counter: u32,
-    ) -> TestResult {
+    #[proptest]
+    fn account_sub_is_consistent(init_value: Value, sub_value: Value, counter: u32) {
         let mut account_state = AccountState::new(init_value, ());
         let counter = SpendingCounter::from(counter);
         account_state.spending = SpendingCounterIncreasing::new_from_counter(counter);
-        TestResult::from_bool(
-            should_sub_fail(account_state.clone(), sub_value)
-                == account_state.sub(counter, sub_value).is_err(),
+        assert_eq!(
+            should_sub_fail(account_state.clone(), sub_value),
+            account_state.sub(counter, sub_value).is_err(),
         )
     }
 
-    #[quickcheck]
-    pub fn add_value(init_value: Value, value_to_add: Value) -> TestResult {
+    #[proptest]
+    fn add_value(init_value: Value, value_to_add: Value) {
         let account_state = AccountState::new(init_value, ());
         let left = account_state.add_value(value_to_add);
         let right = account_state.add(value_to_add);
         match (left, right) {
-            (Err(_), Err(_)) => TestResult::passed(),
+            (Err(_), Err(_)) => {}
             (Ok(next_left), Ok(next_right)) => {
-                TestResult::from_bool(next_left.value() == next_right.value())
+                assert_eq!(next_left.value(), next_right.value())
             }
-            (Ok(_), Err(_)) => TestResult::error("add_value() success while add() failed"),
-            (Err(_), Ok(_)) => TestResult::error("add() success while add_value() failed"),
+            (Ok(_), Err(_)) => panic!("add_value() success while add() failed"),
+            (Err(_), Ok(_)) => panic!("add() success while add_value() failed"),
         }
     }
 
     #[derive(Clone, Debug)]
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        derive(test_strategy::Arbitrary)
+    )]
     pub enum ArbitraryAccountStateOp {
         Add(Value),
         Sub(Value),
@@ -253,6 +254,10 @@ mod tests {
     }
 
     #[derive(Clone, Debug)]
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        derive(test_strategy::Arbitrary)
+    )]
     pub struct ArbitraryOperationChain(pub Vec<ArbitraryAccountStateOp>);
 
     impl Arbitrary for ArbitraryOperationChain {
@@ -340,11 +345,11 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn account_state_is_consistent(
+    #[proptest]
+    fn account_state_is_consistent(
         mut account_state: AccountState<()>,
         operations: ArbitraryOperationChain,
-    ) -> TestResult {
+    ) {
         let initial_account_state = account_state.clone();
         let mut strategy = initial_account_state.spending.clone();
         let mut counter = strategy.get_valid_counter();
@@ -355,8 +360,8 @@ mod tests {
                     match (should_fail, account_state.add(value)) {
                         (false, Ok(account_state)) => account_state,
                         (true, Err(_)) => account_state,
-                        (false,  Err(err)) => return TestResult::error(format!("Operation {}: unexpected add operation failure. Expected success but got: {:?}",op_counter,err)),
-                        (true, Ok(account_state)) => return TestResult::error(format!("Operation {}: unexpected add operation success. Expected failure but got: success. AccountState: {:?}",op_counter, &account_state)),
+                        (false,  Err(err)) => panic!("Operation {}: unexpected add operation failure. Expected success but got: {:?}",op_counter,err),
+                        (true, Ok(account_state)) => panic!("Operation {}: unexpected add operation success. Expected failure but got: success. AccountState: {:?}",op_counter, &account_state),
                     }
                 }
                 ArbitraryAccountStateOp::Sub(value) => {
@@ -533,11 +538,11 @@ mod tests {
 
     use crate::tokens::identifier::TokenIdentifier;
 
-    #[quickcheck]
-    pub fn add_token(value: Value, token: TokenIdentifier) -> TestResult {
+    #[proptest]
+    fn add_token(value: Value, token: TokenIdentifier) {
         let mut account_state = AccountState::new(Value::zero(), ());
         account_state = account_state.token_add(token.clone(), value).unwrap();
-        TestResult::from_bool(account_state.tokens.lookup(&token).unwrap() == &value)
+        assert!(account_state.tokens.lookup(&token).unwrap() == &value)
     }
 
     #[test]

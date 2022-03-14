@@ -43,13 +43,30 @@ impl Ratio {
     }
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use proptest::strategy::Strategy;
+
+    #[derive(Debug)]
+    pub(super) struct NonZeroU64Strat;
+    impl Strategy for NonZeroU64Strat {
+        type Tree = 
+
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct TaxType {
     // what get subtracted as fixed value
     pub fixed: Value,
     // Ratio of tax after fixed amout subtracted
     pub ratio: Ratio,
     // Max limit of tax
+    #[any(proptest::collection::size_range(1u64..).lift())]
     pub max_limit: Option<NonZeroU64>,
 }
 
