@@ -1,3 +1,8 @@
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::arbitrary::Arbitrary;
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::strategy::{BoxedStrategy, Strategy};
+
 use super::hash::{Hash, HashedKey, Hasher};
 use super::node::{
     insert_rec, lookup_one, remove_eq_rec, remove_rec, replace_rec, replace_with_rec, size_rec,
@@ -16,6 +21,31 @@ use std::slice;
 pub struct Hamt<H: Hasher + Default, K: PartialEq + Eq + Hash, V> {
     root: Node<K, V>,
     hasher: PhantomData<H>,
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+impl<H, K, V> Arbitrary for Hamt<H, K, V>
+where
+    H: Hasher + Default + std::fmt::Debug,
+    K: PartialEq + Eq + Hash + Arbitrary + Clone,
+    K::Strategy: 'static,
+    V::Strategy: 'static,
+    V: Arbitrary + Clone,
+{
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        proptest::arbitrary::any::<std::collections::HashMap<K, V>>()
+            .prop_map(|map| {
+                let result = Hamt::new();
+                for (key, value) in map {
+                    result.insert(key, value).unwrap();
+                }
+                result
+            })
+            .boxed()
+    }
 }
 
 pub struct HamtIter<'a, K, V> {

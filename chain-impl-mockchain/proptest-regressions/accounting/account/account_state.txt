@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 390736923b765fbed476c781f3221c0c40e7f56e4458b7d745fbbc89705f0715 # shrinks to input = _AccountStateIsConsistentArgs { account_state: AccountState { spending: SpendingCounterIncreasing { nexts: [] }, delegation: NonDelegated, value: Value(0), tokens: Hamt { root: Node { bitmap: SmallBitmap 00000000000000000000000000000000, children: [] }, hasher: PhantomData }, last_rewards: LastRewards { epoch: 0, reward: Value(0) }, extra: () }, operations: ArbitraryOperationChain([]) }

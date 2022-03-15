@@ -12,8 +12,16 @@ pub enum CompoundingType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Ratio {
     pub numerator: u64,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(test_impls::non_zero_u64_strategy())
+    )]
     pub denominator: NonZeroU64,
 }
 
@@ -45,13 +53,18 @@ impl Ratio {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod test_impls {
+    use super::*;
+    use proptest::arbitrary::any;
     use proptest::strategy::Strategy;
 
-    #[derive(Debug)]
-    pub(super) struct NonZeroU64Strat;
-    impl Strategy for NonZeroU64Strat {
-        type Tree = 
+    pub(super) fn non_zero_u64_strategy() -> impl Strategy<Value = NonZeroU64> {
+        any::<u64>()
+            .prop_map(|i| i.try_into().ok())
+            .prop_filter_map("must be non zero", |i| i)
+    }
 
+    pub(super) fn option_non_zero_u64_strategy() -> impl Strategy<Value = Option<NonZeroU64>> {
+        any::<u64>().prop_map(|i| i.try_into().ok())
     }
 }
 
@@ -66,7 +79,10 @@ pub struct TaxType {
     // Ratio of tax after fixed amout subtracted
     pub ratio: Ratio,
     // Max limit of tax
-    #[any(proptest::collection::size_range(1u64..).lift())]
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(test_impls::option_non_zero_u64_strategy())
+    )]
     pub max_limit: Option<NonZeroU64>,
 }
 

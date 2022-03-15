@@ -141,5 +141,6 @@ pub const HASH_SIZE_256: usize = 32;
     derive(test_strategy::Arbitrary)
 )]
 pub struct Blake2b256([u8; HASH_SIZE_256]);
+
 define_hash_object!(Blake2b256, Blake2b256, HASH_SIZE_256, "blake2b256");
 define_blake2b_new!(Blake2b256);

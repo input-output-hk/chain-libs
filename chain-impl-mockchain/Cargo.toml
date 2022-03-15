@@ -39,6 +39,7 @@ property-test-api = [
         "chain-time/property-test-api",
         "chain-addr/property-test-api",
         "chain-evm/property-test-api",
+        "imhamt/property-test-api",
         "quickcheck",
         "quickcheck_macros",
         "proptest",

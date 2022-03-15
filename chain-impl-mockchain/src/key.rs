@@ -218,6 +218,10 @@ impl<T: Clone, A: VerificationAlgorithm> Clone for Signed<T, A> {
 
 /// Hash that is used as an address of the various components.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Hash(crypto::Blake2b256);
 impl Hash {
     /// All 0 hash used as a special hash

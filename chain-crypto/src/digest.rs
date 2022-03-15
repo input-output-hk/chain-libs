@@ -136,6 +136,10 @@ impl<H: DigestAlg> Context<H> {
     }
 }
 
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Digest<H: DigestAlg>(H::DigestData);
 
 impl<H: DigestAlg> Clone for Digest<H> {

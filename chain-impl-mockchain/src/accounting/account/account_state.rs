@@ -13,6 +13,10 @@ use super::{LastRewards, LedgerError};
 /// * Full delegation of this account to a specific pool
 /// * Ratio of stake to multiple pools
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum DelegationType {
     NonDelegated,
     Full(PoolId),
@@ -30,6 +34,10 @@ pub enum DelegationType {
 /// and by extension parts need to be equal to the sum of individual
 /// pools parts.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct DelegationRatio {
     pub(crate) parts: u8,
     pub(crate) pools: Box<[(PoolId, u8)]>,
@@ -78,6 +86,10 @@ impl DelegationRatio {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct AccountState<Extra> {
     pub spending: SpendingCounterIncreasing,
     pub delegation: DelegationType,
@@ -373,12 +385,15 @@ mod tests {
                             // check if account has any funds left
                             match account_state {
                                 Some(account_state) => account_state,
-                                None => return verify_account_lost_all_funds(initial_account_state,operations,op_counter,account_state.unwrap())
+                                None => return {
+                                    verify_account_lost_all_funds(initial_account_state,operations,op_counter,account_state.unwrap());
+                                    Ok(())
+                                }
                             }
                         }
                         (true, Err(_)) => account_state,
-                        (false,  Err(err)) => return TestResult::error(format!("Operation {}: unexpected sub operation failure. Expected success but got: {:?}",op_counter,err)),
-                        (true, Ok(account_state)) => return TestResult::error(format!("Operation {}: unexpected sub operation success. Expected failure but got: success. AccountState: {:?}",op_counter, &account_state)),
+                        (false,  Err(err)) => panic!("Operation {}: unexpected sub operation failure. Expected success but got: {:?}",op_counter,err),
+                        (true, Ok(account_state)) => panic!("Operation {}: unexpected sub operation success. Expected failure but got: success. AccountState: {:?}",op_counter, &account_state),
                     }
                 }
                 ArbitraryAccountStateOp::Delegate(stake_pool_id) => {
@@ -390,13 +405,11 @@ mod tests {
             };
         }
         let expected_account_state = operations.get_account_state(initial_account_state);
-        if expected_account_state == account_state {
-            TestResult::passed()
-        } else {
-            TestResult::error(format!(
+        if expected_account_state != account_state {
+            panic!(
                 "Actual AccountState is not equal to expected one. Expected {:?}, but got {:?}",
                 expected_account_state, account_state
-            ))
+            )
         }
     }
 
@@ -405,13 +418,11 @@ mod tests {
         operations: ArbitraryOperationChain,
         counter: usize,
         actual_account_state: AccountState<()>,
-    ) -> TestResult {
+    ) {
         let expected_account =
             operations.get_account_state_after_n_ops(initial_account_state, counter);
-        if expected_account.value == Value::zero() {
-            TestResult::passed()
-        } else {
-            TestResult::error(format!("Account is dry out from funds after {} operations, while expectation was different. Expected: {:?}, Actual {:?}",counter,expected_account,actual_account_state))
+        if expected_account.value != Value::zero() {
+            panic!("Account is dry out from funds after {} operations, while expectation was different. Expected: {:?}, Actual {:?}",counter,expected_account,actual_account_state)
         }
     }
 
