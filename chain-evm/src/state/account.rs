@@ -9,7 +9,7 @@ pub type Nonce = U256;
 
 /// Ethereum account balance which uses the least 64 significant bits of the `U256` type.
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd)]
-pub struct Balance(U256);
+pub struct Balance(u64);
 
 impl std::fmt::Display for Balance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,7 +21,7 @@ impl TryFrom<U256> for Balance {
     type Error = Error;
     fn try_from(other: U256) -> Result<Self, Self::Error> {
         match other {
-            U256([_, 0, 0, 0]) => Ok(Balance(other)),
+            U256([val, 0, 0, 0]) => Ok(Balance(val)),
             _ => Err(Error::ValueOverflow),
         }
     }
@@ -29,34 +29,46 @@ impl TryFrom<U256> for Balance {
 
 impl From<u64> for Balance {
     fn from(other: u64) -> Self {
-        Balance(other.into())
+        Balance(other)
+    }
+}
+
+impl From<Balance> for u64 {
+    fn from(other: Balance) -> Self {
+        other.0
     }
 }
 
 impl From<Balance> for U256 {
     fn from(other: Balance) -> U256 {
-        other.0
+        other.0.into()
     }
 }
 
 impl Balance {
     /// Zero (additive identity) of this type.
     pub fn zero() -> Self {
-        Balance(U256::zero())
+        Balance(0)
     }
     /// Checked addition of `U256` types. Returns `Some(balance)` or `None` if overflow
     /// occurred.
     pub fn checked_add(self, other: U256) -> Option<Balance> {
-        match self.0.checked_add(other) {
-            Some(U256([v, 0, 0, 0])) => Some(Balance::from(v)),
+        match other {
+            U256([val, 0, 0, 0]) => match self.0.checked_add(val) {
+                Some(res) => Some(Balance(res)),
+                _ => None,
+            },
             _ => None,
         }
     }
     /// Checked substraction of `U256` types. Returns `Some(balance)` or `None` if overflow
     /// occurred.
     pub fn checked_sub(self, other: U256) -> Option<Balance> {
-        match self.0.checked_sub(other) {
-            Some(U256([v, 0, 0, 0])) => Some(Balance::from(v)),
+        match other {
+            U256([val, 0, 0, 0]) => match self.0.checked_sub(val) {
+                Some(res) => Some(Balance(res)),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -126,7 +138,7 @@ mod test {
 
     #[test]
     fn account_balance_u256_zero() {
-        assert_eq!(Balance::zero(), Balance(U256::zero()));
+        assert_eq!(Balance::zero(), Balance(0));
     }
 
     #[test]
@@ -136,10 +148,7 @@ mod test {
             Balance::from(val).checked_add(U256::from(0u64)),
             Some(Balance(val.into()))
         );
-        assert_eq!(
-            Balance(U256([MAX_SIZE, 0, 0, 0])).checked_add(U256::from(1u64)),
-            None
-        );
+        assert_eq!(Balance(MAX_SIZE).checked_add(U256::from(1u64)), None);
     }
 
     #[test]

@@ -1,11 +1,12 @@
-use crate::account::Identifier as JorAddress;
 use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::EvmTransaction;
 use crate::header::BlockDate;
+use crate::value::Value;
+use crate::{account::Identifier as JorAddress, accounting::account::AccountState as JorAccount};
 use chain_evm::{
     machine::{BlockHash, BlockNumber, BlockTimestamp, Environment, EvmState, Log, VirtualMachine},
-    primitive_types::{H256, U256},
-    state::{Account as EvmAccount, AccountTrie, LogsState},
+    primitive_types::H256,
+    state::{Account as EvmAccount, LogsState},
     Address as EvmAddress,
 };
 use imhamt::Hamt;
@@ -36,13 +37,18 @@ impl AddressMapping {
         }
     }
 
-    #[allow(dead_code)]
-    fn evm_address(&self, jor_id: JorAddress) -> Option<EvmAddress> {
-        self.jor_to_evm.lookup(&jor_id).cloned()
-    }
-
     fn jor_address(&self, evm_id: EvmAddress) -> Option<JorAddress> {
         self.evm_to_jor.lookup(&evm_id).cloned()
+    }
+
+    fn del_accounts(&mut self, jor_id: JorAddress) {
+        match self.jor_to_evm.lookup(&jor_id) {
+            Some(evm_id) => {
+                self.evm_to_jor.remove(evm_id).ok();
+            }
+            None => {}
+        }
+        self.jor_to_evm.remove(&jor_id).ok();
     }
 
     fn map_accounts(&mut self, jor_id: JorAddress, evm_id: EvmAddress) -> Result<(), Error> {
@@ -58,7 +64,6 @@ impl AddressMapping {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Ledger {
-    pub(crate) accounts: AccountTrie,
     pub(crate) logs: LogsState,
     pub(crate) environment: Environment,
     pub(crate) current_epoch: BlockEpoch,
@@ -76,19 +81,51 @@ impl EvmState for super::Ledger {
         &self.evm.environment
     }
 
-    fn account(&self, address: EvmAddress) -> Option<EvmAccount> {
-        self.evm.accounts.get(&address).cloned()
+    fn account(&self, evm_address: EvmAddress) -> Option<EvmAccount> {
+        match self.evm.adress_mapping.jor_address(evm_address) {
+            Some(jor_address) => match self.accounts.get_state(&jor_address) {
+                Ok(account) => Some(EvmAccount {
+                    balance: account.value.0.into(),
+                    state: account.evm_state.clone(),
+                }),
+                Err(_) => None,
+            },
+            None => None,
+        }
     }
 
     fn contains(&self, address: EvmAddress) -> bool {
         self.evm.adress_mapping.jor_address(address).is_some()
     }
 
-    fn modify_account<F>(&mut self, evm_address: EvmAddress, f: F)
+    // TODO add error handling
+    fn modify_account<F>(&mut self, address: EvmAddress, f: F)
     where
         F: FnOnce(EvmAccount) -> Option<EvmAccount>,
     {
-        self.evm.accounts = self.evm.accounts.clone().modify_account(evm_address, f);
+        let address = self.evm.adress_mapping.jor_address(address).unwrap();
+
+        let account = self
+            .accounts
+            .get_state(&address)
+            .cloned()
+            .unwrap_or_else(|_| JorAccount::new(Value::zero(), ()));
+
+        match f(EvmAccount {
+            balance: account.value.0.into(),
+            state: account.evm_state,
+        }) {
+            Some(account) => {
+                self.accounts = self
+                    .accounts
+                    .evm_update(&address, Value(u64::from(account.balance)), account.state)
+                    .unwrap();
+            }
+            // remove account
+            None => {
+                self.evm.adress_mapping.del_accounts(address);
+            }
+        }
     }
 
     fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
@@ -229,7 +266,6 @@ impl Ledger {
 impl Ledger {
     pub fn new() -> Self {
         Self {
-            accounts: Default::default(),
             logs: Default::default(),
             environment: Environment {
                 gas_price: Default::default(),
@@ -255,18 +291,26 @@ impl Ledger {
 
 impl Ledger {
     pub(crate) fn stats(&self) -> String {
-        let Ledger { accounts, .. } = self;
-        let mut count = 0;
-        let mut total = U256::zero();
-        for (_, account) in accounts {
-            count += 1;
-            total += account.balance.into();
+        let Ledger { adress_mapping, .. } = self;
+        let mut res = "EVM accounts mapping".to_string();
+        for (jor_id, evm_id) in adress_mapping.jor_to_evm.iter() {
+            res = format!(
+                "{}\n jormungandr account: {}, evm account: {}",
+                res,
+                jor_id.to_string(),
+                evm_id.to_string()
+            );
         }
-        format!("EVM accounts: #{} Total={:?}", count, total)
+        res
     }
 
     pub(crate) fn info_eq(&self, other: &Self) -> String {
-        format!("evm: {}", self.accounts == other.accounts)
+        format!(
+            "evm: {}",
+            (self.adress_mapping == other.adress_mapping
+                && self.environment == other.environment
+                && self.logs == other.logs)
+        )
     }
 }
 
@@ -285,9 +329,7 @@ mod test {
         let evm_id2 = EvmAddress::from_low_u64_be(1);
         let jor_id2 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[1; 32]).unwrap());
 
-        assert_eq!(address_mapping.evm_address(jor_id1.clone()), None);
         assert_eq!(address_mapping.jor_address(evm_id1), None);
-        assert_eq!(address_mapping.evm_address(jor_id2.clone()), None);
         assert_eq!(address_mapping.jor_address(evm_id2), None);
 
         assert_eq!(
@@ -295,9 +337,7 @@ mod test {
             Ok(())
         );
 
-        assert_eq!(address_mapping.evm_address(jor_id1.clone()), Some(evm_id1));
         assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1.clone()));
-        assert_eq!(address_mapping.evm_address(jor_id2.clone()), None);
         assert_eq!(address_mapping.jor_address(evm_id2), None);
 
         assert_eq!(
@@ -317,9 +357,26 @@ mod test {
             Ok(())
         );
 
-        assert_eq!(address_mapping.evm_address(jor_id1.clone()), Some(evm_id1));
         assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1));
-        assert_eq!(address_mapping.evm_address(jor_id2.clone()), Some(evm_id2));
         assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2));
+
+        address_mapping.del_accounts(jor_id1);
+
+        assert_eq!(address_mapping.jor_address(evm_id1), None);
+        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2));
+
+        assert_eq!(
+            address_mapping.map_accounts(jor_id1.clone(), evm_id1),
+            Ok(())
+        );
+
+        assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1));
+        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2));
+
+        address_mapping.del_accounts(jor_id1);
+        address_mapping.del_accounts(jor_id2);
+
+        assert_eq!(address_mapping.jor_address(evm_id1), None);
+        assert_eq!(address_mapping.jor_address(evm_id2), None);
     }
 }

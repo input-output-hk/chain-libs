@@ -208,6 +208,25 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
             .map_err(|e| e.into())
     }
 
+    #[cfg(feature = "evm")]
+    pub fn evm_update(
+        &self,
+        identifier: &ID,
+        value: Value,
+        evm_state: chain_evm::state::AccountState,
+    ) -> Result<Self, LedgerError> {
+        self.0
+            .update(identifier, |st| {
+                Ok(Some(AccountState {
+                    evm_state,
+                    value,
+                    ..st.clone()
+                }))
+            })
+            .map(Ledger)
+            .map_err(|e| e.into())
+    }
+
     pub fn iter(&self) -> Iter<'_, ID, Extra> {
         Iter(self.0.iter())
     }
