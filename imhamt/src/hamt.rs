@@ -1,6 +1,3 @@
-
-
-
 use super::hash::{Hash, HashedKey, Hasher};
 use super::node::{
     insert_rec, lookup_one, remove_eq_rec, remove_rec, replace_rec, replace_with_rec, size_rec,
