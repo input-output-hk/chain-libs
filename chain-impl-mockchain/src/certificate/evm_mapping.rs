@@ -7,7 +7,7 @@ use chain_evm::Address;
 use typed_bytes::{ByteArray, ByteBuilder};
 
 #[cfg(feature = "evm")]
-use crate::transaction::UnspecifiedAccountIdentifier;
+use crate::account::Identifier;
 use crate::transaction::{
     Payload, PayloadAuthData, PayloadData, PayloadSlice, SingleAccountBindingSignature,
 };
@@ -17,14 +17,14 @@ use super::CertificateSlice;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvmMapping {
     #[cfg(feature = "evm")]
-    pub account_id: UnspecifiedAccountIdentifier,
+    pub account_id: Identifier,
     #[cfg(feature = "evm")]
     pub evm_address: Address,
 }
 
 impl EvmMapping {
     #[cfg(feature = "evm")]
-    pub fn new(evm_address: Address, account_id: UnspecifiedAccountIdentifier) -> Self {
+    pub fn new(evm_address: Address, account_id: Identifier) -> Self {
         Self {
             account_id,
             evm_address,
@@ -37,14 +37,14 @@ impl EvmMapping {
     }
 
     #[cfg(feature = "evm")]
-    pub fn account_id(&self) -> &UnspecifiedAccountIdentifier {
+    pub fn account_id(&self) -> &Identifier {
         &self.account_id
     }
 
     pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
         #[cfg(feature = "evm")]
         {
-            bb.bytes(self.account_id().as_ref())
+            bb.bytes(self.account_id.as_ref().as_ref())
                 .bytes(self.evm_address.as_bytes())
         }
         #[cfg(not(feature = "evm"))]
@@ -92,44 +92,44 @@ impl property::Serialize for EvmMapping {
         #[cfg(feature = "evm")]
         {
             let mut codec = chain_core::packer::Codec::new(_writer);
-            codec.put_bytes(self.account_id.as_ref())?;
+            self.account_id.serialize(&mut codec)?;
             codec.put_bytes(self.evm_address.as_bytes())?;
         }
         Ok(())
     }
 }
 
-impl property::Deserialize for EvmMapping {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(_reader: R) -> Result<Self, Self::Error> {
-        #[cfg(feature = "evm")]
-        {
-            let mut codec = chain_core::packer::Codec::new(_reader);
-            let buf: [u8; crate::transaction::INPUT_PTR_SIZE] = codec
-                .get_bytes(crate::transaction::INPUT_PTR_SIZE)?
-                .try_into()
-                .unwrap();
-            let evm_address = codec.get_bytes(Address::len_bytes())?;
+// impl property::Deserialize for EvmMapping {
+//     type Error = std::io::Error;
+//     fn deserialize<R: std::io::BufRead>(_reader: R) -> Result<Self, Self::Error> {
+//         #[cfg(feature = "evm")]
+//         {
+//             let mut codec = chain_core::packer::Codec::new(_reader);
+//             let buf: [u8; crate::transaction::INPUT_PTR_SIZE] = codec
+//                 .get_bytes(crate::transaction::INPUT_PTR_SIZE)?
+//                 .try_into()
+//                 .unwrap();
+//             let evm_address = codec.get_bytes(Address::len_bytes())?;
 
-            Ok(Self {
-                account_id: buf.into(),
-                evm_address: Address::from_slice(evm_address.as_slice()),
-            })
-        }
-        #[cfg(not(feature = "evm"))]
-        Err(Self::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "evm transactions are not supported in this build",
-        ))
-    }
-}
+//             Ok(Self {
+//                 account_id: buf.into(),
+//                 evm_address: Address::from_slice(evm_address.as_slice()),
+//             })
+//         }
+//         #[cfg(not(feature = "evm"))]
+//         Err(Self::Error::new(
+//             std::io::ErrorKind::Unsupported,
+//             "evm transactions are not supported in this build",
+//         ))
+//     }
+// }
 
 impl Readable for EvmMapping {
     fn read(_buf: &mut ReadBuf) -> Result<Self, ReadError> {
         #[cfg(feature = "evm")]
         {
             Ok(Self {
-                account_id: <[u8; crate::transaction::INPUT_PTR_SIZE]>::read(_buf)?.into(),
+                account_id: Identifier::read(_buf)?,
                 evm_address: Address::from_slice(_buf.get_slice(Address::len_bytes())?),
             })
         }
@@ -148,7 +148,7 @@ mod test {
     impl Arbitrary for EvmMapping {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self {
-                account_id: [u8::arbitrary(g); crate::transaction::INPUT_PTR_SIZE].into(),
+                account_id: Arbitrary::arbitrary(g),
                 evm_address: [u8::arbitrary(g); Address::len_bytes()].into(),
             }
         }

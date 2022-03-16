@@ -87,18 +87,6 @@ pub(super) fn valid_vote_cast(tx: &TransactionSlice<certificate::VoteCast>) -> L
     )
 }
 
-/// check that the transaction input/outputs/witnesses is valid for the evm mapping
-///
-/// * Only 1 input (subsequently 1 witness), no output
-pub(super) fn valid_evm_mapping(tx: &TransactionSlice<certificate::EvmMapping>) -> LedgerCheck {
-    if_cond_fail_with!(
-        tx.inputs().nb_inputs() != 1
-            || tx.witnesses().nb_witnesses() != 1
-            || tx.outputs().nb_outputs() != 0,
-        Error::EvmMappingInvalidTransaction
-    )
-}
-
 /// check that the pool registration certificate is valid
 ///
 /// * management threshold T is valid: 0 < T <= #owners

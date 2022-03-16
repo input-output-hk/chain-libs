@@ -1,8 +1,11 @@
+use crate::certificate::EvmMapping;
 use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::EvmTransaction;
 use crate::header::BlockDate;
+use crate::transaction::{SingleAccountBindingSignature, TransactionBindingAuthData};
 use crate::value::Value;
 use crate::{account::Identifier as JorAddress, accounting::account::AccountState as JorAccount};
+use chain_crypto::Verification;
 use chain_evm::{
     machine::{BlockHash, BlockNumber, BlockTimestamp, Environment, EvmState, Log, VirtualMachine},
     primitive_types::H256,
@@ -21,6 +24,8 @@ pub enum Error {
     ExistedMapping(JorAddress, EvmAddress),
     #[error("evm transaction error: {0}")]
     EvmTransactionError(#[from] chain_evm::machine::Error),
+    #[error("Protocol evm mapping payload signature failed")]
+    EvmMappingSignatureFailed,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -134,8 +139,19 @@ impl EvmState for super::Ledger {
 }
 
 impl super::Ledger {
-    pub fn map_accounts(mut self, jor: JorAddress, evm: EvmAddress) -> Result<Self, Error> {
-        self.evm.adress_mapping.map_accounts(jor, evm)?;
+    pub fn apply_map_accounts<'a>(
+        mut self,
+        tx: &EvmMapping,
+        auth_data: &TransactionBindingAuthData<'a>,
+        sig: SingleAccountBindingSignature,
+    ) -> Result<Self, Error> {
+        if sig.verify_slice(&tx.account_id().clone().into(), auth_data) != Verification::Success {
+            return Err(Error::EvmMappingSignatureFailed);
+        }
+
+        self.evm
+            .adress_mapping
+            .map_accounts(tx.account_id().clone(), *tx.evm_address())?;
         Ok(self)
     }
 
@@ -357,21 +373,21 @@ mod test {
             Ok(())
         );
 
-        assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1));
-        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2));
+        assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1.clone()));
+        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2.clone()));
 
-        address_mapping.del_accounts(jor_id1);
+        address_mapping.del_accounts(jor_id1.clone());
 
         assert_eq!(address_mapping.jor_address(evm_id1), None);
-        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2));
+        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2.clone()));
 
         assert_eq!(
             address_mapping.map_accounts(jor_id1.clone(), evm_id1),
             Ok(())
         );
 
-        assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1));
-        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2));
+        assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1.clone()));
+        assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2.clone()));
 
         address_mapping.del_accounts(jor_id1);
         address_mapping.del_accounts(jor_id2);

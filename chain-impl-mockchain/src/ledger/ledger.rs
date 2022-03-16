@@ -328,8 +328,8 @@ pub enum Error {
     MintingPolicyViolation(#[from] MintingPolicyViolation),
     #[error("evm transactions are disabled, the node was built without the 'evm' feature")]
     DisabledEvmTransactions,
-    #[error("Transaction for EvmMapping is invalid. expecting 1 input, 1 witness and 0 output")]
-    EvmMappingInvalidTransaction,
+    // #[error("Transaction for EvmMapping is invalid. expecting 1 input, 1 witness and 0 output")]
+    // EvmMappingInvalidTransaction,
     #[cfg(feature = "evm")]
     #[error("evm error: {0}")]
     EvmError(#[from] evm::Error),
@@ -1087,8 +1087,6 @@ impl Ledger {
                 #[cfg(feature = "evm")]
                 {
                     let tx = _tx.as_slice();
-                    // this is a lightweight check, do this early to avoid doing any unnecessary computation
-                    check::valid_evm_mapping(&tx)?;
                     let (new_ledger_, _fee) = new_ledger.apply_transaction(
                         &fragment_id,
                         &tx,
@@ -1096,27 +1094,11 @@ impl Ledger {
                         ledger_params,
                     )?;
 
-                    // we've just verified that this is a valid transaction (i.e. contains 1 input and 1 witness)
-                    let jor_id = match tx
-                        .inputs()
-                        .iter()
-                        .map(|input| input.to_enum())
-                        .zip(tx.witnesses().iter())
-                        .next()
-                        .unwrap()
-                    {
-                        (InputEnum::AccountInput(account_id, _), Witness::Account(_, _)) => {
-                            account_id
-                                .to_single_account()
-                                .ok_or(Error::AccountIdentifierInvalid)?
-                        }
-                        (_, _) => {
-                            return Err(Error::EvmMappingInvalidTransaction);
-                        }
-                    };
-
-                    let evm_id = *tx.payload().into_payload().evm_address();
-                    new_ledger = new_ledger_.map_accounts(jor_id, evm_id)?;
+                    new_ledger = new_ledger_.apply_map_accounts(
+                        &tx.payload().into_payload(),
+                        &tx.transaction_binding_auth_data(),
+                        tx.payload_auth().into_payload_auth(),
+                    )?;
                 }
                 #[cfg(not(feature = "evm"))]
                 {
