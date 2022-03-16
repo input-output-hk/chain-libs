@@ -19,7 +19,7 @@ use thiserror::Error;
 
 use crate::{
     precompiles::Precompiles,
-    state::{AccountTrie, ByteCode, Error as StateError, Key, LogsState},
+    state::{Account, Balance, ByteCode, Key},
 };
 
 /// Export EVM types
@@ -122,20 +122,20 @@ pub enum Error {
     TransactionFatalError(ExitFatal),
     #[error("transaction has been reverted: machine encountered an explict revert")]
     TransactionRevertError(ExitRevert),
-    #[error("state error: {0}")]
-    StateError(StateError),
 }
 
 pub trait EvmState {
     fn environment(&self) -> &Environment;
 
-    fn accounts(&self) -> &AccountTrie;
+    fn account(&self, address: Address) -> Option<Account>;
 
-    fn logs(&self) -> &LogsState;
+    fn contains(&self, address: Address) -> bool;
 
-    fn update_accounts(&mut self, state: AccountTrie);
+    fn modify_account<F>(&mut self, addres: Address, f: F)
+    where
+        F: FnOnce(Account) -> Option<Account>;
 
-    fn update_logs(&mut self, logs: LogsState);
+    fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>);
 }
 
 fn precompiles(config: Config) -> Precompiles {
@@ -176,18 +176,19 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
     where
         for<'config> F: FnOnce(
             &mut StackExecutor<'config, '_, MemoryStackState<'_, 'config, Self>, Precompiles>,
-            u64,
         ) -> (ExitReason, T),
     {
-        self.origin = caller;
         let precompiles = precompiles(config);
         let config = &(config.into());
+
+        self.origin = caller;
+
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
         let mut executor =
             StackExecutor::new_with_precompiles(memory_stack_state, config, &precompiles);
 
-        let (exit_reason, val) = f(&mut executor, gas_limit);
+        let (exit_reason, val) = f(&mut executor);
         match exit_reason {
             ExitReason::Succeed(_) => {
                 // calculate the gas fees given the
@@ -202,16 +203,10 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
                 self.apply(values, logs, delete_empty);
 
                 // pay gas fees
-                let new_accounts =
-                    self.state
-                        .accounts()
-                        .clone()
-                        .modify_account(caller, |mut account| {
-                            account.balance = account.balance.checked_sub(gas_fees)?;
-                            Some(account)
-                        });
-
-                self.state.update_accounts(new_accounts);
+                self.state.modify_account(caller, |mut account| {
+                    account.balance = account.balance.checked_sub(gas_fees)?;
+                    Some(account)
+                });
 
                 // exit_reason
                 Ok(val)
@@ -234,24 +229,21 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
-        self.execute_transaction(
-            config,
-            caller,
-            gas_limit,
-            delete_empty,
-            |executor, gas_limit| {
-                (
-                    executor.transact_create(
-                        caller,
-                        value,
-                        init_code.to_vec(),
-                        gas_limit,
-                        access_list.clone(),
-                    ),
-                    (),
-                )
-            },
-        )
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
+        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+            (
+                executor.transact_create(
+                    caller,
+                    value,
+                    init_code.to_vec(),
+                    gas_limit,
+                    access_list.clone(),
+                ),
+                (),
+            )
+        })
     }
 
     /// Execute a CREATE2 transaction
@@ -267,25 +259,22 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
-        self.execute_transaction(
-            config,
-            caller,
-            gas_limit,
-            delete_empty,
-            |executor, gas_limit| {
-                (
-                    executor.transact_create2(
-                        caller,
-                        value,
-                        init_code.to_vec(),
-                        salt,
-                        gas_limit,
-                        access_list.clone(),
-                    ),
-                    (),
-                )
-            },
-        )
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
+        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+            (
+                executor.transact_create2(
+                    caller,
+                    value,
+                    init_code.to_vec(),
+                    salt,
+                    gas_limit,
+                    access_list.clone(),
+                ),
+                (),
+            )
+        })
     }
 
     /// Execute a CALL transaction
@@ -301,22 +290,24 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<ByteCode, Error> {
-        self.execute_transaction(
-            config,
-            caller,
-            gas_limit,
-            delete_empty,
-            |executor, gas_limit| {
-                executor.transact_call(
-                    caller,
-                    address,
-                    value,
-                    data.to_vec(),
-                    gas_limit,
-                    access_list.clone(),
-                )
-            },
-        )
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
+        if let Some(expected_balance) = self.basic(address).balance.checked_add(value) {
+            if let Err(e) = Balance::try_from(expected_balance) {
+                return Err(e.into());
+            }
+        }
+        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+            executor.transact_call(
+                caller,
+                address,
+                value,
+                data.to_vec(),
+                gas_limit,
+                access_list.clone(),
+            )
+        })
     }
 }
 
@@ -360,30 +351,27 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
         self.state.environment().chain_id
     }
     fn exists(&self, address: H160) -> bool {
-        self.state.accounts().contains(&address)
+        self.state.contains(address)
     }
     fn basic(&self, address: H160) -> Basic {
         self.state
-            .accounts()
-            .get(&address)
-            .map(|a| Basic {
-                balance: a.balance.into(),
-                nonce: a.nonce,
+            .account(address)
+            .map(|account| Basic {
+                balance: account.balance.into(),
+                nonce: account.nonce,
             })
             .unwrap_or_default()
     }
     fn code(&self, address: H160) -> Vec<u8> {
         self.state
-            .accounts()
-            .get(&address)
-            .map(|val| val.code.to_vec())
+            .account(address)
+            .map(|account| account.code)
             .unwrap_or_default()
     }
     fn storage(&self, address: H160, index: H256) -> H256 {
         self.state
-            .accounts()
-            .get(&address)
-            .map(|val| val.storage.get(&index).cloned().unwrap_or_default())
+            .account(address)
+            .map(|account| account.storage.get(&index).cloned().unwrap_or_default())
             .unwrap_or_default()
     }
     fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
@@ -411,67 +399,60 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
                     // Then, modify the account balance, nonce, and code.
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
-                    let new_accounts =
-                        self.state
-                            .accounts()
-                            .clone()
-                            .modify_account(address, |mut account| {
-                                account.balance = balance.try_into().unwrap();
-                                account.nonce = nonce;
-                                if let Some(code) = code {
-                                    account.code = code
-                                };
-                                if reset_storage {
-                                    account.storage = Default::default();
-                                }
+                    self.state.modify_account(address, |mut account| {
+                        account.balance = balance.try_into().unwrap();
+                        account.nonce = nonce;
+                        if let Some(code) = code {
+                            account.code = code
+                        };
+                        if reset_storage {
+                            account.storage = Default::default();
+                        }
 
-                                // cleanup storage from zero values
-                                // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
-                                account.storage = account
-                                    .storage
-                                    .iter()
-                                    .filter(|(_, v)| v != &&Default::default())
-                                    .map(|(k, v)| (*k, *v))
-                                    .collect();
+                        // cleanup storage from zero values
+                        // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
+                        account.storage = account
+                            .storage
+                            .iter()
+                            .filter(|(_, v)| v != &&Default::default())
+                            .map(|(k, v)| (*k, *v))
+                            .collect();
 
-                                // iterate over the apply_storage keys and values
-                                // and put them into the account.
-                                for (index, value) in storage {
-                                    account.storage = if value == Default::default() {
-                                        // value is full of zeroes, remove it
-                                        account.storage.remove(&index)
-                                    } else {
-                                        account.storage.put(index, value)
-                                    }
-                                }
+                        // iterate over the apply_storage keys and values
+                        // and put them into the account.
+                        for (index, value) in storage {
+                            account.storage = if value == Default::default() {
+                                // value is full of zeroes, remove it
+                                account.storage.remove(&index)
+                            } else {
+                                account.storage.put(index, value)
+                            }
+                        }
 
-                                if delete_empty && account.is_empty() {
-                                    None
-                                } else {
-                                    Some(account)
-                                }
-                            });
-
-                    self.state.update_accounts(new_accounts);
+                        if delete_empty && account.is_empty() {
+                            None
+                        } else {
+                            Some(account)
+                        }
+                    });
                 }
                 Apply::Delete { address } => {
-                    let new_accounts = self.state.accounts().clone().remove(&address);
-                    self.state.update_accounts(new_accounts);
+                    self.state.modify_account(address, |_| None);
                 }
             }
         }
 
         // save the logs
         let block_hash = self.block_hash(self.block_number());
-        let mut new_logs = self.state.logs().clone();
-        new_logs.put(block_hash, logs.into_iter().collect());
-        self.state.update_logs(new_logs);
+        self.state
+            .update_logs(block_hash, logs.into_iter().collect());
     }
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
     use super::*;
+    use crate::state::{AccountTrie, LogsState};
 
     struct TestEvmState {
         environment: Environment,
@@ -484,20 +465,23 @@ mod test {
             &self.environment
         }
 
-        fn accounts(&self) -> &AccountTrie {
-            &self.accounts
+        fn account(&self, address: Address) -> Option<Account> {
+            self.accounts.get(&address).cloned()
         }
 
-        fn logs(&self) -> &LogsState {
-            &self.logs
+        fn contains(&self, address: Address) -> bool {
+            self.accounts.contains(&address)
         }
 
-        fn update_accounts(&mut self, accounts: AccountTrie) {
-            self.accounts = accounts;
+        fn modify_account<F>(&mut self, address: Address, f: F)
+        where
+            F: FnOnce(Account) -> Option<Account>,
+        {
+            self.accounts = self.accounts.clone().modify_account(address, f);
         }
 
-        fn update_logs(&mut self, logs: LogsState) {
-            self.logs = logs;
+        fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
+            self.logs.put(block_hash, logs);
         }
     }
 
