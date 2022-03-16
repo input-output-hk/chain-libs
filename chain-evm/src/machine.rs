@@ -138,16 +138,6 @@ pub trait EvmState {
     fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>);
 }
 
-fn precompiles(config: Config) -> Precompiles {
-    match config {
-        Config::Istanbul => Precompiles::new_istanbul(),
-        Config::Berlin => Precompiles::new_berlin(),
-        // TODO: change it to new_london() after it will be implemented
-        Config::London => Precompiles::new_berlin(),
-        config => unimplemented!("EVM precompiles for the {:?} config", config),
-    }
-}
-
 pub struct VirtualMachine<'a, T> {
     state: &'a mut T,
     origin: H160,
@@ -178,7 +168,7 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
             &mut StackExecutor<'config, '_, MemoryStackState<'_, 'config, Self>, Precompiles>,
         ) -> (ExitReason, T),
     {
-        let precompiles = precompiles(config);
+        let precompiles = Precompiles::new();
         let config = &(config.into());
 
         self.origin = caller;
@@ -450,14 +440,14 @@ impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
-mod test {
+pub mod test {
     use super::*;
     use crate::state::{AccountTrie, LogsState};
 
-    struct TestEvmState {
-        environment: Environment,
-        accounts: AccountTrie,
-        logs: LogsState,
+    pub struct TestEvmState {
+        pub environment: Environment,
+        pub accounts: AccountTrie,
+        pub logs: LogsState,
     }
 
     impl EvmState for TestEvmState {
@@ -529,7 +519,7 @@ mod test {
 
         let metadata = StackSubstateMetadata::new(gas_limit, &evm_config);
         let memory_stack_state = MemoryStackState::new(metadata, &vm);
-        let precompiles = precompiles(config);
+        let precompiles = Precompiles::new();
         let mut executor =
             StackExecutor::new_with_precompiles(memory_stack_state, &evm_config, &precompiles);
 
