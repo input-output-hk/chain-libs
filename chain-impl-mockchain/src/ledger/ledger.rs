@@ -367,7 +367,7 @@ impl Ledger {
         };
 
         #[cfg(feature = "evm")]
-        ledger.set_evm_block0().set_evm_environment();
+        let ledger = ledger.set_evm_block0().set_evm_environment();
         ledger
     }
 
