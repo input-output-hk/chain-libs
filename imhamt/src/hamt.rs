@@ -17,30 +17,12 @@ use std::marker::PhantomData;
 use std::mem::swap;
 use std::slice;
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct Hamt<H: Hasher + Default, K: PartialEq + Eq + Hash, V> {
     root: Node<K, V>,
     hasher: PhantomData<H>,
 }
 
-#[cfg(any(test, feature = "property-test-api"))]
-impl<H, K, V> Arbitrary for Hamt<H, K, V>
-where
-    H: Hasher + Default + Debug,
-    K: PartialEq + Eq + Hash + Arbitrary + Clone,
-    K::Strategy: 'static,
-    V::Strategy: 'static,
-    V: Arbitrary + Clone,
-{
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        proptest::arbitrary::any::<std::collections::HashMap<K, V>>()
-            .prop_map(|map| map.into_iter().collect())
-            .boxed()
-    }
-}
 
 pub struct HamtIter<'a, K, V> {
     stack: Vec<NodeIter<'a, K, V>>,

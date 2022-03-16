@@ -94,9 +94,28 @@ pub struct AccountState<Extra> {
     pub spending: SpendingCounterIncreasing,
     pub delegation: DelegationType,
     pub value: Value,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(test_impls::arbitrary_hamt())
+    )]
     pub tokens: Hamt<DefaultHasher, TokenIdentifier, Value>,
     pub last_rewards: LastRewards,
     pub extra: Extra,
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use std::collections::HashMap;
+
+    use proptest::arbitrary::any;
+    use proptest::strategy::Strategy;
+
+    use super::*;
+
+    pub(super) fn arbitrary_hamt(
+    ) -> impl Strategy<Value = Hamt<DefaultHasher, TokenIdentifier, Value>> {
+        any::<HashMap<TokenIdentifier, Value>>().prop_map(|map| map.into_iter().collect())
+    }
 }
 
 impl<Extra> AccountState<Extra> {
