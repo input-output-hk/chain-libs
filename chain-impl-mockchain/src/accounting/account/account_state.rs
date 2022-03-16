@@ -209,8 +209,7 @@ mod tests {
         certificate::PoolId, testing::builders::StakePoolBuilder, testing::TestGen, value::Value,
     };
     use imhamt::Hamt;
-    use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
+    use quickcheck::{Arbitrary, Gen};
     use std::iter;
     use test_strategy::proptest;
 
@@ -500,8 +499,8 @@ mod tests {
         assert!(DelegationRatio::new(parts, pools).is_none());
     }
 
-    #[quickcheck]
-    pub fn add_rewards(account_state_no_reward: AccountState<()>, value: Value) -> TestResult {
+    #[proptest]
+    fn add_rewards(account_state_no_reward: AccountState<()>, value: Value) {
         let initial_value = account_state_no_reward.value();
         let account_state_reward = account_state_no_reward.clone();
 
@@ -512,11 +511,11 @@ mod tests {
             .add_rewards(1, value)
             .expect("cannot add reward");
 
-        accounts_are_the_same(account_state_no_reward, account_state_reward, initial_value)
+        accounts_are_the_same(account_state_no_reward, account_state_reward, initial_value);
     }
 
-    #[quickcheck]
-    pub fn new_account_rewards(value: Value) -> TestResult {
+    #[proptest]
+    fn new_account_rewards(value: Value) {
         let account_state = AccountState::new(value, ());
         let account_with_reward = AccountState::new_reward(1, value, ());
         accounts_are_the_same(account_state, account_with_reward, Value::zero())
@@ -526,25 +525,24 @@ mod tests {
         account_without_reward: AccountState<()>,
         account_with_reward: AccountState<()>,
         initial_value: Value,
-    ) -> TestResult {
+    ) {
         if account_without_reward.value() != account_with_reward.value() {
-            return TestResult::error(format!(
+            panic!(
                 "value should be the same {} vs {}",
                 account_without_reward.value(),
                 account_with_reward.value()
-            ));
+            );
         }
 
         let expected_reward_account_state =
             (account_with_reward.last_rewards.reward + initial_value).unwrap();
         if account_without_reward.value() != expected_reward_account_state {
-            return TestResult::error(format!(
+            panic!(
                 "reward should be the same {} vs {}",
                 account_without_reward.value(),
                 expected_reward_account_state
-            ));
+            );
         }
-        TestResult::passed()
     }
 
     use crate::tokens::identifier::TokenIdentifier;

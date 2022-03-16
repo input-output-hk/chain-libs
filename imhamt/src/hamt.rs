@@ -26,7 +26,7 @@ pub struct Hamt<H: Hasher + Default, K: PartialEq + Eq + Hash, V> {
 #[cfg(any(test, feature = "property-test-api"))]
 impl<H, K, V> Arbitrary for Hamt<H, K, V>
 where
-    H: Hasher + Default + std::fmt::Debug,
+    H: Hasher + Default + Debug,
     K: PartialEq + Eq + Hash + Arbitrary + Clone,
     K::Strategy: 'static,
     V::Strategy: 'static,
@@ -37,13 +37,7 @@ where
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         proptest::arbitrary::any::<std::collections::HashMap<K, V>>()
-            .prop_map(|map| {
-                let result = Hamt::new();
-                for (key, value) in map {
-                    result.insert(key, value).unwrap();
-                }
-                result
-            })
+            .prop_map(|map| map.into_iter().collect())
             .boxed()
     }
 }

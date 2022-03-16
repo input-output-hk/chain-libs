@@ -13,9 +13,29 @@ use crate::transaction::{
 use super::CertificateSlice;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct EvmMapping {
     #[cfg(feature = "evm")]
+    #[cfg_attr(
+        all(any(test, feature = "property-test-api"), feature = "evm"),
+        strategy(test_impls::address_strategy())
+    )]
     evm_address: Address,
+}
+
+#[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
+mod test_impls {
+    use super::*;
+    use chain_evm::primitive_types::H160;
+    use proptest::arbitrary::any;
+    use proptest::strategy::Strategy;
+
+    pub(super) fn address_strategy() -> impl Strategy<Value = Address> {
+        any::<[u8; 20]>().prop_map(|bytes| H160::from_slice(&bytes))
+    }
 }
 
 impl EvmMapping {
