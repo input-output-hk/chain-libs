@@ -19,7 +19,7 @@ use thiserror::Error;
 
 use crate::{
     precompiles::Precompiles,
-    state::{AccountTrie, ByteCode, Key, LogsState},
+    state::{Account, Balance, ByteCode, Key},
 };
 
 /// Export EVM types
@@ -51,9 +51,6 @@ pub type BlockGasLimit = U256;
 
 /// A block's base fee per gas.
 pub type BlockBaseFeePerGas = U256;
-
-/// A block's origin
-pub type Origin = H160;
 
 /// A block's coinbase
 pub type BlockCoinBase = H160;
@@ -101,7 +98,6 @@ impl Default for Config {
 /// EVM Environment parameters needed for execution.
 pub struct Environment {
     pub gas_price: GasPrice,
-    pub origin: Origin,
     pub chain_id: ChainId,
     pub block_hashes: BlockHashes,
     pub block_number: BlockNumber,
@@ -128,48 +124,66 @@ pub enum Error {
     TransactionRevertError(ExitRevert),
 }
 
-/// Top-level abstraction for the EVM with the
-/// necessary types used to get the runtime going.
-pub struct VirtualMachine<'runtime> {
-    /// EVM Block Configuration.
-    config: Config,
-    environment: &'runtime Environment,
-    precompiles: Precompiles,
-    state: AccountTrie,
-    logs: LogsState,
+pub trait EvmState {
+    fn environment(&self) -> &Environment;
+
+    fn account(&self, address: Address) -> Option<Account>;
+
+    fn contains(&self, address: Address) -> bool;
+
+    fn modify_account<F>(&mut self, addres: Address, f: F)
+    where
+        F: FnOnce(Account) -> Option<Account>;
+
+    fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>);
 }
 
-impl<'runtime> VirtualMachine<'runtime> {
+pub struct VirtualMachine<'a, T> {
+    state: &'a mut T,
+    origin: H160,
+}
+
+impl<'a, T> VirtualMachine<'a, T> {
+    pub fn new(state: &'a mut T) -> Self {
+        Self {
+            state,
+            origin: Default::default(),
+        }
+    }
+}
+
+/// Top-level abstraction for the EVM with the
+/// necessary types used to get the runtime going.
+impl<'a, State: EvmState> VirtualMachine<'a, State> {
     fn execute_transaction<F, T>(
         &mut self,
+        config: Config,
         caller: Address,
         gas_limit: u64,
         delete_empty: bool,
         f: F,
-    ) -> Result<(&AccountTrie, &LogsState, T), Error>
+    ) -> Result<T, Error>
     where
         for<'config> F: FnOnce(
-            &mut StackExecutor<
-                'config,
-                '_,
-                MemoryStackState<'_, 'config, VirtualMachine>,
-                Precompiles,
-            >,
-            u64,
+            &mut StackExecutor<'config, '_, MemoryStackState<'_, 'config, Self>, Precompiles>,
         ) -> (ExitReason, T),
     {
-        let config = &(self.config.into());
+        let precompiles = Precompiles::new();
+        let config = &(config.into());
+
+        self.origin = caller;
+
         let metadata = StackSubstateMetadata::new(gas_limit, config);
         let memory_stack_state = MemoryStackState::new(metadata, self);
         let mut executor =
-            StackExecutor::new_with_precompiles(memory_stack_state, config, &self.precompiles);
+            StackExecutor::new_with_precompiles(memory_stack_state, config, &precompiles);
 
-        let (exit_reason, val) = f(&mut executor, gas_limit);
+        let (exit_reason, val) = f(&mut executor);
         match exit_reason {
             ExitReason::Succeed(_) => {
-                let used_gas = U256::from(executor.used_gas());
-                let gas_fees = used_gas * self.gas_price();
-                // apply and return state
+                // calculate the gas fees given the
+                // gas price in the environment
+                let gas_fees = executor.fee(self.gas_price());
                 // apply changes to the state, this consumes the executor
                 let state = executor.into_state();
                 // Next, we consume the stack state and extract the values and logs
@@ -179,76 +193,54 @@ impl<'runtime> VirtualMachine<'runtime> {
                 self.apply(values, logs, delete_empty);
 
                 // pay gas fees
-                self.state = self.state.clone().modify_account(caller, |mut account| {
-                    account.balance = account
-                        .balance
-                        .checked_sub(gas_fees)
-                        .expect("Acount does not have enough funds to pay gas fees");
+                self.state.modify_account(caller, |mut account| {
+                    account.balance = account.balance.checked_sub(gas_fees)?;
                     Some(account)
                 });
 
                 // exit_reason
-                Ok((&self.state, &self.logs, val))
+                Ok(val)
             }
             ExitReason::Revert(err) => Err(Error::TransactionRevertError(err)),
             ExitReason::Error(err) => Err(Error::TransactionError(err)),
             ExitReason::Fatal(err) => Err(Error::TransactionFatalError(err)),
         }
     }
-}
-
-impl<'runtime> VirtualMachine<'runtime> {
-    /// Creates a new `VirtualMachine` given configuration parameters.
-    pub fn new(config: Config, environment: &'runtime Environment) -> Self {
-        Self::new_with_state(config, environment, Default::default(), Default::default())
-    }
-
-    /// Creates a new `VirtualMachine` given configuration params and a given account storage.
-    pub fn new_with_state(
-        config: Config,
-        environment: &'runtime Environment,
-        state: AccountTrie,
-        logs: LogsState,
-    ) -> Self {
-        Self {
-            config,
-            environment,
-            precompiles: Precompiles::new(),
-            state,
-            logs,
-        }
-    }
 
     /// Execute a CREATE transaction
+    #[allow(clippy::too_many_arguments)]
     pub fn transact_create(
         &mut self,
+        config: Config,
         caller: Address,
         value: Value,
         init_code: ByteCode,
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Result<(&AccountTrie, &LogsState), Error> {
-        let (account_trie, logs_state, _) =
-            self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-                (
-                    executor.transact_create(
-                        caller,
-                        value,
-                        init_code.to_vec(),
-                        gas_limit,
-                        access_list.clone(),
-                    ),
-                    (),
-                )
-            })?;
-        Ok((account_trie, logs_state))
+    ) -> Result<(), Error> {
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
+        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+            (
+                executor.transact_create(
+                    caller,
+                    value,
+                    init_code.to_vec(),
+                    gas_limit,
+                    access_list.clone(),
+                ),
+                (),
+            )
+        })
     }
 
     /// Execute a CREATE2 transaction
     #[allow(clippy::too_many_arguments)]
     pub fn transact_create2(
         &mut self,
+        config: Config,
         caller: Address,
         value: Value,
         init_code: ByteCode,
@@ -256,28 +248,30 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Result<(&AccountTrie, &LogsState), Error> {
-        let (account_trie, logs_state, _) =
-            self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-                (
-                    executor.transact_create2(
-                        caller,
-                        value,
-                        init_code.to_vec(),
-                        salt,
-                        gas_limit,
-                        access_list.clone(),
-                    ),
-                    (),
-                )
-            })?;
-        Ok((account_trie, logs_state))
+    ) -> Result<(), Error> {
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
+        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+            (
+                executor.transact_create2(
+                    caller,
+                    value,
+                    init_code.to_vec(),
+                    salt,
+                    gas_limit,
+                    access_list.clone(),
+                ),
+                (),
+            )
+        })
     }
 
     /// Execute a CALL transaction
     #[allow(clippy::too_many_arguments)]
     pub fn transact_call(
         &mut self,
+        config: Config,
         caller: Address,
         address: Address,
         value: Value,
@@ -285,83 +279,89 @@ impl<'runtime> VirtualMachine<'runtime> {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
-    ) -> Result<(&AccountTrie, &LogsState, ByteCode), Error> {
-        let (account_trie, logs_state, byte_output) =
-            self.execute_transaction(caller, gas_limit, delete_empty, |executor, gas_limit| {
-                executor.transact_call(
-                    caller,
-                    address,
-                    value,
-                    data.to_vec(),
-                    gas_limit,
-                    access_list.clone(),
-                )
-            })?;
-        Ok((account_trie, logs_state, byte_output))
+    ) -> Result<ByteCode, Error> {
+        if let Err(e) = Balance::try_from(value) {
+            return Err(e.into());
+        }
+        if let Some(expected_balance) = self.basic(address).balance.checked_add(value) {
+            if let Err(e) = Balance::try_from(expected_balance) {
+                return Err(e.into());
+            }
+        }
+        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+            executor.transact_call(
+                caller,
+                address,
+                value,
+                data.to_vec(),
+                gas_limit,
+                access_list.clone(),
+            )
+        })
     }
 }
 
-impl<'runtime> Backend for VirtualMachine<'runtime> {
+impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
     fn gas_price(&self) -> U256 {
-        self.environment.gas_price
+        self.state.environment().gas_price
     }
     fn origin(&self) -> H160 {
-        self.environment.origin
+        self.origin
     }
     fn block_hash(&self, number: U256) -> H256 {
-        if number >= self.environment.block_number
-            || self.environment.block_number - number - U256::one()
-                >= U256::from(self.environment.block_hashes.len())
+        if number >= self.state.environment().block_number
+            || self.state.environment().block_number - number - U256::one()
+                >= U256::from(self.state.environment().block_hashes.len())
         {
             H256::default()
         } else {
-            let index = (self.environment.block_number - number - U256::one()).as_usize();
-            self.environment.block_hashes[index]
+            let index = (self.state.environment().block_number - number - U256::one()).as_usize();
+            self.state.environment().block_hashes[index]
         }
     }
     fn block_number(&self) -> U256 {
-        self.environment.block_number
+        self.state.environment().block_number
     }
     fn block_coinbase(&self) -> H160 {
-        self.environment.block_coinbase
+        self.state.environment().block_coinbase
     }
     fn block_timestamp(&self) -> U256 {
-        self.environment.block_timestamp
+        self.state.environment().block_timestamp
     }
     fn block_difficulty(&self) -> U256 {
-        self.environment.block_difficulty
+        self.state.environment().block_difficulty
     }
     fn block_gas_limit(&self) -> U256 {
-        self.environment.block_gas_limit
+        self.state.environment().block_gas_limit
     }
     fn block_base_fee_per_gas(&self) -> U256 {
-        self.environment.block_base_fee_per_gas
+        self.state.environment().block_base_fee_per_gas
     }
     fn chain_id(&self) -> U256 {
-        self.environment.chain_id
+        self.state.environment().chain_id
     }
     fn exists(&self, address: H160) -> bool {
-        self.state.contains(&address)
+        self.state.contains(address)
     }
     fn basic(&self, address: H160) -> Basic {
         self.state
-            .get(&address)
-            .map(|a| Basic {
-                balance: a.balance,
-                nonce: a.nonce,
+            .account(address)
+            .map(|account| Basic {
+                balance: account.balance.into(),
+                nonce: account.nonce,
             })
             .unwrap_or_default()
     }
     fn code(&self, address: H160) -> Vec<u8> {
         self.state
-            .get(&address)
-            .map(|val| val.code.to_vec())
+            .account(address)
+            .map(|account| account.code)
             .unwrap_or_default()
     }
     fn storage(&self, address: H160, index: H256) -> H256 {
         self.state
-            .get(&address)
-            .map(|val| val.storage.get(&index).cloned().unwrap_or_default())
+            .account(address)
+            .map(|account| account.storage.get(&index).cloned().unwrap_or_default())
             .unwrap_or_default()
     }
     fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
@@ -369,7 +369,7 @@ impl<'runtime> Backend for VirtualMachine<'runtime> {
     }
 }
 
-impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
+impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
     fn apply<A, I, L>(&mut self, values: A, logs: L, delete_empty: bool)
     where
         A: IntoIterator<Item = Apply<I>>,
@@ -382,15 +382,15 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     address,
                     basic: Basic { balance, nonce },
                     code,
-                    storage: apply_storage,
+                    storage,
                     reset_storage,
                 } => {
                     // get the account if stored, else use Default::default().
                     // Then, modify the account balance, nonce, and code.
                     // If reset_storage is set, the account's balance is
                     // set to be Default::default().
-                    self.state = self.state.clone().modify_account(address, |mut account| {
-                        account.balance = balance;
+                    self.state.modify_account(address, |mut account| {
+                        account.balance = balance.try_into().unwrap();
                         account.nonce = nonce;
                         if let Some(code) = code {
                             account.code = code
@@ -399,10 +399,19 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                             account.storage = Default::default();
                         }
 
+                        // cleanup storage from zero values
+                        // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
+                        account.storage = account
+                            .storage
+                            .iter()
+                            .filter(|(_, v)| v != &&Default::default())
+                            .map(|(k, v)| (*k, *v))
+                            .collect();
+
                         // iterate over the apply_storage keys and values
                         // and put them into the account.
-                        for (index, value) in apply_storage {
-                            account.storage = if value == crate::state::Value::default() {
+                        for (index, value) in storage {
+                            account.storage = if value == Default::default() {
                                 // value is full of zeroes, remove it
                                 account.storage.remove(&index)
                             } else {
@@ -418,20 +427,53 @@ impl<'runtime> ApplyBackend for VirtualMachine<'runtime> {
                     });
                 }
                 Apply::Delete { address } => {
-                    self.state = self.state.clone().remove(&address);
+                    self.state.modify_account(address, |_| None);
                 }
             }
         }
 
         // save the logs
         let block_hash = self.block_hash(self.block_number());
-        self.logs.put(block_hash, logs.into_iter().collect());
+        self.state
+            .update_logs(block_hash, logs.into_iter().collect());
     }
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
-mod test {
+pub mod test {
     use super::*;
+    use crate::state::{AccountTrie, LogsState};
+
+    pub struct TestEvmState {
+        pub environment: Environment,
+        pub accounts: AccountTrie,
+        pub logs: LogsState,
+    }
+
+    impl EvmState for TestEvmState {
+        fn environment(&self) -> &Environment {
+            &self.environment
+        }
+
+        fn account(&self, address: Address) -> Option<Account> {
+            self.accounts.get(&address).cloned()
+        }
+
+        fn contains(&self, address: Address) -> bool {
+            self.accounts.contains(&address)
+        }
+
+        fn modify_account<F>(&mut self, address: Address, f: F)
+        where
+            F: FnOnce(Account) -> Option<Account>,
+        {
+            self.accounts = self.accounts.clone().modify_account(address, f);
+        }
+
+        fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
+            self.logs.put(block_hash, logs);
+        }
+    }
 
     impl quickcheck::Arbitrary for Config {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
@@ -453,7 +495,6 @@ mod test {
         let config = Config::Istanbul;
         let environment = Environment {
             gas_price: Default::default(),
-            origin: Default::default(),
             chain_id: Default::default(),
             block_hashes: Default::default(),
             block_number: Default::default(),
@@ -466,7 +507,13 @@ mod test {
 
         let evm_config = config.into();
 
-        let vm = VirtualMachine::new(config, &environment);
+        let mut evm_state = TestEvmState {
+            environment,
+            accounts: Default::default(),
+            logs: Default::default(),
+        };
+
+        let vm = VirtualMachine::new(&mut evm_state);
 
         let gas_limit = u64::max_value();
 

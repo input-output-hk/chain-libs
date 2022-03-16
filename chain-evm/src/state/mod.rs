@@ -10,6 +10,27 @@ mod storage;
 mod trie;
 
 pub use account::{Account, AccountTrie, Balance, ByteCode, Nonce};
+use evm::ExitError;
 pub use logs::LogsState;
+use std::borrow::Cow;
 pub use storage::{Key, Storage, Value};
 pub use trie::Trie;
+
+/// Definition for state-related errors.
+#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+pub enum Error {
+    #[error("EVM values cannot exceed 64 significant bits")]
+    ValueOverflow,
+}
+
+impl From<Error> for crate::machine::Error {
+    fn from(other: Error) -> Self {
+        Self::TransactionError(ExitError::Other(Cow::from(String::from(other))))
+    }
+}
+
+impl From<Error> for String {
+    fn from(other: Error) -> Self {
+        format!("{:?}", other)
+    }
+}

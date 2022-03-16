@@ -1,8 +1,7 @@
 use crate::{
     certificate::{
-        BftLeaderBindingSignature, Certificate, CertificatePayload, EncryptedVoteTally,
-        EncryptedVoteTallyProof, PoolOwnersSigned, PoolSignature, TallyProof, UpdateProposal,
-        UpdateVote, VotePlan, VotePlanProof, VoteTally,
+        BftLeaderBindingSignature, Certificate, CertificatePayload, EvmMapping, PoolOwnersSigned,
+        PoolSignature, TallyProof, UpdateProposal, UpdateVote, VotePlan, VotePlanProof, VoteTally,
     },
     chaintypes::HeaderId,
     date::BlockDate,
@@ -205,19 +204,6 @@ impl TestTxCertBuilder {
                 let tx = builder.set_payload_auth(&committee_signature);
                 Fragment::VoteTally(tx)
             }
-            Certificate::EncryptedVoteTally(vote_tally) => {
-                let builder = self.set_initial_ios(
-                    valid_until,
-                    TxBuilder::new().set_payload(vote_tally),
-                    funder,
-                    inputs,
-                    outputs,
-                    make_witness,
-                );
-                let committee_signature = encrypted_tally_sign(&keys, &builder);
-                let tx = builder.set_payload_auth(&committee_signature);
-                Fragment::EncryptedVoteTally(tx)
-            }
             Certificate::UpdateProposal(update_proposal) => {
                 let builder = self.set_initial_ios(
                     valid_until,
@@ -255,6 +241,19 @@ impl TestTxCertBuilder {
                 );
                 let tx = builder.set_payload_auth(&());
                 Fragment::MintToken(tx)
+            }
+            Certificate::EvmMapping(evm_mapping) => {
+                let builder = self.set_initial_ios(
+                    valid_until,
+                    TxBuilder::new().set_payload(evm_mapping),
+                    funder,
+                    inputs,
+                    outputs,
+                    make_witness,
+                );
+                let signature = evm_mapping_sign(&keys, &builder);
+                let tx = builder.set_payload_auth(&signature);
+                Fragment::EvmMapping(tx)
             }
         }
     }
@@ -324,18 +323,6 @@ pub fn tally_sign(
     }
 }
 
-pub fn encrypted_tally_sign(
-    keys: &[EitherEd25519SecretKey],
-    builder: &TxBuilderState<SetAuthData<EncryptedVoteTally>>,
-) -> EncryptedVoteTallyProof {
-    let key: EitherEd25519SecretKey = keys[0].clone();
-    let id = key.to_public().into();
-
-    let auth_data = builder.get_auth_data();
-    let signature = SingleAccountBindingSignature::new(&auth_data, |d| key.sign_slice(d.0));
-    EncryptedVoteTallyProof { id, signature }
-}
-
 pub fn plan_sign(
     keys: &[EitherEd25519SecretKey],
     builder: &TxBuilderState<SetAuthData<VotePlan>>,
@@ -388,6 +375,16 @@ pub fn update_vote_sign(
 
     let auth_data = builder.get_auth_data();
     BftLeaderBindingSignature::new(&auth_data, |d| key.sign_slice(d.0))
+}
+
+pub fn evm_mapping_sign(
+    keys: &[EitherEd25519SecretKey],
+    builder: &TxBuilderState<SetAuthData<EvmMapping>>,
+) -> SingleAccountBindingSignature {
+    let key: EitherEd25519SecretKey = keys[0].clone();
+
+    let auth_data = builder.get_auth_data();
+    SingleAccountBindingSignature::new(&auth_data, |d| key.sign_slice(d.0))
 }
 
 /// this struct can create any transaction including not valid one
