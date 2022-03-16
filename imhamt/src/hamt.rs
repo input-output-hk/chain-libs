@@ -23,7 +23,6 @@ pub struct Hamt<H: Hasher + Default, K: PartialEq + Eq + Hash, V> {
     hasher: PhantomData<H>,
 }
 
-
 pub struct HamtIter<'a, K, V> {
     stack: Vec<NodeIter<'a, K, V>>,
     content: Option<slice::Iter<'a, (K, V)>>,

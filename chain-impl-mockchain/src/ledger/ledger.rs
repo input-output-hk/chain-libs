@@ -338,6 +338,7 @@ impl LedgerParameters {
 }
 
 impl Ledger {
+    #[cfg_attr(feature = "evm", allow(clippy::let_and_return))]
     pub(crate) fn empty(
         settings: setting::Settings,
         static_params: LedgerStaticParameters,
@@ -364,8 +365,9 @@ impl Ledger {
             evm: evm::Ledger::new(),
             token_totals: TokenTotals::default(),
         };
+
         #[cfg(feature = "evm")]
-        let ledger = ledger.set_evm_block0().set_evm_environment();
+        ledger.set_evm_block0().set_evm_environment();
         ledger
     }
 
