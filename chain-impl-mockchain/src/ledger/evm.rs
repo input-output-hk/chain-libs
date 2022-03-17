@@ -49,11 +49,11 @@ impl AddressMapping {
     fn del_accounts(&mut self, jor_id: JorAddress) {
         match self.jor_to_evm.lookup(&jor_id) {
             Some(evm_id) => {
-                self.evm_to_jor.remove(evm_id).ok();
+                self.evm_to_jor = self.evm_to_jor.remove(evm_id).unwrap();
             }
             None => {}
         }
-        self.jor_to_evm.remove(&jor_id).ok();
+        self.jor_to_evm = self.jor_to_evm.remove(&jor_id).unwrap();
     }
 
     fn map_accounts(&mut self, jor_id: JorAddress, evm_id: EvmAddress) -> Result<(), Error> {
