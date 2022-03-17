@@ -1,14 +1,10 @@
+use super::spending::{SpendingCounter, SpendingCounterIncreasing};
+use super::{LastRewards, LedgerError};
 use crate::date::Epoch;
 use crate::value::*;
 use crate::{certificate::PoolId, tokens::identifier::TokenIdentifier};
 use imhamt::{Hamt, HamtIter};
 use std::collections::hash_map::DefaultHasher;
-
-#[cfg(any(test, feature = "property-test-api"))]
-use proptest::strategy::Just;
-
-use super::spending::{SpendingCounter, SpendingCounterIncreasing};
-use super::{LastRewards, LedgerError};
 
 /// Set the choice of delegation:
 ///

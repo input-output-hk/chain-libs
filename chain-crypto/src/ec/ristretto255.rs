@@ -8,6 +8,7 @@ use curve25519_dalek_ng::{
 use cryptoxide::blake2b::Blake2b;
 use cryptoxide::digest::Digest;
 
+#[cfg(any(test, feature = "property-test-api"))]
 use proptest::strategy::{BoxedStrategy, Strategy};
 use rand_core::{CryptoRng, RngCore};
 use std::hash::{Hash, Hasher};
