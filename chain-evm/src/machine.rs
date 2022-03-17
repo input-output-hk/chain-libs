@@ -10,7 +10,7 @@
 //!
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic},
-    executor::stack::{MemoryStackState, StackExecutor, StackSubstateMetadata},
+    executor::stack::{MemoryStackState, StackExecutor, StackState, StackSubstateMetadata},
     Context, ExitError, ExitFatal, ExitReason, ExitRevert,
 };
 use primitive_types::{H160, H256, U256};
@@ -140,14 +140,20 @@ pub trait EvmState {
 
 pub struct VirtualMachine<'a, T> {
     state: &'a mut T,
+    config: &'a evm::Config,
     origin: H160,
+    gas_limit: u64,
+    metadata: StackSubstateMetadata<'a>,
 }
 
 impl<'a, T> VirtualMachine<'a, T> {
-    pub fn new(state: &'a mut T) -> Self {
+    pub fn new(state: &'a mut T, config: &'a evm::Config, origin: H160, gas_limit: u64) -> Self {
         Self {
             state,
-            origin: Default::default(),
+            config,
+            origin,
+            gas_limit,
+            metadata: StackSubstateMetadata::new(gas_limit, config),
         }
     }
 }
@@ -155,28 +161,17 @@ impl<'a, T> VirtualMachine<'a, T> {
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
 impl<'a, State: EvmState> VirtualMachine<'a, State> {
-    fn execute_transaction<F, T>(
-        &mut self,
-        config: Config,
-        caller: Address,
-        gas_limit: u64,
-        delete_empty: bool,
-        f: F,
-    ) -> Result<T, Error>
+    fn execute_transaction<F, T>(&mut self, delete_empty: bool, f: F) -> Result<T, Error>
     where
         for<'config> F: FnOnce(
             &mut StackExecutor<'config, '_, MemoryStackState<'_, 'config, Self>, Precompiles>,
         ) -> (ExitReason, T),
     {
         let precompiles = Precompiles::new();
-        let config = &(config.into());
 
-        self.origin = caller;
-
-        let metadata = StackSubstateMetadata::new(gas_limit, config);
-        let memory_stack_state = MemoryStackState::new(metadata, self);
+        let memory_stack_state = MemoryStackState::new(self.metadata.clone(), self);
         let mut executor =
-            StackExecutor::new_with_precompiles(memory_stack_state, config, &precompiles);
+            StackExecutor::new_with_precompiles(memory_stack_state, self.config, &precompiles);
 
         let (exit_reason, val) = f(&mut executor);
         match exit_reason {
@@ -193,7 +188,7 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
                 self.apply(values, logs, delete_empty);
 
                 // pay gas fees
-                self.state.modify_account(caller, |mut account| {
+                self.state.modify_account(self.origin, |mut account| {
                     account.balance = account.balance.checked_sub(gas_fees)?;
                     Some(account)
                 });
@@ -211,18 +206,17 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
     #[allow(clippy::too_many_arguments)]
     pub fn transact_create(
         &mut self,
-        config: Config,
-        caller: Address,
         value: Value,
         init_code: ByteCode,
-        gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
         if let Err(e) = Balance::try_from(value) {
             return Err(e.into());
         }
-        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+        let caller = self.origin;
+        let gas_limit = self.gas_limit;
+        self.execute_transaction(delete_empty, |executor| {
             (
                 executor.transact_create(
                     caller,
@@ -240,19 +234,18 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
     #[allow(clippy::too_many_arguments)]
     pub fn transact_create2(
         &mut self,
-        config: Config,
-        caller: Address,
         value: Value,
         init_code: ByteCode,
         salt: H256,
-        gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<(), Error> {
         if let Err(e) = Balance::try_from(value) {
             return Err(e.into());
         }
-        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+        let caller = self.origin;
+        let gas_limit = self.gas_limit;
+        self.execute_transaction(delete_empty, |executor| {
             (
                 executor.transact_create2(
                     caller,
@@ -271,12 +264,9 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
     #[allow(clippy::too_many_arguments)]
     pub fn transact_call(
         &mut self,
-        config: Config,
-        caller: Address,
         address: Address,
         value: Value,
         data: ByteCode,
-        gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
         delete_empty: bool,
     ) -> Result<ByteCode, Error> {
@@ -288,7 +278,9 @@ impl<'a, State: EvmState> VirtualMachine<'a, State> {
                 return Err(e.into());
             }
         }
-        self.execute_transaction(config, caller, gas_limit, delete_empty, |executor| {
+        let caller = self.origin;
+        let gas_limit = self.gas_limit;
+        self.execute_transaction(delete_empty, |executor| {
             executor.transact_call(
                 caller,
                 address,
@@ -368,6 +360,8 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
         Some(self.storage(address, index))
     }
 }
+
+// impl<'a, State: EvmState> StackState for VirtualMachine<'a, State> {}
 
 impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
     fn apply<A, I, L>(&mut self, values: A, logs: L, delete_empty: bool)
@@ -492,7 +486,7 @@ pub mod test {
         use evm::{Capture, ExitReason, ExitSucceed, Runtime};
         use std::rc::Rc;
 
-        let config = Config::Istanbul;
+        let config = Config::Istanbul.into();
         let environment = Environment {
             gas_price: Default::default(),
             chain_id: Default::default(),
@@ -505,23 +499,22 @@ pub mod test {
             block_base_fee_per_gas: Default::default(),
         };
 
-        let evm_config = config.into();
-
         let mut evm_state = TestEvmState {
             environment,
             accounts: Default::default(),
             logs: Default::default(),
         };
 
-        let vm = VirtualMachine::new(&mut evm_state);
-
+        let caller = Default::default();
         let gas_limit = u64::max_value();
 
-        let metadata = StackSubstateMetadata::new(gas_limit, &evm_config);
+        let vm = VirtualMachine::new(&mut evm_state, &config, caller, gas_limit);
+
+        let metadata = StackSubstateMetadata::new(gas_limit, &config);
         let memory_stack_state = MemoryStackState::new(metadata, &vm);
         let precompiles = Precompiles::new();
         let mut executor =
-            StackExecutor::new_with_precompiles(memory_stack_state, &evm_config, &precompiles);
+            StackExecutor::new_with_precompiles(memory_stack_state, &config, &precompiles);
 
         // Byte-encoded smart contract code
         let code = Rc::new(Vec::new());
@@ -530,11 +523,11 @@ pub mod test {
         // EVM Context
         let context = RuntimeContext {
             address: Default::default(),
-            caller: Default::default(),
+            caller,
             apparent_value: Default::default(),
         };
         // Handle for the EVM runtime
-        let mut runtime = Runtime::new(code, data, context, &evm_config);
+        let mut runtime = Runtime::new(code, data, context, &config);
 
         let exit_reason = runtime.run(&mut executor);
 

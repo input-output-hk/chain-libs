@@ -56,7 +56,7 @@ impl super::Ledger {
         contract: EvmTransaction,
         config: Config,
     ) -> Result<(), Error> {
-        let mut vm = VirtualMachine::new(self);
+        let config = config.into();
         match contract {
             EvmTransaction::Create {
                 caller,
@@ -65,15 +65,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                vm.transact_create(
-                    config,
-                    caller,
-                    value,
-                    init_code,
-                    gas_limit,
-                    access_list,
-                    true,
-                )?;
+                let mut vm = VirtualMachine::new(self, &config, caller, gas_limit);
+                vm.transact_create(value, init_code, access_list, true)?;
             }
             EvmTransaction::Create2 {
                 caller,
@@ -83,16 +76,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                vm.transact_create2(
-                    config,
-                    caller,
-                    value,
-                    init_code,
-                    salt,
-                    gas_limit,
-                    access_list,
-                    true,
-                )?;
+                let mut vm = VirtualMachine::new(self, &config, caller, gas_limit);
+                vm.transact_create2(value, init_code, salt, access_list, true)?;
             }
             EvmTransaction::Call {
                 caller,
@@ -102,16 +87,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let _byte_code_msg = vm.transact_call(
-                    config,
-                    caller,
-                    address,
-                    value,
-                    data,
-                    gas_limit,
-                    access_list,
-                    true,
-                )?;
+                let mut vm = VirtualMachine::new(self, &config, caller, gas_limit);
+                let _byte_code_msg = vm.transact_call(address, value, data, access_list, true)?;
             }
         }
         Ok(())
