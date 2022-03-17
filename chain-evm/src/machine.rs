@@ -11,7 +11,7 @@
 use evm::{
     backend::{Apply, ApplyBackend, Backend, Basic},
     executor::stack::{MemoryStackState, StackExecutor, StackState, StackSubstateMetadata},
-    Context, ExitError, ExitFatal, ExitReason, ExitRevert,
+    Context, ExitError, ExitFatal, ExitReason, ExitRevert, Transfer,
 };
 use primitive_types::{H160, H256, U256};
 
@@ -361,7 +361,65 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
     }
 }
 
-// impl<'a, State: EvmState> StackState for VirtualMachine<'a, State> {}
+impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
+    fn metadata(&self) -> &StackSubstateMetadata<'a> {
+        &self.metadata
+    }
+
+    fn metadata_mut(&mut self) -> &mut StackSubstateMetadata<'a> {
+        &mut self.metadata
+    }
+
+    fn enter(&mut self, _: u64, _: bool) {}
+
+    fn exit_commit(&mut self) -> Result<(), ExitError> {
+        Ok(())
+    }
+
+    fn exit_revert(&mut self) -> Result<(), ExitError> {
+        Ok(())
+    }
+
+    fn exit_discard(&mut self) -> Result<(), ExitError> {
+        Ok(())
+    }
+
+    fn is_empty(&self, _: H160) -> bool {
+        true
+    }
+
+    fn deleted(&self, _: H160) -> bool {
+        true
+    }
+
+    fn is_cold(&self, _: H160) -> bool {
+        true
+    }
+
+    fn is_storage_cold(&self, _: H160, _: H256) -> bool {
+        true
+    }
+
+    fn inc_nonce(&mut self, _: H160) {}
+
+    fn set_storage(&mut self, _: H160, _: H256, _: H256) {}
+
+    fn reset_storage(&mut self, _: H160) {}
+
+    fn log(&mut self, _: H160, _: Vec<H256>, _: Vec<u8>) {}
+
+    fn set_deleted(&mut self, _: H160) {}
+
+    fn set_code(&mut self, _: H160, _: Vec<u8>) {}
+
+    fn transfer(&mut self, _: Transfer) -> Result<(), ExitError> {
+        Ok(())
+    }
+
+    fn reset_balance(&mut self, _: H160) {}
+
+    fn touch(&mut self, _: H160) {}
+}
 
 impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
     fn apply<A, I, L>(&mut self, values: A, logs: L, delete_empty: bool)
