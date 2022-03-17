@@ -198,6 +198,56 @@ fn unpack_spending_strategy<R: std::io::BufRead>(
     })
 }
 
+#[cfg(feature = "evm")]
+fn pack_evm_state<W: std::io::Write>(
+    evm_state: &chain_evm::state::AccountState,
+    codec: &mut Codec<W>,
+) -> Result<(), std::io::Error> {
+    codec.put_be_u32(evm_state.code.len().try_into().unwrap())?;
+    codec.put_bytes(evm_state.code.as_slice())?;
+
+    let mut bytes = [0; chain_evm::primitive_types::H256::len_bytes()];
+    evm_state.nonce.to_big_endian(&mut bytes);
+    codec.put_bytes(&bytes)?;
+
+    codec.put_be_u32(evm_state.storage.size().try_into().unwrap())?;
+    for (key, value) in evm_state.storage.iter() {
+        codec.put_bytes(key.as_bytes())?;
+        codec.put_bytes(value.as_bytes())?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "evm")]
+fn unpack_evm_state<R: std::io::BufRead>(
+    codec: &mut Codec<R>,
+) -> Result<chain_evm::state::AccountState, std::io::Error> {
+    use chain_evm::primitive_types::H256;
+
+    let code_size = codec.get_be_u32()? as usize;
+    let code = codec.get_bytes(code_size)?;
+
+    let nonce_bytes = codec.get_bytes(H256::len_bytes())?;
+    let nonce = chain_evm::primitive_types::U256::from_big_endian(&nonce_bytes);
+
+    let storage_size = codec.get_be_u32()? as usize;
+    let mut storage = chain_evm::state::Trie::<H256, H256>::new();
+    for _ in 0..storage_size {
+        let k = codec.get_bytes(H256::len_bytes())?;
+        let v = codec.get_bytes(H256::len_bytes())?;
+        storage = storage.put(
+            H256::from_slice(k.as_slice()),
+            H256::from_slice(v.as_slice()),
+        );
+    }
+
+    Ok(chain_evm::state::AccountState {
+        code,
+        storage,
+        nonce,
+    })
+}
+
 fn pack_account_state<W: std::io::Write>(
     account_state: &AccountState<()>,
     codec: &mut Codec<W>,
@@ -206,6 +256,8 @@ fn pack_account_state<W: std::io::Write>(
     pack_delegation_type(&account_state.delegation, codec)?;
     codec.put_be_u64(account_state.value.0)?;
     pack_last_rewards(&account_state.last_rewards, codec)?;
+    #[cfg(feature = "evm")]
+    pack_evm_state(&account_state.evm_state, codec)?;
     Ok(())
 }
 
@@ -216,13 +268,15 @@ fn unpack_account_state<R: std::io::BufRead>(
     let delegation = unpack_delegation_type(codec)?;
     let value = codec.get_be_u64()?;
     let last_rewards = unpack_last_rewards(codec)?;
+    #[cfg(feature = "evm")]
+    let evm_state = unpack_evm_state(codec)?;
     Ok(AccountState {
         spending,
         delegation,
         value: Value(value),
         tokens: Hamt::new(),
         #[cfg(feature = "evm")]
-        evm_state: chain_evm::state::AccountState::default(),
+        evm_state,
         last_rewards,
         extra: (),
     })

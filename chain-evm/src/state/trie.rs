@@ -74,6 +74,10 @@ impl<K: Clone + Hash + Eq, V: Clone> Trie<K, V> {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    pub fn size(&self) -> usize {
+        self.0.size()
+    }
 }
 
 impl<'a, K: Hash + Eq, V> IntoIterator for &'a Trie<K, V> {
