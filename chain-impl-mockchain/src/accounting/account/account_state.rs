@@ -4,6 +4,9 @@ use crate::{certificate::PoolId, tokens::identifier::TokenIdentifier};
 use imhamt::{Hamt, HamtIter};
 use std::collections::hash_map::DefaultHasher;
 
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::strategy::Just;
+
 use super::spending::{SpendingCounter, SpendingCounterIncreasing};
 use super::{LastRewards, LedgerError};
 
@@ -86,18 +89,10 @@ impl DelegationRatio {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct AccountState<Extra> {
     pub spending: SpendingCounterIncreasing,
     pub delegation: DelegationType,
     pub value: Value,
-    #[cfg_attr(
-        any(test, feature = "property-test-api"),
-        strategy(test_impls::arbitrary_hamt())
-    )]
     pub tokens: Hamt<DefaultHasher, TokenIdentifier, Value>,
     pub last_rewards: LastRewards,
     pub extra: Extra,
@@ -105,16 +100,34 @@ pub struct AccountState<Extra> {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod test_impls {
-    use std::collections::HashMap;
-
-    use proptest::arbitrary::any;
-    use proptest::strategy::Strategy;
-
     use super::*;
+    use proptest::prelude::*;
 
-    pub(super) fn arbitrary_hamt(
-    ) -> impl Strategy<Value = Hamt<DefaultHasher, TokenIdentifier, Value>> {
-        any::<HashMap<TokenIdentifier, Value>>().prop_map(|map| map.into_iter().collect())
+    prop_compose! {
+        fn arbitrary_account_state()(
+            spending in any::<SpendingCounterIncreasing>(),
+            pool_id in any::<PoolId>(),
+            value in any::<Value>(),
+            ) -> AccountState<()> {
+            AccountState {
+                spending,
+                delegation: DelegationType::Full(pool_id),
+                value,
+                tokens: Hamt::new(),
+                last_rewards: LastRewards::default(),
+                extra: (),
+
+            }
+        }
+    }
+
+    impl Arbitrary for AccountState<()> {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            arbitrary_account_state().boxed()
+        }
     }
 }
 
@@ -520,6 +533,12 @@ mod tests {
 
     #[proptest]
     fn add_rewards(account_state_no_reward: AccountState<()>, value: Value) {
+        // explicitly ignore the case where integer overflow happens
+        let sum = account_state_no_reward.value.0.checked_add(value.0);
+        if sum.is_none() {
+            return Ok(());
+        }
+
         let initial_value = account_state_no_reward.value();
         let account_state_reward = account_state_no_reward.clone();
 

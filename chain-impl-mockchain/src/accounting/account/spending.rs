@@ -3,12 +3,37 @@ use super::LedgerError;
 
 /// Simple strategy to spend from multiple increasing counters
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct SpendingCounterIncreasing {
     nexts: Vec<SpendingCounter>,
+}
+
+// SpendingCounterIncreasing has extra invariants (e.g. nexts has 8 elements, each belongs to a different lane), so a derived implementation is not suitable
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use super::*;
+    use proptest::prelude::*;
+
+    impl Arbitrary for SpendingCounterIncreasing {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<bool>()
+                .prop_flat_map(|b| {
+                    if b {
+                        any::<SpendingCounter>()
+                            .prop_map(|counter| Some(Self::new_from_counter(counter)))
+                            .boxed()
+                    } else {
+                        any::<Vec<SpendingCounter>>()
+                            .prop_map(Self::new_from_counters)
+                            .boxed()
+                    }
+                })
+                .prop_filter_map("must be valid spending counter set", |i| i)
+                .boxed()
+        }
+    }
 }
 
 // number of bits reserved for lanes
