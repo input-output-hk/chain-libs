@@ -4,7 +4,8 @@ use crate::header::BlockDate;
 use crate::ledger::Error;
 use chain_evm::{
     machine::{
-        BlockHash, BlockNumber, BlockTimestamp, Config, Environment, EvmState, Log, VirtualMachine,
+        transact_call, transact_create, transact_create2, BlockHash, BlockNumber, BlockTimestamp,
+        Config, Environment, EvmState, Log, VirtualMachine,
     },
     primitive_types::{H256, U256},
     state::{Account, AccountTrie, LogsState},
@@ -65,8 +66,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let mut vm = VirtualMachine::new(self, &config, caller, gas_limit);
-                vm.transact_create(value, init_code, access_list, true)?;
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit);
+                transact_create(vm, value, init_code, access_list, true)?;
             }
             EvmTransaction::Create2 {
                 caller,
@@ -76,8 +77,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let mut vm = VirtualMachine::new(self, &config, caller, gas_limit);
-                vm.transact_create2(value, init_code, salt, access_list, true)?;
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit);
+                transact_create2(vm, value, init_code, salt, access_list, true)?;
             }
             EvmTransaction::Call {
                 caller,
@@ -87,8 +88,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let mut vm = VirtualMachine::new(self, &config, caller, gas_limit);
-                let _byte_code_msg = vm.transact_call(address, value, data, access_list, true)?;
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit);
+                let _byte_code_msg = transact_call(vm, address, value, data, access_list, true)?;
             }
         }
         Ok(())

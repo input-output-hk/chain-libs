@@ -1,5 +1,5 @@
 use crate::machine::test::TestEvmState;
-use crate::machine::VirtualMachine;
+use crate::machine::{transact_call, VirtualMachine};
 use crate::{state::Account, Config};
 use evm_test_suite::{AccountState, BlockHeader, CallTransaction, NetworkType};
 use primitive_types::{H160, U256};
@@ -124,9 +124,8 @@ impl evm_test_suite::TestEvmState for TestEvmLedger {
     fn try_apply_transaction(mut self, tx: CallTransaction) -> Result<Self, String> {
         self.state.environment.gas_price = tx.gas_price;
         let config = self.config.into();
-        let mut vm =
-            VirtualMachine::new(&mut self.state, &config, tx.sender, tx.gas_limit.as_u64());
-        vm.transact_call(tx.to, tx.value, tx.data, Vec::new(), true)
+        let vm = VirtualMachine::new(&mut self.state, &config, tx.sender, tx.gas_limit.as_u64());
+        transact_call(vm, tx.to, tx.value, tx.data, Vec::new(), true)
             .map_err(|e| format!("can not run transaction, err: {}", e))?;
 
         Ok(self)
@@ -137,7 +136,7 @@ impl evm_test_suite::TestEvmState for TestEvmLedger {
 #[test]
 #[ignore]
 fn run_evm_test() {
-    evm_test_suite::run_evm_test::<TestEvmLedger>(evm_test_suite::arithmetic::ADD);
+    evm_test_suite::run_evm_test::<TestEvmLedger>(evm_test_suite::arithmetic::FIB);
 }
 
 #[test]
