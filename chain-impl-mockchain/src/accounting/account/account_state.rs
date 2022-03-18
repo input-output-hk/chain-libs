@@ -22,6 +22,7 @@ pub enum DelegationType {
     Ratio(DelegationRatio),
 }
 
+
 /// Delegation Ratio type express a number of parts
 /// and a list of pools and their individual parts
 ///

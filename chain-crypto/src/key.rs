@@ -1,5 +1,6 @@
 use crate::bech32::{self, Bech32};
 use hex::FromHexError;
+#[cfg(any(test, feature = "property-test-api"))]
 use proptest::strategy::{BoxedStrategy, Strategy};
 use rand_core::{CryptoRng, RngCore};
 use std::fmt;
