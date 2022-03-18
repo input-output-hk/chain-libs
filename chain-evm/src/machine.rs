@@ -254,11 +254,6 @@ where
             // apply changes to the state, this consumes the executor
             let vm = executor.into_state();
             println!("pre gas: {}", vm.substate.metadata.gasometer().gas());
-            // // Next, we consume the stack state and extract the values and logs
-            // // used to modify the accounts trie in the VirtualMachine.
-            // let (values, logs) = state.deconstruct();
-
-            // vm.apply(values, logs, delete_empty);
 
             // pay gas fees
             vm.state.modify_account(vm.origin, |mut account| {
@@ -405,31 +400,56 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
         self.state.environment().chain_id
     }
     fn exists(&self, address: H160) -> bool {
-        self.state.contains(address)
+        self.substate.known_account(&address).is_some() || self.state.contains(address)
     }
     fn basic(&self, address: H160) -> Basic {
-        self.state
-            .account(address)
+        self.substate
+            .known_account(&address)
             .map(|account| Basic {
                 balance: account.balance.into(),
                 nonce: account.nonce,
             })
-            .unwrap_or_default()
+            .unwrap_or_else(|| {
+                self.state
+                    .account(address)
+                    .map(|account| Basic {
+                        balance: account.balance.into(),
+                        nonce: account.nonce,
+                    })
+                    .unwrap_or_default()
+            })
     }
     fn code(&self, address: H160) -> Vec<u8> {
-        self.state
-            .account(address)
-            .map(|account| account.code)
-            .unwrap_or_default()
+        self.substate
+            .known_account(&address)
+            .map(|account| account.code.clone())
+            .unwrap_or_else(|| {
+                self.state
+                    .account(address)
+                    .map(|account| account.code)
+                    .unwrap_or_default()
+            })
     }
     fn storage(&self, address: H160, index: H256) -> H256 {
-        self.state
-            .account(address)
+        self.substate
+            .known_account(&address)
             .map(|account| account.storage.get(&index).cloned().unwrap_or_default())
-            .unwrap_or_default()
+            .unwrap_or_else(|| {
+                self.state
+                    .account(address)
+                    .map(|account| account.storage.get(&index).cloned().unwrap_or_default())
+                    .unwrap_or_default()
+            })
     }
     fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
-        Some(self.storage(address, index))
+        match self
+            .substate
+            .known_account(&address)
+            .map(|account| account.storage.get(&index).cloned())
+        {
+            Some(value) => value,
+            None => Some(self.storage(address, index)),
+        }
     }
 }
 

@@ -136,7 +136,7 @@ impl evm_test_suite::TestEvmState for TestEvmLedger {
 #[test]
 #[ignore]
 fn run_evm_test() {
-    evm_test_suite::run_evm_test::<TestEvmLedger>(evm_test_suite::arithmetic::FIB);
+    evm_test_suite::run_evm_test::<TestEvmLedger>(evm_test_suite::io_and_flow_operations::CODE_COPY);
 }
 
 #[test]
