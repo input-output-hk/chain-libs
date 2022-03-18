@@ -239,8 +239,6 @@ where
     let config = vm.config;
     let gas_price = vm.gas_price();
 
-    println!("pre gas: {}", vm.substate.metadata.gasometer().gas());
-
     // let memory_stack_state = MemoryStackState::new(vm.substate.metadata.clone(), &vm);
     let mut executor = StackExecutor::new_with_precompiles(vm, config, &precompiles);
 
@@ -250,10 +248,8 @@ where
             // calculate the gas fees given the
             // gas price in the environment
             let gas_fees = executor.fee(gas_price);
-            println!("gas fees: {}, gas_price: {}", gas_fees, gas_price);
             // apply changes to the state, this consumes the executor
             let vm = executor.into_state();
-            println!("pre gas: {}", vm.substate.metadata.gasometer().gas());
 
             // pay gas fees
             vm.state.modify_account(vm.origin, |mut account| {
@@ -442,13 +438,9 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
             })
     }
     fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
-        match self
-            .substate
-            .known_account(&address)
-            .map(|account| account.storage.get(&index).cloned())
-        {
-            Some(value) => value,
-            None => Some(self.storage(address, index)),
+        match self.state.account(address) {
+            Some(account) => account.storage.get(&index).cloned(),
+            None => None,
         }
     }
 }
