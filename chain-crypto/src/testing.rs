@@ -75,7 +75,6 @@ impl TestCryptoGen {
     pub fn prop_arb() -> impl Strategy<Value = Self> {
         any::<u64>().prop_map(Self)
     }
-
 }
 
 #[allow(dead_code)]
