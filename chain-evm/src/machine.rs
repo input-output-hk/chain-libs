@@ -11,7 +11,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use evm::{
-    backend::{Apply, ApplyBackend, Backend, Basic},
+    backend::{Backend, Basic},
     executor::stack::{Accessed, StackExecutor, StackState, StackSubstateMetadata},
     Context, ExitError, ExitFatal, ExitReason, ExitRevert, Transfer,
 };
@@ -202,16 +202,24 @@ pub struct VirtualMachine<'a, T> {
     config: &'a evm::Config,
     origin: H160,
     gas_limit: u64,
+    delete_empty: bool,
     substate: VirtualMachineSubstate<'a>,
 }
 
 impl<'a, T> VirtualMachine<'a, T> {
-    pub fn new(state: &'a mut T, config: &'a evm::Config, origin: H160, gas_limit: u64) -> Self {
+    pub fn new(
+        state: &'a mut T,
+        config: &'a evm::Config,
+        origin: H160,
+        gas_limit: u64,
+        delete_empty: bool,
+    ) -> Self {
         Self {
             state,
             config,
             origin,
             gas_limit,
+            delete_empty,
             substate: VirtualMachineSubstate {
                 metadata: StackSubstateMetadata::new(gas_limit, config),
                 logs: Default::default(),
@@ -227,7 +235,6 @@ impl<'a, T> VirtualMachine<'a, T> {
 /// necessary types used to get the runtime going.
 fn execute_transaction<'a, State: EvmState, F, T>(
     vm: VirtualMachine<'a, State>,
-    delete_empty: bool,
     f: F,
 ) -> Result<T, Error>
 where
@@ -273,14 +280,13 @@ pub fn transact_create<'a, State: EvmState>(
     value: Value,
     init_code: ByteCode,
     access_list: Vec<(Address, Vec<Key>)>,
-    delete_empty: bool,
 ) -> Result<(), Error> {
     if let Err(e) = Balance::try_from(value) {
         return Err(e.into());
     }
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
-    execute_transaction(vm, delete_empty, |executor| {
+    execute_transaction(vm, |executor| {
         (
             executor.transact_create(
                 caller,
@@ -302,14 +308,13 @@ pub fn transact_create2<'a, State: EvmState>(
     init_code: ByteCode,
     salt: H256,
     access_list: Vec<(Address, Vec<Key>)>,
-    delete_empty: bool,
 ) -> Result<(), Error> {
     if let Err(e) = Balance::try_from(value) {
         return Err(e.into());
     }
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
-    execute_transaction(vm, delete_empty, |executor| {
+    execute_transaction(vm, |executor| {
         (
             executor.transact_create2(
                 caller,
@@ -332,7 +337,6 @@ pub fn transact_call<'a, State: EvmState>(
     value: Value,
     data: ByteCode,
     access_list: Vec<(Address, Vec<Key>)>,
-    delete_empty: bool,
 ) -> Result<ByteCode, Error> {
     if let Err(e) = Balance::try_from(value) {
         return Err(e.into());
@@ -344,7 +348,7 @@ pub fn transact_call<'a, State: EvmState>(
     }
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
-    execute_transaction(vm, delete_empty, |executor| {
+    execute_transaction(vm, |executor| {
         executor.transact_call(
             caller,
             address,
@@ -496,7 +500,7 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
                 .collect();
 
             self.state.modify_account(address.clone(), |_| {
-                if account.is_empty() {
+                if self.delete_empty && account.is_empty() {
                     None
                 } else {
                     Some(account)
@@ -618,82 +622,12 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
     }
 }
 
-impl<'a, State: EvmState> ApplyBackend for VirtualMachine<'a, State> {
-    fn apply<A, I, L>(&mut self, values: A, logs: L, delete_empty: bool)
-    where
-        A: IntoIterator<Item = Apply<I>>,
-        I: IntoIterator<Item = (H256, H256)>,
-        L: IntoIterator<Item = Log>,
-    {
-        for apply in values {
-            match apply {
-                Apply::Modify {
-                    address,
-                    basic: Basic { balance, nonce },
-                    code,
-                    storage,
-                    reset_storage,
-                } => {
-                    // get the account if stored, else use Default::default().
-                    // Then, modify the account balance, nonce, and code.
-                    // If reset_storage is set, the account's balance is
-                    // set to be Default::default().
-                    self.state.modify_account(address, |mut account| {
-                        account.balance = balance.try_into().unwrap();
-                        account.nonce = nonce;
-                        if let Some(code) = code {
-                            account.code = code
-                        };
-                        if reset_storage {
-                            account.storage = Default::default();
-                        }
-
-                        // cleanup storage from zero values
-                        // ref: https://github.com/rust-blockchain/evm/blob/8b1875c83105f47b74d3d7be7302f942e92eb374/src/backend/memory.rs#L185
-                        account.storage = account
-                            .storage
-                            .iter()
-                            .filter(|(_, v)| v != &&Default::default())
-                            .map(|(k, v)| (*k, *v))
-                            .collect();
-
-                        // iterate over the apply_storage keys and values
-                        // and put them into the account.
-                        for (index, value) in storage {
-                            account.storage = if value == Default::default() {
-                                // value is full of zeroes, remove it
-                                account.storage.remove(&index)
-                            } else {
-                                account.storage.put(index, value)
-                            }
-                        }
-
-                        if delete_empty && account.is_empty() {
-                            None
-                        } else {
-                            Some(account)
-                        }
-                    });
-                }
-                Apply::Delete { address } => {
-                    self.state.modify_account(address, |_| None);
-                }
-            }
-        }
-
-        // save the logs
-        let block_hash = self.block_hash(self.block_number());
-        self.state
-            .update_logs(block_hash, logs.into_iter().collect());
-    }
-}
-
 #[cfg(any(test, feature = "property-test-api"))]
 pub mod test {
-    use evm::executor::stack::MemoryStackState;
-
     use super::*;
     use crate::state::{AccountTrie, LogsState};
+    #[cfg(test)]
+    use evm::executor::stack::MemoryStackState;
 
     pub struct TestEvmState {
         pub environment: Environment,
@@ -765,7 +699,7 @@ pub mod test {
         let caller = Default::default();
         let gas_limit = u64::max_value();
 
-        let vm = VirtualMachine::new(&mut evm_state, &config, caller, gas_limit);
+        let vm = VirtualMachine::new(&mut evm_state, &config, caller, gas_limit, true);
 
         let metadata = StackSubstateMetadata::new(gas_limit, &config);
         let memory_stack_state = MemoryStackState::new(metadata, &vm);

@@ -66,8 +66,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let vm = VirtualMachine::new(self, &config, caller, gas_limit);
-                transact_create(vm, value, init_code, access_list, true)?;
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit, true);
+                transact_create(vm, value, init_code, access_list)?;
             }
             EvmTransaction::Create2 {
                 caller,
@@ -77,8 +77,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let vm = VirtualMachine::new(self, &config, caller, gas_limit);
-                transact_create2(vm, value, init_code, salt, access_list, true)?;
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit, true);
+                transact_create2(vm, value, init_code, salt, access_list)?;
             }
             EvmTransaction::Call {
                 caller,
@@ -88,8 +88,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let vm = VirtualMachine::new(self, &config, caller, gas_limit);
-                let _byte_code_msg = transact_call(vm, address, value, data, access_list, true)?;
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit, true);
+                let _byte_code_msg = transact_call(vm, address, value, data, access_list)?;
             }
         }
         Ok(())
