@@ -110,9 +110,6 @@ pub struct Environment {
     pub block_base_fee_per_gas: BlockBaseFeePerGas,
 }
 
-/// Integer of the value sent with an EVM transaction.
-pub type Value = U256;
-
 /// The context of the EVM runtime
 pub type RuntimeContext = Context;
 
@@ -259,10 +256,16 @@ where
             let vm = executor.into_state();
 
             // pay gas fees
-            vm.state.modify_account(vm.origin, |mut account| {
-                account.balance = account.balance.checked_sub(gas_fees)?;
-                Some(account)
-            });
+            match vm.state.account(vm.origin) {
+                Some(mut account) => {
+                    account.balance = account
+                        .balance
+                        .checked_sub(gas_fees)
+                        .ok_or(Error::TransactionError(ExitError::OutOfFund))?;
+                    vm.state.modify_account(vm.origin, |_| Some(account));
+                }
+                None => {}
+            }
 
             // exit_reason
             Ok(val)
@@ -277,13 +280,10 @@ where
 #[allow(clippy::too_many_arguments)]
 pub fn transact_create<'a, State: EvmState>(
     vm: VirtualMachine<'a, State>,
-    value: Value,
+    value: U256,
     init_code: ByteCode,
     access_list: Vec<(Address, Vec<Key>)>,
 ) -> Result<(), Error> {
-    if let Err(e) = Balance::try_from(value) {
-        return Err(e.into());
-    }
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
     execute_transaction(vm, |executor| {
@@ -304,14 +304,11 @@ pub fn transact_create<'a, State: EvmState>(
 #[allow(clippy::too_many_arguments)]
 pub fn transact_create2<'a, State: EvmState>(
     vm: VirtualMachine<'a, State>,
-    value: Value,
+    value: U256,
     init_code: ByteCode,
     salt: H256,
     access_list: Vec<(Address, Vec<Key>)>,
 ) -> Result<(), Error> {
-    if let Err(e) = Balance::try_from(value) {
-        return Err(e.into());
-    }
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
     execute_transaction(vm, |executor| {
@@ -334,18 +331,10 @@ pub fn transact_create2<'a, State: EvmState>(
 pub fn transact_call<'a, State: EvmState>(
     vm: VirtualMachine<'a, State>,
     address: Address,
-    value: Value,
+    value: U256,
     data: ByteCode,
     access_list: Vec<(Address, Vec<Key>)>,
 ) -> Result<ByteCode, Error> {
-    if let Err(e) = Balance::try_from(value) {
-        return Err(e.into());
-    }
-    if let Some(expected_balance) = vm.basic(address).balance.checked_add(value) {
-        if let Err(e) = Balance::try_from(expected_balance) {
-            return Err(e.into());
-        }
-    }
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
     execute_transaction(vm, |executor| {
