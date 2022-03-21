@@ -28,10 +28,6 @@ pub type IndexSignatures = Vec<(u8, SingleAccountBindingSignature)>;
 
 /// Pool information
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct PoolRegistration {
     /// A random value, for user purpose similar to a UUID.
     /// it may not be unique over a blockchain, so shouldn't be used a unique identifier
@@ -52,6 +48,68 @@ pub struct PoolRegistration {
     pub reward_account: Option<AccountIdentifier>,
     /// Genesis Praos keys
     pub keys: GenesisPraosLeader,
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use super::*;
+    use chain_crypto::testing::TestCryptoGen;
+    use proptest::prelude::*;
+
+    impl Arbitrary for PoolRegistration {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            arb_pool_reg().boxed()
+        }
+    }
+
+    fn owners() -> impl Strategy<Value = Vec<PublicKey<Ed25519>>> {
+        (0usize..32).prop_flat_map(move |i| {
+            TestCryptoGen::prop_arb().prop_map(move |gen| {
+                let mut owners = Vec::with_capacity(i);
+                for _ in 0..i {
+                    owners.push(gen.keypair::<Ed25519>(0).public_key().clone())
+                }
+                owners
+            })
+        })
+    }
+
+    fn operators() -> impl Strategy<Value = Vec<PublicKey<Ed25519>>> {
+        (0usize..4).prop_flat_map(move |i| {
+            TestCryptoGen::prop_arb().prop_map(move |gen| {
+                let mut owners = Vec::with_capacity(i);
+                for _ in 0..i {
+                    owners.push(gen.keypair::<Ed25519>(0).public_key().clone())
+                }
+                owners
+            })
+        })
+    }
+
+    prop_compose! {
+        fn arb_pool_reg()(
+            owners in owners(),
+            operators in operators(),
+            start in any::<u64>(),
+            keys in any::<GenesisPraosLeader>(),
+            serial in any::<u128>()
+        ) -> PoolRegistration {
+            let start_validity: DurationSeconds = start.into();
+            PoolRegistration {
+                serial,
+                permissions: PoolPermissions::new(1),
+                start_validity: start_validity.into(),
+                owners,
+                operators: operators.into(),
+                rewards: TaxType::zero(),
+                reward_account: None,
+                keys
+            }
+        }
+    }
 }
 
 /// Permission system related to the pool

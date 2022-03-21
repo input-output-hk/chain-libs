@@ -19,6 +19,7 @@ pub struct TestCryptoGen(pub u64);
 /// A faster non-cryptographic RNG to be used in tests. NOTE: this RNG does
 /// implement `CryptoRng`, but it is not really cryptographic. It MUST NOT be
 /// used in the production code.
+#[derive(Debug)]
 pub struct TestCryptoRng(SmallRng);
 
 impl RngCore for TestCryptoRng {
@@ -70,6 +71,11 @@ impl TestCryptoGen {
     pub fn keypair<A: AsymmetricKey>(&self, idx: u32) -> KeyPair<A> {
         KeyPair::from(self.secret_key(idx))
     }
+
+    pub fn prop_arb() -> impl Strategy<Value = Self> {
+        any::<u64>().prop_map(Self)
+    }
+
 }
 
 #[allow(dead_code)]

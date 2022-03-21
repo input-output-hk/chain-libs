@@ -381,13 +381,40 @@ impl From<PublicKey<BftVerificationAlg>> for BftLeaderId {
 
 /// Praos Leader consisting of the KES public key and VRF public key
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct GenesisPraosLeader {
     pub kes_public_key: PublicKey<SumEd25519_12>,
     pub vrf_public_key: PublicKey<RistrettoGroup2HashDh>,
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use super::*;
+    use crypto::testing::{self, TestCryptoGen};
+    use lazy_static::lazy_static;
+    use proptest::prelude::*;
+
+    impl Arbitrary for GenesisPraosLeader {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            lazy_static! {
+                static ref PK_KES: PublicKey<SumEd25519_12> =
+                    testing::static_secret_key::<SumEd25519_12>().to_public();
+            }
+
+            TestCryptoGen::prop_arb()
+                .prop_map(|tcg| {
+                    let mut rng = tcg.get_rng(0);
+                    let vrf_sk: SecretKey<RistrettoGroup2HashDh> = SecretKey::generate(&mut rng);
+                    GenesisPraosLeader {
+                        vrf_public_key: vrf_sk.to_public(),
+                        kes_public_key: PK_KES.clone(),
+                    }
+                })
+                .boxed()
+        }
+    }
 }
 
 impl GenesisPraosLeader {

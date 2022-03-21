@@ -17,6 +17,10 @@ use typed_bytes::{ByteArray, ByteBuilder};
 ///
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[repr(u8)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum PayloadType {
     Public = 1,
     Private = 2,

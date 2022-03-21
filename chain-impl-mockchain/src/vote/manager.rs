@@ -890,9 +890,8 @@ mod tests {
     use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
     use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
     use chain_core::property::BlockDate as BlockDateProp;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
     use std::convert::TryFrom;
+    use test_strategy::proptest;
 
     #[test]
     pub fn proposal_manager_insert_vote() {
@@ -1714,19 +1713,21 @@ mod tests {
         assert_eq!(tally.results()[1], 0.into());
     }
 
-    #[quickcheck]
-    pub fn vote_plan_manager_can_vote(vote_plan: VotePlan, date: BlockDate) -> TestResult {
+    #[proptest]
+    fn vote_plan_manager_can_vote(vote_plan: VotePlan, date: BlockDate) {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
-        TestResult::from_bool(
-            should_be_in_vote_time(&vote_plan, date) == vote_plan_manager.can_vote(date),
+        assert_eq!(
+            should_be_in_vote_time(&vote_plan, date),
+            vote_plan_manager.can_vote(date),
         )
     }
 
-    #[quickcheck]
-    pub fn vote_plan_manager_can_committee(vote_plan: VotePlan, date: BlockDate) -> TestResult {
+    #[proptest]
+    fn vote_plan_manager_can_committee(vote_plan: VotePlan, date: BlockDate) {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
-        TestResult::from_bool(
-            should_be_in_committee_time(&vote_plan, date) == vote_plan_manager.can_committee(date),
+        assert_eq!(
+            should_be_in_committee_time(&vote_plan, date),
+            vote_plan_manager.can_committee(date),
         )
     }
 
@@ -1744,13 +1745,13 @@ mod tests {
         date >= vote_finish_date && date < comittee_end_date
     }
 
-    #[quickcheck]
-    pub fn vote_plan_manager_plan_elapsed(vote_plan: VotePlan, date: BlockDate) -> TestResult {
+    #[proptest]
+    fn vote_plan_manager_plan_elapsed(vote_plan: VotePlan, date: BlockDate) {
         let vote_plan_manager = VotePlanManager::new(vote_plan.clone(), HashSet::new());
         let committee_end_date = vote_plan.committee_end();
 
         let vote_plan_elapsed = committee_end_date < date;
-        TestResult::from_bool(vote_plan_elapsed == vote_plan_manager.vote_plan_elapsed(date))
+        assert_eq!(vote_plan_elapsed, vote_plan_manager.vote_plan_elapsed(date))
     }
 
     #[test]

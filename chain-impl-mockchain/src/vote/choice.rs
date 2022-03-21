@@ -21,6 +21,23 @@ pub struct Options {
     options_range: Range<u8>,
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use super::*;
+    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+    impl Arbitrary for Options {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<u8>, fn(u8) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<u8>().prop_map(|i| {
+                Self::new_length(i).unwrap_or_else(|_| Options::new_length(1).unwrap())
+            })
+        }
+    }
+}
+
 /// a choice
 ///
 /// A `Choice` is a representation of a choice that has been made and must

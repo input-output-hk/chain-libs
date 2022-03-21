@@ -11,13 +11,11 @@ use chain_core::mempack::{ReadBuf, Readable};
 use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
 use chain_vote::{Crs, EncryptedTally};
-#[cfg(test)]
-use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
-use quickcheck_macros::quickcheck;
 use rand::SeedableRng;
 use rand_chacha::ChaChaRng;
 use std::num::NonZeroU8;
+use test_strategy::proptest;
 
 impl Arbitrary for PoolRetirement {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -328,13 +326,15 @@ impl Arbitrary for Certificate {
     }
 }
 
-#[quickcheck]
-fn pool_reg_serialization_bijection(b: PoolRegistration) -> TestResult {
+// This gives a strange "dead code" warning for `b`, no idea why, cargo-expand shows it is actually used
+// stable rustc 1.59.0
+#[proptest]
+fn pool_reg_serialization_bijection(b: PoolRegistration) {
     let b_got = b.serialize();
     let mut buf = ReadBuf::from(b_got.as_ref());
     let result = PoolRegistration::read(&mut buf);
     let left = Ok(b);
     assert_eq!(left, result);
     assert!(buf.get_slice_end().is_empty());
-    TestResult::from_bool(left == result)
+    assert_eq!(left, result);
 }

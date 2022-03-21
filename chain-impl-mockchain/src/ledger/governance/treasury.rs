@@ -1,6 +1,8 @@
 use crate::{ledger::governance::GovernanceAcceptanceCriteria, value::Value};
 use chain_core::mempack::{ReadBuf, ReadError, Readable};
 use imhamt::Hamt;
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
 use std::collections::hash_map::DefaultHasher;
 use typed_bytes::ByteBuilder;
 
@@ -8,6 +10,16 @@ use typed_bytes::ByteBuilder;
 pub enum TreasuryGovernanceAction {
     NoOp,
     TransferToRewards { value: Value },
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+impl Arbitrary for TreasuryGovernanceAction {
+    type Parameters = ();
+    type Strategy = Map<StrategyFor<Value>, fn(Value) -> Self>;
+
+    fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+        any::<Value>().prop_map(|value| Self::TransferToRewards { value })
+    }
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]

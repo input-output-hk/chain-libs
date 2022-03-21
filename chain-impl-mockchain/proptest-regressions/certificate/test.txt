@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx e6739454f9897a2b1ce51fedef3298a50db62b63fc77154a03f68fadc37e4efd # shrinks to input = _PoolRegSerializationBijectionArgs { b: PoolRegistration { serial: 0, start_validity: TimeOffsetSeconds(DurationSeconds(0)), permissions: PoolPermissions(0), owners: [], operators: [], rewards: TaxType { fixed: Value(0), ratio: Ratio { numerator: 0, denominator: 1 }, max_limit: None }, reward_account: None, keys: GenesisPraosLeader { kes_public_key: 0000000000000000000000000000000000000000000000000000000000000000, vrf_public_key: 6f002aa8de10a3873062986e05d21dd0b535b661691e8f241aa5d93fc1f0c604 } } }

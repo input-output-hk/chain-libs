@@ -5,6 +5,10 @@ use std::collections::hash_map::DefaultHasher;
 use typed_bytes::ByteBuilder;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ParametersGovernanceAction {
     NoOp,
     RewardAdd { value: Value },
