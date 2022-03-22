@@ -8,14 +8,13 @@
 //! ## Handler <- EVM Context Handler
 //! ## StackState<'config>
 //!
-use std::collections::{BTreeMap, BTreeSet};
-
 use evm::{
     backend::{Backend, Basic},
     executor::stack::{Accessed, StackExecutor, StackState, StackSubstateMetadata},
     Context, ExitError, ExitFatal, ExitReason, ExitRevert, Transfer,
 };
 use primitive_types::{H160, H256, U256};
+use std::collections::{BTreeMap, BTreeSet};
 
 use thiserror::Error;
 
@@ -179,18 +178,11 @@ impl<'a> VirtualMachineSubstate<'a> {
     }
 
     fn account_mut<State: EvmState>(&mut self, address: H160, state: &State) -> &mut Account {
-        if !self.accounts.contains_key(&address) {
-            let account = self
-                .known_account(&address)
-                .cloned()
-                .unwrap_or_else(|| state.account(address).unwrap_or_default());
-
-            self.accounts.insert(address, account);
-        }
-
-        self.accounts
-            .get_mut(&address)
-            .expect("New account was just inserted")
+        let account = self
+            .known_account(&address)
+            .cloned()
+            .unwrap_or_else(|| state.account(address).unwrap_or_default());
+        self.accounts.entry(address).or_insert(account)
     }
 }
 
@@ -230,10 +222,7 @@ impl<'a, T> VirtualMachine<'a, T> {
 
 /// Top-level abstraction for the EVM with the
 /// necessary types used to get the runtime going.
-fn execute_transaction<'a, State: EvmState, F, T>(
-    vm: VirtualMachine<'a, State>,
-    f: F,
-) -> Result<T, Error>
+fn execute_transaction<State: EvmState, F, T>(vm: VirtualMachine<State>, f: F) -> Result<T, Error>
 where
     for<'config> F: FnOnce(
         &mut StackExecutor<'config, '_, VirtualMachine<'config, State>, Precompiles>,
@@ -256,15 +245,12 @@ where
             let vm = executor.into_state();
 
             // pay gas fees
-            match vm.state.account(vm.origin) {
-                Some(mut account) => {
-                    account.balance = account
-                        .balance
-                        .checked_sub(gas_fees)
-                        .ok_or(Error::TransactionError(ExitError::OutOfFund))?;
-                    vm.state.modify_account(vm.origin, |_| Some(account));
-                }
-                None => {}
+            if let Some(mut account) = vm.state.account(vm.origin) {
+                account.balance = account
+                    .balance
+                    .checked_sub(gas_fees)
+                    .ok_or(Error::TransactionError(ExitError::OutOfFund))?;
+                vm.state.modify_account(vm.origin, |_| Some(account));
             }
 
             // exit_reason
@@ -278,8 +264,8 @@ where
 
 /// Execute a CREATE transaction
 #[allow(clippy::too_many_arguments)]
-pub fn transact_create<'a, State: EvmState>(
-    vm: VirtualMachine<'a, State>,
+pub fn transact_create<State: EvmState>(
+    vm: VirtualMachine<State>,
     value: U256,
     init_code: ByteCode,
     access_list: Vec<(Address, Vec<Key>)>,
@@ -302,8 +288,8 @@ pub fn transact_create<'a, State: EvmState>(
 
 /// Execute a CREATE2 transaction
 #[allow(clippy::too_many_arguments)]
-pub fn transact_create2<'a, State: EvmState>(
-    vm: VirtualMachine<'a, State>,
+pub fn transact_create2<State: EvmState>(
+    vm: VirtualMachine<State>,
     value: U256,
     init_code: ByteCode,
     salt: H256,
@@ -328,8 +314,8 @@ pub fn transact_create2<'a, State: EvmState>(
 
 /// Execute a CALL transaction
 #[allow(clippy::too_many_arguments)]
-pub fn transact_call<'a, State: EvmState>(
-    vm: VirtualMachine<'a, State>,
+pub fn transact_call<State: EvmState>(
+    vm: VirtualMachine<State>,
     address: Address,
     value: U256,
     data: ByteCode,
@@ -488,7 +474,7 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
                 .map(|(k, v)| (*k, *v))
                 .collect();
 
-            self.state.modify_account(address.clone(), |_| {
+            self.state.modify_account(*address, |_| {
                 if self.delete_empty && account.is_empty() {
                     None
                 } else {
@@ -499,7 +485,7 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
 
         // delete account
         for address in self.substate.deletes.iter() {
-            self.state.modify_account(address.clone(), |_| None);
+            self.state.modify_account(*address, |_| None);
         }
 
         // save the logs
