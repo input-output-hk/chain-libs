@@ -214,17 +214,21 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
         identifier: &ID,
         value: Value,
         evm_state: chain_evm::state::AccountState,
+        extra: Extra,
     ) -> Result<Self, LedgerError> {
         self.0
-            .update(identifier, |st| {
-                Ok(Some(AccountState {
-                    evm_state,
-                    value,
-                    ..st.clone()
-                }))
-            })
+            .insert_or_update(
+                identifier.clone(),
+                AccountState::new_evm(evm_state.clone(), value, extra),
+                |st| {
+                    Ok(Some(AccountState {
+                        evm_state,
+                        value,
+                        ..st.clone()
+                    }))
+                },
+            )
             .map(Ledger)
-            .map_err(|e| e.into())
     }
 
     pub fn iter(&self) -> Iter<'_, ID, Extra> {

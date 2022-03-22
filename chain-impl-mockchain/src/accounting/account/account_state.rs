@@ -110,6 +110,13 @@ impl<Extra> AccountState<Extra> {
         st
     }
 
+    #[cfg(feature = "evm")]
+    pub fn new_evm(evm_state: chain_evm::state::AccountState, v: Value, extra: Extra) -> Self {
+        let mut st = Self::new(v, extra);
+        st.evm_state = evm_state;
+        st
+    }
+
     /// Get referencet to delegation setting
     pub fn delegation(&self) -> &DelegationType {
         &self.delegation

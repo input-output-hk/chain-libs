@@ -53,24 +53,22 @@ impl Balance {
     /// Checked addition of `U256` types. Returns `Some(balance)` or `None` if overflow
     /// occurred.
     pub fn checked_add(self, other: U256) -> Option<Balance> {
-        match other {
-            U256([val, 0, 0, 0]) => match self.0.checked_add(val) {
-                Some(res) => Some(Balance(res)),
-                _ => None,
-            },
-            _ => None,
+        if let U256([val, 0, 0, 0]) = other {
+            if let Some(res) = self.0.checked_add(val) {
+                return Some(Balance(res));
+            }
         }
+        None
     }
     /// Checked substraction of `U256` types. Returns `Some(balance)` or `None` if overflow
     /// occurred.
     pub fn checked_sub(self, other: U256) -> Option<Balance> {
-        match other {
-            U256([val, 0, 0, 0]) => match self.0.checked_sub(val) {
-                Some(res) => Some(Balance(res)),
-                _ => None,
-            },
-            _ => None,
+        if let U256([val, 0, 0, 0]) = other {
+            if let Some(res) = self.0.checked_sub(val) {
+                return Some(Balance(res));
+            }
         }
+        None
     }
 }
 

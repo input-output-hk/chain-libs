@@ -26,7 +26,7 @@ pub enum Error {
     )]
     ExistedMapping(JorAddress, EvmAddress),
     #[error("evm transaction error: {0}")]
-    EvmTransactionError(#[from] chain_evm::machine::Error),
+    EvmTransaction(#[from] chain_evm::machine::Error),
     #[error("Protocol evm mapping payload signature failed")]
     EvmMappingSignatureFailed,
 }
@@ -50,13 +50,10 @@ impl AddressMapping {
     }
 
     fn del_accounts(&mut self, jor_id: JorAddress) {
-        match self.jor_to_evm.lookup(&jor_id) {
-            Some(evm_id) => {
-                self.evm_to_jor = self.evm_to_jor.remove(evm_id).unwrap();
-            }
-            None => {}
+        if let Some(evm_id) = self.jor_to_evm.lookup(&jor_id) {
+            self.evm_to_jor = self.evm_to_jor.remove(evm_id).unwrap();
+            self.jor_to_evm = self.jor_to_evm.remove(&jor_id).unwrap();
         }
-        self.jor_to_evm = self.jor_to_evm.remove(&jor_id).unwrap();
     }
 
     fn map_accounts(&mut self, jor_id: JorAddress, evm_id: EvmAddress) -> Result<(), Error> {
@@ -106,12 +103,14 @@ impl EvmState for super::Ledger {
         self.evm.adress_mapping.jor_address(address).is_some()
     }
 
-    // TODO add error handling
-    fn modify_account<F>(&mut self, address: EvmAddress, f: F)
+    fn modify_account<F>(&mut self, address: EvmAddress, f: F) -> Result<(), String>
     where
         F: FnOnce(EvmAccount) -> Option<EvmAccount>,
     {
-        let address = self.evm.adress_mapping.jor_address(address).unwrap();
+        let address = self.evm.adress_mapping.jor_address(address).ok_or(format!(
+            "Can not find corresponding jormungadr account for the evm account: {}",
+            address
+        ))?;
 
         let account = self
             .accounts
@@ -126,14 +125,20 @@ impl EvmState for super::Ledger {
             Some(account) => {
                 self.accounts = self
                     .accounts
-                    .evm_update(&address, Value(u64::from(account.balance)), account.state)
-                    .unwrap();
+                    .evm_update(
+                        &address,
+                        Value(u64::from(account.balance)),
+                        account.state,
+                        (),
+                    )
+                    .map_err(|e| e.to_string())?;
             }
             // remove account
             None => {
                 self.evm.adress_mapping.del_accounts(address);
             }
         }
+        Ok(())
     }
 
     fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
@@ -291,9 +296,7 @@ impl Ledger {
         for (jor_id, evm_id) in adress_mapping.jor_to_evm.iter() {
             res = format!(
                 "{}\n jormungandr account: {}, evm account: {}",
-                res,
-                jor_id.to_string(),
-                evm_id.to_string()
+                res, jor_id, evm_id
             );
         }
         res
@@ -368,7 +371,9 @@ mod test {
         assert_eq!(address_mapping.jor_address(evm_id1), Some(jor_id1.clone()));
         assert_eq!(address_mapping.jor_address(evm_id2), Some(jor_id2.clone()));
 
+        address_mapping.del_accounts(jor_id1.clone());
         address_mapping.del_accounts(jor_id1);
+        address_mapping.del_accounts(jor_id2.clone());
         address_mapping.del_accounts(jor_id2);
 
         assert_eq!(address_mapping.jor_address(evm_id1), None);

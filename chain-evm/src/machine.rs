@@ -127,7 +127,7 @@ pub trait EvmState {
 
     fn contains(&self, address: Address) -> bool;
 
-    fn modify_account<F>(&mut self, address: Address, f: F)
+    fn modify_account<F>(&mut self, address: Address, f: F) -> Result<(), String>
     where
         F: FnOnce(Account) -> Option<Account>;
 
@@ -248,7 +248,9 @@ where
                     .balance
                     .checked_sub(gas_fees)
                     .ok_or(Error::TransactionError(ExitError::OutOfFund))?;
-                vm.state.modify_account(vm.origin, |_| Some(account));
+                vm.state
+                    .modify_account(vm.origin, |_| Some(account))
+                    .map_err(|e| Error::TransactionError(ExitError::Other(e.into())))?;
             }
 
             // exit_reason
@@ -487,18 +489,22 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
                 .map(|(k, v)| (*k, *v))
                 .collect();
 
-            self.state.modify_account(*address, |_| {
-                if self.delete_empty && account.is_empty() {
-                    None
-                } else {
-                    Some(account)
-                }
-            });
+            self.state
+                .modify_account(*address, |_| {
+                    if self.delete_empty && account.is_empty() {
+                        None
+                    } else {
+                        Some(account)
+                    }
+                })
+                .map_err(|e| ExitError::Other(e.into()))?;
         }
 
         // delete account
         for address in self.substate.deletes.iter() {
-            self.state.modify_account(*address, |_| None);
+            self.state
+                .modify_account(*address, |_| None)
+                .map_err(|e| ExitError::Other(e.into()))?;
         }
 
         // save the logs
@@ -636,11 +642,12 @@ pub mod test {
             self.accounts.contains(&address)
         }
 
-        fn modify_account<F>(&mut self, address: Address, f: F)
+        fn modify_account<F>(&mut self, address: Address, f: F) -> Result<(), String>
         where
             F: FnOnce(Account) -> Option<Account>,
         {
             self.accounts = self.accounts.clone().modify_account(address, f);
+            Ok(())
         }
 
         fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
