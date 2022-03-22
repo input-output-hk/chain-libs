@@ -7,7 +7,10 @@ use crate::value::Value;
 use crate::{account::Identifier as JorAddress, accounting::account::AccountState as JorAccount};
 use chain_crypto::Verification;
 use chain_evm::{
-    machine::{BlockHash, BlockNumber, BlockTimestamp, Environment, EvmState, Log, VirtualMachine},
+    machine::{
+        transact_call, transact_create, transact_create2, BlockHash, BlockNumber, BlockTimestamp,
+        Environment, EvmState, Log, VirtualMachine,
+    },
     primitive_types::H256,
     state::{Account as EvmAccount, LogsState},
     Address as EvmAddress,
@@ -156,8 +159,7 @@ impl super::Ledger {
     }
 
     pub fn run_transaction(mut self, contract: EvmTransaction) -> Result<Self, Error> {
-        let evm_config = self.settings.evm_config;
-        let mut vm = VirtualMachine::new(&mut self);
+        let config = self.settings.evm_config.into();
         match contract {
             EvmTransaction::Create {
                 caller,
@@ -166,15 +168,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                vm.transact_create(
-                    evm_config,
-                    caller,
-                    value,
-                    init_code,
-                    gas_limit,
-                    access_list,
-                    true,
-                )?;
+                let vm = VirtualMachine::new(&mut self, &config, caller, gas_limit, true);
+                transact_create(vm, value, init_code, access_list)?;
             }
             EvmTransaction::Create2 {
                 caller,
@@ -184,16 +179,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                vm.transact_create2(
-                    evm_config,
-                    caller,
-                    value,
-                    init_code,
-                    salt,
-                    gas_limit,
-                    access_list,
-                    true,
-                )?;
+                let vm = VirtualMachine::new(&mut self, &config, caller, gas_limit, true);
+                transact_create2(vm, value, init_code, salt, access_list)?;
             }
             EvmTransaction::Call {
                 caller,
@@ -203,16 +190,8 @@ impl super::Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let _byte_code_msg = vm.transact_call(
-                    evm_config,
-                    caller,
-                    address,
-                    value,
-                    data,
-                    gas_limit,
-                    access_list,
-                    true,
-                )?;
+                let vm = VirtualMachine::new(&mut self, &config, caller, gas_limit, true);
+                let _byte_code_msg = transact_call(vm, address, value, data, access_list)?;
             }
         }
         Ok(self)
