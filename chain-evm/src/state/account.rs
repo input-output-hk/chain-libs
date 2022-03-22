@@ -144,7 +144,7 @@ mod test {
         let val = 100u64;
         assert_eq!(
             Balance::from(val).checked_add(U256::from(0u64)),
-            Some(Balance(val.into()))
+            Some(Balance(val))
         );
         assert_eq!(Balance(MAX_SIZE).checked_add(U256::from(1u64)), None);
     }
@@ -154,7 +154,7 @@ mod test {
         let val = 100u64;
         assert_eq!(
             Balance::from(val).checked_sub(U256::from(0u64)),
-            Some(Balance(val.into()))
+            Some(Balance(val))
         );
         assert_eq!(Balance::from(0u64).checked_sub(U256::from(1u64)), None);
     }
@@ -162,7 +162,7 @@ mod test {
     #[test]
     fn account_balance_u256_can_never_use_more_than_64_bits() {
         // convert from u64
-        assert_eq!(Balance::from(MAX_SIZE), Balance(MAX_SIZE.into()));
+        assert_eq!(Balance::from(MAX_SIZE), Balance(MAX_SIZE));
         // try to convert from U256
         assert!(Balance::try_from(U256::from(MAX_SIZE)).is_ok());
         assert!(Balance::try_from(U256::from(MAX_SIZE) + U256::from(1_u64)).is_err());
