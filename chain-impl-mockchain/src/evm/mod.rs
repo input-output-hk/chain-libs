@@ -5,10 +5,8 @@ use chain_core::{
 };
 #[cfg(feature = "evm")]
 use chain_evm::{
-    machine::Value,
     primitive_types,
     state::{ByteCode, Key},
-    Address,
 };
 use typed_bytes::ByteBuilder;
 
@@ -18,7 +16,10 @@ use crate::{
 };
 
 #[cfg(feature = "evm")]
-pub use chain_evm::machine::{BlockGasLimit, Config, Environment, GasPrice};
+pub use chain_evm::{
+    machine::{BlockGasLimit, Config, Environment, GasPrice},
+    Address,
+};
 
 /// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,7 +27,7 @@ pub enum EvmTransaction {
     #[cfg(feature = "evm")]
     Create {
         caller: Address,
-        value: Value,
+        value: primitive_types::U256,
         init_code: ByteCode,
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
@@ -34,7 +35,7 @@ pub enum EvmTransaction {
     #[cfg(feature = "evm")]
     Create2 {
         caller: Address,
-        value: Value,
+        value: primitive_types::U256,
         init_code: ByteCode,
         salt: primitive_types::H256,
         gas_limit: u64,
@@ -44,7 +45,7 @@ pub enum EvmTransaction {
     Call {
         caller: Address,
         address: Address,
-        value: Value,
+        value: primitive_types::U256,
         data: ByteCode,
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,

@@ -3,9 +3,13 @@ use crate::evm::EvmTransaction;
 use crate::header::BlockDate;
 use crate::ledger::Error;
 use chain_evm::{
-    machine::{BlockHash, BlockNumber, BlockTimestamp, Config, Environment, VirtualMachine},
-    primitive_types::U256,
-    state::{AccountTrie, LogsState},
+    machine::{
+        transact_call, transact_create, transact_create2, BlockHash, BlockNumber, BlockTimestamp,
+        Config, Environment, EvmState, Log, VirtualMachine,
+    },
+    primitive_types::{H256, U256},
+    state::{Account, AccountTrie, LogsState},
+    Address,
 };
 
 #[derive(Clone, PartialEq, Eq)]
@@ -22,50 +26,38 @@ impl Default for Ledger {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct BlockEpoch {
-    epoch: u32,
-    epoch_start: BlockTimestamp,
-    slots_per_epoch: u32,
-    slot_duration: u8,
+impl EvmState for super::Ledger {
+    fn environment(&self) -> &Environment {
+        &self.evm.environment
+    }
+
+    fn account(&self, address: Address) -> Option<Account> {
+        self.evm.accounts.get(&address).cloned()
+    }
+
+    fn contains(&self, address: Address) -> bool {
+        self.evm.accounts.contains(&address)
+    }
+
+    fn modify_account<F>(&mut self, address: Address, f: F)
+    where
+        F: FnOnce(Account) -> Option<Account>,
+    {
+        self.evm.accounts = self.evm.accounts.clone().modify_account(address, f);
+    }
+
+    fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
+        self.evm.logs.put(block_hash, logs);
+    }
 }
 
-impl Ledger {
-    pub fn new() -> Self {
-        Self {
-            accounts: Default::default(),
-            logs: Default::default(),
-            environment: Environment {
-                gas_price: Default::default(),
-                origin: Default::default(),
-                chain_id: Default::default(),
-                block_hashes: Default::default(),
-                block_number: Default::default(),
-                block_coinbase: Default::default(),
-                block_timestamp: Default::default(),
-                block_difficulty: Default::default(),
-                block_gas_limit: Default::default(),
-                block_base_fee_per_gas: Default::default(),
-            },
-            current_epoch: BlockEpoch {
-                epoch: 0,
-                epoch_start: BlockTimestamp::default(),
-                slots_per_epoch: 1,
-                slot_duration: 10,
-            },
-        }
-    }
+impl super::Ledger {
     pub fn run_transaction(
         &mut self,
         contract: EvmTransaction,
         config: Config,
     ) -> Result<(), Error> {
-        let mut vm = VirtualMachine::new_with_state(
-            config,
-            &self.environment,
-            self.accounts.clone(),
-            self.logs.clone(),
-        );
+        let config = config.into();
         match contract {
             EvmTransaction::Create {
                 caller,
@@ -74,12 +66,8 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                //
-                let (new_state, new_logs) =
-                    vm.transact_create(caller, value, init_code, gas_limit, access_list, true)?;
-                // update ledger state
-                self.accounts = new_state.clone();
-                self.logs = new_logs.clone();
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit, true);
+                transact_create(vm, value, init_code, access_list)?;
             }
             EvmTransaction::Create2 {
                 caller,
@@ -89,18 +77,8 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let (new_state, new_logs) = vm.transact_create2(
-                    caller,
-                    value,
-                    init_code,
-                    salt,
-                    gas_limit,
-                    access_list,
-                    true,
-                )?;
-                // update ledger state
-                self.accounts = new_state.clone();
-                self.logs = new_logs.clone();
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit, true);
+                transact_create2(vm, value, init_code, salt, access_list)?;
             }
             EvmTransaction::Call {
                 caller,
@@ -110,15 +88,23 @@ impl Ledger {
                 gas_limit,
                 access_list,
             } => {
-                let (new_state, new_logs, _byte_code_msg) =
-                    vm.transact_call(caller, address, value, data, gas_limit, access_list, true)?;
-                // update ledger state
-                self.accounts = new_state.clone();
-                self.logs = new_logs.clone();
+                let vm = VirtualMachine::new(self, &config, caller, gas_limit, true);
+                let _byte_code_msg = transact_call(vm, address, value, data, access_list)?;
             }
         }
         Ok(())
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct BlockEpoch {
+    epoch: u32,
+    epoch_start: BlockTimestamp,
+    slots_per_epoch: u32,
+    slot_duration: u8,
+}
+
+impl Ledger {
     /// Updates block values for EVM environment
     pub fn update_block_environment(
         &mut self,
@@ -127,7 +113,7 @@ impl Ledger {
         slot_duration: u8,
     ) {
         // use content hash from the apply block as the EVM block hash
-        let next_hash: BlockHash = <[u8; 32]>::from(metadata.content_hash).into();
+        let next_hash: BlockHash = <[u8; 32]>::from(metadata.block_id).into();
         self.environment.block_hashes.insert(0, next_hash);
         self.environment.block_number = BlockNumber::from(self.environment.block_hashes.len());
         self.update_block_timestamp(metadata.block_date, slots_per_epoch, slot_duration);
@@ -167,6 +153,32 @@ impl Ledger {
             + slot_id as u64 * self.current_epoch.slot_duration as u64;
         // update EVM enviroment
         self.environment.block_timestamp = block_timestamp;
+    }
+}
+
+impl Ledger {
+    pub fn new() -> Self {
+        Self {
+            accounts: Default::default(),
+            logs: Default::default(),
+            environment: Environment {
+                gas_price: Default::default(),
+                chain_id: Default::default(),
+                block_hashes: Default::default(),
+                block_number: Default::default(),
+                block_coinbase: Default::default(),
+                block_timestamp: Default::default(),
+                block_difficulty: Default::default(),
+                block_gas_limit: Default::default(),
+                block_base_fee_per_gas: Default::default(),
+            },
+            current_epoch: BlockEpoch {
+                epoch: 0,
+                epoch_start: BlockTimestamp::default(),
+                slots_per_epoch: 1,
+                slot_duration: 10,
+            },
+        }
     }
 }
 
