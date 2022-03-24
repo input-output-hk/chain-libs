@@ -339,7 +339,7 @@ fn pool_reg_serialization_bijection(#[allow(dead_code)] b: PoolRegistration) {
 }
 
 mod pt {
-    
+
     use proptest::{
         arbitrary::StrategyFor,
         collection::{vec, VecStrategy},
