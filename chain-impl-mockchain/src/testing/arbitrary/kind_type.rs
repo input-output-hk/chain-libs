@@ -15,6 +15,20 @@ impl Arbitrary for KindTypeWithoutMultisig {
     }
 }
 
+pub mod pt {
+    use chain_addr::KindType;
+    use proptest::prelude::*;
+
+    pub fn kind_type_without_multisig() -> impl Strategy<Value = KindType> {
+        any::<u8>().prop_map(|i| match i % 3 {
+            0 => KindType::Single,
+            1 => KindType::Group,
+            2 => KindType::Account,
+            _ => unreachable!(),
+        })
+    }
+}
+
 impl KindTypeWithoutMultisig {
     pub fn kind_type(&self) -> KindType {
         self.0

@@ -530,45 +530,6 @@ mod tests {
     }
 
     #[test]
-    fn vote_plan_test_fail() {
-        let key = {
-            let seed = [0u8; 32];
-            let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
-            let h = chain_vote::Crs::from_hash(&seed);
-            let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
-            let threshold = 1;
-            let m1 = chain_vote::MemberState::new(&mut rng, threshold, &h, &[mc.to_public()], 0);
-            m1.public_key()
-        };
-
-        let voting_token = TokenIdentifier {
-            policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
-            token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
-        };
-
-        let zero_date = BlockDate {
-            epoch: 0,
-            slot_id: 0,
-        };
-
-        let plan = VotePlan::new(
-            zero_date,
-            zero_date,
-            zero_date,
-            Proposals::new(),
-            vote::PayloadType::Public,
-            vec![key],
-            voting_token,
-        );
-
-        let serialized = plan.serialize();
-        let mut buf = ReadBuf::from(serialized.as_ref());
-        let decoded = VotePlan::read(&mut buf).expect("can decode encoded vote plan");
-
-        assert_eq!(decoded, plan);
-    }
-
-    #[test]
     pub fn proposals_are_full() {
         let mut proposals = VoteTestGen::proposals(Proposals::MAX_LEN);
         assert!(proposals.full());
