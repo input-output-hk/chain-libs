@@ -7,7 +7,7 @@ use proptest::prelude::*;
 pub fn random_subset<I, T>(s: impl Strategy<Value = I>) -> impl Strategy<Value = I>
 where
     I: IntoIterator<Item = T> + FromIterator<T> + Debug,
-    T: Clone
+    T: Clone,
 {
     s.prop_flat_map(|iter| {
         let items: Vec<_> = iter.into_iter().collect();
