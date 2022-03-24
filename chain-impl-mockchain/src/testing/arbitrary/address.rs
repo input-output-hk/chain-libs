@@ -37,6 +37,55 @@ impl Arbitrary for ArbitraryAddressDataValueVec {
     }
 }
 
+pub mod proptest_impls {
+    use chain_addr::Kind;
+    use proptest::collection::{hash_map, vec};
+    use proptest::prelude::*;
+
+    use crate::testing::data::{AddressData, AddressDataValue};
+    use crate::testing::pt::kind_type_without_multisig;
+    use crate::tokens::name::TokenName;
+    use crate::value::Value;
+
+    pub fn arb_address_data_value_vec() -> impl Strategy<Value = Vec<AddressDataValue>> {
+        vec(any::<AddressDataValue>(), 1..=10)
+    }
+
+    fn arb_adv() -> impl Strategy<Value = AddressDataValue> {
+        any::<(AddressData, Value)>().prop_flat_map(|(ad, v)| match ad.address.kind() {
+            Kind::Account(_) => hash_map(any::<TokenName>(), any::<Value>(), 0..usize::MAX)
+                .prop_map(move |map| AddressDataValue::new_with_tokens(ad.clone(), v, map))
+                .boxed(),
+            _ => Just(AddressDataValue::new(ad, v)).boxed(),
+        })
+    }
+
+    impl Arbitrary for AddressDataValue {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            arb_adv().boxed()
+        }
+    }
+
+    impl Arbitrary for AddressData {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            kind_type_without_multisig()
+                .prop_map(|kind| {
+                    AddressData::from_discrimination_and_kind_type(
+                        chain_addr::Discrimination::Test,
+                        kind,
+                    )
+                })
+                .boxed()
+        }
+    }
+}
+
 impl ArbitraryAddressDataValueVec {
     pub fn iter(&self) -> std::slice::Iter<AddressDataValue> {
         self.0.iter()

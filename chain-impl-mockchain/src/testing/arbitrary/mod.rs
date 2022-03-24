@@ -55,6 +55,12 @@ impl Arbitrary for AverageValue {
     }
 }
 
+pub fn average_value() -> impl proptest::strategy::Strategy<Value = Value> {
+    use proptest::prelude::*;
+
+    (253u64..10253).prop_map(Value)
+}
+
 impl From<AverageValue> for Value {
     fn from(value: AverageValue) -> Self {
         value.0
