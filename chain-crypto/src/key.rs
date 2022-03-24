@@ -52,6 +52,11 @@ pub trait SecretKeySizeStatic: AsymmetricKey {
     const SECRET_KEY_SIZE: usize;
 }
 
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
+#[derive(Copy)]
 pub struct SecretKey<A: AsymmetricKey>(pub(crate) A::Secret);
 
 #[cfg(any(test, feature = "property-test-api"))]

@@ -178,6 +178,29 @@ mod test {
         }
     }
 
+    mod pt {
+        use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+        use crate::fee::{LinearFee, PerCertificateFee, PerVoteCertificateFee};
+
+        type Triple = (u64, u64, u64);
+
+        impl Arbitrary for LinearFee {
+            type Parameters = ();
+            type Strategy = Map<StrategyFor<Triple>, fn(Triple) -> Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<(u64, u64, u64)>().prop_map(|(constant, coefficient, certificate)| Self {
+                    constant,
+                    coefficient,
+                    certificate,
+                    per_certificate_fees: PerCertificateFee::new(None, None, None),
+                    per_vote_certificate_fees: PerVoteCertificateFee::new(None, None),
+                })
+            }
+        }
+    }
+
     #[quickcheck]
     pub fn linear_fee_certificate_calculation(
         certificate: Certificate,

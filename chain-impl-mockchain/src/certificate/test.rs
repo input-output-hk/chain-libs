@@ -326,10 +326,9 @@ impl Arbitrary for Certificate {
     }
 }
 
-// This gives a strange "dead code" warning for `b`, no idea why, cargo-expand shows it is actually used
-// stable rustc 1.59.0
+// proptest macro doesn't track spans properly, so this triggers a "dead code" warning
 #[proptest]
-fn pool_reg_serialization_bijection(b: PoolRegistration) {
+fn pool_reg_serialization_bijection(#[allow(dead_code)] b: PoolRegistration) {
     let b_got = b.serialize();
     let mut buf = ReadBuf::from(b_got.as_ref());
     let result = PoolRegistration::read(&mut buf);
@@ -337,4 +336,94 @@ fn pool_reg_serialization_bijection(b: PoolRegistration) {
     assert_eq!(left, result);
     assert!(buf.get_slice_end().is_empty());
     assert_eq!(left, result);
+}
+
+mod pt {
+    use chain_vote::Vote;
+    use proptest::{
+        arbitrary::StrategyFor,
+        collection::{vec, VecStrategy},
+        prelude::*,
+        strategy::Map,
+    };
+    use rand::SeedableRng;
+
+    use crate::{
+        certificate::{ExternalProposalId, Proposal, VoteAction},
+        tokens::identifier::TokenIdentifier,
+        vote::{Options, PayloadType},
+    };
+
+    use super::{BlockDate, Proposals, VotePlan};
+
+    prop_compose! {
+        fn arb_vote_plan()(
+            vote_start in any::<BlockDate>(),
+            vote_end in any::<BlockDate>(),
+            committee_end in any::<BlockDate>(),
+            proposals in any::<Proposals>(),
+            payload_type in any::<PayloadType>(),
+            keys_n in 1usize..16,
+            seed in any::<[u8; 32]>(),
+            voting_token in any::<TokenIdentifier>(),
+        ) -> VotePlan {
+            let mut keys = Vec::with_capacity(keys_n);
+            let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
+            let h = chain_vote::Crs::from_hash(&seed);
+
+            for _i in 0..keys_n {
+                let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
+                let threshold = 1;
+                let m1 = chain_vote::MemberState::new(&mut rng, threshold, &h, &[mc.to_public()], 0);
+                keys.push(m1.public_key());
+            }
+
+            VotePlan::new(
+                vote_start,
+                vote_end,
+                committee_end,
+                proposals,
+                payload_type,
+                keys,
+                voting_token,
+            )
+        }
+    }
+
+    impl Arbitrary for VotePlan {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            arb_vote_plan().boxed()
+        }
+    }
+
+    impl Arbitrary for Proposal {
+        type Parameters = ();
+        type Strategy = Map<
+            StrategyFor<(ExternalProposalId, Options, VoteAction)>,
+            fn((ExternalProposalId, Options, VoteAction)) -> Self,
+        >;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<(ExternalProposalId, Options, VoteAction)>()
+                .prop_map(|(id, plan, action)| Self::new(id, plan, action))
+        }
+    }
+
+    impl Arbitrary for Proposals {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<Proposal>>, fn(Vec<Proposal>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            vec(any::<Proposal>(), 0usize..Proposals::MAX_LEN).prop_map(|proposals| {
+                let mut result = Proposals::new();
+                for proposal in proposals {
+                    result.push(proposal).unwrap();
+                }
+                result
+            })
+        }
+    }
 }

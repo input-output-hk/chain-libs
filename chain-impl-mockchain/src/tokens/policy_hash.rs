@@ -46,6 +46,7 @@ mod tests {
     #[allow(unused_imports)]
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for PolicyHash {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -57,14 +58,16 @@ mod tests {
         }
     }
 
-    #[quickcheck_macros::quickcheck]
-    fn policy_hash_serialization_bijection(ph: PolicyHash) -> TestResult {
+    #[proptest]
+    // `proptest` attr macro doesn't keep span info properly, so rustc can't see that `ph` is
+    // actually used
+    fn policy_hash_serialization_bijection(#[allow(dead_code)] ph: PolicyHash) {
         let ph_got = ph.as_ref();
         let mut buf = ReadBuf::from(ph_got);
         let result = PolicyHash::read(&mut buf);
         let left = Ok(ph.clone());
         assert_eq!(left, result);
         assert!(buf.get_slice_end().is_empty());
-        TestResult::from_bool(left == result)
+        assert_eq!(left, result);
     }
 }

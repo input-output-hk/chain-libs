@@ -45,6 +45,99 @@ impl UpdateProposalData {
     }
 }
 
+mod pt {
+    use std::collections::HashMap;
+
+    use chain_crypto::{Ed25519, SecretKey};
+    use proptest::{collection::vec, prelude::*};
+
+    use crate::{
+        certificate::UpdateProposal, config::ConfigParam, fee::LinearFee, fragment::ConfigParams,
+        key::BftLeaderId, testing::utils::proptest::random_subset,
+    };
+
+    use super::UpdateProposalData;
+
+    prop_compose! {
+        fn settings()(
+            slots_per_epoch in any::<u32>(),
+            slot_duration in any::<u8>(),
+            epoch_stability_depth in any::<u32>(),
+            block_content_max_size in any::<u32>(),
+            linear_fee in any::<LinearFee>(),
+            proposal_expiration in any::<u32>(),
+        ) -> Vec<ConfigParam> {
+            use ConfigParam::*;
+            vec![
+                SlotsPerEpoch(slots_per_epoch),
+                SlotDuration(slot_duration),
+                EpochStabilityDepth(epoch_stability_depth),
+                BlockContentMaxSize(block_content_max_size),
+                LinearFee(linear_fee),
+                ProposalExpiration(proposal_expiration),
+            ]
+        }
+    }
+
+    fn leaders() -> impl Strategy<Value = HashMap<BftLeaderId, SecretKey<Ed25519>>> {
+        let pair = any::<SecretKey<Ed25519>>().prop_map(|key| {
+            let leader_id = BftLeaderId(key.to_public());
+            (leader_id, key)
+        });
+        vec(pair, 1..20).prop_map(|vec| vec.into_iter().collect())
+    }
+
+    prop_compose! {
+        fn proposal_leader_key()(
+            settings in random_subset(settings()),
+            leaders in leaders(),
+            sk in any::<SecretKey<Ed25519>>(),
+        ) -> (UpdateProposal, HashMap<BftLeaderId, SecretKey<Ed25519>>, SecretKey<Ed25519>) {
+            let proposal = UpdateProposal::new(
+                ConfigParams(settings),
+                leaders.iter().next().unwrap().0.clone(),
+            );
+
+            (proposal, leaders, sk)
+        }
+    }
+
+    impl Arbitrary for UpdateProposalData {
+        type Strategy = BoxedStrategy<Self>;
+        type Parameters = ();
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proposal_leader_key()
+                .prop_flat_map(|(proposal, leaders, key)| {
+                    random_subset(Just(leaders.clone())).prop_map(move |voters| {
+                        UpdateProposalData {
+                            leaders: leaders.clone().into_iter().collect(),
+                            voters: voters.into_iter().collect(),
+                            proposal: proposal.clone(),
+                            block_signing_key: key.clone(),
+                        }
+                    })
+                })
+                .boxed()
+
+            // any::<SecretKey<Ed25519>>()
+            //     .prop_flat_map(|block_signing_key| {
+            //         proposal_and_leaders().prop_flat_map(|(proposal, leaders)| {
+            //             random_subset(Just(leaders.clone())).prop_map(move |voters| {
+            //                 UpdateProposalData {
+            //                     leaders: leaders.clone().into_iter().collect(),
+            //                     voters: voters.clone().into_iter().collect(),
+            //                     proposal: proposal.clone(),
+            //                     block_signing_key: block_signing_key.clone(),
+            //                 }
+            //             })
+            //         })
+            //     })
+            //     .boxed()
+        }
+    }
+}
+
 impl Arbitrary for UpdateProposalData {
     fn arbitrary<G: Gen>(gen: &mut G) -> Self {
         let leader_size = 1; //usize::arbitrary(gen) % 20 + 1;

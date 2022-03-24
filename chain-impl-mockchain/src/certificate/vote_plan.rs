@@ -35,10 +35,6 @@ pub type VotePlanId = DigestOf<Blake2b256, VotePlan>;
 /// is the committee supposed to reveal the results.
 ///
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct VotePlan {
     /// the vote start validity
     vote_start: BlockDate,
@@ -53,10 +49,6 @@ pub struct VotePlan {
     /// vote payload type
     payload_type: vote::PayloadType,
     /// encrypting votes public keys
-    #[cfg_attr(
-        any(test, feature = "property-test-api"),
-        strategy(test_impls::arb_keys())
-    )]
     committee_public_keys: Vec<chain_vote::MemberPublicKey>,
     /// voting token used for weigthing the votes for any proposal in this voteplan
     voting_token: TokenIdentifier,
@@ -66,25 +58,6 @@ pub struct VotePlan {
 mod test_impls {
     use super::*;
     use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
-    use rand::SeedableRng;
-
-    pub(super) fn arb_keys() -> impl Strategy<Value = Vec<chain_vote::MemberPublicKey>> {
-        any::<(u32, [u8; 32])>().prop_map(|(keys_n, seed)| {
-            let mut keys = Vec::new();
-            // it should have been 256 but is limited for the sake of adequate test times
-            let keys_n = keys_n % 15 + 1;
-            let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
-            let h = chain_vote::Crs::from_hash(&seed);
-            for _i in 0..keys_n {
-                let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
-                let threshold = 1;
-                let m1 =
-                    chain_vote::MemberState::new(&mut rng, threshold, &h, &[mc.to_public()], 0);
-                keys.push(m1.public_key());
-            }
-            keys
-        })
-    }
 
     impl Arbitrary for VoteAction {
         type Parameters = ();
@@ -129,10 +102,6 @@ pub enum VoteAction {
 ///
 /// there may not be more than 255 proposal
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct Proposals {
     proposals: Vec<Proposal>,
 }
@@ -143,10 +112,6 @@ pub struct Proposals {
 /// for the proposal to be operated.
 ///
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct Proposal {
     external_id: ExternalProposalId,
     options: vote::Options,
@@ -158,6 +123,17 @@ pub struct Proposal {
 pub enum PushProposal {
     Success,
     Full { proposal: Proposal },
+}
+
+impl PushProposal {
+    pub fn unwrap(self) {
+        match self {
+            Self::Success => {}
+            Self::Full { proposal } => {
+                panic!("push proposal failed: {:?}", proposal)
+            }
+        }
+    }
 }
 
 impl Proposal {
@@ -540,19 +516,56 @@ mod tests {
     use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
     use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
     use chain_core::property::BlockDate as BlockDateProp;
-    use quickcheck_macros::quickcheck;
+    use rand::SeedableRng;
     use std::convert::TryFrom;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    fn serialize_deserialize(vote_plan: VotePlan) -> bool {
+    #[proptest]
+    fn serialize_deserialize(vote_plan: VotePlan) {
         let serialized = vote_plan.serialize();
-
         let mut buf = ReadBuf::from(serialized.as_ref());
-        let result = VotePlan::read(&mut buf);
+        let decoded = VotePlan::read(&mut buf).expect("can decode encoded vote plan");
 
-        let decoded = result.expect("can decode encoded vote plan");
+        assert_eq!(decoded, vote_plan);
+    }
 
-        decoded == vote_plan
+    #[test]
+    fn vote_plan_test_fail() {
+        let key = {
+            let seed = [0u8; 32];
+            let mut rng = rand_chacha::ChaCha20Rng::from_seed(seed);
+            let h = chain_vote::Crs::from_hash(&seed);
+            let mc = chain_vote::MemberCommunicationKey::new(&mut rng);
+            let threshold = 1;
+            let m1 = chain_vote::MemberState::new(&mut rng, threshold, &h, &[mc.to_public()], 0);
+            m1.public_key()
+        };
+
+        let voting_token = TokenIdentifier {
+            policy_hash: PolicyHash::from([0u8; POLICY_HASH_SIZE]),
+            token_name: TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap(),
+        };
+
+        let zero_date = BlockDate {
+            epoch: 0,
+            slot_id: 0,
+        };
+
+        let plan = VotePlan::new(
+            zero_date,
+            zero_date,
+            zero_date,
+            Proposals::new(),
+            vote::PayloadType::Public,
+            vec![key],
+            voting_token,
+        );
+
+        let serialized = plan.serialize();
+        let mut buf = ReadBuf::from(serialized.as_ref());
+        let decoded = VotePlan::read(&mut buf).expect("can decode encoded vote plan");
+
+        assert_eq!(decoded, plan);
     }
 
     #[test]
