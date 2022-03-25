@@ -300,24 +300,23 @@ use chain_core::{
 
 impl SerializedSize for Header {
     fn serialized_size(&self) -> usize {
-        self.as_slice().serialized_size()
+        0_u16.serialized_size() + self.as_slice().serialized_size()
     }
 }
 
 impl Serialize for Header {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
-        codec.put_bytes(self.as_slice())
+        let bytes = self.as_slice();
+        codec.put_be_u16(bytes.len() as u16)?;
+        codec.put_bytes(bytes)
     }
 }
 
 impl Deserialize for Header {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let mut buf = Vec::new();
-        // TODO: implicitly define size of the Header object in the deserialize function, do not use read_to_end,
-        // it narrows the usage of the deserialize trait for the Header struct,
-        // which is not obvious from the Deserialze trait description, so leads to mistakes
-        codec.read_to_end(&mut buf)?;
-        Header::from_slice(buf.as_slice()).map_err(|e| match e {
+        let header_size = codec.get_be_u16()? as usize;
+        let bytes = codec.get_bytes(header_size)?;
+        Header::from_slice(bytes.as_slice()).map_err(|e| match e {
             HeaderError::InvalidSize => ReadError::NotEnoughBytes(0, 0),
             HeaderError::UnknownVersion => ReadError::UnknownTag(0),
             HeaderError::SizeMismatch { expected, got } => ReadError::SizeTooBig(expected, got),
