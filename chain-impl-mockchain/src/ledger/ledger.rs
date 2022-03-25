@@ -328,8 +328,6 @@ pub enum Error {
     MintingPolicyViolation(#[from] MintingPolicyViolation),
     #[error("evm transactions are disabled, the node was built without the 'evm' feature")]
     DisabledEvmTransactions,
-    // #[error("Transaction for EvmMapping is invalid. expecting 1 input, 1 witness and 0 output")]
-    // EvmMappingInvalidTransaction,
     #[cfg(feature = "evm")]
     #[error("evm error: {0}")]
     EvmError(#[from] evm::Error),

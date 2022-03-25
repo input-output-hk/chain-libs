@@ -50,23 +50,17 @@ impl Balance {
     pub fn zero() -> Self {
         Balance(0)
     }
-    /// Checked addition of `U256` types. Returns `Some(balance)` or `None` if overflow
-    /// occurred.
-    pub fn checked_add(self, other: U256) -> Option<Balance> {
-        if let U256([val, 0, 0, 0]) = other {
-            if let Some(res) = self.0.checked_add(val) {
-                return Some(Balance(res));
-            }
+    /// Returns `Some(balance)` or `None` if overflow occurred.
+    pub fn checked_add(self, other: Balance) -> Option<Balance> {
+        if let Some(res) = self.0.checked_add(other.0) {
+            return Some(Balance(res));
         }
         None
     }
-    /// Checked substraction of `U256` types. Returns `Some(balance)` or `None` if overflow
-    /// occurred.
-    pub fn checked_sub(self, other: U256) -> Option<Balance> {
-        if let U256([val, 0, 0, 0]) = other {
-            if let Some(res) = self.0.checked_sub(val) {
-                return Some(Balance(res));
-            }
+    /// Returns `Some(balance)` or `None` if overflow occurred.
+    pub fn checked_sub(self, other: Balance) -> Option<Balance> {
+        if let Some(res) = self.0.checked_sub(other.0) {
+            return Some(Balance(res));
         }
         None
     }
@@ -143,20 +137,26 @@ mod test {
     fn account_balance_u256_checked_add() {
         let val = 100u64;
         assert_eq!(
-            Balance::from(val).checked_add(U256::from(0u64)),
+            Balance::from(val).checked_add(U256::from(0u64).try_into().unwrap()),
             Some(Balance(val))
         );
-        assert_eq!(Balance(MAX_SIZE).checked_add(U256::from(1u64)), None);
+        assert_eq!(
+            Balance(MAX_SIZE).checked_add(U256::from(1u64).try_into().unwrap()),
+            None
+        );
     }
 
     #[test]
     fn account_balance_u256_checked_sub() {
         let val = 100u64;
         assert_eq!(
-            Balance::from(val).checked_sub(U256::from(0u64)),
+            Balance::from(val).checked_sub(U256::from(0u64).try_into().unwrap()),
             Some(Balance(val))
         );
-        assert_eq!(Balance::from(0u64).checked_sub(U256::from(1u64)), None);
+        assert_eq!(
+            Balance::from(0u64).checked_sub(U256::from(1u64).try_into().unwrap()),
+            None
+        );
     }
 
     #[test]

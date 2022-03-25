@@ -15,7 +15,7 @@ use crate::{
 use evm::{
     backend::{Backend, Basic},
     executor::stack::{Accessed, StackExecutor, StackState, StackSubstateMetadata},
-    Context, ExitError, ExitFatal, ExitReason, ExitRevert, Transfer,
+    Context, ExitFatal, ExitReason, ExitRevert, Transfer,
 };
 use primitive_types::{H160, H256, U256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -23,6 +23,7 @@ use thiserror::Error;
 
 /// Export EVM types
 pub use evm::backend::Log;
+pub use evm::ExitError;
 
 /// An address of an EVM account.
 pub type Address = H160;
@@ -123,11 +124,11 @@ pub enum Error {
 pub trait EvmState {
     fn environment(&self) -> &Environment;
 
-    fn account(&self, address: Address) -> Option<Account>;
+    fn account(&self, address: &Address) -> Option<Account>;
 
-    fn contains(&self, address: Address) -> bool;
+    fn contains(&self, address: &Address) -> bool;
 
-    fn modify_account<F>(&mut self, address: Address, f: F) -> Result<(), String>
+    fn modify_account<F>(&mut self, address: Address, f: F) -> Result<(), ExitError>
     where
         F: FnOnce(Account) -> Option<Account>;
 
@@ -179,7 +180,7 @@ impl<'a> VirtualMachineSubstate<'a> {
         let account = self
             .known_account(&address)
             .cloned()
-            .unwrap_or_else(|| state.account(address).unwrap_or_default());
+            .unwrap_or_else(|| state.account(&address).unwrap_or_default());
         self.accounts.entry(address).or_insert(account)
     }
 }
@@ -243,14 +244,18 @@ where
             let vm = executor.into_state();
 
             // pay gas fees
-            if let Some(mut account) = vm.state.account(vm.origin) {
+            if let Some(mut account) = vm.state.account(&vm.origin) {
                 account.balance = account
                     .balance
-                    .checked_sub(gas_fees)
+                    .checked_sub(
+                        gas_fees
+                            .try_into()
+                            .map_err(|_| Error::TransactionError(ExitError::OutOfFund))?,
+                    )
                     .ok_or(Error::TransactionError(ExitError::OutOfFund))?;
                 vm.state
                     .modify_account(vm.origin, |_| Some(account))
-                    .map_err(|e| Error::TransactionError(ExitError::Other(e.into())))?;
+                    .map_err(|e| Error::TransactionError(e))?;
             }
 
             // exit_reason
@@ -375,7 +380,7 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
         self.state.environment().chain_id
     }
     fn exists(&self, address: H160) -> bool {
-        self.substate.known_account(&address).is_some() || self.state.contains(address)
+        self.substate.known_account(&address).is_some() || self.state.contains(&address)
     }
     fn basic(&self, address: H160) -> Basic {
         self.substate
@@ -386,7 +391,7 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
             })
             .unwrap_or_else(|| {
                 self.state
-                    .account(address)
+                    .account(&address)
                     .map(|account| Basic {
                         balance: account.balance.into(),
                         nonce: account.state.nonce,
@@ -400,7 +405,7 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
             .map(|account| account.state.code.clone())
             .unwrap_or_else(|| {
                 self.state
-                    .account(address)
+                    .account(&address)
                     .map(|account| account.state.code)
                     .unwrap_or_default()
             })
@@ -418,7 +423,7 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
             })
             .unwrap_or_else(|| {
                 self.state
-                    .account(address)
+                    .account(&address)
                     .map(|account| {
                         account
                             .state
@@ -431,7 +436,7 @@ impl<'a, State: EvmState> Backend for VirtualMachine<'a, State> {
             })
     }
     fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
-        match self.state.account(address) {
+        match self.state.account(&address) {
             Some(account) => account.state.storage.get(&index).cloned(),
             None => None,
         }
@@ -497,14 +502,14 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
                         Some(account)
                     }
                 })
-                .map_err(|e| ExitError::Other(e.into()))?;
+                .map_err(|e| e)?;
         }
 
         // delete account
         for address in self.substate.deletes.iter() {
             self.state
                 .modify_account(*address, |_| None)
-                .map_err(|e| ExitError::Other(e.into()))?;
+                .map_err(|e| e)?;
         }
 
         // save the logs
@@ -540,7 +545,7 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
     fn is_empty(&self, address: H160) -> bool {
         match self.substate.known_account(&address) {
             Some(account) => account.is_empty(),
-            None => match self.state.account(address) {
+            None => match self.state.account(&address) {
                 Some(account) => account.is_empty(),
                 None => true,
             },
@@ -593,13 +598,21 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
     fn transfer(&mut self, transfer: Transfer) -> Result<(), ExitError> {
         let source = self.substate.account_mut(transfer.source, self.state);
 
-        source.balance = match source.balance.checked_sub(transfer.value) {
+        source.balance = match source
+            .balance
+            .checked_sub(transfer.value.try_into().map_err(|_| ExitError::OutOfGas)?)
+        {
             Some(res) => res,
             None => return Err(ExitError::OutOfGas),
         };
 
         let target = self.substate.account_mut(transfer.target, self.state);
-        target.balance = match target.balance.checked_add(transfer.value) {
+        target.balance = match target.balance.checked_add(
+            transfer
+                .value
+                .try_into()
+                .map_err(|_| ExitError::Other("Balance overflow".into()))?,
+        ) {
             Some(res) => res,
             None => return Err(ExitError::Other("Balance overflow".into())),
         };
@@ -634,15 +647,15 @@ pub mod test {
             &self.environment
         }
 
-        fn account(&self, address: Address) -> Option<Account> {
-            self.accounts.get(&address).cloned()
+        fn account(&self, address: &Address) -> Option<Account> {
+            self.accounts.get(address).cloned()
         }
 
-        fn contains(&self, address: Address) -> bool {
+        fn contains(&self, address: &Address) -> bool {
             self.accounts.contains(&address)
         }
 
-        fn modify_account<F>(&mut self, address: Address, f: F) -> Result<(), String>
+        fn modify_account<F>(&mut self, address: Address, f: F) -> Result<(), ExitError>
         where
             F: FnOnce(Account) -> Option<Account>,
         {
