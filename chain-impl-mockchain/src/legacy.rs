@@ -48,8 +48,13 @@ impl DeserializeFromSlice for UtxoDeclaration {
 
 impl SerializedSize for UtxoDeclaration {
     fn serialized_size(&self) -> usize {
-        // TODO implement
-        unimplemented!()
+        assert!(self.addrs.len() < 255);
+
+        let mut res = 0_u8.serialized_size();
+        for (b, v) in &self.addrs {
+            res += v.serialized_size() + 0_u16.serialized_size() + b.as_ref().serialized_size();
+        }
+        res
     }
 }
 
