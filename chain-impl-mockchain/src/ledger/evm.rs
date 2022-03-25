@@ -89,7 +89,7 @@ impl EvmState for super::Ledger {
 
     fn account(&self, evm_address: &EvmAddress) -> Option<EvmAccount> {
         match self.evm.address_mapping.jor_address(evm_address) {
-            Some(jor_address) => match self.accounts.get_state(&jor_address) {
+            Some(jor_address) => match self.accounts.get_state(jor_address) {
                 Ok(account) => Some(EvmAccount {
                     balance: account.value.0.into(),
                     state: account.evm_state.clone(),
@@ -112,15 +112,16 @@ impl EvmState for super::Ledger {
             .evm
             .address_mapping
             .jor_address(&address)
-            .ok_or(ExitError::Other(
-                format!(
-                    "Can not find corresponding jormungadr account for the evm account: {}",
-                    address
+            .ok_or_else(|| {
+                ExitError::Other(
+                    format!(
+                        "Can not find corresponding jormungadr account for the evm account: {}",
+                        address
+                    )
+                    .into(),
                 )
-                .into(),
-            ))?
+            })?
             .clone();
-
         let account = self
             .accounts
             .get_state(&address)

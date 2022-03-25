@@ -255,7 +255,7 @@ where
                     .ok_or(Error::TransactionError(ExitError::OutOfFund))?;
                 vm.state
                     .modify_account(vm.origin, |_| Some(account))
-                    .map_err(|e| Error::TransactionError(e))?;
+                    .map_err(Error::TransactionError)?;
             }
 
             // exit_reason
@@ -652,7 +652,7 @@ pub mod test {
         }
 
         fn contains(&self, address: &Address) -> bool {
-            self.accounts.contains(&address)
+            self.accounts.contains(address)
         }
 
         fn modify_account<F>(&mut self, address: Address, f: F) -> Result<(), ExitError>
