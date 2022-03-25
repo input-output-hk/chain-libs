@@ -1,7 +1,7 @@
 use crate::config::ConfigParam;
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -18,6 +18,16 @@ impl ConfigParams {
 
     pub fn iter(&self) -> std::slice::Iter<ConfigParam> {
         self.0.iter()
+    }
+}
+
+impl SerializedSize for ConfigParams {
+    fn serialized_size(&self) -> usize {
+        let mut res = 0_u16.serialized_size();
+        for config in &self.0 {
+            res += config.serialized_size();
+        }
+        res
     }
 }
 

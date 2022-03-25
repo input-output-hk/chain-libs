@@ -1,7 +1,7 @@
 use crate::stake::Stake;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
 };
 use std::{iter::Sum, ops};
 use thiserror::Error;
@@ -118,6 +118,12 @@ impl AsRef<u64> for Value {
 impl Deserialize for Value {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         codec.get_be_u64().map(Value)
+    }
+}
+
+impl SerializedSize for Value {
+    fn serialized_size(&self) -> usize {
+        self.0.serialized_size()
     }
 }
 

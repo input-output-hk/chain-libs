@@ -30,8 +30,14 @@ pub trait SerializedSize {
     fn serialized_size(&self) -> usize;
 }
 
+impl<T: SerializedSize> SerializedSize for &T {
+    fn serialized_size(&self) -> usize {
+        (*self).serialized_size()
+    }
+}
+
 /// Define that an object can be written to an `std::io::Write` object.
-pub trait Serialize {
+pub trait Serialize: SerializedSize {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError>;
 
     /// Convenience method to serialize into a byte vector.

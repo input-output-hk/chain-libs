@@ -3,7 +3,7 @@ use crate::key::{
 };
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey, Verification};
 
@@ -64,6 +64,18 @@ fn deserialize_index<R: std::io::BufRead>(codec: &mut Codec<R>) -> Result<TreeIn
     match TreeIndex::unpack(idx) {
         None => Err(ReadError::StructureInvalid("invalid index".to_string())),
         Some(ti) => Ok(ti),
+    }
+}
+
+impl SerializedSize for Witness {
+    fn serialized_size(&self) -> usize {
+        let mut res = 0_u8.serialized_size();
+        for (_, pk, sig) in self.0.iter() {
+            res += 0_u16.serialized_size()
+                + pk.as_ref().serialized_size()
+                + sig.as_ref().serialized_size()
+        }
+        res
     }
 }
 

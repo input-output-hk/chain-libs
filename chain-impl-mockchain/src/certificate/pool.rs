@@ -5,10 +5,11 @@ use crate::transaction::{
     AccountIdentifier, Payload, PayloadAuthData, PayloadData, PayloadSlice,
     SingleAccountBindingSignature, TransactionBindingAuthData,
 };
-use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
+    property::{
+        Deserialize, DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError,
+    },
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Verification};
 use chain_time::{DurationSeconds, TimeOffsetSeconds};
@@ -191,9 +192,21 @@ impl Deserialize for PoolRetirement {
     }
 }
 
+impl SerializedSize for PoolUpdate {
+    fn serialized_size(&self) -> usize {
+        self.serialize().as_slice().serialized_size()
+    }
+}
+
 impl Serialize for PoolUpdate {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
+    }
+}
+
+impl SerializedSize for PoolRetirement {
+    fn serialized_size(&self) -> usize {
+        self.serialize().as_slice().serialized_size()
     }
 }
 
@@ -250,6 +263,12 @@ impl Payload for PoolRetirement {
     }
     fn payload_to_certificate_slice(p: PayloadSlice<'_, Self>) -> Option<CertificateSlice<'_>> {
         Some(CertificateSlice::from(p))
+    }
+}
+
+impl SerializedSize for PoolRegistration {
+    fn serialized_size(&self) -> usize {
+        self.serialize().as_slice().serialized_size()
     }
 }
 

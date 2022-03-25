@@ -31,14 +31,12 @@
 //! Address human format is bech32 encoded
 
 use bech32::{self, FromBase32, ToBase32};
-use std::string::ToString;
-
-use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
-
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
 };
+use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
+use std::string::ToString;
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod testing;
@@ -415,6 +413,21 @@ impl std::str::FromStr for AddressReadable {
     type Err = Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         AddressReadable::from_string_anyprefix(s)
+    }
+}
+
+impl SerializedSize for Address {
+    fn serialized_size(&self) -> usize {
+        0_u8.serialized_size()
+            + match &self.1 {
+                Kind::Single(spend) => spend.as_ref().serialized_size(),
+                Kind::Group(spend, group) => {
+                    spend.as_ref().serialized_size() + group.as_ref().serialized_size()
+                }
+                Kind::Account(stake_key) => stake_key.as_ref().serialized_size(),
+                Kind::Multisig(hash) => hash.serialized_size(),
+                Kind::Script(hash) => hash.serialized_size(),
+            }
     }
 }
 

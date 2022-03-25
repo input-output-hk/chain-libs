@@ -5,7 +5,9 @@ use crate::key::Hash;
 use crate::legacy;
 use chain_core::{
     packer::Codec,
-    property::{self, Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{
+        self, Deserialize, DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError,
+    },
 };
 
 pub use config::ConfigParams;
@@ -195,6 +197,32 @@ impl Deserialize for Fragment {
             }
             None => Err(ReadError::UnknownTag(tag as u32)),
         }
+    }
+}
+
+impl SerializedSize for Fragment {
+    fn serialized_size(&self) -> usize {
+        0_u8.serialized_size()
+            + 0_u8.serialized_size()
+            + match self {
+                Fragment::Initial(i) => i.serialized_size(),
+                Fragment::OldUtxoDeclaration(s) => s.serialized_size(),
+                Fragment::Transaction(signed) => signed.serialized_size(),
+                Fragment::OwnerStakeDelegation(od) => od.serialized_size(),
+                Fragment::StakeDelegation(od) => od.serialized_size(),
+                Fragment::PoolRegistration(atx) => atx.serialized_size(),
+                Fragment::PoolRetirement(pm) => pm.serialized_size(),
+                Fragment::PoolUpdate(pm) => pm.serialized_size(),
+                Fragment::UpdateProposal(proposal) => proposal.serialized_size(),
+                Fragment::UpdateVote(vote) => vote.serialized_size(),
+                Fragment::VotePlan(vote_plan) => vote_plan.serialized_size(),
+                Fragment::VoteCast(vote_plan) => vote_plan.serialized_size(),
+                Fragment::VoteTally(vote_tally) => vote_tally.serialized_size(),
+                Fragment::MintToken(mint_token) => mint_token.serialized_size(),
+                Fragment::Evm(deployment) => deployment.serialized_size(),
+                Fragment::EvmMapping(evm_mapping) => evm_mapping.serialized_size(),
+            }
+            + 0_u32.serialized_size()
     }
 }
 

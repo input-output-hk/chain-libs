@@ -7,7 +7,9 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
+    property::{
+        Deserialize, DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError,
+    },
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -58,6 +60,15 @@ impl Payload for MintToken {
 
     fn payload_to_certificate_slice(p: PayloadSlice<'_, Self>) -> Option<CertificateSlice<'_>> {
         Some(CertificateSlice::from(p))
+    }
+}
+
+impl SerializedSize for MintToken {
+    fn serialized_size(&self) -> usize {
+        self.name.serialized_size()
+            + self.policy.serialized_size()
+            + self.to.serialized_size()
+            + self.value.serialized_size()
     }
 }
 

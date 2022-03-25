@@ -3,6 +3,7 @@ use crate::value::Value;
 pub use cardano_legacy_address::Addr as OldAddress;
 pub use cardano_legacy_address::AddressMatchXPub as OldAddressMatchXPub;
 
+use chain_core::property::SerializedSize;
 use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
@@ -42,6 +43,13 @@ impl DeserializeFromSlice for UtxoDeclaration {
         }
 
         Ok(UtxoDeclaration { addrs })
+    }
+}
+
+impl SerializedSize for UtxoDeclaration {
+    fn serialized_size(&self) -> usize {
+        // TODO implement
+        unimplemented!()
     }
 }
 

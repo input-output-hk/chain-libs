@@ -1,6 +1,6 @@
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
 };
 
 /// Block Header Bytes
@@ -10,6 +10,12 @@ pub struct HeaderRaw(pub(super) Vec<u8>);
 impl AsRef<[u8]> for HeaderRaw {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+
+impl SerializedSize for HeaderRaw {
+    fn serialized_size(&self) -> usize {
+        0_u16.serialized_size() + self.0.as_slice().serialized_size()
     }
 }
 

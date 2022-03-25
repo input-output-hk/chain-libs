@@ -1,7 +1,7 @@
 use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
 };
 use cryptoxide::{blake2b::Blake2b, digest::Digest};
 use thiserror::Error;
@@ -67,6 +67,12 @@ impl MintingPolicy {
 impl Default for MintingPolicy {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl SerializedSize for MintingPolicy {
+    fn serialized_size(&self) -> usize {
+        0_u8.serialized_size()
     }
 }
 

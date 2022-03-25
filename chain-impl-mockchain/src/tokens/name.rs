@@ -1,6 +1,6 @@
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, WriteError},
+    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
 };
 use thiserror::Error;
 use typed_bytes::ByteBuilder;
@@ -44,6 +44,12 @@ impl TryFrom<Vec<u8>> for TokenName {
             });
         }
         Ok(Self(value))
+    }
+}
+
+impl SerializedSize for TokenName {
+    fn serialized_size(&self) -> usize {
+        0_u8.serialized_size() + self.0.as_slice().serialized_size()
     }
 }
 

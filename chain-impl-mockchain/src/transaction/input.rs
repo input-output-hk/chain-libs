@@ -6,10 +6,9 @@ use crate::utxo::Entry;
 use crate::value::Value;
 use crate::{account, multisig};
 use chain_addr::Address;
-use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize},
+    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
 };
 use chain_crypto::PublicKey;
 
@@ -197,12 +196,19 @@ impl Input {
     }
 }
 
+impl SerializedSize for Input {
+    fn serialized_size(&self) -> usize {
+        self.index_or_account.serialized_size()
+            + self.value.serialized_size()
+            + self.input_ptr.serialized_size()
+    }
+}
+
 impl Serialize for Input {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(self.index_or_account)?;
         self.value.serialize(codec)?;
-        codec.put_bytes(&self.input_ptr)?;
-        Ok(())
+        codec.put_bytes(&self.input_ptr)
     }
 }
 

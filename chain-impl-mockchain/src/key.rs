@@ -4,7 +4,8 @@
 use chain_core::{
     packer::Codec,
     property::{
-        BlockId, Deserialize, DeserializeFromSlice, FragmentId, ReadError, Serialize, WriteError,
+        BlockId, Deserialize, DeserializeFromSlice, FragmentId, ReadError, Serialize,
+        SerializedSize, WriteError,
     },
 };
 use chain_crypto as crypto;
@@ -175,6 +176,12 @@ where
     }
 }
 
+impl<T: Serialize, A: VerificationAlgorithm> SerializedSize for Signed<T, A> {
+    fn serialized_size(&self) -> usize {
+        self.data.serialized_size() + self.sig.as_ref().serialized_size()
+    }
+}
+
 impl<T: Serialize, A: VerificationAlgorithm> Serialize for Signed<T, A> {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         self.data.serialize(codec)?;
@@ -255,6 +262,12 @@ impl<'a> From<&'a Hash> for &'a [u8; 32] {
     }
 }
 
+impl SerializedSize for Hash {
+    fn serialized_size(&self) -> usize {
+        self.0.as_hash_bytes().serialized_size()
+    }
+}
+
 impl Serialize for Hash {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.0.as_hash_bytes())
@@ -315,6 +328,12 @@ impl From<[u8; 32]> for BftLeaderId {
 impl BftLeaderId {
     pub fn as_public_key(&self) -> &PublicKey<BftVerificationAlg> {
         &self.0
+    }
+}
+
+impl SerializedSize for BftLeaderId {
+    fn serialized_size(&self) -> usize {
+        self.0.as_ref().serialized_size()
     }
 }
 
