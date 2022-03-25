@@ -124,11 +124,6 @@ impl Fragment {
     pub fn hash(&self) -> FragmentId {
         FragmentId::hash_bytes(self.serialize_as_vec().unwrap().as_slice())
     }
-
-    /// How many bytes it will take up once serialized in a block
-    pub fn serialized_size(&self) -> usize {
-        self.serialize_as_vec().unwrap().len()
-    }
 }
 
 impl Deserialize for Fragment {
