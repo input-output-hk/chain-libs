@@ -19,5 +19,5 @@ where
         Err(error) => return TestResult::error(format!("deserialization: {:?}", error)),
         Ok(v) => v,
     };
-    TestResult::from_bool((decoded_t == t))
+    TestResult::from_bool((decoded_t == t) && (vec.len() == t.serialized_size()))
 }
