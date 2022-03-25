@@ -26,6 +26,10 @@ pub enum WriteError {
     IoError(#[from] std::io::Error),
 }
 
+pub trait SerializedSize {
+    fn serialized_size(&self) -> usize;
+}
+
 /// Define that an object can be written to an `std::io::Write` object.
 pub trait Serialize {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError>;
@@ -82,5 +86,77 @@ impl<const N: usize> Deserialize for [u8; N] {
         let mut buf = [0u8; N];
         codec.copy_to_slice(&mut buf)?;
         Ok(buf)
+    }
+}
+
+impl SerializedSize for u8 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<u8>()
+    }
+}
+
+impl SerializedSize for u16 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<u16>()
+    }
+}
+
+impl SerializedSize for u32 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
+
+impl SerializedSize for u64 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<u64>()
+    }
+}
+
+impl SerializedSize for u128 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<u128>()
+    }
+}
+
+impl SerializedSize for i8 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<i8>()
+    }
+}
+
+impl SerializedSize for i16 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<i16>()
+    }
+}
+
+impl SerializedSize for i32 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<i32>()
+    }
+}
+
+impl SerializedSize for i64 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<i64>()
+    }
+}
+
+impl SerializedSize for i128 {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<i128>()
+    }
+}
+
+impl<const N: usize> SerializedSize for [u8; N] {
+    fn serialized_size(&self) -> usize {
+        std::mem::size_of::<[u8; N]>()
+    }
+}
+
+impl SerializedSize for &[u8] {
+    fn serialized_size(&self) -> usize {
+        self.len()
     }
 }
