@@ -516,7 +516,6 @@ mod tests {
     use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
     use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
     use chain_core::property::BlockDate as BlockDateProp;
-    use rand::SeedableRng;
     use std::convert::TryFrom;
     use test_strategy::proptest;
 

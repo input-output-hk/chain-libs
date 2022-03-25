@@ -3,7 +3,6 @@
 use crate::{
     date::BlockDate,
     testing::{
-        arbitrary::KindTypeWithoutMultisig,
         builders::TestTxBuilder,
         data::AddressDataValue,
         ledger::{ConfigBuilder, LedgerBuilder},
@@ -13,10 +12,8 @@ use crate::{
 };
 use chain_addr::Discrimination;
 use proptest::arbitrary::any;
-use quickcheck::TestResult;
 
 proptest::proptest! {
-
     fn ledger_verifies_faucet_discrimination(
         arbitrary_faucet_disc in any::<Discrimination>(),
         arbitrary_faucet_address_kind in kind_type_without_multisig(),

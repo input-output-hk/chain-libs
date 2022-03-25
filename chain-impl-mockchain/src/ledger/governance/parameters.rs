@@ -177,9 +177,7 @@ mod tests {
     }
 
     #[proptest]
-    fn parameters_governance_set_acceptance_criteria(
-        action_type: ParametersGovernanceActionType,
-    ) {
+    fn parameters_governance_set_acceptance_criteria(action_type: ParametersGovernanceActionType) {
         let mut governance = ParametersGovernance::new();
         let new_governance_criteria = some_new_governance_criteria();
         governance.set_acceptance_criteria(action_type, new_governance_criteria.clone());

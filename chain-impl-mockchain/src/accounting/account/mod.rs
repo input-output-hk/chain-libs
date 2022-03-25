@@ -249,6 +249,7 @@ mod tests {
     use quickcheck_macros::quickcheck;
     use std::collections::HashSet;
     use std::iter;
+    use test_strategy::proptest;
 
     impl Arbitrary for Ledger {
         fn arbitrary<G: Gen>(gen: &mut G) -> Self {
@@ -527,69 +528,55 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn ledger_total_value_is_correct_after_remove_value(
+    #[proptest]
+    fn ledger_total_value_is_correct_after_remove_value(
         id: Identifier,
         account_state: AccountState<()>,
         value_to_remove: Value,
-    ) -> TestResult {
+    ) {
         let mut ledger = Ledger::new();
         ledger = ledger.add_account(&id, account_state.value(), ()).unwrap();
         let result = ledger.remove_value(&id, SpendingCounter::zero(), value_to_remove);
         let expected_result = account_state.value() - value_to_remove;
         match (result, expected_result) {
             (Err(_), Err(_)) => verify_total_value(ledger, account_state.value()),
-            (Ok(_), Err(_)) => TestResult::failed(),
-            (Err(_), Ok(_)) => TestResult::failed(),
             (Ok(ledger), Ok(value)) => verify_total_value(ledger, value),
+            _ => panic!(),
         }
     }
 
-    fn verify_total_value(ledger: Ledger, value: Value) -> TestResult {
-        if ledger.get_total_value().unwrap() == value {
-            TestResult::passed()
-        } else {
-            TestResult::error(format!(
+    fn verify_total_value(ledger: Ledger, value: Value) {
+        if ledger.get_total_value().unwrap() != value {
+            panic!(
                 "Wrong total value got {:?}, while expecting {:?}",
                 ledger.get_total_value(),
                 value
-            ))
+            )
         }
     }
 
-    #[quickcheck]
-    pub fn ledger_removes_account_only_if_zeroed(
-        id: Identifier,
-        account_state: AccountState<()>,
-    ) -> TestResult {
+    #[proptest]
+    fn ledger_removes_account_only_if_zeroed(id: Identifier, account_state: AccountState<()>) {
         let mut ledger = Ledger::new();
         ledger = ledger.add_account(&id, account_state.value(), ()).unwrap();
         let result = ledger.remove_account(&id);
         let expected_zero = account_state.value() == Value::zero();
         match (result, expected_zero) {
             (Err(_), false) => verify_account_exists(&ledger, &id),
-            (Ok(_), false) => TestResult::failed(),
-            (Err(_), true) => TestResult::failed(),
             (Ok(ledger), true) => verify_account_does_not_exist(&ledger, &id),
+            _ => panic!(),
         }
     }
 
-    fn verify_account_exists(ledger: &Ledger, id: &Identifier) -> TestResult {
-        if ledger.exists(id) {
-            TestResult::passed()
-        } else {
-            TestResult::error(format!(
-                "Account ({:?}) does not exist, while it should",
-                &id
-            ))
+    fn verify_account_exists(ledger: &Ledger, id: &Identifier) {
+        if !ledger.exists(id) {
+            panic!("Account ({:?}) does not exist, while it should", &id)
         }
     }
 
-    fn verify_account_does_not_exist(ledger: &Ledger, id: &Identifier) -> TestResult {
+    fn verify_account_does_not_exist(ledger: &Ledger, id: &Identifier) {
         if ledger.exists(id) {
-            TestResult::error(format!("Account ({:?}) exists, while it should not", &id))
-        } else {
-            TestResult::passed()
+            panic!("Account ({:?}) exists, while it should not", &id)
         }
     }
 
