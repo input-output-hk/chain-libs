@@ -135,7 +135,7 @@ impl EvmState for super::Ledger {
             Some(account) => {
                 self.accounts = self
                     .accounts
-                    .evm_update(
+                    .evm_insert_or_update(
                         &address,
                         Value(u64::from(account.balance)),
                         account.state,

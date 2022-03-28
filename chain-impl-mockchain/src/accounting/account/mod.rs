@@ -209,7 +209,7 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
     }
 
     #[cfg(feature = "evm")]
-    pub fn evm_update(
+    pub fn evm_insert_or_update(
         &self,
         identifier: &ID,
         value: Value,
