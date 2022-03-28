@@ -228,15 +228,15 @@ mod tests {
     }
 
     #[proptest]
-    fn increment_nth(mut spending_counter: SpendingCounter, n: u32) {
+    fn increment_nth(mut spending_counter: SpendingCounter, mut n: u32) {
+        n &= SpendingCounter::UNLANED_MASK + 1; // only the least significant 29 bits are used for the count
         prop_assume!(spending_counter.unlaned_counter().checked_add(n).is_some());
         let lane_before = spending_counter.lane();
         let counter = spending_counter.unlaned_counter();
         spending_counter = spending_counter.increment_nth(n);
         prop_assert_eq!(lane_before, spending_counter.lane());
-        // some values will wrap around
         prop_assert_eq!(
-            counter + n % SpendingCounter::UNLANED_MASK,
+            counter + n % (SpendingCounter::UNLANED_MASK + 1),
             spending_counter.unlaned_counter()
         );
     }
