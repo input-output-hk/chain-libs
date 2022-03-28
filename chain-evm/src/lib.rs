@@ -1,4 +1,5 @@
 pub use ethereum_types;
+pub use rlp;
 
 pub mod machine;
 mod precompiles;

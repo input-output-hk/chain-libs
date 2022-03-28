@@ -21,6 +21,9 @@ pub use chain_evm::{
     Address,
 };
 
+#[cfg(feature = "evm")]
+use chain_evm::rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+
 /// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EvmTransaction {
@@ -50,6 +53,20 @@ pub enum EvmTransaction {
         gas_limit: u64,
         access_list: Vec<(Address, Vec<Key>)>,
     },
+}
+
+#[cfg(feature = "evm")]
+impl Decodable for EvmTransaction {
+    fn decode(rlp: &Rlp<'_>) -> Result<Self, DecoderError> {
+        todo!();
+    }
+}
+
+#[cfg(feature = "evm")]
+impl Encodable for EvmTransaction {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        todo!();
+    }
 }
 
 impl EvmTransaction {
