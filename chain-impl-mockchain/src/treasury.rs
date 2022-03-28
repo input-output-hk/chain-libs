@@ -42,6 +42,21 @@ impl Treasury {
     }
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
+mod pt_impl {
+    use super::*;
+    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+    impl Arbitrary for Treasury {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<Value>, fn(Value) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<Value>().prop_map(Treasury::initial)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Treasury;

@@ -210,13 +210,26 @@ mod tests {
         stake::Stake,
         vote::{Choice, Options, VoteError},
     };
-    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for TallyResult {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             TallyResult::new(Arbitrary::arbitrary(g))
+        }
+    }
+
+    use proptest::{
+        arbitrary::{any, StrategyFor},
+        strategy::{Map, Strategy},
+    };
+
+    impl proptest::arbitrary::Arbitrary for TallyResult {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<Options>, fn(Options) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<Options>().prop_map(TallyResult::new)
         }
     }
 
@@ -266,9 +279,9 @@ mod tests {
         assert_eq!(*tally_result.options(), options);
     }
 
-    #[quickcheck]
-    pub fn tally(tally_result: TallyResult) -> TestResult {
+    #[proptest]
+    fn tally(tally_result: TallyResult) {
         let tally = Tally::new_public(tally_result.clone());
-        TestResult::from_bool(tally.is_public() && (*tally.result().unwrap()) == tally_result)
+        assert!(tally.is_public() && (*tally.result().unwrap()) == tally_result);
     }
 }

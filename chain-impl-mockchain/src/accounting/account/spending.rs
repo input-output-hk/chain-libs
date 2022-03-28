@@ -126,7 +126,7 @@ pub struct SpendingCounter(pub(crate) u32);
 
 impl SpendingCounter {
     // on 32 bits: 0x1fff_ffff;
-    const UNLANED_MASK: u32 = (1 << UNLANES_BITS) - 1;
+    pub(crate) const UNLANED_MASK: u32 = (1 << UNLANES_BITS) - 1;
 
     // LANES_BITS on the MSB, on 32 bits: 0xe000_0000
     const LANED_MASK: u32 = !Self::UNLANED_MASK;
@@ -190,12 +190,13 @@ impl From<SpendingCounter> for u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::TestResult;
+    use proptest::prelude::*;
+    use test_strategy::proptest;
 
-    #[quickcheck_macros::quickcheck]
-    fn spending_counter_serialization_bijection(sc: SpendingCounter) -> TestResult {
+    #[proptest]
+    fn spending_counter_serialization_bijection(sc: SpendingCounter) {
         let bytes = sc.to_bytes();
-        TestResult::from_bool(SpendingCounter::from_bytes(bytes) == sc)
+        prop_assert_eq!(SpendingCounter::from_bytes(bytes), sc);
     }
 
     #[test]
@@ -206,38 +207,38 @@ mod tests {
         SpendingCounter::new(lane, counter);
     }
 
-    #[quickcheck_macros::quickcheck]
+    #[proptest]
     fn new_spending_counter(mut lane: usize, mut counter: u32) {
         lane %= 1 << LANES_BITS;
         counter %= 1 << UNLANES_BITS;
         let sc = SpendingCounter::new(lane, counter);
 
-        assert_eq!(lane, sc.lane());
-        assert_eq!(counter, sc.unlaned_counter());
+        prop_assert_eq!(lane, sc.lane());
+        prop_assert_eq!(counter, sc.unlaned_counter());
     }
 
-    #[quickcheck_macros::quickcheck]
-    fn increment_counter(mut spending_counter: SpendingCounter) -> TestResult {
-        if spending_counter.unlaned_counter().checked_add(1).is_none() {
-            return TestResult::discard();
-        }
+    #[proptest]
+    fn increment_counter(mut spending_counter: SpendingCounter) {
+        prop_assume!(spending_counter.unlaned_counter().checked_add(1).is_some());
         let lane_before = spending_counter.lane();
         let counter = spending_counter.unlaned_counter();
         spending_counter = spending_counter.increment();
-        assert_eq!(lane_before, spending_counter.lane());
-        TestResult::from_bool((counter + 1) == spending_counter.unlaned_counter())
+        prop_assert_eq!(lane_before, spending_counter.lane());
+        prop_assert_eq!(counter + 1, spending_counter.unlaned_counter());
     }
 
-    #[quickcheck_macros::quickcheck]
-    pub fn increment_nth(mut spending_counter: SpendingCounter, n: u32) -> TestResult {
-        if spending_counter.unlaned_counter().checked_add(n).is_none() {
-            return TestResult::discard();
-        }
+    #[proptest]
+    fn increment_nth(mut spending_counter: SpendingCounter, n: u32) {
+        prop_assume!(spending_counter.unlaned_counter().checked_add(n).is_some());
         let lane_before = spending_counter.lane();
         let counter = spending_counter.unlaned_counter();
         spending_counter = spending_counter.increment_nth(n);
-        assert_eq!(lane_before, spending_counter.lane());
-        TestResult::from_bool((counter + n) == spending_counter.unlaned_counter())
+        prop_assert_eq!(lane_before, spending_counter.lane());
+        // some values will wrap around
+        prop_assert_eq!(
+            counter + n % SpendingCounter::UNLANED_MASK,
+            spending_counter.unlaned_counter()
+        );
     }
 
     #[test]
@@ -254,14 +255,12 @@ mod tests {
         let _ = SpendingCounter::new(0, 1).increment_nth(u32::MAX);
     }
 
-    #[quickcheck_macros::quickcheck]
-    pub fn spending_counter_is_set_on_correct_lane(
-        spending_counter: SpendingCounter,
-    ) -> TestResult {
+    #[proptest]
+    fn spending_counter_is_set_on_correct_lane(spending_counter: SpendingCounter) {
         let spending_counter_increasing =
             SpendingCounterIncreasing::new_from_counter(spending_counter);
         let counters = spending_counter_increasing.get_valid_counters();
-        TestResult::from_bool(spending_counter == counters[spending_counter.lane()])
+        prop_assert_eq!(spending_counter, counters[spending_counter.lane()]);
     }
 
     #[test]
@@ -284,15 +283,15 @@ mod tests {
         assert!(SpendingCounterIncreasing::new_from_counters(counters).is_none());
     }
 
-    #[quickcheck_macros::quickcheck]
-    pub fn spending_counter_increasing_increment(mut index: usize) -> TestResult {
+    #[proptest]
+    fn spending_counter_increasing_increment(mut index: usize) {
         let mut sc_increasing = SpendingCounterIncreasing::default();
         index %= SpendingCounterIncreasing::LANES;
         let sc_before = sc_increasing.get_valid_counters()[index];
         sc_increasing.next_verify(sc_before).unwrap();
 
         let sc_after = sc_increasing.get_valid_counters()[index];
-        TestResult::from_bool(sc_after.unlaned_counter() == sc_before.unlaned_counter() + 1)
+        assert_eq!(sc_after.unlaned_counter(), sc_before.unlaned_counter() + 1);
     }
 
     #[test]
