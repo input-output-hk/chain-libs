@@ -52,17 +52,11 @@ impl Balance {
     }
     /// Returns `Some(balance)` or `None` if overflow occurred.
     pub fn checked_add(self, other: Balance) -> Option<Balance> {
-        if let Some(res) = self.0.checked_add(other.0) {
-            return Some(Balance(res));
-        }
-        None
+        self.0.checked_add(other.0).map(Self)
     }
     /// Returns `Some(balance)` or `None` if overflow occurred.
     pub fn checked_sub(self, other: Balance) -> Option<Balance> {
-        if let Some(res) = self.0.checked_sub(other.0) {
-            return Some(Balance(res));
-        }
-        None
+        self.0.checked_sub(other.0).map(Self)
     }
 }
 
@@ -78,7 +72,7 @@ pub struct Account {
     pub state: AccountState,
 }
 
-/// A represantation of an EVM account state.
+/// A representation of an EVM account state.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AccountState {
     /// Account data storage.

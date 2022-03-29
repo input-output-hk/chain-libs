@@ -494,22 +494,18 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
                 .map(|(k, v)| (*k, *v))
                 .collect();
 
-            self.state
-                .modify_account(*address, |_| {
-                    if self.delete_empty && account.is_empty() {
-                        None
-                    } else {
-                        Some(account)
-                    }
-                })
-                .map_err(|e| e)?;
+            self.state.modify_account(*address, |_| {
+                if self.delete_empty && account.is_empty() {
+                    None
+                } else {
+                    Some(account)
+                }
+            })?;
         }
 
         // delete account
         for address in self.substate.deletes.iter() {
-            self.state
-                .modify_account(*address, |_| None)
-                .map_err(|e| e)?;
+            self.state.modify_account(*address, |_| None)?;
         }
 
         // save the logs

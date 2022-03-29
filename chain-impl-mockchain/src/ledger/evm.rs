@@ -25,7 +25,7 @@ pub enum Error {
     #[error(
         "for the provided jormungandr account: {} or evm account: {} mapping is already exist", .0.to_string(), .1.to_string()
     )]
-    ExistedMapping(JorAddress, EvmAddress),
+    ExistingMapping(JorAddress, EvmAddress),
     #[error("evm transaction error: {0}")]
     EvmTransaction(#[from] chain_evm::machine::Error),
     #[error("Protocol evm mapping payload signature failed")]
@@ -61,11 +61,11 @@ impl AddressMapping {
         let evm_to_jor = self
             .evm_to_jor
             .insert(evm_id, jor_id.clone())
-            .map_err(|_| Error::ExistedMapping(jor_id.clone(), evm_id))?;
+            .map_err(|_| Error::ExistingMapping(jor_id.clone(), evm_id))?;
         let jor_to_evm = self
             .jor_to_evm
             .insert(jor_id.clone(), evm_id)
-            .map_err(|_| Error::ExistedMapping(jor_id, evm_id))?;
+            .map_err(|_| Error::ExistingMapping(jor_id, evm_id))?;
 
         self.evm_to_jor = evm_to_jor;
         self.jor_to_evm = jor_to_evm;
@@ -357,15 +357,15 @@ mod test {
 
         assert_eq!(
             address_mapping.map_accounts(jor_id1.clone(), evm_id1),
-            Err(Error::ExistedMapping(jor_id1.clone(), evm_id1))
+            Err(Error::ExistingMapping(jor_id1.clone(), evm_id1))
         );
         assert_eq!(
             address_mapping.map_accounts(jor_id2.clone(), evm_id1),
-            Err(Error::ExistedMapping(jor_id2.clone(), evm_id1))
+            Err(Error::ExistingMapping(jor_id2.clone(), evm_id1))
         );
         assert_eq!(
             address_mapping.map_accounts(jor_id1.clone(), evm_id2),
-            Err(Error::ExistedMapping(jor_id1.clone(), evm_id2))
+            Err(Error::ExistingMapping(jor_id1.clone(), evm_id2))
         );
         assert_eq!(
             address_mapping.map_accounts(jor_id2.clone(), evm_id2),
