@@ -588,12 +588,14 @@ impl<'a, State: EvmState> StackState<'a> for VirtualMachine<'a, State> {
     fn transfer(&mut self, transfer: Transfer) -> Result<(), ExitError> {
         let source = self.substate.account_mut(transfer.source, self.state);
 
-        source.balance = match source
-            .balance
-            .checked_sub(transfer.value.try_into().map_err(|_| ExitError::OutOfGas)?)
-        {
+        source.balance = match source.balance.checked_sub(
+            transfer
+                .value
+                .try_into()
+                .map_err(|_| ExitError::OutOfFund)?,
+        ) {
             Some(res) => res,
-            None => return Err(ExitError::OutOfGas),
+            None => return Err(ExitError::OutOfFund),
         };
 
         let target = self.substate.account_mut(transfer.target, self.state);
