@@ -137,6 +137,27 @@ where
     }
 }
 
+mod pt {
+    use proptest::{arbitrary::StrategyFor, collection::VecStrategy, prelude::*, strategy::Map};
+
+    use super::{Signature, VerificationAlgorithm};
+
+    impl<T, A> Arbitrary for Signature<T, A>
+    where
+        A: VerificationAlgorithm + 'static,
+        A::Signature: Send,
+        T: Send + 'static,
+    {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<u8>>, fn(Vec<u8>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proptest::collection::vec(any::<u8>(), A::SIGNATURE_SIZE)
+                .prop_map(|bytes| Signature::from_binary(&bytes).unwrap())
+        }
+    }
+}
+
 impl Arbitrary for Blake2b256 {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         let bytes: Vec<_> = std::iter::repeat_with(|| u8::arbitrary(g))

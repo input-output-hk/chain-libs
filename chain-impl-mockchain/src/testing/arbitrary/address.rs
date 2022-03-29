@@ -28,6 +28,24 @@ impl Arbitrary for ArbitraryAddressDataVec {
 #[derive(Clone, Debug)]
 pub struct ArbitraryAddressDataValueVec(pub Vec<AddressDataValue>);
 
+mod pt {
+    use proptest::{arbitrary::StrategyFor, collection::VecStrategy, prelude::*, strategy::Map};
+
+    use crate::testing::data::AddressDataValue;
+
+    use super::ArbitraryAddressDataValueVec;
+
+    impl Arbitrary for ArbitraryAddressDataValueVec {
+        type Parameters = ();
+        type Strategy =
+            Map<VecStrategy<StrategyFor<AddressDataValue>>, fn(Vec<AddressDataValue>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proptest::collection::vec(any::<AddressDataValue>(), 1..=10).prop_map(Self)
+        }
+    }
+}
+
 impl Arbitrary for ArbitraryAddressDataValueVec {
     fn arbitrary<G: Gen>(gen: &mut G) -> Self {
         let size_limit = 10;
@@ -43,7 +61,7 @@ pub mod proptest_impls {
     use proptest::prelude::*;
 
     use crate::testing::data::{AddressData, AddressDataValue};
-    use crate::testing::pt::kind_type_without_multisig;
+    use crate::testing::kind_type::pt::kind_type_without_multisig;
     use crate::tokens::name::TokenName;
     use crate::value::Value;
 

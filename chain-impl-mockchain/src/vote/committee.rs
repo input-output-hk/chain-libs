@@ -148,7 +148,10 @@ mod tests {
     use super::*;
     #[cfg(test)]
     use chain_core::property::Serialize as _;
+
+    #[allow(unused_imports)] // due to proptest macro bug
     use proptest::prop_assert_eq;
+
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 
@@ -161,7 +164,7 @@ mod tests {
     }
 
     #[proptest]
-    fn to_from_hex(committee_id: CommitteeId) {
+    fn to_from_hex(#[allow(dead_code)] committee_id: CommitteeId) {
         let s = committee_id.to_hex();
         let d = CommitteeId::from_hex(&s).expect("decode hexadecimal committee id");
 
@@ -169,7 +172,7 @@ mod tests {
     }
 
     #[proptest]
-    fn display_parse(committee_id: CommitteeId) {
+    fn display_parse(#[allow(dead_code)] committee_id: CommitteeId) {
         let s = committee_id.to_string();
         let d = s.parse().expect("decode hexadecimal committee id");
 
@@ -177,7 +180,7 @@ mod tests {
     }
 
     #[proptest]
-    fn serialize_readable(committee_id: CommitteeId) {
+    fn serialize_readable(#[allow(dead_code)] committee_id: CommitteeId) {
         let b_got = committee_id.serialize_as_vec().unwrap();
         let mut buf = ReadBuf::from(b_got.as_ref());
         let result = CommitteeId::read(&mut buf).expect("decode the committee ID");

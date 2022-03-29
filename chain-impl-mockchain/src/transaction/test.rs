@@ -169,6 +169,102 @@ where
     }
 }
 
+mod pt {
+    use crate::account::{AccountAlg, SpendingCounter};
+    use crate::block::BlockDate;
+    use crate::fragment::FragmentId;
+    use crate::key::SpendingSignature;
+    use crate::transaction::{
+        Input, Output, TxBuilder, UtxoPointer, Witness, WitnessAccountData, WitnessUtxoData,
+    };
+    use crate::value::Value;
+
+    use super::{Payload, Transaction};
+    use chain_addr::Address;
+    use chain_crypto::testing::public_key_strategy;
+    use chain_crypto::{Ed25519, Signature};
+    use proptest::arbitrary::StrategyFor;
+    use proptest::collection::vec;
+    use proptest::prelude::*;
+    use proptest::strategy::Map;
+
+    impl<Extra: Arbitrary + Payload> Arbitrary for Transaction<Extra>
+    where
+        Extra::Auth: Arbitrary,
+    {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            (0usize..16, 0usize..16)
+                .prop_flat_map(|(num_inputs, num_outputs)| {
+                    any::<(Extra, Extra::Auth)>().prop_flat_map(move |(extra, auth)| {
+                        let inputs = vec(any::<Input>(), num_inputs);
+                        let outputs = vec(any::<Output<Address>>(), num_outputs);
+                        let witnesses = vec(any::<Witness>(), num_inputs);
+
+                        (inputs, outputs, witnesses).prop_map(
+                            move |(inputs, outputs, witnesses)| {
+                                TxBuilder::new()
+                                    .set_payload(&extra)
+                                    .set_expiry_date(BlockDate::first().next_epoch())
+                                    .set_ios(&inputs, &outputs)
+                                    .set_witnesses(&witnesses)
+                                    .set_payload_auth(&auth)
+                            },
+                        )
+                    })
+                })
+                .boxed()
+        }
+    }
+
+    impl Arbitrary for Input {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<UtxoPointer>, fn(UtxoPointer) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<UtxoPointer>().prop_map(Input::from_utxo)
+        }
+    }
+
+    impl Arbitrary for UtxoPointer {
+        type Parameters = ();
+        type Strategy =
+            Map<StrategyFor<(FragmentId, u8, Value)>, fn((FragmentId, u8, Value)) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<(FragmentId, u8, Value)>().prop_map(|(transaction_id, output_index, value)| {
+                UtxoPointer {
+                    transaction_id,
+                    output_index,
+                    value,
+                }
+            })
+        }
+    }
+
+    impl Arbitrary for Witness {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            prop_oneof![
+                any::<SpendingSignature<WitnessUtxoData>>().prop_map(Witness::Utxo),
+                any::<(SpendingCounter, Signature<WitnessAccountData, AccountAlg>)>()
+                    .prop_map(|(counter, witness)| Witness::Account(counter, witness)),
+                public_key_strategy::<Ed25519>().prop_flat_map(move |key| any::<
+                    Signature<WitnessUtxoData, Ed25519>,
+                >()
+                .prop_map(move |signature| {
+                    Witness::OldUtxo(key.clone(), [0u8; 32], signature)
+                }))
+            ]
+            .boxed()
+        }
+    }
+}
+
 impl Arbitrary for SingleAccountBindingSignature {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
         SingleAccountBindingSignature(Arbitrary::arbitrary(g))

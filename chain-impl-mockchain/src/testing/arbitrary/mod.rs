@@ -86,3 +86,19 @@ impl Arbitrary for BftLeaderId {
         BftLeaderId(sk.to_public())
     }
 }
+
+mod pt {
+    use crate::value::Value;
+
+    use super::{Address, Output};
+    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+    impl Arbitrary for Output<Address> {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<(Address, Value)>, fn((Address, Value)) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<(Address, Value)>().prop_map(|(address, value)| Output { address, value })
+        }
+    }
+}
