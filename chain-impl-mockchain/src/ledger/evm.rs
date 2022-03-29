@@ -58,12 +58,17 @@ impl AddressMapping {
     }
 
     fn map_accounts(&mut self, jor_id: JorAddress, evm_id: EvmAddress) -> Result<(), Error> {
-        (!self.evm_to_jor.contains_key(&evm_id) && !self.jor_to_evm.contains_key(&jor_id))
-            .then(|| ())
-            .ok_or_else(|| Error::ExistedMapping(jor_id.clone(), evm_id))?;
+        let evm_to_jor = self
+            .evm_to_jor
+            .insert(evm_id, jor_id.clone())
+            .map_err(|_| Error::ExistedMapping(jor_id.clone(), evm_id))?;
+        let jor_to_evm = self
+            .jor_to_evm
+            .insert(jor_id.clone(), evm_id)
+            .map_err(|_| Error::ExistedMapping(jor_id, evm_id))?;
 
-        self.evm_to_jor = self.evm_to_jor.insert(evm_id, jor_id.clone()).unwrap();
-        self.jor_to_evm = self.jor_to_evm.insert(jor_id, evm_id).unwrap();
+        self.evm_to_jor = evm_to_jor;
+        self.jor_to_evm = jor_to_evm;
         Ok(())
     }
 }
