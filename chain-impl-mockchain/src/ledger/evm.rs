@@ -12,7 +12,6 @@ use chain_evm::{
         transact_call, transact_create, transact_create2, BlockHash, BlockNumber, BlockTimestamp,
         Environment, EvmState, Log, VirtualMachine,
     },
-    primitive_types::H256,
     state::{Account as EvmAccount, LogsState},
     Address as EvmAddress,
 };
@@ -156,7 +155,7 @@ impl EvmState for super::Ledger {
         Ok(())
     }
 
-    fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>) {
+    fn update_logs(&mut self, block_hash: BlockHash, logs: Vec<Log>) {
         self.evm.logs.put(block_hash, logs);
     }
 }

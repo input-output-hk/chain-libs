@@ -184,7 +184,7 @@ fn pack_evm_state<W: std::io::Write>(
     codec.put_be_u32(evm_state.code.len().try_into().unwrap())?;
     codec.put_bytes(evm_state.code.as_slice())?;
 
-    let mut bytes = [0; chain_evm::primitive_types::H256::len_bytes()];
+    let mut bytes = [0; 32];
     evm_state.nonce.to_big_endian(&mut bytes);
     codec.put_bytes(&bytes)?;
 
@@ -200,22 +200,23 @@ fn pack_evm_state<W: std::io::Write>(
 fn unpack_evm_state<R: std::io::BufRead>(
     codec: &mut Codec<R>,
 ) -> Result<chain_evm::state::AccountState, ReadError> {
-    use chain_evm::primitive_types::H256;
+    use chain_evm::state::Key;
+    use chain_evm::state::Value;
 
     let code_size = codec.get_be_u32()? as usize;
     let code = codec.get_bytes(code_size)?;
 
-    let nonce_bytes = codec.get_bytes(H256::len_bytes())?;
-    let nonce = chain_evm::primitive_types::U256::from_big_endian(&nonce_bytes);
+    let nonce_bytes = codec.get_bytes(32)?;
+    let nonce = chain_evm::ethereum_types::U256::from_big_endian(&nonce_bytes);
 
     let storage_size = codec.get_be_u32()? as usize;
-    let mut storage = chain_evm::state::Trie::<H256, H256>::new();
+    let mut storage = chain_evm::state::Trie::<Key, Value>::new();
     for _ in 0..storage_size {
-        let k = codec.get_bytes(H256::len_bytes())?;
-        let v = codec.get_bytes(H256::len_bytes())?;
+        let k = codec.get_bytes(Key::len_bytes())?;
+        let v = codec.get_bytes(Value::len_bytes())?;
         storage = storage.put(
-            H256::from_slice(k.as_slice()),
-            H256::from_slice(v.as_slice()),
+            Key::from_slice(k.as_slice()),
+            Value::from_slice(v.as_slice()),
         );
     }
 

@@ -12,12 +12,12 @@ use crate::{
     precompiles::Precompiles,
     state::{Account, Balance, ByteCode, Key},
 };
+use ethereum_types::{H160, H256, U256};
 use evm::{
     backend::{Backend, Basic},
     executor::stack::{Accessed, StackExecutor, StackState, StackSubstateMetadata},
     Context, ExitFatal, ExitReason, ExitRevert, Transfer,
 };
-use primitive_types::{H160, H256, U256};
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
@@ -132,7 +132,7 @@ pub trait EvmState {
     where
         F: FnOnce(Account) -> Option<Account>;
 
-    fn update_logs(&mut self, block_hash: H256, logs: Vec<Log>);
+    fn update_logs(&mut self, block_hash: BlockHash, logs: Vec<Log>);
 }
 
 struct VirtualMachineSubstate<'a> {
@@ -274,19 +274,16 @@ pub fn transact_create<State: EvmState>(
     value: U256,
     init_code: ByteCode,
     access_list: Vec<(Address, Vec<Key>)>,
-) -> Result<(), Error> {
+) -> Result<ByteCode, Error> {
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
     execute_transaction(vm, |executor| {
-        (
-            executor.transact_create(
-                caller,
-                value,
-                init_code.to_vec(),
-                gas_limit,
-                access_list.clone(),
-            ),
-            (),
+        executor.transact_create(
+            caller,
+            value,
+            init_code.to_vec(),
+            gas_limit,
+            access_list.clone(),
         )
     })
 }
@@ -299,20 +296,17 @@ pub fn transact_create2<State: EvmState>(
     init_code: ByteCode,
     salt: H256,
     access_list: Vec<(Address, Vec<Key>)>,
-) -> Result<(), Error> {
+) -> Result<ByteCode, Error> {
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
     execute_transaction(vm, |executor| {
-        (
-            executor.transact_create2(
-                caller,
-                value,
-                init_code.to_vec(),
-                salt,
-                gas_limit,
-                access_list.clone(),
-            ),
-            (),
+        executor.transact_create2(
+            caller,
+            value,
+            init_code.to_vec(),
+            salt,
+            gas_limit,
+            access_list.clone(),
         )
     })
 }
