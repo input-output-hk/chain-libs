@@ -296,6 +296,49 @@ mod tests {
     }
 
     #[test]
+    pub fn test_leader_with_invalid_pool_id() {
+        // Arrange
+        let leader_election_parameters = LeaderElectionParameters::new();
+
+        let cb = ConfigBuilder::new()
+            .with_slots_per_epoch(leader_election_parameters.slots_per_epoch)
+            .with_active_slots_coeff(leader_election_parameters.active_slots_coeff_as_milli());
+
+        let mut ledger = LedgerBuilder::from_config(cb)
+            .build()
+            .expect("cannot build test ledger")
+            .ledger;
+
+        let mut pools = HashMap::<PoolId, (SecretKey<RistrettoGroup2HashDh>, u64, Stake)>::new();
+
+        for _i in 0..leader_election_parameters.pools_count {
+            let (pool_id, pool_vrf_private_key) = make_pool(&mut ledger);
+            pools.insert(
+                pool_id.clone(),
+                (pool_vrf_private_key, 0, leader_election_parameters.value),
+            );
+        }
+
+        let date = ledger.date();
+
+        let selection = make_leadership_with_pools(&ledger, &pools);
+
+        let (invalid_pool_id, pool_vrf_private_key) = make_pool(&mut ledger);
+
+        for pool in pools{
+            let leader = selection.leader(&pool.0, &pool.1.0, date);
+        }
+
+        // Act
+        let invalid_leader = selection.leader(&invalid_pool_id, &pool_vrf_private_key, date);
+
+        println!("Invalid Leader: {:?}", invalid_leader);
+
+        // Assert
+        assert!(true);
+    }
+
+    #[test]
     pub fn test_leader_election_is_consistent_with_stake_distribution() {
         let leader_election_parameters = LeaderElectionParameters::new();
 
