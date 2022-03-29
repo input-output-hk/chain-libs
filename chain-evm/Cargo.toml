@@ -27,7 +27,7 @@ quickcheck = { version = "0.9", optional = true }
 version = "0.34.0"
 
 [dependencies.primitive-types]
-version = ">= 0.10, <= 0.11"
+version = ">= 0.10, <= 0.12"
 features = ["rlp"]
 
 [dependencies.ethereum-types]
