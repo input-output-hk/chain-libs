@@ -30,7 +30,7 @@ rand = "0.7.3"
 proptest = "1.0.0"
 test-strategy = "0.1"
 quickcheck = "0.9"
-evm-test-suite = { git = "https://github.com/input-output-hk/evm-test-suite.git"}
+evm-test-suite = { git = "https://github.com/input-output-hk/evm-test-suite.git", rev = "a4bd9a98f7cbda16931fb84677a39a1d42389d6a"}
 
 [features]
 property-test-api = ["quickcheck"]
