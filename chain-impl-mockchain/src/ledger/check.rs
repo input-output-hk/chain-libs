@@ -197,8 +197,10 @@ pub fn valid_transaction_date(
 mod tests {
 
     use super::*;
+    use proptest::prop_assert_eq;
     use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     fn test_valid_block0_transaction_no_inputs_for<P: Payload>(tx: Transaction<P>) -> TestResult {
         let has_valid_inputs = tx.nb_inputs() == 0 && tx.nb_witnesses() == 0;
@@ -243,13 +245,13 @@ mod tests {
         to_quickchek_result(result, is_valid)
     }
 
-    #[quickcheck]
-    pub fn test_valid_stake_owner_delegation_transaction(
+    #[proptest]
+    fn test_valid_stake_owner_delegation_transaction(
         tx: Transaction<certificate::OwnerStakeDelegation>,
-    ) -> TestResult {
+    ) {
         let is_valid = tx.nb_witnesses() == 1 && tx.nb_inputs() == 1 && tx.nb_outputs() == 0;
         let result = valid_stake_owner_delegation_transaction(&tx.as_slice());
-        to_quickchek_result(result, is_valid)
+        prop_assert_eq!(result.is_ok(), is_valid);
     }
 
     /*
