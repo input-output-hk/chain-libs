@@ -1,6 +1,6 @@
 use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
-    property,
+    packer::Codec,
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey};
 use std::{
@@ -129,16 +129,15 @@ impl FromStr for CommitteeId {
 
 /* Ser/De ****************************************************************** */
 
-impl property::Serialize for CommitteeId {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
-        writer.write_all(self.as_ref())
+impl Serialize for CommitteeId {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self.as_ref())
     }
 }
 
-impl Readable for CommitteeId {
-    fn read(reader: &mut ReadBuf) -> Result<Self, ReadError> {
-        let slice = reader.get_slice(Self::COMMITTEE_ID_SIZE)?;
+impl DeserializeFromSlice for CommitteeId {
+    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+        let slice = codec.get_slice(Self::COMMITTEE_ID_SIZE)?;
         Self::try_from(slice).map_err(|err| ReadError::StructureInvalid(err.to_string()))
     }
 }
@@ -146,14 +145,9 @@ impl Readable for CommitteeId {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-    #[cfg(test)]
-    use chain_core::property::Serialize as _;
-
-    #[allow(unused_imports)] // due to proptest macro bug
-    use proptest::prop_assert_eq;
-
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
+    use proptest::prop_assert_eq;
 
     impl Arbitrary for CommitteeId {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -182,8 +176,8 @@ mod tests {
     #[proptest]
     fn serialize_readable(#[allow(dead_code)] committee_id: CommitteeId) {
         let b_got = committee_id.serialize_as_vec().unwrap();
-        let mut buf = ReadBuf::from(b_got.as_ref());
-        let result = CommitteeId::read(&mut buf).expect("decode the committee ID");
+        let result = CommitteeId::deserialize_from_slice(&mut Codec::new(b_got.as_slice()))
+            .expect("decode the committee ID");
         prop_assert_eq!(committee_id, result);
     }
 }
