@@ -58,7 +58,55 @@ impl Decodable for EvmTransaction {
 #[cfg(feature = "evm")]
 impl Encodable for EvmTransaction {
     fn rlp_append(&self, s: &mut RlpStream) {
-        todo!();
+        use EvmTransaction::*;
+        match self {
+            Create {
+                caller,
+                value,
+                init_code,
+                gas_limit,
+                access_list,
+            } => {
+                s.begin_list(5);
+                s.append(caller);
+                s.append(value);
+                s.append(init_code);
+                s.append(gas_limit);
+                s.append(access_list);
+            }
+            Create2 {
+                caller,
+                value,
+                init_code,
+                salt,
+                gas_limit,
+                access_list,
+            } => {
+                s.begin_list(6);
+                s.append(caller);
+                s.append(value);
+                s.append(init_code);
+                s.append(salt);
+                s.append(gas_limit);
+                s.append(access_list);
+            }
+            Call {
+                caller,
+                address,
+                value,
+                data,
+                gas_limit,
+                access_list,
+            } => {
+                s.begin_list(6);
+                s.append(caller);
+                s.append(address);
+                s.append(value);
+                s.append(data);
+                s.append(gas_limit);
+                s.append(access_list);
+            }
+        }
     }
 }
 
@@ -322,7 +370,7 @@ mod test {
             let caller = [u8::arbitrary(g); H160::len_bytes()].into();
             let value = u128::arbitrary(g).into();
             let gas_limit = Arbitrary::arbitrary(g);
-            let access_list = AccessList { list: Vec::new() };
+            let access_list = AccessList::from(Vec::new());
             match u8::arbitrary(g) % 3 {
                 0 => Self::Create {
                     caller,
