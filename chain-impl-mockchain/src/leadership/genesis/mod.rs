@@ -341,7 +341,6 @@ mod tests {
                         }
                     }
                 }
-                
             }
             date = date.next(ledger.era());
         }
