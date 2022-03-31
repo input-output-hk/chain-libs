@@ -312,7 +312,7 @@ mod tests {
         let mut pools: HashMap<_, _>  = std::iter::from_fn(|| {
             let (pool_id, pool_vrf_private_key) = make_pool(&mut ledger);
             Some((
-                pool_id.clone(),
+                pool_id,
                 (pool_vrf_private_key, 0, leader_election_parameters.value),
             ))
         }).take(leader_election_parameters.pools_count).collect();
