@@ -646,88 +646,103 @@ mod tests {
         assert_eq!(update_state.proposals.size(), 0);
     }
 
+    #[allow(dead_code)]  // proptest macro bug
     #[cfg(test)]
-    #[derive(Debug, Copy, Clone)]
-    struct ExpiryBlockDate {
-        block_date: BlockDate,
-        proposal_expiration: u32,
-    }
+    mod expiry_block_date {
+        use super::*;
 
-    #[cfg(test)]
-    impl ExpiryBlockDate {
-        pub fn block_date(&self) -> BlockDate {
-            self.block_date
+        #[derive(Debug, Copy, Clone)]
+        struct ExpiryBlockDate {
+            block_date: BlockDate,
+            proposal_expiration: u32,
         }
 
-        pub fn proposal_expiration(&self) -> u32 {
-            self.proposal_expiration
-        }
+        impl ExpiryBlockDate {
+            pub fn block_date(&self) -> BlockDate {
+                self.block_date
+            }
 
-        pub fn get_last_epoch(&self) -> u32 {
-            self.block_date().epoch + self.proposal_expiration() + 1
-        }
-    }
+            pub fn proposal_expiration(&self) -> u32 {
+                self.proposal_expiration
+            }
 
-    #[cfg(test)]
-    impl Arbitrary for ExpiryBlockDate {
-        fn arbitrary<G: Gen>(gen: &mut G) -> Self {
-            let mut block_date = BlockDate::arbitrary(gen);
-            block_date.epoch %= 10;
-            let proposal_expiration = u32::arbitrary(gen) % 10;
-            ExpiryBlockDate {
-                block_date,
-                proposal_expiration,
+            pub fn get_last_epoch(&self) -> u32 {
+                self.block_date().epoch + self.proposal_expiration() + 1
             }
         }
-    }
 
-    #[cfg(test)]
-    #[quickcheck]
-    fn rejected_proposals_are_removed_after_expiration_period(
-        expiry_block_data: ExpiryBlockDate,
-    ) -> TestResult {
-        let proposal_date = expiry_block_data.block_date();
-        let proposal_expiration = expiry_block_data.proposal_expiration();
-
-        let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
-        let proposer = TestGen::leader_pair();
-        let update = ConfigParam::SlotsPerEpoch(100);
-
-        let mut settings = TestGen::settings(vec![proposer.clone()]);
-        settings.proposal_expiration = proposal_expiration;
-
-        // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            update,
-            &proposer,
-            &settings,
-            proposal_date,
-        )
-        .expect("failed while applying proposal");
-
-        let mut current_block_date = BlockDate::first();
-
-        // Traverse through epoch and check if proposal is still in queue
-        // if proposal expiration period is not exceeded after that
-        // proposal should be removed from proposal collection
-        for _i in 0..expiry_block_data.get_last_epoch() {
-            let (update_state, _settings) = update_state.clone().process_proposals(
-                settings.clone(),
-                current_block_date,
-                current_block_date.next_epoch(),
-            );
-
-            if proposal_date.epoch + proposal_expiration <= current_block_date.epoch {
-                assert_eq!(update_state.proposals.size(), 0);
-            } else {
-                assert_eq!(update_state.proposals.size(), 1);
+        impl Arbitrary for ExpiryBlockDate {
+            fn arbitrary<G: Gen>(gen: &mut G) -> Self {
+                let mut block_date = BlockDate::arbitrary(gen);
+                block_date.epoch %= 10;
+                let proposal_expiration = u32::arbitrary(gen) % 10;
+                ExpiryBlockDate {
+                    block_date,
+                    proposal_expiration,
+                }
             }
-            current_block_date = current_block_date.next_epoch()
         }
 
-        TestResult::passed()
+        fn expiry_block_date() -> impl proptest::strategy::Strategy<Value = ExpiryBlockDate> {
+            use proptest::prelude::*;
+
+            (any::<BlockDate>(), 0u32..10).prop_map(|(mut block_date, proposal_expiration)| {
+                block_date.epoch %= 10;
+                ExpiryBlockDate {
+                    block_date,
+                    proposal_expiration,
+                }
+            })
+        }
+
+        proptest::proptest! {
+            fn rejected_proposals_are_removed_after_expiration_period(
+                expiry_block_data in expiry_block_date(),
+            ) {
+                let proposal_date = expiry_block_data.block_date();
+                let proposal_expiration = expiry_block_data.proposal_expiration();
+
+                let mut update_state = UpdateState::new();
+                let proposal_id = TestGen::hash();
+                let proposer = TestGen::leader_pair();
+                let update = ConfigParam::SlotsPerEpoch(100);
+
+                let mut settings = TestGen::settings(vec![proposer.clone()]);
+                settings.proposal_expiration = proposal_expiration;
+
+                // Apply proposal
+                update_state = apply_update_proposal(
+                    update_state,
+                    proposal_id,
+                    update,
+                    &proposer,
+                    &settings,
+                    proposal_date,
+                )
+                .expect("failed while applying proposal");
+
+                let mut current_block_date = BlockDate::first();
+
+                // Traverse through epoch and check if proposal is still in queue
+                // if proposal expiration period is not exceeded after that
+                // proposal should be removed from proposal collection
+
+                for _i in 0..expiry_block_data.get_last_epoch() {
+                    let (update_state, _settings) = update_state.clone().process_proposals(
+                        settings.clone(),
+                        current_block_date,
+                        current_block_date.next_epoch(),
+                    );
+
+                    if proposal_date.epoch + proposal_expiration <= current_block_date.epoch {
+                        assert_eq!(update_state.proposals.size(), 0);
+                    } else {
+                        assert_eq!(update_state.proposals.size(), 1);
+                    }
+                    current_block_date = current_block_date.next_epoch()
+                }
+
+            }
+        }
     }
 }

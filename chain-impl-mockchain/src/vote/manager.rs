@@ -892,8 +892,6 @@ mod tests {
     use chain_core::property::BlockDate as BlockDateProp;
     use std::convert::TryFrom;
     use test_strategy::proptest;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
 
     #[test]
     pub fn proposal_manager_insert_vote() {

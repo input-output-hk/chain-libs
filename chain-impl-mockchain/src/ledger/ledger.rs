@@ -1862,9 +1862,11 @@ mod tests {
         transaction::Witness,
     };
     use chain_addr::Discrimination;
+    use proptest::{prop_assert, prop_assert_eq, prop_assert_ne, prop_assume};
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
     use std::{fmt, iter};
+    use test_strategy::proptest;
 
     impl Arbitrary for LedgerStaticParameters {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -2780,7 +2782,7 @@ mod tests {
             .is_err());
     }
 
-    #[quickcheck]
+    #[proptest]
     fn test_internal_apply_transaction_funds_were_transfered(
         sender_address: AddressData,
         reciever_address: AddressData,

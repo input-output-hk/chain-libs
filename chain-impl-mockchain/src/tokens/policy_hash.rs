@@ -46,6 +46,9 @@ impl Deserialize for PolicyHash {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    // proptest macro bug
+    #[allow(unused_imports)]
+    use proptest::prop_assert_eq;
     #[allow(unused_imports)]
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
@@ -68,6 +71,6 @@ mod tests {
         let ph_got = ph.as_ref();
         let mut codec = Codec::new(ph_got);
         let result = PolicyHash::deserialize(&mut codec).unwrap();
-        TestResult::from_bool(ph == result)
+        prop_assert_eq!(ph, result);
     }
 }

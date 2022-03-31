@@ -198,51 +198,39 @@ mod tests {
 
     use super::*;
     use proptest::prop_assert_eq;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
     use test_strategy::proptest;
 
-    fn test_valid_block0_transaction_no_inputs_for<P: Payload>(tx: Transaction<P>) -> TestResult {
-        let has_valid_inputs = tx.nb_inputs() == 0 && tx.nb_witnesses() == 0;
-        let result = valid_block0_transaction_no_inputs(&tx.as_slice());
-        to_quickchek_result(result, has_valid_inputs)
+    #[proptest]
+    fn test_valid_block0_transaction_no_inputs(tx: Transaction<certificate::OwnerStakeDelegation>) {
+        let should_succeed = tx.nb_inputs() == 0 && tx.nb_witnesses() == 0;
+        let succeeded = valid_block0_transaction_no_inputs(&tx.as_slice()).is_ok();
+        prop_assert_eq!(succeeded, should_succeed);
     }
 
-    #[quickcheck]
-    pub fn test_valid_block0_transaction_no_inputs(
-        tx: Transaction<certificate::OwnerStakeDelegation>,
-    ) -> TestResult {
-        test_valid_block0_transaction_no_inputs_for(tx)
-    }
-
-    #[quickcheck]
-    pub fn test_valid_block0_transaction_outputs(
-        tx: Transaction<certificate::OwnerStakeDelegation>,
-    ) -> TestResult {
-        let has_valid_ios = tx.nb_inputs() == 0 && tx.nb_outputs() == 0;
+    #[proptest]
+    fn test_valid_block0_transaction_outputs(tx: Transaction<certificate::OwnerStakeDelegation>) {
+        let is_valid = tx.nb_inputs() == 0 && tx.nb_outputs() == 0;
 
         let result = valid_block0_cert_transaction(&tx.as_slice());
-        to_quickchek_result(result, has_valid_ios)
+        prop_assert_eq!(result.is_ok(), is_valid);
     }
 
-    #[quickcheck]
-    pub fn test_valid_output_value(output: Output<Address>) -> TestResult {
-        let is_valid_output = output.value != Value::zero();
+    #[proptest]
+    fn test_valid_output_value(output: Output<Address>) {
+        let is_valid = output.value != Value::zero();
         let result = valid_output_value(&output);
-        to_quickchek_result(result, is_valid_output)
+        prop_assert_eq!(result.is_ok(), is_valid);
     }
 
-    #[quickcheck]
-    pub fn test_valid_pool_registration_certificate(
-        pool_registration: certificate::PoolRegistration,
-    ) -> TestResult {
+    #[proptest]
+    fn test_valid_pool_registration_certificate(pool_registration: certificate::PoolRegistration) {
         let is_valid = pool_registration.management_threshold() > 0
             && (pool_registration.management_threshold() as usize)
                 <= pool_registration.owners.len()
             && pool_registration.owners.len() <= CHECK_POOL_REG_MAXIMUM_OWNERS
             && pool_registration.operators.len() <= CHECK_POOL_REG_MAXIMUM_OPERATORS;
         let result = valid_pool_registration_certificate(&pool_registration);
-        to_quickchek_result(result, is_valid)
+        prop_assert_eq!(result.is_ok(), is_valid);
     }
 
     #[proptest]
@@ -272,13 +260,4 @@ mod tests {
         to_quickchek_result(result, is_valid)
     }
     */
-
-    fn to_quickchek_result(result: LedgerCheck, should_succeed: bool) -> TestResult {
-        match (result, should_succeed) {
-            (Ok(_), true) => TestResult::passed(),
-            (Ok(_), false) => TestResult::failed(),
-            (Err(_), true) => TestResult::failed(),
-            (Err(_), false) => TestResult::passed(),
-        }
-    }
 }

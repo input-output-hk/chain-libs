@@ -11,6 +11,8 @@ use chain_core::{packer::Codec, property::DeserializeFromSlice};
 use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
 use chain_vote::{Crs, EncryptedTally};
+#[allow(unused_imports)]  // proptest macro bug
+use proptest::prop_assert_eq;
 use quickcheck::{Arbitrary, Gen};
 use rand::SeedableRng;
 use rand_chacha::ChaChaRng;
@@ -331,7 +333,7 @@ impl Arbitrary for Certificate {
 fn pool_reg_serialization_bijection(#[allow(dead_code)] b: PoolRegistration) {
     let b_got = b.serialize();
     let result = PoolRegistration::deserialize_from_slice(&mut Codec::new(b_got.as_ref())).unwrap();
-    TestResult::from_bool(b == result)
+    prop_assert_eq!(b, result);
 }
 
 mod pt {
@@ -346,7 +348,7 @@ mod pt {
 
     use crate::{
         account::DelegationType,
-        certificate::{ExternalProposalId, Proposal, VoteAction},
+        certificate::{ExternalProposalId, PoolId, Proposal, VoteAction},
         tokens::identifier::TokenIdentifier,
         vote::{Options, PayloadType},
     };
@@ -431,6 +433,15 @@ mod pt {
 
         fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             any::<DelegationType>().prop_map(|delegation| Self { delegation })
+        }
+    }
+
+    impl Arbitrary for DelegationType {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<PoolId>, fn(PoolId) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<PoolId>().prop_map(DelegationType::Full)
         }
     }
 }

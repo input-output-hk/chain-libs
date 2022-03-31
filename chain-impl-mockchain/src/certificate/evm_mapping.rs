@@ -32,7 +32,7 @@ pub struct EvmMapping {
 #[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test_impls {
     use super::*;
-    use chain_evm::primitive_types::H160;
+    use chain_evm::ethereum_types::H160;
     use proptest::arbitrary::any;
     use proptest::strategy::Strategy;
 

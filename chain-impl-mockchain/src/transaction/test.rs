@@ -188,8 +188,9 @@ mod pt {
     use proptest::prelude::*;
     use proptest::strategy::Map;
 
-    impl<Extra: Arbitrary + Payload> Arbitrary for Transaction<Extra>
+    impl<Extra> Arbitrary for Transaction<Extra>
     where
+        Extra: Arbitrary + Payload,
         Extra::Auth: Arbitrary,
     {
         type Parameters = ();

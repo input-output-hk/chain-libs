@@ -147,6 +147,7 @@ mod tests {
     use super::*;
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
+    #[allow(unused_imports)]  // proptest macro bug
     use proptest::prop_assert_eq;
 
     impl Arbitrary for CommitteeId {

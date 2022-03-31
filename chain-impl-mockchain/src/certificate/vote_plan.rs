@@ -519,15 +519,12 @@ mod tests {
     use chain_core::property::BlockDate as BlockDateProp;
     use std::convert::TryFrom;
     use test_strategy::proptest;
-    use quickcheck_macros::quickcheck;
 
     #[proptest]
     fn serialize_deserialize(vote_plan: VotePlan) {
         let serialized = vote_plan.serialize();
-
-        let result = VotePlan::deserialize_from_slice(&mut Codec::new(serialized.as_ref()));
-
-        assert_eq!(decoded, vote_plan);
+        let result = VotePlan::deserialize_from_slice(&mut Codec::new(serialized.as_ref())).unwrap();
+        assert_eq!(result, vote_plan);
     }
 
     #[test]
