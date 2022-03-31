@@ -328,14 +328,12 @@ mod tests {
         for _i in 00..leader_election_parameters.slots_per_epoch{
             println!("Slot #{:?}, date: {:?}", _i, date);
             for (pool_id, (pool_vrf_private_key, _, _)) in pools.iter_mut(){
-                
                 let leader = selection.leader(pool_id, pool_vrf_private_key, date);
                 match leader.unwrap()
                 {
                     None => {}
                     Some(_) => {
                         println!("Leader Slot #{:?}, date: {:?}", _i, date);
-                        
                         let invalid_leader = selection.leader(&invalid_pool_id, &invalid_pool_vrf_private_key, date);
                         match invalid_leader.unwrap(){
                             None => {}
@@ -345,7 +343,6 @@ mod tests {
                 }
                 
             }
-
             date = date.next(ledger.era());
         }
 
