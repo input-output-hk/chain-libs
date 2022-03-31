@@ -309,15 +309,13 @@ mod tests {
             .expect("cannot build test ledger")
             .ledger;
 
-        let mut pools = HashMap::<PoolId, (SecretKey<RistrettoGroup2HashDh>, u64, Stake)>::new();
-
-        for _i in 0..leader_election_parameters.pools_count {
+        let mut pools: HashMap<_, _>  = std::iter::from_fn(|| {
             let (pool_id, pool_vrf_private_key) = make_pool(&mut ledger);
-            pools.insert(
+            Some((
                 pool_id.clone(),
                 (pool_vrf_private_key, 0, leader_election_parameters.value),
-            );
-        }
+            ))
+        }).take(leader_election_parameters.pools_count).collect();
 
         let selection = make_leadership_with_pools(&ledger, &pools);
 
