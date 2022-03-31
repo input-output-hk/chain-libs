@@ -319,23 +319,40 @@ mod tests {
             );
         }
 
-        let date = ledger.date();
-
         let selection = make_leadership_with_pools(&ledger, &pools);
 
-        let (invalid_pool_id, pool_vrf_private_key) = make_pool(&mut ledger);
-
-        for pool in pools{
-            let leader = selection.leader(&pool.0, &pool.1.0, date);
-        }
+        let (invalid_pool_id, invalid_pool_vrf_private_key) = make_pool(&mut ledger);
 
         // Act
-        let invalid_leader = selection.leader(&invalid_pool_id, &pool_vrf_private_key, date);
+        let mut date = ledger.date();
+        let mut flag = true;
 
-        println!("Invalid Leader: {:?}", invalid_leader);
+        for _i in 00..leader_election_parameters.slots_per_epoch{
+            println!("Slot #{:?}, date: {:?}", _i, date);
+            for (pool_id, (pool_vrf_private_key, _, _)) in pools.iter_mut(){
+                
+                let leader = selection.leader(pool_id, pool_vrf_private_key, date);
+                match leader.unwrap()
+                {
+                    None => {}
+                    Some(_) => {
+                        println!("Leader Slot #{:?}, date: {:?}", _i, date);
+                        
+                        let invalid_leader = selection.leader(&invalid_pool_id, &invalid_pool_vrf_private_key, date);
+                        match invalid_leader.unwrap(){
+                            None => {}
+                            Some(_) => { flag = false}
+                        }
+                    }
+                }
+                
+            }
+
+            date = date.next(ledger.era());
+        }
 
         // Assert
-        assert!(true);
+        assert!(flag);
     }
 
     #[test]
@@ -578,6 +595,33 @@ mod tests {
 
     use crate::fragment::Contents;
     use crate::header::{BlockVersion, HeaderBuilderNew};
+
+    #[test]
+    pub fn leadership_verify_wrong_proof() {
+        let date = BlockDate {
+            epoch: 1,
+            slot_id: 0,
+        };
+        let testledger = LedgerBuilder::from_config(ConfigBuilder::new())
+            .build()
+            .expect("cannot build test ledger");
+        let mut ledger = testledger.ledger;
+
+        let stake_pool = StakePoolBuilder::new().build();
+        *ledger.delegation_mut() = ledger
+            .delegation()
+            .register_stake_pool(stake_pool.info())
+            .expect("cannot register stake pool");
+        let selection = LeadershipData::new(0, &ledger);
+
+        let block = GenesisPraosBlockBuilder::new()
+            .with_date(date)
+            .with_chain_length(ledger.chain_length())
+            .with_parent_id(testledger.block0_hash)
+            .build(&stake_pool, ledger.era());
+
+        assert!(selection.verify(block.header()).failure());
+    }
 
     #[test]
     pub fn leadership_verify_different_epoch() {
