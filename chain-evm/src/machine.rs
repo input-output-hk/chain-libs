@@ -26,7 +26,7 @@ pub use evm::backend::Log;
 pub use evm::ExitError;
 
 /// Access list.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccessList {
     list: Vec<(Address, Vec<Key>)>,
 }
@@ -50,6 +50,12 @@ impl From<Vec<(Address, Vec<Key>)>> for AccessList {
 impl From<AccessList> for Vec<(Address, Vec<Key>)> {
     fn from(other: AccessList) -> Self {
         other.list
+    }
+}
+
+impl From<&AccessList> for Vec<(Address, Vec<Key>)> {
+    fn from(other: &AccessList) -> Self {
+        other.list.clone()
     }
 }
 

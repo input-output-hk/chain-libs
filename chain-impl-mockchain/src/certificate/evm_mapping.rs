@@ -1,7 +1,5 @@
 #[cfg(feature = "evm")]
 use crate::account::Identifier;
-#[cfg(feature = "evm")]
-use crate::transaction::UnspecifiedAccountIdentifier;
 use crate::transaction::{
     Payload, PayloadAuthData, PayloadData, PayloadSlice, SingleAccountBindingSignature,
 };

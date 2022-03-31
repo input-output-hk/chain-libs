@@ -80,7 +80,8 @@ impl EvmTransaction {
                 let bb = serialize_u256(bb, value);
                 let bb = serialize_bytecode(bb, init_code);
                 let bb = serialize_gas_limit(bb, gas_limit);
-                serialize_access_list(bb, access_list)
+                let access_list: Vec<(Address, Vec<Key>)> = access_list.into();
+                serialize_access_list(bb, &access_list)
             }
             #[cfg(feature = "evm")]
             EvmTransaction::Create2 {
@@ -97,7 +98,8 @@ impl EvmTransaction {
                 let bb = serialize_bytecode(bb, init_code);
                 let bb = serialize_h256(bb, salt);
                 let bb = serialize_gas_limit(bb, gas_limit);
-                serialize_access_list(bb, access_list)
+                let access_list: Vec<(Address, Vec<Key>)> = access_list.into();
+                serialize_access_list(bb, &access_list)
             }
             #[cfg(feature = "evm")]
             EvmTransaction::Call {
@@ -114,7 +116,8 @@ impl EvmTransaction {
                 let bb = serialize_u256(bb, value);
                 let bb = serialize_bytecode(bb, data);
                 let bb = serialize_gas_limit(bb, gas_limit);
-                serialize_access_list(bb, access_list)
+                let access_list: Vec<(Address, Vec<Key>)> = access_list.into();
+                serialize_access_list(bb, &access_list)
             }
             #[cfg(not(feature = "evm"))]
             _ => unreachable!(),
@@ -204,7 +207,7 @@ fn read_gas_limit(codec: &mut Codec<&[u8]>) -> Result<u64, ReadError> {
 }
 
 #[cfg(feature = "evm")]
-fn read_access_list(codec: &mut Codec<&[u8]>) -> Result<Vec<(Address, Vec<Key>)>, ReadError> {
+fn read_access_list(codec: &mut Codec<&[u8]>) -> Result<AccessList, ReadError> {
     let count = codec.get_be_u64()?;
     let access_list = (0..count)
         .into_iter()
@@ -221,7 +224,7 @@ fn read_access_list(codec: &mut Codec<&[u8]>) -> Result<Vec<(Address, Vec<Key>)>
             access_list.push((address, keys));
             access_list
         });
-    Ok(access_list)
+    Ok(access_list.into())
 }
 
 impl DeserializeFromSlice for EvmTransaction {

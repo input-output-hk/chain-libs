@@ -133,7 +133,7 @@ impl evm_test_suite::TestEvmState for TestEvmLedger {
             tx.gas_limit.as_u64(),
             true,
         );
-        transact_call(vm, tx.to, tx.value, tx.data, Vec::new())
+        transact_call(vm, tx.to, tx.value, tx.data, Vec::new().into())
             .map_err(|e| format!("can not run transaction, err: {}", e))?;
 
         Ok(self)
