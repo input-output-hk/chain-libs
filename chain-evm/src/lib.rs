@@ -8,4 +8,4 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-pub use machine::{Address, BlockGasLimit, Config, Environment, ExitError, GasLimit, GasPrice};
+pub use machine::{AccessList, Address, BlockGasLimit, Config, Environment, GasLimit, GasPrice};

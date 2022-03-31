@@ -6,6 +6,8 @@ use chain_core::{
 #[cfg(feature = "evm")]
 use chain_evm::{
     ethereum_types::{H256, U256},
+    machine::{AccessList, Address},
+    rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream},
     state::{ByteCode, Key},
 };
 use typed_bytes::ByteBuilder;
@@ -14,15 +16,6 @@ use crate::{
     certificate::CertificateSlice,
     transaction::{Payload, PayloadAuthData, PayloadData},
 };
-
-#[cfg(feature = "evm")]
-pub use chain_evm::{
-    machine::{BlockGasLimit, Config, Environment, GasPrice},
-    Address,
-};
-
-#[cfg(feature = "evm")]
-use chain_evm::rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 
 /// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,7 +26,7 @@ pub enum EvmTransaction {
         value: U256,
         init_code: ByteCode,
         gas_limit: u64,
-        access_list: Vec<(Address, Vec<Key>)>,
+        access_list: AccessList,
     },
     #[cfg(feature = "evm")]
     Create2 {
@@ -42,7 +35,7 @@ pub enum EvmTransaction {
         init_code: ByteCode,
         salt: H256,
         gas_limit: u64,
-        access_list: Vec<(Address, Vec<Key>)>,
+        access_list: AccessList,
     },
     #[cfg(feature = "evm")]
     Call {
@@ -51,7 +44,7 @@ pub enum EvmTransaction {
         value: U256,
         data: ByteCode,
         gas_limit: u64,
-        access_list: Vec<(Address, Vec<Key>)>,
+        access_list: AccessList,
     },
 }
 
@@ -326,7 +319,7 @@ mod test {
             let caller = [u8::arbitrary(g); H160::len_bytes()].into();
             let value = u128::arbitrary(g).into();
             let gas_limit = Arbitrary::arbitrary(g);
-            let access_list = Vec::new();
+            let access_list = AccessList { list: Vec::new() };
             match u8::arbitrary(g) % 3 {
                 0 => Self::Create {
                     caller,
@@ -358,8 +351,9 @@ mod test {
 
     quickcheck! {
         fn evm_transaction_serialization_bijection(b: EvmTransaction) -> bool {
-            let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let decoded = EvmTransaction::deserialize_from_slice(&mut Codec::new(&bytes)).unwrap();
+            let bytes = b.rlp_bytes();
+            let rlp = Rlp::new(bytes.as_ref());
+            let decoded = EvmTransaction::decode(&rlp).unwrap();
             decoded == b
         }
     }
