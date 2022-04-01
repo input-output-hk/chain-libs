@@ -2,9 +2,12 @@ use crate::certificate::EvmMapping;
 use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::EvmTransaction;
 use crate::header::BlockDate;
+use crate::key::Hash;
 use crate::transaction::{SingleAccountBindingSignature, TransactionBindingAuthData};
 use crate::value::Value;
 use crate::{account::Identifier as JorAddress, accounting::account::AccountState as JorAccount};
+use chain_core::packer::Codec;
+use chain_core::property::DeserializeFromSlice;
 use chain_crypto::Verification;
 use chain_evm::ExitError;
 use chain_evm::{
@@ -37,6 +40,16 @@ pub struct AddressMapping {
     jor_to_evm: Hamt<DefaultHasher, JorAddress, EvmAddress>,
 }
 
+fn transfrom_evm_to_jor(evm_id: &EvmAddress, nonce: u8) -> JorAddress {
+    let mut data = [0u8; EvmAddress::len_bytes() + 1];
+    data[0..1].copy_from_slice(&[nonce]);
+    data[1..].copy_from_slice(evm_id.as_bytes());
+
+    let hash = Hash::hash_bytes(&data);
+
+    JorAddress::deserialize_from_slice(&mut Codec::new(hash.as_bytes())).unwrap()
+}
+
 impl AddressMapping {
     fn new() -> Self {
         Self {
@@ -45,8 +58,11 @@ impl AddressMapping {
         }
     }
 
-    fn jor_address(&self, evm_id: &EvmAddress) -> Option<&JorAddress> {
-        self.evm_to_jor.lookup(evm_id)
+    fn jor_address(&self, evm_id: &EvmAddress) -> JorAddress {
+        match self.evm_to_jor.lookup(evm_id).cloned() {
+            Some(jor_address) => jor_address,
+            None => transfrom_evm_to_jor(evm_id, 0),
+        }
     }
 
     fn del_accounts(&mut self, jor_id: &JorAddress) {
@@ -92,40 +108,26 @@ impl EvmState for super::Ledger {
     }
 
     fn account(&self, evm_address: &EvmAddress) -> Option<EvmAccount> {
-        match self.evm.address_mapping.jor_address(evm_address) {
-            Some(jor_address) => match self.accounts.get_state(jor_address) {
-                Ok(account) => Some(EvmAccount {
-                    balance: account.value.0.into(),
-                    state: account.evm_state.clone(),
-                }),
-                Err(_) => None,
-            },
-            None => None,
+        let jor_address = self.evm.address_mapping.jor_address(evm_address);
+        match self.accounts.get_state(&jor_address) {
+            Ok(account) => Some(EvmAccount {
+                balance: account.value.0.into(),
+                state: account.evm_state.clone(),
+            }),
+            Err(_) => None,
         }
     }
 
-    fn contains(&self, address: &EvmAddress) -> bool {
-        self.evm.address_mapping.jor_address(address).is_some()
+    fn contains(&self, evm_address: &EvmAddress) -> bool {
+        let jor_address = self.evm.address_mapping.jor_address(evm_address);
+        self.accounts.exists(&jor_address)
     }
 
     fn modify_account<F>(&mut self, address: EvmAddress, f: F) -> Result<(), ExitError>
     where
         F: FnOnce(EvmAccount) -> Option<EvmAccount>,
     {
-        let address = self
-            .evm
-            .address_mapping
-            .jor_address(&address)
-            .ok_or_else(|| {
-                ExitError::Other(
-                    format!(
-                        "Can not find corresponding jormungadr account for the evm account: {}",
-                        address
-                    )
-                    .into(),
-                )
-            })?
-            .clone();
+        let address = self.evm.address_mapping.jor_address(&address);
         let account = self
             .accounts
             .get_state(&address)
@@ -171,9 +173,13 @@ impl super::Ledger {
             return Err(Error::EvmMappingSignatureFailed);
         }
 
+        // TODO need to add Ethereum signature validation
+
+        let evm_id = *tx.evm_address();
+
         self.evm
             .address_mapping
-            .map_accounts(tx.account_id().clone(), *tx.evm_address())?;
+            .map_accounts(tx.account_id().clone(), evm_id)?;
         Ok(self)
     }
 
@@ -330,9 +336,20 @@ impl Ledger {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use crate::testing::TestGen;
     use chain_crypto::{Ed25519, PublicKey};
 
-    use super::*;
+    quickcheck! {
+        fn address_transformation_test(evm_rand_seed: u64) -> bool {
+            let evm_id = EvmAddress::from_low_u64_be(evm_rand_seed);
+            let ledger = TestGen::ledger();
+
+            let jor_id = transfrom_evm_to_jor(&evm_id, 0);
+
+            !ledger.accounts.exists(&jor_id)
+        }
+    }
 
     #[test]
     fn address_mapping_test() {
@@ -343,16 +360,16 @@ mod test {
         let evm_id2 = EvmAddress::from_low_u64_be(1);
         let jor_id2 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[1; 32]).unwrap());
 
-        assert_eq!(address_mapping.jor_address(&evm_id1), None);
-        assert_eq!(address_mapping.jor_address(&evm_id2), None);
+        assert_ne!(address_mapping.jor_address(&evm_id1), jor_id1);
+        assert_ne!(address_mapping.jor_address(&evm_id2), jor_id2);
 
         assert_eq!(
             address_mapping.map_accounts(jor_id1.clone(), evm_id1),
             Ok(())
         );
 
-        assert_eq!(address_mapping.jor_address(&evm_id1), Some(&jor_id1));
-        assert_eq!(address_mapping.jor_address(&evm_id2), None);
+        assert_eq!(address_mapping.jor_address(&evm_id1), jor_id1);
+        assert_ne!(address_mapping.jor_address(&evm_id2), jor_id2);
 
         assert_eq!(
             address_mapping.map_accounts(jor_id1.clone(), evm_id1),
@@ -371,28 +388,28 @@ mod test {
             Ok(())
         );
 
-        assert_eq!(address_mapping.jor_address(&evm_id1), Some(&jor_id1));
-        assert_eq!(address_mapping.jor_address(&evm_id2), Some(&jor_id2));
+        assert_eq!(address_mapping.jor_address(&evm_id1), jor_id1);
+        assert_eq!(address_mapping.jor_address(&evm_id2), jor_id2);
 
         address_mapping.del_accounts(&jor_id1);
 
-        assert_eq!(address_mapping.jor_address(&evm_id1), None);
-        assert_eq!(address_mapping.jor_address(&evm_id2), Some(&jor_id2));
+        assert_ne!(address_mapping.jor_address(&evm_id1), jor_id1);
+        assert_eq!(address_mapping.jor_address(&evm_id2), jor_id2);
 
         assert_eq!(
             address_mapping.map_accounts(jor_id1.clone(), evm_id1),
             Ok(())
         );
 
-        assert_eq!(address_mapping.jor_address(&evm_id1), Some(&jor_id1));
-        assert_eq!(address_mapping.jor_address(&evm_id2), Some(&jor_id2));
+        assert_eq!(address_mapping.jor_address(&evm_id1), jor_id1);
+        assert_eq!(address_mapping.jor_address(&evm_id2), jor_id2);
 
         address_mapping.del_accounts(&jor_id1);
         address_mapping.del_accounts(&jor_id1);
         address_mapping.del_accounts(&jor_id2);
         address_mapping.del_accounts(&jor_id2);
 
-        assert_eq!(address_mapping.jor_address(&evm_id1), None);
-        assert_eq!(address_mapping.jor_address(&evm_id2), None);
+        assert_ne!(address_mapping.jor_address(&evm_id1), jor_id1);
+        assert_ne!(address_mapping.jor_address(&evm_id2), jor_id2);
     }
 }
