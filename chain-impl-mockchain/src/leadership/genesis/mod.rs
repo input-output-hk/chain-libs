@@ -309,13 +309,15 @@ mod tests {
             .expect("cannot build test ledger")
             .ledger;
 
-        let pools: HashMap<_, _>  = std::iter::from_fn(|| {
+        let pools: HashMap<_, _> = std::iter::from_fn(|| {
             let (pool_id, pool_vrf_private_key) = make_pool(&mut ledger);
             Some((
                 pool_id,
                 (pool_vrf_private_key, 0, leader_election_parameters.value),
             ))
-        }).take(leader_election_parameters.pools_count).collect();
+        })
+        .take(leader_election_parameters.pools_count)
+        .collect();
 
         let selection = make_leadership_with_pools(&ledger, &pools);
 
@@ -325,11 +327,15 @@ mod tests {
         let mut date = ledger.date();
         let mut flag = true;
 
-        for _i in 00..leader_election_parameters.slots_per_epoch{
-            let invalid_leader = selection.leader(&invalid_pool_id, &invalid_pool_vrf_private_key, date);
-                        match invalid_leader.unwrap(){
-                            None => {}
-                            Some(_) => { flag = false; break;}
+        for _i in 00..leader_election_parameters.slots_per_epoch {
+            let invalid_leader =
+                selection.leader(&invalid_pool_id, &invalid_pool_vrf_private_key, date);
+            match invalid_leader.unwrap() {
+                None => {}
+                Some(_) => {
+                    flag = false;
+                    break;
+                }
             }
             date = date.next(ledger.era());
         }
