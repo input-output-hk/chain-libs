@@ -324,24 +324,14 @@ mod tests {
         let (invalid_pool_id, invalid_pool_vrf_private_key) = make_pool(&mut ledger);
 
         // Act
-        let mut date = ledger.date();
-        let mut flag = true;
-
-        for _i in 00..leader_election_parameters.slots_per_epoch {
-            let invalid_leader =
-                selection.leader(&invalid_pool_id, &invalid_pool_vrf_private_key, date);
-            match invalid_leader.unwrap() {
-                None => {}
-                Some(_) => {
-                    flag = false;
-                    break;
-                }
-            }
-            date = date.next(ledger.era());
-        }
+        let invalid_leader = selection.leader(
+            &invalid_pool_id,
+            &invalid_pool_vrf_private_key,
+            ledger.date(),
+        );
 
         // Assert
-        assert!(flag);
+        assert!(invalid_leader.unwrap().is_none());
     }
 
     #[test]
@@ -584,33 +574,6 @@ mod tests {
 
     use crate::fragment::Contents;
     use crate::header::{BlockVersion, HeaderBuilderNew};
-
-    #[test]
-    pub fn leadership_verify_wrong_proof() {
-        let date = BlockDate {
-            epoch: 1,
-            slot_id: 0,
-        };
-        let testledger = LedgerBuilder::from_config(ConfigBuilder::new())
-            .build()
-            .expect("cannot build test ledger");
-        let mut ledger = testledger.ledger;
-
-        let stake_pool = StakePoolBuilder::new().build();
-        *ledger.delegation_mut() = ledger
-            .delegation()
-            .register_stake_pool(stake_pool.info())
-            .expect("cannot register stake pool");
-        let selection = LeadershipData::new(0, &ledger);
-
-        let block = GenesisPraosBlockBuilder::new()
-            .with_date(date)
-            .with_chain_length(ledger.chain_length())
-            .with_parent_id(testledger.block0_hash)
-            .build(&stake_pool, ledger.era());
-
-        assert!(selection.verify(block.header()).failure());
-    }
 
     #[test]
     pub fn leadership_verify_different_epoch() {
