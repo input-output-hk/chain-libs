@@ -1,4 +1,4 @@
-use crate::account;
+use crate::account::{self, LedgerError};
 use crate::certificate::EvmMapping;
 use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::EvmTransaction;
@@ -26,16 +26,18 @@ use thiserror::Error;
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum Error {
     #[error(
-        "for the provided jormungandr account: {} or evm account: {} mapping is already exist", .0.to_string(), .1.to_string()
+        "For the provided jormungandr account: {} or evm account: {} mapping is already exist", .0.to_string(), .1.to_string()
     )]
     ExistingMapping(JorAddress, EvmAddress),
-    #[error("evm transaction error: {0}")]
+    #[error("Canot map address: {0}")]
+    MappingError(#[from] LedgerError),
+    #[error("EVM transaction error: {0}")]
     EvmTransaction(#[from] chain_evm::machine::Error),
     #[error("Protocol evm mapping payload signature failed")]
     EvmMappingSignatureFailed,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddressMapping {
     evm_to_jor: Hamt<DefaultHasher, EvmAddress, JorAddress>,
     jor_to_evm: Hamt<DefaultHasher, JorAddress, EvmAddress>,
@@ -73,7 +75,12 @@ impl AddressMapping {
         }
     }
 
-    fn map_accounts(&mut self, jor_id: JorAddress, evm_id: EvmAddress) -> Result<(), Error> {
+    fn map_accounts(
+        mut self,
+        jor_id: JorAddress,
+        evm_id: EvmAddress,
+        mut accounts: account::Ledger,
+    ) -> Result<(account::Ledger, Self), Error> {
         let evm_to_jor = self
             .evm_to_jor
             .insert(evm_id, jor_id.clone())
@@ -81,11 +88,15 @@ impl AddressMapping {
         let jor_to_evm = self
             .jor_to_evm
             .insert(jor_id.clone(), evm_id)
-            .map_err(|_| Error::ExistingMapping(jor_id, evm_id))?;
+            .map_err(|_| Error::ExistingMapping(jor_id.clone(), evm_id))?;
+
+        // should update and move account evm account state
+        let old_jor_id = transfrom_evm_to_jor(&evm_id, 0);
+        accounts = accounts.evm_move_state(jor_id, &old_jor_id)?;
 
         self.evm_to_jor = evm_to_jor;
         self.jor_to_evm = jor_to_evm;
-        Ok(())
+        Ok((accounts, self))
     }
 }
 
@@ -148,7 +159,7 @@ impl<'a> EvmState for EvmStateImpl<'a> {
                 self.accounts = self
                     .accounts
                     .evm_insert_or_update(
-                        &address,
+                        address,
                         Value(u64::from(account.balance)),
                         account.state,
                         (),
@@ -174,7 +185,8 @@ impl Ledger {
         tx: &EvmMapping,
         auth_data: &TransactionBindingAuthData<'a>,
         sig: SingleAccountBindingSignature,
-    ) -> Result<Self, Error> {
+        mut accounts: account::Ledger,
+    ) -> Result<(account::Ledger, Self), Error> {
         if sig.verify_slice(&tx.account_id().clone().into(), auth_data) != Verification::Success {
             return Err(Error::EvmMappingSignatureFailed);
         }
@@ -182,10 +194,11 @@ impl Ledger {
         // TODO need to add Ethereum signature validation
 
         let evm_id = *tx.evm_address();
+        (accounts, self.address_mapping) =
+            self.address_mapping
+                .map_accounts(tx.account_id().clone(), evm_id, accounts)?;
 
-        self.address_mapping
-            .map_accounts(tx.account_id().clone(), evm_id)?;
-        Ok(self)
+        Ok((accounts, self))
     }
 
     pub fn run_transaction(
@@ -368,6 +381,7 @@ mod test {
     #[test]
     fn address_mapping_test() {
         let mut address_mapping = AddressMapping::new();
+        let mut accounts = Default::default();
 
         let evm_id1 = EvmAddress::from_low_u64_be(0);
         let jor_id1 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
@@ -377,30 +391,37 @@ mod test {
         assert_ne!(address_mapping.jor_address(&evm_id1), jor_id1);
         assert_ne!(address_mapping.jor_address(&evm_id2), jor_id2);
 
-        assert_eq!(
-            address_mapping.map_accounts(jor_id1.clone(), evm_id1),
-            Ok(())
-        );
+        (accounts, address_mapping) = address_mapping
+            .map_accounts(jor_id1.clone(), evm_id1, accounts)
+            .unwrap();
 
         assert_eq!(address_mapping.jor_address(&evm_id1), jor_id1);
         assert_ne!(address_mapping.jor_address(&evm_id2), jor_id2);
 
         assert_eq!(
-            address_mapping.map_accounts(jor_id1.clone(), evm_id1),
+            address_mapping
+                .clone()
+                .map_accounts(jor_id1.clone(), evm_id1, accounts.clone()),
             Err(Error::ExistingMapping(jor_id1.clone(), evm_id1))
         );
+
         assert_eq!(
-            address_mapping.map_accounts(jor_id2.clone(), evm_id1),
+            address_mapping
+                .clone()
+                .map_accounts(jor_id2.clone(), evm_id1, accounts.clone()),
             Err(Error::ExistingMapping(jor_id2.clone(), evm_id1))
         );
+
         assert_eq!(
-            address_mapping.map_accounts(jor_id1.clone(), evm_id2),
+            address_mapping
+                .clone()
+                .map_accounts(jor_id1.clone(), evm_id2, accounts.clone()),
             Err(Error::ExistingMapping(jor_id1.clone(), evm_id2))
         );
-        assert_eq!(
-            address_mapping.map_accounts(jor_id2.clone(), evm_id2),
-            Ok(())
-        );
+
+        (accounts, address_mapping) = address_mapping
+            .map_accounts(jor_id2.clone(), evm_id2, accounts)
+            .unwrap();
 
         assert_eq!(address_mapping.jor_address(&evm_id1), jor_id1);
         assert_eq!(address_mapping.jor_address(&evm_id2), jor_id2);
@@ -410,10 +431,9 @@ mod test {
         assert_ne!(address_mapping.jor_address(&evm_id1), jor_id1);
         assert_eq!(address_mapping.jor_address(&evm_id2), jor_id2);
 
-        assert_eq!(
-            address_mapping.map_accounts(jor_id1.clone(), evm_id1),
-            Ok(())
-        );
+        (_, address_mapping) = address_mapping
+            .map_accounts(jor_id1.clone(), evm_id1, accounts)
+            .unwrap();
 
         assert_eq!(address_mapping.jor_address(&evm_id1), jor_id1);
         assert_eq!(address_mapping.jor_address(&evm_id2), jor_id2);

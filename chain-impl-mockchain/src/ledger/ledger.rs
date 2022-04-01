@@ -1100,10 +1100,11 @@ impl Ledger {
                         ledger_params,
                     )?;
 
-                    new_ledger.evm = new_ledger.evm.apply_map_accounts(
+                    (new_ledger.accounts, new_ledger.evm) = new_ledger.evm.apply_map_accounts(
                         &tx.payload().into_payload(),
                         &tx.transaction_binding_auth_data(),
                         tx.payload_auth().into_payload_auth(),
+                        new_ledger.accounts,
                     )?;
                 }
                 #[cfg(not(feature = "evm"))]
