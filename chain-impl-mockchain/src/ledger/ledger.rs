@@ -526,7 +526,11 @@ impl Ledger {
                     #[cfg(feature = "evm")]
                     {
                         let tx = _tx.as_slice().payload().into_payload();
-                        ledger = ledger.run_transaction(tx)?;
+                        (ledger.accounts, ledger.evm) = ledger.evm.run_transaction(
+                            tx,
+                            ledger.settings.evm_config,
+                            ledger.accounts,
+                        )?;
                     }
                     #[cfg(not(feature = "evm"))]
                     {
@@ -1074,7 +1078,11 @@ impl Ledger {
                 #[cfg(feature = "evm")]
                 {
                     let tx = _tx.as_slice().payload().into_payload();
-                    new_ledger = new_ledger.run_transaction(tx)?;
+                    (new_ledger.accounts, new_ledger.evm) = new_ledger.evm.run_transaction(
+                        tx,
+                        new_ledger.settings.evm_config,
+                        new_ledger.accounts,
+                    )?;
                 }
                 #[cfg(not(feature = "evm"))]
                 {
@@ -1085,14 +1093,14 @@ impl Ledger {
                 #[cfg(feature = "evm")]
                 {
                     let tx = _tx.as_slice();
-                    let (new_ledger_, _fee) = new_ledger.apply_transaction(
+                    (new_ledger, _) = new_ledger.apply_transaction(
                         &fragment_id,
                         &tx,
                         block_date,
                         ledger_params,
                     )?;
 
-                    new_ledger = new_ledger_.apply_map_accounts(
+                    new_ledger.evm = new_ledger.evm.apply_map_accounts(
                         &tx.payload().into_payload(),
                         &tx.transaction_binding_auth_data(),
                         tx.payload_auth().into_payload_auth(),
