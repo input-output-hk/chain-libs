@@ -222,8 +222,8 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
         self.0
             .insert_or_update(new_identifier, state.clone(), |st| {
                 Ok(Some(AccountState {
-                    value: st.value.clone().checked_add(state.value.clone())?,
-                    evm_state: state.evm_state.clone(),
+                    value: st.value.checked_add(state.value)?,
+                    evm_state: state.evm_state,
                     ..st.clone()
                 }))
             })

@@ -30,7 +30,7 @@ pub enum Error {
     )]
     ExistingMapping(JorAddress, EvmAddress),
     #[error("Canot map address: {0}")]
-    MappingError(#[from] LedgerError),
+    CannotMap(#[from] LedgerError),
     #[error("EVM transaction error: {0}")]
     EvmTransaction(#[from] chain_evm::machine::Error),
     #[error("Protocol evm mapping payload signature failed")]
