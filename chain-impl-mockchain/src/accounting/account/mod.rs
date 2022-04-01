@@ -210,24 +210,30 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
 
     #[cfg(feature = "evm")]
     pub fn evm_move_state(
-        &self,
+        self,
         new_identifier: ID,
         old_identifier: &ID,
     ) -> Result<Self, LedgerError> {
         // get old state
-        let state = self.get_state(old_identifier)?.clone();
-        // remove old account
-        self.0.update(old_identifier, |_| Ok(None))?;
-        // move state
-        self.0
-            .insert_or_update(new_identifier, state.clone(), |st| {
-                Ok(Some(AccountState {
-                    value: st.value.checked_add(state.value)?,
-                    evm_state: state.evm_state,
-                    ..st.clone()
-                }))
-            })
-            .map(Ledger)
+        match self.get_state(old_identifier).cloned() {
+            Ok(state) => {
+                // remove old state
+                self.0.update(old_identifier, |_| Ok(None))?;
+                // move state
+                self.0
+                    .insert_or_update(new_identifier, state.clone(), |st| {
+                        Ok(Some(AccountState {
+                            value: st.value.checked_add(state.value)?,
+                            evm_state: state.evm_state,
+                            ..st.clone()
+                        }))
+                    })
+                    .map(Ledger)
+            }
+            // if does not exist do nothing
+            Err(LedgerError::NonExistent) => Ok(self),
+            Err(e) => Err(e),
+        }
     }
 
     #[cfg(feature = "evm")]
