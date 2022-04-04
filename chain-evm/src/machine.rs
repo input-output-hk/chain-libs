@@ -268,9 +268,9 @@ where
     }
 }
 
-/// Convenience function to convert AccessList types into
-/// arguments used by the EVM transactions.
-pub fn convert_access_list_to_tuples_vec(access_list: AccessList) -> Vec<(Address, Vec<Key>)> {
+// Convenience function to convert AccessList types into
+// arguments used by the EVM transactions.
+fn convert_access_list_to_tuples_vec(access_list: AccessList) -> Vec<(Address, Vec<Key>)> {
     access_list
         .iter()
         .map(|list_item| {
