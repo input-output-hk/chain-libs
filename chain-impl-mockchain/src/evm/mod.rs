@@ -6,7 +6,7 @@ use chain_core::{
 #[cfg(feature = "evm")]
 use chain_evm::{
     ethereum_types::{H256, U256},
-    machine::{AccessList, AccessListItem, Address},
+    machine::{AccessList, Address},
     rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream},
     state::ByteCode,
 };
@@ -240,7 +240,10 @@ impl Payload for EvmTransaction {
 #[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test {
     use super::*;
-    use chain_evm::ethereum_types::{H160, H256};
+    use chain_evm::{
+        ethereum_types::{H160, H256},
+        machine::AccessListItem,
+    };
     use quickcheck::Arbitrary;
 
     impl Arbitrary for EvmTransaction {
