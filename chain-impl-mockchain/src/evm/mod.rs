@@ -197,11 +197,20 @@ pub fn read_u256(codec: &mut Codec<&[u8]>) -> Result<U256, ReadError> {
 }
 
 impl DeserializeFromSlice for EvmTransaction {
-    fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        let mut rlp_bytes = vec![];
-        codec.read_to_end(&mut rlp_bytes)?;
-        let rlp = Rlp::new(&rlp_bytes);
-        EvmTransaction::decode(&rlp).map_err(|e| ReadError::InvalidData(format!("{:?}", e)))
+    fn deserialize_from_slice(_codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+        #[cfg(feature = "evm")]
+        {
+            let mut rlp_bytes = vec![];
+            _codec.read_to_end(&mut rlp_bytes)?;
+            let rlp = Rlp::new(&rlp_bytes);
+            EvmTransaction::decode(&rlp).map_err(|e| ReadError::InvalidData(format!("{:?}", e)))
+        }
+        #[cfg(not(feature = "evm"))]
+        {
+            Err(ReadError::InvalidData(
+                "EVM feature is required".to_string(),
+            ))
+        }
     }
 }
 
