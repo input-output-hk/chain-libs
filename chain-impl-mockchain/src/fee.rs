@@ -147,6 +147,7 @@ impl FeeAlgorithm for LinearFee {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
+    #![allow(unused_imports, dead_code)]  // proptest macro bug
     use super::*;
     #[cfg(test)]
     use crate::certificate::{Certificate, CertificatePayload};

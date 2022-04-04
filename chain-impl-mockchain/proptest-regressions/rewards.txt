@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 2d9f4a8030e3c9d3779a412d03a22368ef796b5156821062b1dcdc1ff7623a63 # shrinks to input = _TaxCutFullyAccountedArgs { v: Value(7837845500842258023), treasury_tax: TaxType { fixed: Value(0), ratio: Ratio { numerator: 43415294023, denominator: 1 }, max_limit: None } }

@@ -303,27 +303,24 @@ pub fn tax_cut(v: Value, tax_type: &TaxType) -> Result<TaxDistribution, ValueErr
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
+    #![allow(dead_code, unused_imports)]  // proptest macro bug
     use super::*;
     #[cfg(test)]
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
     use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    fn tax_cut_fully_accounted(v: Value, treasury_tax: TaxType) -> TestResult {
-        match tax_cut(v, &treasury_tax) {
-            Ok(td) => {
-                let sum = (td.taxed + td.after_tax).unwrap();
-                if sum == v {
-                    TestResult::passed()
-                } else {
-                    TestResult::error(format!(
-                        "mismatch taxed={} remaining={} expected={} got={} for {:?}",
-                        td.taxed, td.after_tax, v, sum, treasury_tax
-                    ))
-                }
+    #[proptest]
+    fn tax_cut_fully_accounted(v: Value, treasury_tax: TaxType) {
+        if let Ok(td) = tax_cut(v, &treasury_tax) {
+            let sum = (td.taxed + td.after_tax).unwrap();
+            if sum != v {
+                panic!(
+                    "mismatch taxed={} remaining={} expected={} got={} for {:?}",
+                    td.taxed, td.after_tax, v, sum, treasury_tax
+                )
             }
-            Err(_) => TestResult::discard(),
         }
     }
 

@@ -49,7 +49,7 @@ where
 }
 
 #[proptest]
-fn check_transaction_accessor_consistent(tx: Transaction<NoExtra>) {
+fn check_transaction_accessor_consistent(#[allow(dead_code)] tx: Transaction<NoExtra>) {
     let slice = tx.as_slice();
     let res = check_eq(
         "tx",
