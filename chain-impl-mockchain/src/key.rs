@@ -176,7 +176,7 @@ where
     }
 }
 
-impl<T: Serialize, A: VerificationAlgorithm> SerializedSize for Signed<T, A> {
+impl<T: SerializedSize, A: VerificationAlgorithm> SerializedSize for Signed<T, A> {
     fn serialized_size(&self) -> usize {
         self.data.serialized_size() + self.sig.as_ref().serialized_size()
     }

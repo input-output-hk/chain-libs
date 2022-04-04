@@ -63,7 +63,7 @@ use crate::value::Value;
 use crate::vote;
 use crate::{config, key, multisig, utxo};
 use chain_addr::{Address, Discrimination};
-use chain_core::property::{SerializedSize, WriteError};
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
@@ -1175,12 +1175,6 @@ fn unpack_entries(codec: &mut Codec<&[u8]>) -> Result<Vec<EntryOwned>, ReadError
         };
     }
     Ok(res)
-}
-
-impl SerializedSize for Ledger {
-    fn serialized_size(&self) -> usize {
-        unimplemented!()
-    }
 }
 
 impl Serialize for Ledger {

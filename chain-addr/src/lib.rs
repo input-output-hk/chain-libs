@@ -418,7 +418,7 @@ impl std::str::FromStr for AddressReadable {
 
 impl SerializedSize for Address {
     fn serialized_size(&self) -> usize {
-        0_u8.serialized_size()
+        self.to_kind_value().serialized_size()
             + match &self.1 {
                 Kind::Single(spend) => spend.as_ref().serialized_size(),
                 Kind::Group(spend, group) => {

@@ -1,6 +1,6 @@
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, Serialize},
+    property::{DeserializeFromSlice, Serialize, SerializedSize},
 };
 use quickcheck::{Arbitrary, TestResult};
 
@@ -9,7 +9,7 @@ use quickcheck::{Arbitrary, TestResult};
 /// between the serialized bytes and the object)
 pub fn serialization_bijection<T>(t: T) -> TestResult
 where
-    T: Arbitrary + Serialize + DeserializeFromSlice + Eq,
+    T: Arbitrary + Serialize + SerializedSize + DeserializeFromSlice + Eq,
 {
     let vec = match t.serialize_as_vec() {
         Err(error) => return TestResult::error(format!("serialization: {}", error)),
