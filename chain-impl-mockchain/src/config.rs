@@ -1,5 +1,3 @@
-#[cfg(any(test, feature = "property-test-api"))]
-use proptest::prelude::Just;
 use crate::date::Epoch;
 use crate::key::BftLeaderId;
 use crate::milli::Milli;
@@ -19,6 +17,8 @@ use chain_core::{
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
 use chain_evm::{BlockGasLimit, Config, GasPrice};
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::Just;
 use std::{
     fmt::{self, Display, Formatter},
     io::{self, Write},

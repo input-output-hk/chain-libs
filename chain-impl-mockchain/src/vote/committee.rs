@@ -145,10 +145,10 @@ impl DeserializeFromSlice for CommitteeId {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    #[allow(unused_imports)] // proptest macro bug
+    use proptest::prop_assert_eq;
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
-    #[allow(unused_imports)]  // proptest macro bug
-    use proptest::prop_assert_eq;
 
     impl Arbitrary for CommitteeId {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {

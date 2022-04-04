@@ -424,7 +424,7 @@ mod tests {
                         .collect::<HashMap<_, _>>()
                 });
 
-                (hash_map, 0u8..255)  // cannot remove id 255
+                (hash_map, 0u8..255) // cannot remove id 255
                     .prop_map(|(utxos, idx_to_remove)| Self {
                         utxos,
                         idx_to_remove,

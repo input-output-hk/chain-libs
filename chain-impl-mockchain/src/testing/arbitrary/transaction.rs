@@ -53,7 +53,6 @@ impl Arbitrary for ArbitraryValidTransactionData {
     }
 }
 
-
 impl ArbitraryValidTransactionData {
     pub fn new(
         addresses: Vec<AddressDataValue>,

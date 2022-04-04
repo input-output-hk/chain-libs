@@ -646,7 +646,7 @@ mod tests {
         assert_eq!(update_state.proposals.size(), 0);
     }
 
-    #[allow(dead_code)]  // proptest macro bug
+    #[allow(dead_code)] // proptest macro bug
     #[cfg(test)]
     mod expiry_block_date {
         use super::*;

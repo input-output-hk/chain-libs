@@ -1862,7 +1862,7 @@ mod tests {
         transaction::Witness,
     };
     use chain_addr::Discrimination;
-    
+
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
     use std::{fmt, iter};
