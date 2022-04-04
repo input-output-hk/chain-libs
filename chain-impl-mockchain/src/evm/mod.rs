@@ -166,62 +166,13 @@ impl Encodable for EvmTransaction {
 impl EvmTransaction {
     /// Serialize the contract into a `ByteBuilder`.
     pub fn serialize_in(&self, _bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
-        match self {
-            #[cfg(feature = "evm")]
-            EvmTransaction::Create {
-                caller,
-                value,
-                init_code,
-                gas_limit,
-                access_list,
-            } => {
-                // Set Transaction type
-                let bb = _bb.u8(0);
-                let bb = serialize_address(bb, caller);
-                let bb = serialize_u256(bb, value);
-                let bb = serialize_bytecode(bb, init_code);
-                let bb = serialize_gas_limit(bb, gas_limit);
-                let access_list = convert_access_list_to_tuples_vec(access_list.clone());
-                serialize_access_list(bb, &access_list)
-            }
-            #[cfg(feature = "evm")]
-            EvmTransaction::Create2 {
-                caller,
-                value,
-                init_code,
-                salt,
-                gas_limit,
-                access_list,
-            } => {
-                let bb = _bb.u8(1);
-                let bb = serialize_address(bb, caller);
-                let bb = serialize_u256(bb, value);
-                let bb = serialize_bytecode(bb, init_code);
-                let bb = serialize_h256(bb, salt);
-                let bb = serialize_gas_limit(bb, gas_limit);
-                let access_list = convert_access_list_to_tuples_vec(access_list.clone());
-                serialize_access_list(bb, &access_list)
-            }
-            #[cfg(feature = "evm")]
-            EvmTransaction::Call {
-                caller,
-                address,
-                value,
-                data,
-                gas_limit,
-                access_list,
-            } => {
-                let bb = _bb.u8(2);
-                let bb = serialize_address(bb, caller);
-                let bb = serialize_address(bb, address);
-                let bb = serialize_u256(bb, value);
-                let bb = serialize_bytecode(bb, data);
-                let bb = serialize_gas_limit(bb, gas_limit);
-                let access_list = convert_access_list_to_tuples_vec(access_list.clone());
-                serialize_access_list(bb, &access_list)
-            }
-            #[cfg(not(feature = "evm"))]
-            _ => unreachable!(),
+        #[cfg(feature = "evm")]
+        {
+            _bb.bytes(&self.rlp_bytes())
+        }
+        #[cfg(not(feature = "evm"))]
+        {
+            _bb
         }
     }
 }
@@ -333,62 +284,10 @@ fn read_access_list(codec: &mut Codec<&[u8]>) -> Result<AccessList, ReadError> {
 
 impl DeserializeFromSlice for EvmTransaction {
     fn deserialize_from_slice(codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        let contract_type = codec.get_u8()?;
-        match contract_type {
-            #[cfg(feature = "evm")]
-            0 => {
-                // CREATE Transaction
-                let caller = read_address(codec)?;
-                let value = read_u256(codec)?;
-                let init_code = read_bytecode(codec)?;
-                let gas_limit = read_gas_limit(codec)?;
-                let access_list = read_access_list(codec)?;
-                Ok(EvmTransaction::Create {
-                    caller,
-                    value,
-                    init_code,
-                    gas_limit,
-                    access_list,
-                })
-            }
-            #[cfg(feature = "evm")]
-            1 => {
-                // CREATE2 Transaction
-                let caller = read_address(codec)?;
-                let value = read_u256(codec)?;
-                let init_code = read_bytecode(codec)?;
-                let salt = read_h256(codec)?;
-                let gas_limit = read_gas_limit(codec)?;
-                let access_list = read_access_list(codec)?;
-                Ok(EvmTransaction::Create2 {
-                    caller,
-                    value,
-                    init_code,
-                    salt,
-                    gas_limit,
-                    access_list,
-                })
-            }
-            #[cfg(feature = "evm")]
-            2 => {
-                // CALL Transaction
-                let caller = read_address(codec)?;
-                let address = read_address(codec)?;
-                let value = read_u256(codec)?;
-                let data = read_bytecode(codec)?;
-                let gas_limit = read_gas_limit(codec)?;
-                let access_list = read_access_list(codec)?;
-                Ok(EvmTransaction::Call {
-                    caller,
-                    address,
-                    value,
-                    data,
-                    gas_limit,
-                    access_list,
-                })
-            }
-            n => Err(ReadError::UnknownTag(n as u32)),
-        }
+        let mut rlp_bytes = vec![];
+        codec.read_to_end(&mut rlp_bytes)?;
+        let rlp = Rlp::new(&rlp_bytes);
+        EvmTransaction::decode(&rlp).map_err(|e| ReadError::InvalidData(format!("{:?}", e)))
     }
 }
 
@@ -482,9 +381,8 @@ mod test {
     }
 
     quickcheck! {
-        #[ignore]
-        // this test should be removed when RLP is in place
-        fn evm_transaction_serialization_bijection(b: EvmTransaction) -> bool {
+        // this tests RLP encoding/decoding using the Payload/DeserializeFromSlice traits
+        fn evm_transaction_serialization_bijection_codec(b: EvmTransaction) -> bool {
             let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
             let decoded = EvmTransaction::deserialize_from_slice(&mut Codec::new(&bytes)).unwrap();
             decoded == b
@@ -492,6 +390,7 @@ mod test {
     }
 
     quickcheck! {
+        // this tests RLP encoding/decoding
         fn evm_transaction_serialization_bijection_rlp(b: EvmTransaction) -> bool {
             let bytes = b.rlp_bytes();
             let rlp = Rlp::new(bytes.as_ref());
