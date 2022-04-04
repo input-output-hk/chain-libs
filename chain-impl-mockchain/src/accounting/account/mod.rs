@@ -210,7 +210,7 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
 
     #[cfg(feature = "evm")]
     pub fn evm_move_state(
-        self,
+        mut self,
         new_identifier: ID,
         old_identifier: &ID,
     ) -> Result<Self, LedgerError> {
@@ -218,7 +218,7 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
         match self.get_state(old_identifier).cloned() {
             Ok(state) => {
                 // remove old state
-                self.0.update(old_identifier, |_| Ok(None))?;
+                self.0 = self.0.update(old_identifier, |_| Ok(None))?;
                 // move state
                 self.0
                     .insert_or_update(new_identifier, state.clone(), |st| {
@@ -354,8 +354,124 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "evm")]
     #[quickcheck]
-    pub fn account_ledger_test(
+    fn evm_functions_test(
+        account_id1: Identifier,
+        account_id2: Identifier,
+        account_id3: Identifier,
+        value1: Value,
+        value2: Value,
+        value3: Value,
+        evm_state1: chain_evm::state::AccountState,
+        evm_state2: chain_evm::state::AccountState,
+    ) -> bool {
+        let mut ledger = Ledger::new();
+
+        assert_eq!(
+            ledger.get_state(&account_id1),
+            Err(LedgerError::NonExistent)
+        );
+
+        assert_eq!(
+            ledger.get_state(&account_id2),
+            Err(LedgerError::NonExistent)
+        );
+
+        assert_eq!(
+            ledger.get_state(&account_id3),
+            Err(LedgerError::NonExistent)
+        );
+
+        ledger = ledger
+            .evm_insert_or_update(account_id1.clone(), value1.clone(), evm_state1.clone(), ())
+            .unwrap();
+
+        assert_eq!(
+            ledger.get_state(&account_id1),
+            Ok(&AccountState::new_evm(
+                evm_state1.clone(),
+                value1.clone(),
+                ()
+            ))
+        );
+
+        ledger = ledger
+            .evm_insert_or_update(account_id1.clone(), value2.clone(), evm_state2.clone(), ())
+            .unwrap();
+
+        assert_eq!(
+            ledger.get_state(&account_id1),
+            Ok(&AccountState::new_evm(
+                evm_state2.clone(),
+                value2.clone(),
+                ()
+            ))
+        );
+
+        ledger = ledger
+            .evm_move_state(account_id2.clone(), &account_id1)
+            .unwrap();
+
+        if account_id1 != account_id2 {
+            assert_eq!(
+                ledger.get_state(&account_id1),
+                Err(LedgerError::NonExistent)
+            );
+        }
+
+        assert_eq!(
+            ledger.get_state(&account_id2),
+            Ok(&AccountState::new_evm(
+                evm_state2.clone(),
+                value2.clone(),
+                ()
+            ))
+        );
+
+        ledger = ledger
+            .evm_insert_or_update(
+                account_id3.clone(),
+                value3.clone(),
+                chain_evm::state::AccountState::default(),
+                (),
+            )
+            .unwrap();
+
+        assert_eq!(
+            ledger.get_state(&account_id3),
+            Ok(&AccountState::new_evm(
+                chain_evm::state::AccountState::default(),
+                value3.clone(),
+                ()
+            ))
+        );
+
+        ledger = ledger
+            .evm_move_state(account_id3.clone(), &account_id2)
+            .unwrap();
+
+        if account_id2 != account_id3 {
+            assert_eq!(
+                ledger.get_state(&account_id2),
+                Err(LedgerError::NonExistent)
+            );
+
+            assert_eq!(
+                ledger.get_state(&account_id3),
+                Ok(&AccountState::new_evm(
+                    evm_state2,
+                    value3.saturating_add(value2),
+                    ()
+                ))
+            );
+        }
+
+        true
+    }
+
+    #[quickcheck]
+    fn account_ledger_test(
         mut ledger: Ledger,
         account_id: Identifier,
         value: Value,
