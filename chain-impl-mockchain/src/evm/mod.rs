@@ -17,6 +17,9 @@ use crate::{
     transaction::{Payload, PayloadAuthData, PayloadData},
 };
 
+#[cfg(feature = "evm")]
+pub use chain_evm::Config;
+
 /// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EvmTransaction {
