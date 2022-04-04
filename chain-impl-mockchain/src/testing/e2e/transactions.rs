@@ -35,6 +35,5 @@ pub fn validate_ledger_state_after_transaction_quickcheck(amount: u64){
     alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.into())
-    .address_has_expected_balance(bob.as_account_data(), Value(bob_initial_balance + validated_amount))
-    .pots().has_fee_equals_to(&Value(3));
+    .address_has_expected_balance(bob.as_account_data(), Value(bob_initial_balance + validated_amount));
 }
