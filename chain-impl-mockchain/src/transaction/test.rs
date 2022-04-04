@@ -14,6 +14,7 @@ use chain_crypto::{testing::arbitrary_secret_key, Ed25519, SecretKey, Signature}
 use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
 use quickcheck_macros::quickcheck;
+use test_strategy::proptest;
 
 quickcheck! {
     fn transaction_encode_decode(transaction: Transaction<NoExtra>) -> TestResult {
@@ -47,8 +48,8 @@ where
     }
 }
 
-#[quickcheck]
-pub fn check_transaction_accessor_consistent(tx: Transaction<NoExtra>) -> TestResult {
+#[proptest]
+fn check_transaction_accessor_consistent(tx: Transaction<NoExtra>) {
     let slice = tx.as_slice();
     let res = check_eq(
         "tx",
@@ -111,10 +112,7 @@ pub fn check_transaction_accessor_consistent(tx: Transaction<NoExtra>) -> TestRe
             "witnesses",
         )
     });
-    match res {
-        Ok(()) => TestResult::passed(),
-        Err(e) => TestResult::error(e),
-    }
+    res.unwrap();
 }
 
 impl Arbitrary for UtxoPointer {

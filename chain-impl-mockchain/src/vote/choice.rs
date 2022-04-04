@@ -43,6 +43,10 @@ mod test_impls {
 /// A `Choice` is a representation of a choice that has been made and must
 /// be compliant with the `Options`. A way to validate it is with `Options::validate`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Choice(u8);
 
 impl Options {

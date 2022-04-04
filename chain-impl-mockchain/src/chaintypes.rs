@@ -46,6 +46,10 @@ impl std::fmt::Display for ChainLength {
 #[derive(
     Debug, Clone, Copy, Display, EnumString, IntoStaticStr, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ConsensusType {
     #[strum(to_string = "bft")]
     Bft = 1,

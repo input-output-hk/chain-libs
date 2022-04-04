@@ -503,12 +503,12 @@ mod tests {
         }
     }
 
-    #[quickcheck]
+    #[proptest]
     pub fn cert_builder_never_creates_unbalanced_tx(
         input: Input,
         fee: LinearFee,
         certificate: Certificate,
-    ) -> TestResult {
+    ) {
         let mut builder = TransactionBuilder::new_payload(certificate);
         builder.add_input(&input);
         let fee_value = fee

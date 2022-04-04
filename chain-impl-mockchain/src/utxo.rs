@@ -292,10 +292,12 @@ mod tests {
         value::Value,
     };
     use chain_addr::{Address, Discrimination};
+    use proptest::{prop_assert, prop_assert_eq};
     use quickcheck::{Arbitrary, Gen, TestResult};
     use quickcheck_macros::quickcheck;
     use std::collections::HashMap;
     use std::iter;
+    use test_strategy::proptest;
 
     #[derive(Clone, Debug)]
     pub struct ArbitraryUtxos(HashMap<FragmentId, ArbitraryTransactionOutputs>);
@@ -379,8 +381,61 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn transaction_unspent_remove(outputs: ArbitraryTransactionOutputs) -> TestResult {
+    mod pt {
+        use std::collections::HashMap;
+
+        use proptest::{
+            arbitrary::StrategyFor,
+            collection::{hash_map, vec, HashMapStrategy},
+            prelude::*,
+            strategy::Map,
+        };
+
+        use crate::{
+            key::Hash,
+            testing::{average_value, data::AddressData},
+        };
+
+        use super::{ArbitraryTransactionOutputs, ArbitraryUtxos};
+
+        impl Arbitrary for ArbitraryUtxos {
+            type Parameters = ();
+            type Strategy = Map<
+                HashMapStrategy<StrategyFor<Hash>, StrategyFor<ArbitraryTransactionOutputs>>,
+                fn(HashMap<Hash, ArbitraryTransactionOutputs>) -> Self,
+            >;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                hash_map(any::<Hash>(), any::<ArbitraryTransactionOutputs>(), 1..=10).prop_map(Self)
+            }
+        }
+
+        impl Arbitrary for ArbitraryTransactionOutputs {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                let element = (any::<AddressData>(), average_value())
+                    .prop_map(|(address_data, value)| address_data.make_output(value));
+                let hash_map = vec(element, 1..=50).prop_map(|v| {
+                    v.into_iter()
+                        .enumerate()
+                        .map(|(i, item)| (i as u8, item))
+                        .collect::<HashMap<_, _>>()
+                });
+
+                (hash_map, 0u8..255)  // cannot remove id 255
+                    .prop_map(|(utxos, idx_to_remove)| Self {
+                        utxos,
+                        idx_to_remove,
+                    })
+                    .boxed()
+            }
+        }
+    }
+
+    #[proptest]
+    fn transaction_unspent_remove(outputs: ArbitraryTransactionOutputs) {
         let transaction_unspent = TransactionUnspents::from_outputs(outputs.to_vec().as_slice());
         let is_index_correct = transaction_unspent.0.contains_key(outputs.idx_to_remove);
         match (
@@ -388,20 +443,20 @@ mod tests {
             is_index_correct,
         ) {
             (Ok((transaction_unspent, output)), true) => {
-                if transaction_unspent.0.contains_key(outputs.idx_to_remove) {
-                    return TestResult::error("Element not removed");
-                }
+                prop_assert!(
+                    !transaction_unspent.0.contains_key(outputs.idx_to_remove),
+                    "element not removed"
+                );
 
-                assert_eq!(
+                prop_assert_eq!(
                     output,
                     outputs.utxos.get(&outputs.idx_to_remove).unwrap().clone(),
                     "Outputs are different"
                 );
-                TestResult::passed()
             }
-            (Ok(_), false) => TestResult::error("Element removed, while it should not"),
-            (Err(err), true) => TestResult::error(format!("Unexpected error {}", err)),
-            (Err(_), false) => TestResult::passed(),
+            (Ok(_), false) => panic!("Element removed, while it should not"),
+            (Err(err), true) => panic!("Unexpected error {}", err),
+            (Err(_), false) => {}
         }
     }
 

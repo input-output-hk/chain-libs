@@ -239,4 +239,41 @@ mod tests {
             }
         }
     }
+
+    mod pt {
+        use super::Payload;
+        use chain_vote::{Crs, ElectionPublicKey, MemberCommunicationKey, MemberState, Vote};
+        use proptest::prelude::*;
+        use rand::SeedableRng;
+
+        use crate::vote::{Choice, EncryptedVote, ProofOfCorrectVote};
+
+        const VOTE_OPTIONS: usize = 3;
+
+        impl Arbitrary for Payload {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                let public = any::<Choice>().prop_map(Payload::public);
+
+                let private = (any::<[u8; 32]>(), 0..VOTE_OPTIONS).prop_map(|(seed, choice)| {
+                    let mut gen = rand_chacha::ChaCha20Rng::from_seed(seed);
+                    let mc = MemberCommunicationKey::new(&mut gen);
+                    let h = Crs::from_hash(&seed);
+                    let m = MemberState::new(&mut gen, 1, &h, &[mc.to_public()], 0);
+                    let participants = vec![m.public_key()];
+                    let ek = ElectionPublicKey::from_participants(&participants);
+                    let (vote, proof) =
+                        ek.encrypt_and_prove_vote(&mut gen, &h, Vote::new(VOTE_OPTIONS, choice));
+                    Payload::private(
+                        EncryptedVote::from_inner(vote),
+                        ProofOfCorrectVote::from_inner(proof),
+                    )
+                });
+
+                prop_oneof![public, private].boxed()
+            }
+        }
+    }
 }

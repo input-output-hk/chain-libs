@@ -150,6 +150,10 @@ impl PoolPermissions {
 
 /// Updating info for a pool
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolUpdate {
     pub pool_id: PoolId,
     pub last_pool_reg_hash: PoolRegistrationHash,

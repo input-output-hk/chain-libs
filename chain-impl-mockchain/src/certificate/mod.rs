@@ -218,6 +218,10 @@ impl<'a> From<&'a Certificate> for CertificatePayload {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum Certificate {
     StakeDelegation(StakeDelegation),
     OwnerStakeDelegation(OwnerStakeDelegation),
@@ -230,6 +234,7 @@ pub enum Certificate {
     UpdateProposal(UpdateProposal),
     UpdateVote(UpdateVote),
     MintToken(MintToken),
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmMapping(EvmMapping),
 }
 

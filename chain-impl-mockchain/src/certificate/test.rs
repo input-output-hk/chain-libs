@@ -11,7 +11,7 @@ use chain_core::{packer::Codec, property::DeserializeFromSlice};
 use chain_crypto::{testing, Ed25519};
 use chain_time::DurationSeconds;
 use chain_vote::{Crs, EncryptedTally};
-#[allow(unused_imports)]  // proptest macro bug
+#[allow(unused_imports)] // proptest macro bug
 use proptest::prop_assert_eq;
 use quickcheck::{Arbitrary, Gen};
 use rand::SeedableRng;
@@ -338,6 +338,10 @@ fn pool_reg_serialization_bijection(#[allow(dead_code)] b: PoolRegistration) {
 
 mod pt {
 
+    use std::num::NonZeroU8;
+
+    use chain_time::DurationSeconds;
+    use chain_vote::{Crs, EncryptedTally};
     use proptest::{
         arbitrary::StrategyFor,
         collection::{vec, VecStrategy},
@@ -345,10 +349,18 @@ mod pt {
         strategy::Map,
     };
     use rand::SeedableRng;
+    use rand_chacha::ChaChaRng;
 
     use crate::{
         account::DelegationType,
-        certificate::{ExternalProposalId, PoolId, Proposal, VoteAction},
+        certificate::{
+            DecryptedPrivateTally, DecryptedPrivateTallyProposal, ExternalProposalId, PoolId,
+            PoolRetirement, Proposal, UpdateProposal, UpdateProposerId, VoteAction, VotePlanId,
+            VoteTally,
+        },
+        config::ConfigParam,
+        fragment::ConfigParams,
+        testing::data::CommitteeMembersManager,
         tokens::identifier::TokenIdentifier,
         vote::{Options, PayloadType},
     };
@@ -442,6 +454,92 @@ mod pt {
 
         fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             any::<PoolId>().prop_map(DelegationType::Full)
+        }
+    }
+
+    impl Arbitrary for UpdateProposal {
+        type Parameters = ();
+        type Strategy = Map<
+            (
+                VecStrategy<StrategyFor<ConfigParam>>,
+                StrategyFor<UpdateProposerId>,
+            ),
+            fn((Vec<ConfigParam>, UpdateProposerId)) -> Self,
+        >;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            let params = vec(any::<ConfigParam>(), 0..10);
+            let id = any::<UpdateProposerId>();
+            (params, id).prop_map(|(params, id)| {
+                let mut changes = ConfigParams::new();
+                for param in params {
+                    changes.push(param);
+                }
+                Self::new(changes, id)
+            })
+        }
+    }
+
+    fn arbitrary_decrypted_private_tally() -> impl Strategy<Value = DecryptedPrivateTally> {
+        (any::<(String, u64)>(), 1usize..=2).prop_flat_map(|((s, seed), committee_size)| {
+            let mut rng = ChaChaRng::seed_from_u64(seed);
+            let crs_seed = s.into_bytes();
+            let committee_manager =
+                CommitteeMembersManager::new(&mut rng, &crs_seed, committee_size, committee_size);
+
+            let single_element =
+                any::<(NonZeroU8, u64, u64)>().prop_map(move |(n_options, n, seed)| {
+                    let mut rng = ChaChaRng::seed_from_u64(seed);
+                    let encrypted_tally = EncryptedTally::new(
+                        n_options.get() as usize,
+                        committee_manager.election_pk(),
+                        Crs::from_hash(&crs_seed),
+                    );
+
+                    let mut decrypte_shares = Vec::new();
+                    for i in 0..committee_size {
+                        decrypte_shares.push(encrypted_tally.partial_decrypt(
+                            &mut rng,
+                            committee_manager.members()[i].secret_key(),
+                        ));
+                    }
+
+                    DecryptedPrivateTallyProposal {
+                        tally_result: (0..n_options.get()).map(|_| n).collect::<Box<[_]>>(),
+                        decrypt_shares: decrypte_shares.into_boxed_slice(),
+                    }
+                });
+
+            vec(single_element, 0..(u8::MAX as usize))
+                .prop_map(|inner| DecryptedPrivateTally::new(inner).unwrap())
+        })
+    }
+
+    impl Arbitrary for VoteTally {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            let private = (any::<VotePlanId>(), arbitrary_decrypted_private_tally())
+                .prop_map(|(id, tally)| Self::new_private(id, tally));
+            let public = any::<VotePlanId>().prop_map(Self::new_public);
+
+            prop_oneof![private, public].boxed()
+        }
+    }
+
+    impl Arbitrary for PoolRetirement {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<(u64, PoolId)>, fn((u64, PoolId)) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<(u64, PoolId)>().prop_map(|(time, pool_id)| {
+                let retirement_time = DurationSeconds::from(time).into();
+                PoolRetirement {
+                    retirement_time,
+                    pool_id,
+                }
+            })
         }
     }
 }

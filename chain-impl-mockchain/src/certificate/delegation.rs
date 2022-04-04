@@ -36,6 +36,10 @@ impl OwnerStakeDelegation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct StakeDelegation {
     pub account_id: UnspecifiedAccountIdentifier,
     pub delegation: DelegationType,

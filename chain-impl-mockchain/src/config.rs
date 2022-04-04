@@ -1,3 +1,5 @@
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::Just;
 use crate::date::Epoch;
 use crate::key::BftLeaderId;
 use crate::milli::Milli;
@@ -62,12 +64,16 @@ impl From<Error> for ReadError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ConfigParam {
     Block0Date(Block0Date),
     Discrimination(Discrimination),
     ConsensusVersion(ConsensusType),
     SlotsPerEpoch(u32),
-    SlotDuration(u8),
+    SlotDuration(#[cfg_attr(any(test, feature = "property-test-api"), strategy(1..=u8::MAX))] u8),
     EpochStabilityDepth(u32),
     ConsensusGenesisPraosActiveSlotsCoeff(Milli),
     BlockContentMaxSize(u32),
@@ -90,23 +96,37 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmConfiguration(Config),
     #[cfg(feature = "evm")]
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmEnvironment(EvmEnvSettings),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum RewardParams {
     Linear {
         constant: u64,
         ratio: Ratio,
         epoch_start: Epoch,
+        #[cfg_attr(
+            any(test, feature = "property-test-api"), 
+            strategy(Just(NonZeroU32::try_from(20).unwrap()))
+        )]
         epoch_rate: NonZeroU32,
     },
     Halving {
         constant: u64,
         ratio: Ratio,
         epoch_start: Epoch,
+        #[cfg_attr(
+            any(test, feature = "property-test-api"), 
+            strategy(Just(NonZeroU32::try_from(20).unwrap()))
+        )]
         epoch_rate: NonZeroU32,
     },
 }
@@ -404,6 +424,10 @@ trait ConfigParamVariant: Clone + Eq + PartialEq {
 
 /// Seconds elapsed since 1-Jan-1970 (unix time)
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Block0Date(pub u64);
 
 impl ConfigParamVariant for Block0Date {

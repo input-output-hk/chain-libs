@@ -114,9 +114,11 @@ impl FromStr for TokenIdentifier {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+
     #[allow(unused_imports)]
-    use quickcheck::TestResult;
+    use proptest::prop_assert_eq;
     use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for TokenIdentifier {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -129,18 +131,18 @@ mod tests {
         }
     }
 
-    #[quickcheck_macros::quickcheck]
-    fn token_identifier_display_sanity(id: TokenIdentifier) {
+    #[proptest]
+    fn token_identifier_display_sanity(#[allow(dead_code)] id: TokenIdentifier) {
         let s = id.to_string();
         let id_: TokenIdentifier = s.parse().unwrap();
-        assert_eq!(id, id_);
+        prop_assert_eq!(id, id_);
     }
 
-    #[quickcheck_macros::quickcheck]
-    fn token_identifier_serialization_bijection(id: TokenIdentifier) -> TestResult {
+    #[proptest]
+    fn token_identifier_serialization_bijection(#[allow(dead_code)] id: TokenIdentifier) {
         let id_got = id.bytes();
         let mut codec = Codec::new(id_got.as_slice());
         let result = TokenIdentifier::deserialize(&mut codec).unwrap();
-        TestResult::from_bool(id == result)
+        prop_assert_eq!(id, result);
     }
 }
