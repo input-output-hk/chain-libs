@@ -43,10 +43,10 @@ pub struct AddressMapping {
     jor_to_evm: Hamt<DefaultHasher, JorAddress, EvmAddress>,
 }
 
-fn transfrom_evm_to_jor(evm_id: &EvmAddress, nonce: u8) -> JorAddress {
-    let mut data = [0u8; EvmAddress::len_bytes() + 1];
-    data[0..1].copy_from_slice(&[nonce]);
-    data[1..].copy_from_slice(evm_id.as_bytes());
+fn transfrom_evm_to_jor(evm_id: &EvmAddress) -> JorAddress {
+    let mut data = [0u8; EvmAddress::len_bytes() + 3];
+    data[0..3].copy_from_slice(b"evm");
+    data[3..].copy_from_slice(evm_id.as_bytes());
 
     let hash = Hash::hash_bytes(&data);
 
@@ -64,7 +64,7 @@ impl AddressMapping {
     fn jor_address(&self, evm_id: &EvmAddress) -> JorAddress {
         match self.evm_to_jor.lookup(evm_id).cloned() {
             Some(jor_address) => jor_address,
-            None => transfrom_evm_to_jor(evm_id, 0),
+            None => transfrom_evm_to_jor(evm_id),
         }
     }
 
@@ -91,7 +91,7 @@ impl AddressMapping {
             .map_err(|_| Error::ExistingMapping(jor_id.clone(), evm_id))?;
 
         // should update and move account evm account state
-        let old_jor_id = transfrom_evm_to_jor(&evm_id, 0);
+        let old_jor_id = transfrom_evm_to_jor(&evm_id);
         accounts = accounts.evm_move_state(jor_id, &old_jor_id)?;
 
         self.evm_to_jor = evm_to_jor;
@@ -364,17 +364,14 @@ impl Ledger {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::testing::TestGen;
     use chain_crypto::{Ed25519, PublicKey};
 
     quickcheck! {
         fn address_transformation_test(evm_rand_seed: u64) -> bool {
             let evm_id = EvmAddress::from_low_u64_be(evm_rand_seed);
-            let ledger = TestGen::ledger();
 
-            let jor_id = transfrom_evm_to_jor(&evm_id, 0);
-
-            !ledger.accounts.exists(&jor_id)
+            transfrom_evm_to_jor(&evm_id);
+            true
         }
     }
 
