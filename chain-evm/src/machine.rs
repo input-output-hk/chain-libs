@@ -268,7 +268,6 @@ where
 }
 
 /// Execute a CREATE transaction
-#[allow(clippy::too_many_arguments)]
 pub fn transact_create<State: EvmState>(
     vm: VirtualMachine<State>,
     value: U256,
@@ -289,7 +288,6 @@ pub fn transact_create<State: EvmState>(
 }
 
 /// Execute a CREATE2 transaction
-#[allow(clippy::too_many_arguments)]
 pub fn transact_create2<State: EvmState>(
     vm: VirtualMachine<State>,
     value: U256,
@@ -312,7 +310,6 @@ pub fn transact_create2<State: EvmState>(
 }
 
 /// Execute a CALL transaction
-#[allow(clippy::too_many_arguments)]
 pub fn transact_call<State: EvmState>(
     vm: VirtualMachine<State>,
     address: Address,

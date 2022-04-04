@@ -356,6 +356,7 @@ mod tests {
 
     #[cfg(feature = "evm")]
     #[quickcheck]
+    #[allow(clippy::too_many_arguments)]
     fn evm_functions_test(
         account_id1: Identifier,
         account_id2: Identifier,
@@ -384,29 +385,21 @@ mod tests {
         );
 
         ledger = ledger
-            .evm_insert_or_update(account_id1.clone(), value1.clone(), evm_state1.clone(), ())
+            .evm_insert_or_update(account_id1.clone(), value1, evm_state1.clone(), ())
             .unwrap();
 
         assert_eq!(
             ledger.get_state(&account_id1),
-            Ok(&AccountState::new_evm(
-                evm_state1.clone(),
-                value1.clone(),
-                ()
-            ))
+            Ok(&AccountState::new_evm(evm_state1, value1, ()))
         );
 
         ledger = ledger
-            .evm_insert_or_update(account_id1.clone(), value2.clone(), evm_state2.clone(), ())
+            .evm_insert_or_update(account_id1.clone(), value2, evm_state2.clone(), ())
             .unwrap();
 
         assert_eq!(
             ledger.get_state(&account_id1),
-            Ok(&AccountState::new_evm(
-                evm_state2.clone(),
-                value2.clone(),
-                ()
-            ))
+            Ok(&AccountState::new_evm(evm_state2.clone(), value2, ()))
         );
 
         ledger = ledger
@@ -422,17 +415,13 @@ mod tests {
 
         assert_eq!(
             ledger.get_state(&account_id2),
-            Ok(&AccountState::new_evm(
-                evm_state2.clone(),
-                value2.clone(),
-                ()
-            ))
+            Ok(&AccountState::new_evm(evm_state2.clone(), value2, ()))
         );
 
         ledger = ledger
             .evm_insert_or_update(
                 account_id3.clone(),
-                value3.clone(),
+                value3,
                 chain_evm::state::AccountState::default(),
                 (),
             )
@@ -442,7 +431,7 @@ mod tests {
             ledger.get_state(&account_id3),
             Ok(&AccountState::new_evm(
                 chain_evm::state::AccountState::default(),
-                value3.clone(),
+                value3,
                 ()
             ))
         );
