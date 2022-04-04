@@ -22,42 +22,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
 /// Export EVM types
+pub use ethereum::{AccessList, AccessListItem};
 pub use evm::backend::Log;
 pub use evm::ExitError;
-
-/// Access list.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AccessList {
-    list: Vec<(Address, Vec<Key>)>,
-}
-
-impl rlp::Encodable for AccessList {
-    fn rlp_append(&self, s: &mut rlp::RlpStream) {
-        s.begin_list(self.list.len());
-        for (address, keys) in &self.list {
-            s.append(address);
-            s.append_list(keys);
-        }
-    }
-}
-
-impl From<Vec<(Address, Vec<Key>)>> for AccessList {
-    fn from(other: Vec<(Address, Vec<Key>)>) -> Self {
-        AccessList { list: other }
-    }
-}
-
-impl From<AccessList> for Vec<(Address, Vec<Key>)> {
-    fn from(other: AccessList) -> Self {
-        other.list
-    }
-}
-
-impl From<&AccessList> for Vec<(Address, Vec<Key>)> {
-    fn from(other: &AccessList) -> Self {
-        other.list.clone()
-    }
-}
 
 /// An address of an EVM account.
 pub type Address = H160;
@@ -301,6 +268,21 @@ where
     }
 }
 
+/// Convenience function to convert AccessList types into
+/// arguments used by the EVM transactions.
+pub fn convert_access_list_to_tuples_vec(access_list: AccessList) -> Vec<(Address, Vec<Key>)> {
+    access_list
+        .iter()
+        .map(|list_item| {
+            let AccessListItem {
+                address,
+                storage_keys,
+            } = list_item;
+            (*address, storage_keys.clone())
+        })
+        .collect()
+}
+
 /// Execute a CREATE transaction
 #[allow(clippy::too_many_arguments)]
 pub fn transact_create<State: EvmState>(
@@ -311,14 +293,9 @@ pub fn transact_create<State: EvmState>(
 ) -> Result<ByteCode, Error> {
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
+    let access_list = convert_access_list_to_tuples_vec(access_list);
     execute_transaction(vm, |executor| {
-        executor.transact_create(
-            caller,
-            value,
-            init_code.to_vec(),
-            gas_limit,
-            access_list.into(),
-        )
+        executor.transact_create(caller, value, init_code.to_vec(), gas_limit, access_list)
     })
 }
 
@@ -333,6 +310,7 @@ pub fn transact_create2<State: EvmState>(
 ) -> Result<ByteCode, Error> {
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
+    let access_list = convert_access_list_to_tuples_vec(access_list);
     execute_transaction(vm, |executor| {
         executor.transact_create2(
             caller,
@@ -340,7 +318,7 @@ pub fn transact_create2<State: EvmState>(
             init_code.to_vec(),
             salt,
             gas_limit,
-            access_list.into(),
+            access_list,
         )
     })
 }
@@ -356,6 +334,7 @@ pub fn transact_call<State: EvmState>(
 ) -> Result<ByteCode, Error> {
     let caller = vm.origin;
     let gas_limit = vm.gas_limit;
+    let access_list = convert_access_list_to_tuples_vec(access_list);
     execute_transaction(vm, |executor| {
         executor.transact_call(
             caller,
@@ -363,7 +342,7 @@ pub fn transact_call<State: EvmState>(
             value,
             data.to_vec(),
             gas_limit,
-            access_list.into(),
+            access_list,
         )
     })
 }
