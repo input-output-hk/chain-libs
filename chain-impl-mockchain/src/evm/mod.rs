@@ -6,9 +6,9 @@ use chain_core::{
 #[cfg(feature = "evm")]
 use chain_evm::{
     ethereum_types::{H256, U256},
-    machine::{convert_access_list_to_tuples_vec, AccessList, AccessListItem, Address},
+    machine::{AccessList, AccessListItem, Address},
     rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream},
-    state::{ByteCode, Key},
+    state::ByteCode,
 };
 use typed_bytes::ByteBuilder;
 
@@ -192,94 +192,8 @@ pub fn serialize_u256<T>(bb: ByteBuilder<T>, value: &U256) -> ByteBuilder<T> {
 }
 
 #[cfg(feature = "evm")]
-/// Serializes H256 types as fixed bytes.
-pub fn serialize_h256<T>(bb: ByteBuilder<T>, value: &H256) -> ByteBuilder<T> {
-    bb.bytes(value.as_fixed_bytes())
-}
-
-#[cfg(feature = "evm")]
-/// Serializes H256 types as fixed bytes.
-pub fn serialize_h256_list<T>(bb: ByteBuilder<T>, value: &[H256]) -> ByteBuilder<T> {
-    bb.u64(value.len() as u64)
-        .fold(value.iter(), serialize_h256)
-}
-
-#[cfg(feature = "evm")]
-fn serialize_bytecode(bb: ByteBuilder<EvmTransaction>, code: &[u8]) -> ByteBuilder<EvmTransaction> {
-    bb.u64(code.len() as u64).bytes(code)
-}
-
-#[cfg(feature = "evm")]
-fn serialize_gas_limit(
-    bb: ByteBuilder<EvmTransaction>,
-    gas_limit: &u64,
-) -> ByteBuilder<EvmTransaction> {
-    bb.u64(*gas_limit)
-}
-
-#[cfg(feature = "evm")]
-fn serialize_access_list(
-    bb: ByteBuilder<EvmTransaction>,
-    access_list: &[(Address, Vec<Key>)],
-) -> ByteBuilder<EvmTransaction> {
-    bb.u64(access_list.len() as u64)
-        .fold(access_list.iter(), |bb, (address, keys)| {
-            serialize_address(bb, address)
-                .u64(keys.len() as u64)
-                .fold(keys.iter(), serialize_h256)
-        })
-}
-
-#[cfg(feature = "evm")]
-fn read_address(codec: &mut Codec<&[u8]>) -> Result<Address, ReadError> {
-    Ok(Address::from_slice(codec.get_slice(20)?))
-}
-
-#[cfg(feature = "evm")]
-fn read_h256(codec: &mut Codec<&[u8]>) -> Result<H256, ReadError> {
-    Ok(H256::from_slice(codec.get_slice(32)?))
-}
-
-#[cfg(feature = "evm")]
 pub fn read_u256(codec: &mut Codec<&[u8]>) -> Result<U256, ReadError> {
     Ok(U256::from(codec.get_slice(32)?))
-}
-
-#[cfg(feature = "evm")]
-fn read_bytecode(codec: &mut Codec<&[u8]>) -> Result<ByteCode, ReadError> {
-    match codec.get_be_u64()? {
-        n if n > 0 => Ok(ByteCode::from(codec.get_slice(n.try_into().unwrap())?)),
-        _ => Ok(ByteCode::default()),
-    }
-}
-
-#[cfg(feature = "evm")]
-fn read_gas_limit(codec: &mut Codec<&[u8]>) -> Result<u64, ReadError> {
-    codec.get_be_u64()
-}
-
-#[cfg(feature = "evm")]
-fn read_access_list(codec: &mut Codec<&[u8]>) -> Result<AccessList, ReadError> {
-    let count = codec.get_be_u64()?;
-    let access_list = (0..count)
-        .into_iter()
-        .fold(Vec::new(), |mut access_list, _| {
-            let address = read_address(codec).unwrap_or_default();
-            let keys_count = codec.get_be_u64().unwrap_or_default();
-            let keys = (0..keys_count).into_iter().fold(Vec::new(), |mut keys, _| {
-                let key = read_h256(codec).unwrap_or_default();
-                if !key.is_zero() {
-                    keys.push(key);
-                }
-                keys
-            });
-            access_list.push(AccessListItem {
-                address,
-                storage_keys: keys,
-            });
-            access_list
-        });
-    Ok(access_list)
 }
 
 impl DeserializeFromSlice for EvmTransaction {
