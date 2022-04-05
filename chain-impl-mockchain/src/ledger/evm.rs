@@ -176,7 +176,7 @@ impl<'a> EvmState for EvmStateImpl<'a> {
 }
 
 impl Ledger {
-    pub fn apply_map_accounts<'a>(
+    pub fn apply_map_accounts(
         mut evm: Ledger,
         mut accounts: account::Ledger,
         mapping: &EvmMapping,
