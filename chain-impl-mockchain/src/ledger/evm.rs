@@ -4,12 +4,10 @@ use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::EvmTransaction;
 use crate::header::BlockDate;
 use crate::key::Hash;
-use crate::transaction::{SingleAccountBindingSignature, TransactionBindingAuthData};
 use crate::value::Value;
 use crate::{account::Identifier as JorAddress, accounting::account::AccountState as JorAccount};
 use chain_core::packer::Codec;
 use chain_core::property::DeserializeFromSlice;
-use chain_crypto::Verification;
 use chain_evm::ExitError;
 use chain_evm::{
     machine::{
@@ -33,8 +31,6 @@ pub enum Error {
     CannotMap(#[from] LedgerError),
     #[error("EVM transaction error: {0}")]
     EvmTransaction(#[from] chain_evm::machine::Error),
-    #[error("Protocol evm mapping payload signature failed")]
-    EvmMappingSignatureFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,36 +177,29 @@ impl<'a> EvmState for EvmStateImpl<'a> {
 
 impl Ledger {
     pub fn apply_map_accounts<'a>(
-        mut self,
-        tx: &EvmMapping,
-        auth_data: &TransactionBindingAuthData<'a>,
-        sig: SingleAccountBindingSignature,
+        mut evm: Ledger,
         mut accounts: account::Ledger,
-    ) -> Result<(account::Ledger, Self), Error> {
-        if sig.verify_slice(&tx.account_id().clone().into(), auth_data) != Verification::Success {
-            return Err(Error::EvmMappingSignatureFailed);
-        }
+        mapping: &EvmMapping,
+    ) -> Result<(account::Ledger, Ledger), Error> {
+        (accounts, evm.address_mapping) = evm.address_mapping.map_accounts(
+            mapping.account_id().clone(),
+            *mapping.evm_address(),
+            accounts,
+        )?;
 
-        // TODO need to add Ethereum signature validation
-
-        let evm_id = *tx.evm_address();
-        (accounts, self.address_mapping) =
-            self.address_mapping
-                .map_accounts(tx.account_id().clone(), evm_id, accounts)?;
-
-        Ok((accounts, self))
+        Ok((accounts, evm))
     }
 
     pub fn run_transaction(
-        mut self,
+        mut evm: Ledger,
+        accounts: account::Ledger,
         contract: EvmTransaction,
         config: chain_evm::Config,
-        accounts: account::Ledger,
-    ) -> Result<(account::Ledger, Self), Error> {
+    ) -> Result<(account::Ledger, Ledger), Error> {
         let config = config.into();
         let mut vm_state = EvmStateImpl {
             accounts,
-            evm: &mut self,
+            evm: &mut evm,
         };
         match contract {
             EvmTransaction::Create {
@@ -246,7 +235,7 @@ impl Ledger {
                 let _byte_code_msg = transact_call(vm, address, value, data, access_list)?;
             }
         }
-        Ok((vm_state.accounts, self))
+        Ok((vm_state.accounts, evm))
     }
 }
 
