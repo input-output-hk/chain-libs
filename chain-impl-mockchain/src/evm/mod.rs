@@ -7,7 +7,7 @@ use chain_core::{
 use chain_evm::{
     ethereum_types::{H256, U256},
     machine::{AccessList, Address},
-    rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream},
+    rlp::{decode, Decodable, DecoderError, Encodable, Rlp, RlpStream},
     state::ByteCode,
 };
 use typed_bytes::ByteBuilder;
@@ -217,8 +217,7 @@ impl Deserialize for EvmTransaction {
         {
             let mut rlp_bytes = vec![];
             _codec.read_to_end(&mut rlp_bytes)?;
-            let rlp = Rlp::new(&rlp_bytes);
-            EvmTransaction::decode(&rlp).map_err(|e| ReadError::InvalidData(format!("{:?}", e)))
+            decode(rlp_bytes.as_slice()).map_err(|e| ReadError::InvalidData(format!("{:?}", e)))
         }
         #[cfg(not(feature = "evm"))]
         Err(ReadError::IoError(std::io::Error::new(
@@ -321,22 +320,28 @@ mod test {
     }
 
     quickcheck! {
-        // this tests RLP encoding/decoding using the Payload/DeserializeFromSlice traits
-        fn evm_transaction_serialization_bijection_codec(b: EvmTransaction) -> bool {
-            let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let mut codec = Codec::new(bytes.as_slice());
-            let decoded = EvmTransaction::deserialize(&mut codec).unwrap();
+        // this tests RLP encoding/decoding using the Serialize/Deserialize traits
+        fn evm_transaction_serialization_bijection(b: EvmTransaction) -> bool {
+            let encoded = b.serialize_as_vec().unwrap();
+            let decoded = EvmTransaction::deserialize(&mut Codec::new(encoded.as_slice())).unwrap();
             decoded == b
         }
     }
 
     quickcheck! {
-        // this tests RLP encoding/decoding
+        // this tests RLP encoding/decoding using the rlp::Encodable/rlp::Decodable traits
         fn evm_transaction_serialization_bijection_rlp(b: EvmTransaction) -> bool {
-            let bytes = b.rlp_bytes();
-            let rlp = Rlp::new(bytes.as_ref());
-            let decoded = EvmTransaction::decode(&rlp).unwrap();
-            decoded == b
+            let rlp_encoded = b.rlp_bytes();
+            let rlp_decoded: EvmTransaction = decode(&rlp_encoded).unwrap();
+            rlp_decoded == b
+        }
+    }
+
+    quickcheck! {
+        // tests serialized bytes are RLP-encoded
+        fn evm_transaction_serialized_with_rlp(b: EvmTransaction) -> bool {
+            let bytes = b.serialize_as_vec().unwrap();
+            b.rlp_bytes() == bytes
         }
     }
 }
