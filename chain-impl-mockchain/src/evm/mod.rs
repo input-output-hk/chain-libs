@@ -324,7 +324,8 @@ mod test {
         // this tests RLP encoding/decoding using the Payload/DeserializeFromSlice traits
         fn evm_transaction_serialization_bijection_codec(b: EvmTransaction) -> bool {
             let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let decoded = EvmTransaction::deserialize_from_slice(&mut Codec::new(&bytes)).unwrap();
+            let mut codec = Codec::new(bytes.as_slice());
+            let decoded = EvmTransaction::deserialize(&mut codec).unwrap();
             decoded == b
         }
     }
