@@ -1,7 +1,7 @@
 //! EVM transactions
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 #[cfg(feature = "evm")]
 use chain_evm::{
@@ -196,8 +196,23 @@ pub fn read_u256(codec: &mut Codec<&[u8]>) -> Result<U256, ReadError> {
     Ok(U256::from(codec.get_slice(32)?))
 }
 
-impl DeserializeFromSlice for EvmTransaction {
-    fn deserialize_from_slice(_codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
+impl Serialize for EvmTransaction {
+    fn serialize<W: std::io::Write>(&self, _codec: &mut Codec<W>) -> Result<(), WriteError> {
+        #[cfg(feature = "evm")]
+        {
+            _codec.put_bytes(self.rlp_bytes().as_ref())?;
+            Ok(())
+        }
+        #[cfg(not(feature = "evm"))]
+        Err(WriteError::IoError(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "evm transactions are not supported in this build",
+        )))
+    }
+}
+
+impl Deserialize for EvmTransaction {
+    fn deserialize<R: std::io::Read>(_codec: &mut Codec<R>) -> Result<Self, ReadError> {
         #[cfg(feature = "evm")]
         {
             let mut rlp_bytes = vec![];
@@ -206,11 +221,10 @@ impl DeserializeFromSlice for EvmTransaction {
             EvmTransaction::decode(&rlp).map_err(|e| ReadError::InvalidData(format!("{:?}", e)))
         }
         #[cfg(not(feature = "evm"))]
-        {
-            Err(ReadError::InvalidData(
-                "EVM feature is required".to_string(),
-            ))
-        }
+        Err(ReadError::IoError(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "evm transactions are not supported in this build",
+        )))
     }
 }
 
