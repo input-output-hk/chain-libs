@@ -481,13 +481,13 @@ mod test {
     fn apply_map_accounts_test_2() {
         // Prev state:
         // evm_mapping: [] (empty)
-        // accounts: [ transfrom_evm_to_jor('evm_address') ] (empty)
+        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state, evm_state != empty' ]
         //
         // Applly 'mapping' ('account_id', 'evm_address')
         //
         // Post state;
         // evm_mapping: [ 'accountd_id' <-> 'evm_address' ]
-        // accounts: [] (empty)
+        // accounts: [ 'accountd_id' <-> 'state' ]
 
         let mapping = EvmMapping {
             account_id: JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap()),
@@ -526,6 +526,81 @@ mod test {
         assert_eq!(
             accounts.get_state(&mapping.account_id),
             Ok(&JorAccount::new_evm(evm_state, value, ()))
+        );
+
+        assert_eq!(
+            evm.address_mapping.jor_address(&mapping.evm_address),
+            mapping.account_id.clone()
+        );
+    }
+
+    #[test]
+    fn apply_map_accounts_test_3() {
+        // Prev state:
+        // evm_mapping: [] (empty)
+        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1, evm_state != empty',
+        //             'accountd_id1' <-> 'state2, evm_state == empty' ]
+        //
+        // Applly 'mapping' ('accountd_id1', 'evm_address')
+        //
+        // Post state;
+        // evm_mapping: [ 'accountd_id1' <-> 'evm_address' ]
+        // accounts: ['accountd_id1' <-> 'state3' (state3.value == state2.value + state1.value) ]
+
+        let mapping = EvmMapping {
+            account_id: JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap()),
+            evm_address: EvmAddress::from_low_u64_be(0),
+        };
+
+        let value1 = Value(100);
+        let value2 = Value(150);
+        let evm_state = AccountState {
+            storage: Default::default(),
+            code: vec![0, 1, 2],
+            nonce: Nonce::one(),
+        };
+
+        let mut evm = Ledger::new();
+        let mut accounts = account::Ledger::new()
+            .evm_insert_or_update(
+                transfrom_evm_to_jor(&mapping.evm_address),
+                value1,
+                evm_state.clone(),
+                (),
+            )
+            .unwrap()
+            .add_account(&mapping.account_id, value2, ())
+            .unwrap();
+
+        assert_eq!(
+            accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
+            Ok(&JorAccount::new_evm(evm_state.clone(), value1, ()))
+        );
+
+        assert_eq!(
+            accounts.get_state(&mapping.account_id),
+            Ok(&JorAccount::new(value2, ()))
+        );
+
+        assert_ne!(
+            evm.address_mapping.jor_address(&mapping.evm_address),
+            mapping.account_id.clone()
+        );
+
+        (accounts, evm) = Ledger::apply_map_accounts(evm, accounts, &mapping).unwrap();
+
+        assert_eq!(
+            accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
+            Err(account::LedgerError::NonExistent)
+        );
+
+        assert_eq!(
+            accounts.get_state(&mapping.account_id),
+            Ok(&JorAccount::new_evm(
+                evm_state,
+                value1.saturating_add(value2),
+                ()
+            ))
         );
 
         assert_eq!(
