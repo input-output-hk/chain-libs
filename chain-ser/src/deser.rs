@@ -30,7 +30,7 @@ pub enum WriteError {
 pub trait Serialize {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError>;
 
-    // /// Default implementation, not efficient, not recommended to use it
+    /// Default implementation, not efficient, not recommended to use it
     fn serialized_size(&self) -> usize {
         self.serialize_as_vec().unwrap().len()
     }
