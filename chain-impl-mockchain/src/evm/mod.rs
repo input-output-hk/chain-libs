@@ -201,7 +201,9 @@ impl Serialize for EvmTransaction {
     fn serialize<W: std::io::Write>(&self, _codec: &mut Codec<W>) -> Result<(), WriteError> {
         #[cfg(feature = "evm")]
         {
-            _codec.put_bytes(self.rlp_bytes().as_ref())?;
+            let bytes = self.rlp_bytes();
+            _codec.put_be_u64(bytes.len() as u64)?;
+            _codec.put_bytes(&bytes)?;
             Ok(())
         }
         #[cfg(not(feature = "evm"))]
