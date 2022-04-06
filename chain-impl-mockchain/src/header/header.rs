@@ -1,5 +1,5 @@
 use super::components::VrfProof;
-use super::cstruct;
+use super::cstruct::{self, HEADER_BFT_SIZE, HEADER_COMMON_SIZE, HEADER_GP_SIZE};
 use super::deconstruct::{BftProof, Common, GenesisPraosProof, Proof};
 use super::version::BlockVersion;
 
@@ -183,7 +183,7 @@ impl Header {
     pub fn from_slice(slice: &[u8]) -> Result<Header, HeaderError> {
         let hdr_slice = cstruct::HeaderSlice::from_slice(slice)?;
         let hdr = hdr_slice.to_owned();
-        match BlockVersion::from_u16(hdr.version()).expect("header slice only know version") {
+        match BlockVersion::from_u8(hdr.version()).expect("header slice only know version") {
             BlockVersion::Genesis => Ok(Header::Unsigned(HeaderUnsigned(hdr))),
             BlockVersion::Ed25519Signed => Ok(Header::Bft(HeaderBft(hdr))),
             BlockVersion::KesVrfproof => Ok(Header::GenesisPraos(HeaderGenesisPraos(hdr))),
@@ -300,19 +300,29 @@ use chain_core::{
 
 impl Serialize for Header {
     fn serialized_size(&self) -> usize {
-        Codec::u16_size() + self.as_slice().len()
+        Codec::u8_size()
+            + match self.block_version() {
+                BlockVersion::Ed25519Signed => HEADER_BFT_SIZE,
+                BlockVersion::Genesis => HEADER_COMMON_SIZE,
+                BlockVersion::KesVrfproof => HEADER_GP_SIZE,
+            }
     }
 
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
-        let bytes = self.as_slice();
-        codec.put_be_u16(bytes.len() as u16)?;
-        codec.put_bytes(bytes)
+        codec.put_u8(self.block_version().to_u8())?;
+        codec.put_bytes(self.as_slice())
     }
 }
 
 impl Deserialize for Header {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
-        let header_size = codec.get_be_u16()? as usize;
+        let tag = codec.get_u8()?;
+        let header_size = match BlockVersion::from_u8(codec.get_u8()?) {
+            Some(BlockVersion::Ed25519Signed) => HEADER_BFT_SIZE,
+            Some(BlockVersion::Genesis) => HEADER_COMMON_SIZE,
+            Some(BlockVersion::KesVrfproof) => HEADER_GP_SIZE,
+            None => return Err(ReadError::UnknownTag(tag as u32)),
+        };
         let bytes = codec.get_bytes(header_size)?;
         Header::from_slice(bytes.as_slice()).map_err(|e| match e {
             HeaderError::InvalidSize => ReadError::NotEnoughBytes(0, 0),
