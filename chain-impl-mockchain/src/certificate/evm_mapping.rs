@@ -1,16 +1,15 @@
-use chain_core::{
-    mempack::{ReadBuf, ReadError, Readable},
-    property,
-};
 #[cfg(feature = "evm")]
-use chain_evm::Address;
-use typed_bytes::{ByteArray, ByteBuilder};
-
+use crate::account::Identifier;
 #[cfg(feature = "evm")]
-use crate::transaction::UnspecifiedAccountIdentifier;
+use crate::evm::Address;
 use crate::transaction::{
     Payload, PayloadAuthData, PayloadData, PayloadSlice, SingleAccountBindingSignature,
 };
+use chain_core::{
+    packer::Codec,
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
+};
+use typed_bytes::{ByteArray, ByteBuilder};
 
 use super::CertificateSlice;
 
@@ -21,18 +20,14 @@ use super::CertificateSlice;
 )]
 pub struct EvmMapping {
     #[cfg(feature = "evm")]
-    #[cfg_attr(
-        all(any(test, feature = "property-test-api"), feature = "evm"),
-        strategy(test::prop_impls::address_strategy())
-    )]
-    evm_address: Address,
+    pub account_id: Identifier,
     #[cfg(feature = "evm")]
-    pub account_id: UnspecifiedAccountIdentifier,
+    pub evm_address: Address,
 }
 
 impl EvmMapping {
     #[cfg(feature = "evm")]
-    pub fn new(evm_address: Address, account_id: UnspecifiedAccountIdentifier) -> Self {
+    pub fn new(evm_address: Address, account_id: Identifier) -> Self {
         Self {
             account_id,
             evm_address,
@@ -45,14 +40,14 @@ impl EvmMapping {
     }
 
     #[cfg(feature = "evm")]
-    pub fn account_id(&self) -> &UnspecifiedAccountIdentifier {
+    pub fn account_id(&self) -> &Identifier {
         &self.account_id
     }
 
     pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
         #[cfg(feature = "evm")]
         {
-            bb.bytes(self.account_id().as_ref())
+            bb.bytes(self.account_id.as_ref().as_ref())
                 .bytes(self.evm_address.as_bytes())
         }
         #[cfg(not(feature = "evm"))]
@@ -94,57 +89,34 @@ impl Payload for EvmMapping {
 
 /* Ser/De ******************************************************************* */
 
-impl property::Serialize for EvmMapping {
-    type Error = std::io::Error;
-    fn serialize<W: std::io::Write>(&self, _writer: W) -> Result<(), Self::Error> {
+impl Serialize for EvmMapping {
+    fn serialize<W: std::io::Write>(&self, _codec: &mut Codec<W>) -> Result<(), WriteError> {
         #[cfg(feature = "evm")]
         {
-            let mut codec = chain_core::packer::Codec::new(_writer);
-            codec.put_bytes(self.account_id.as_ref())?;
-            codec.put_bytes(self.evm_address.as_bytes())?;
+            self.account_id.serialize(_codec)?;
+            _codec.put_bytes(self.evm_address.as_bytes())?;
         }
         Ok(())
     }
 }
 
-impl property::Deserialize for EvmMapping {
-    type Error = std::io::Error;
-    fn deserialize<R: std::io::BufRead>(_reader: R) -> Result<Self, Self::Error> {
+impl DeserializeFromSlice for EvmMapping {
+    fn deserialize_from_slice(_codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
         #[cfg(feature = "evm")]
         {
-            let mut codec = chain_core::packer::Codec::new(_reader);
-            let buf: [u8; crate::transaction::INPUT_PTR_SIZE] = codec
-                .get_bytes(crate::transaction::INPUT_PTR_SIZE)?
-                .try_into()
-                .unwrap();
-            let evm_address = codec.get_bytes(Address::len_bytes())?;
+            let account_id = Identifier::deserialize_from_slice(_codec)?;
+            let evm_address = _codec.get_bytes(Address::len_bytes())?;
 
             Ok(Self {
-                account_id: buf.into(),
+                account_id,
                 evm_address: Address::from_slice(evm_address.as_slice()),
             })
         }
         #[cfg(not(feature = "evm"))]
-        Err(Self::Error::new(
+        Err(ReadError::IoError(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
             "evm transactions are not supported in this build",
-        ))
-    }
-}
-
-impl Readable for EvmMapping {
-    fn read(_buf: &mut ReadBuf) -> Result<Self, ReadError> {
-        #[cfg(feature = "evm")]
-        {
-            Ok(Self {
-                account_id: <[u8; crate::transaction::INPUT_PTR_SIZE]>::read(_buf)?.into(),
-                evm_address: Address::from_slice(_buf.get_slice(Address::len_bytes())?),
-            })
-        }
-        #[cfg(not(feature = "evm"))]
-        Err(ReadError::InvalidData(
-            "evm transactions are not supported in this build".into(),
-        ))
+        )))
     }
 }
 
@@ -156,7 +128,7 @@ mod test {
     impl Arbitrary for EvmMapping {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self {
-                account_id: [u8::arbitrary(g); crate::transaction::INPUT_PTR_SIZE].into(),
+                account_id: Arbitrary::arbitrary(g),
                 evm_address: [u8::arbitrary(g); Address::len_bytes()].into(),
             }
         }
@@ -165,19 +137,8 @@ mod test {
     quickcheck! {
         fn evm_transaction_serialization_bijection(b: EvmMapping) -> bool {
             let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let decoded = EvmMapping::read(&mut chain_core::mempack::ReadBuf::from(&bytes)).unwrap();
+            let decoded = EvmMapping::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
             decoded == b
-        }
-    }
-
-    pub mod prop_impls {
-        use chain_evm::primitive_types::H160;
-        use chain_evm::Address;
-        use proptest::arbitrary::any;
-        use proptest::strategy::Strategy;
-
-        pub fn address_strategy() -> impl Strategy<Value = Address> {
-            any::<[u8; 20]>().prop_map(|bytes| H160::from_slice(&bytes))
         }
     }
 }
