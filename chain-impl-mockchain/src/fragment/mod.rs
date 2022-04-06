@@ -5,9 +5,7 @@ use crate::key::Hash;
 use crate::legacy;
 use chain_core::{
     packer::Codec,
-    property::{
-        self, Deserialize, DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError,
-    },
+    property::{self, Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 
 pub use config::ConfigParams;
@@ -195,10 +193,10 @@ impl Deserialize for Fragment {
     }
 }
 
-impl SerializedSize for Fragment {
+impl Serialize for Fragment {
     fn serialized_size(&self) -> usize {
-        0_u8.serialized_size()
-            + 0_u8.serialized_size()
+        Codec::u8_size()
+            + Codec::u8_size()
             + match self {
                 Fragment::Initial(i) => i.serialized_size(),
                 Fragment::OldUtxoDeclaration(s) => s.serialized_size(),
@@ -217,11 +215,9 @@ impl SerializedSize for Fragment {
                 Fragment::Evm(deployment) => deployment.serialized_size(),
                 Fragment::EvmMapping(evm_mapping) => evm_mapping.serialized_size(),
             }
-            + 0_u32.serialized_size()
+            + Codec::u32_size()
     }
-}
 
-impl Serialize for Fragment {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let mut tmp = Codec::new(Vec::new());
         tmp.put_u8(0).unwrap();

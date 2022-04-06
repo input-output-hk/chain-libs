@@ -8,9 +8,7 @@ use crate::key::{
 use crate::multisig;
 use chain_core::{
     packer::Codec,
-    property::{
-        Deserialize, DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError,
-    },
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
@@ -192,33 +190,20 @@ const WITNESS_TAG_UTXO: u8 = 1u8;
 const WITNESS_TAG_ACCOUNT: u8 = 2u8;
 const WITNESS_TAG_MULTISIG: u8 = 3u8;
 
-impl SerializedSize for Witness {
+impl Serialize for Witness {
     fn serialized_size(&self) -> usize {
         match self {
             Witness::OldUtxo(pk, cc, sig) => {
-                WITNESS_TAG_OLDUTXO.serialized_size()
-                    + pk.as_ref().serialized_size()
-                    + cc.serialized_size()
-                    + sig.as_ref().serialized_size()
+                Codec::u8_size() + pk.as_ref().len() + cc.serialized_size() + sig.as_ref().len()
             }
-            Witness::Utxo(sig) => {
-                WITNESS_TAG_UTXO.serialized_size() + sig.as_ref().serialized_size()
-            }
-            Witness::Account(_, sig) => {
-                WITNESS_TAG_ACCOUNT.serialized_size()
-                    + 0_u32.serialized_size()
-                    + sig.as_ref().serialized_size()
-            }
+            Witness::Utxo(sig) => Codec::u8_size() + sig.as_ref().len(),
+            Witness::Account(_, sig) => Codec::u8_size() + Codec::u32_size() + sig.as_ref().len(),
             Witness::Multisig(_, msig) => {
-                WITNESS_TAG_MULTISIG.serialized_size()
-                    + 0_u32.serialized_size()
-                    + msig.serialized_size()
+                Codec::u8_size() + Codec::u32_size() + msig.serialized_size()
             }
         }
     }
-}
 
-impl Serialize for Witness {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         match self {
             Witness::OldUtxo(pk, cc, sig) => {

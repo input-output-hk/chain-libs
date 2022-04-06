@@ -7,9 +7,7 @@ use crate::{
 };
 use chain_core::{
     packer::Codec,
-    property::{
-        Deserialize, DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError,
-    },
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -63,16 +61,14 @@ impl Payload for MintToken {
     }
 }
 
-impl SerializedSize for MintToken {
+impl Serialize for MintToken {
     fn serialized_size(&self) -> usize {
         self.name.serialized_size()
             + self.policy.serialized_size()
             + self.to.serialized_size()
             + self.value.serialized_size()
     }
-}
 
-impl Serialize for MintToken {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         self.name.serialize(codec)?;
         self.policy.serialize(codec)?;

@@ -26,19 +26,14 @@ pub enum WriteError {
     IoError(#[from] std::io::Error),
 }
 
-pub trait SerializedSize {
-    fn serialized_size(&self) -> usize;
-}
-
-impl<T: SerializedSize> SerializedSize for &T {
-    fn serialized_size(&self) -> usize {
-        (*self).serialized_size()
-    }
-}
-
 /// Define that an object can be written to an `std::io::Write` object.
 pub trait Serialize {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError>;
+
+    // /// Default implementation, not efficient, not recommended to use it
+    fn serialized_size(&self) -> usize {
+        self.serialize_as_vec().unwrap().len()
+    }
 
     /// Convenience method to serialize into a byte vector.
     fn serialize_as_vec(&self) -> Result<Vec<u8>, WriteError> {
@@ -95,74 +90,12 @@ impl<const N: usize> Deserialize for [u8; N] {
     }
 }
 
-impl SerializedSize for u8 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<u8>()
+impl<const N: usize> Serialize for [u8; N] {
+    fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
+        codec.put_bytes(self)
     }
-}
 
-impl SerializedSize for u16 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<u16>()
-    }
-}
-
-impl SerializedSize for u32 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<u32>()
-    }
-}
-
-impl SerializedSize for u64 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<u64>()
-    }
-}
-
-impl SerializedSize for u128 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<u128>()
-    }
-}
-
-impl SerializedSize for i8 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<i8>()
-    }
-}
-
-impl SerializedSize for i16 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<i16>()
-    }
-}
-
-impl SerializedSize for i32 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<i32>()
-    }
-}
-
-impl SerializedSize for i64 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<i64>()
-    }
-}
-
-impl SerializedSize for i128 {
-    fn serialized_size(&self) -> usize {
-        std::mem::size_of::<i128>()
-    }
-}
-
-impl<const N: usize> SerializedSize for [u8; N] {
     fn serialized_size(&self) -> usize {
         std::mem::size_of::<[u8; N]>()
-    }
-}
-
-impl SerializedSize for &[u8] {
-    fn serialized_size(&self) -> usize {
-        self.len()
     }
 }

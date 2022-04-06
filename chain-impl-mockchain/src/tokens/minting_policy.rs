@@ -1,7 +1,7 @@
 use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use cryptoxide::{blake2b::Blake2b, digest::Digest};
 use thiserror::Error;
@@ -70,13 +70,11 @@ impl Default for MintingPolicy {
     }
 }
 
-impl SerializedSize for MintingPolicy {
-    fn serialized_size(&self) -> usize {
-        0_u8.serialized_size()
-    }
-}
-
 impl Serialize for MintingPolicy {
+    fn serialized_size(&self) -> usize {
+        Codec::u8_size()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(0_u8)
     }

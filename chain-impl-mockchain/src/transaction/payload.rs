@@ -1,6 +1,6 @@
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 
 use crate::certificate::CertificateSlice;
@@ -123,13 +123,11 @@ impl<'a, P: ?Sized> PayloadAuthSlice<'a, P> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoExtra;
 
-impl SerializedSize for NoExtra {
+impl Serialize for NoExtra {
     fn serialized_size(&self) -> usize {
         0
     }
-}
 
-impl Serialize for NoExtra {
     fn serialize<W: std::io::Write>(&self, _: &mut Codec<W>) -> Result<(), WriteError> {
         Ok(())
     }

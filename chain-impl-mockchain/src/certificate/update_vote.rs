@@ -6,9 +6,7 @@ use crate::{
 
 use chain_core::{
     packer::Codec,
-    property::{
-        Deserialize, DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError,
-    },
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -77,13 +75,11 @@ impl Payload for UpdateVote {
 
 /* Ser/De ******************************************************************* */
 
-impl SerializedSize for UpdateVote {
+impl Serialize for UpdateVote {
     fn serialized_size(&self) -> usize {
         self.proposal_id.serialized_size() + self.voter_id.serialized_size()
     }
-}
 
-impl Serialize for UpdateVote {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         self.proposal_id.serialize(codec)?;
         self.voter_id.serialize(codec)

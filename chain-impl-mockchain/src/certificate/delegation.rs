@@ -5,7 +5,7 @@ use crate::transaction::{
     UnspecifiedAccountIdentifier,
 };
 
-use chain_core::property::{SerializedSize, WriteError};
+use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
     property::{Deserialize, ReadError, Serialize},
@@ -55,15 +55,13 @@ impl StakeDelegation {
     }
 }
 
-impl SerializedSize for OwnerStakeDelegation {
+impl Serialize for OwnerStakeDelegation {
     fn serialized_size(&self) -> usize {
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
-        delegation_buf.as_slice().serialized_size()
+        delegation_buf.len()
     }
-}
 
-impl Serialize for OwnerStakeDelegation {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
@@ -98,15 +96,13 @@ impl Payload for OwnerStakeDelegation {
     }
 }
 
-impl SerializedSize for StakeDelegation {
+impl Serialize for StakeDelegation {
     fn serialized_size(&self) -> usize {
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();
-        self.account_id.as_ref().serialized_size() + delegation_buf.as_slice().serialized_size()
+        self.account_id.as_ref().len() + delegation_buf.len()
     }
-}
 
-impl Serialize for StakeDelegation {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let delegation_buf =
             serialize_delegation_type(&self.delegation, ByteBuilder::new()).finalize_as_vec();

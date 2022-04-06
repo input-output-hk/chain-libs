@@ -33,7 +33,7 @@
 use bech32::{self, FromBase32, ToBase32};
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{Ed25519, PublicKey, PublicKeyError};
 use std::string::ToString;
@@ -416,22 +416,18 @@ impl std::str::FromStr for AddressReadable {
     }
 }
 
-impl SerializedSize for Address {
+impl Serialize for Address {
     fn serialized_size(&self) -> usize {
-        self.to_kind_value().serialized_size()
+        std::mem::size_of::<u8>()
             + match &self.1 {
-                Kind::Single(spend) => spend.as_ref().serialized_size(),
-                Kind::Group(spend, group) => {
-                    spend.as_ref().serialized_size() + group.as_ref().serialized_size()
-                }
-                Kind::Account(stake_key) => stake_key.as_ref().serialized_size(),
+                Kind::Single(spend) => spend.as_ref().len(),
+                Kind::Group(spend, group) => spend.as_ref().len() + group.as_ref().len(),
+                Kind::Account(stake_key) => stake_key.as_ref().len(),
                 Kind::Multisig(hash) => hash.serialized_size(),
                 Kind::Script(hash) => hash.serialized_size(),
             }
     }
-}
 
-impl Serialize for Address {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let first_byte = match self.0 {
             Discrimination::Production => self.to_kind_value(),

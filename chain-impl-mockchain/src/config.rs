@@ -12,7 +12,7 @@ use chain_addr::Discrimination;
 use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, SerializedSize},
+    property::{DeserializeFromSlice, ReadError, Serialize},
 };
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
@@ -351,71 +351,43 @@ impl DeserializeFromSlice for ConfigParam {
     }
 }
 
-impl SerializedSize for ConfigParam {
+impl Serialize for ConfigParam {
     fn serialized_size(&self) -> usize {
-        0_u16.serialized_size()
+        Codec::u16_size()
             + match self {
-                ConfigParam::Block0Date(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::Discrimination(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::ConsensusVersion(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::SlotsPerEpoch(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::SlotDuration(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::EpochStabilityDepth(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::ConsensusGenesisPraosActiveSlotsCoeff(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::BlockContentMaxSize(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::AddBftLeader(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::RemoveBftLeader(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::LinearFee(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::ProposalExpiration(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::KesUpdateSpeed(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::TreasuryAdd(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::TreasuryParams(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::RewardPot(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::RewardParams(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::PerCertificateFees(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::FeesInTreasury(data) => data.to_payload().as_slice().serialized_size(),
+                ConfigParam::Block0Date(data) => data.to_payload().len(),
+                ConfigParam::Discrimination(data) => data.to_payload().len(),
+                ConfigParam::ConsensusVersion(data) => data.to_payload().len(),
+                ConfigParam::SlotsPerEpoch(data) => data.to_payload().len(),
+                ConfigParam::SlotDuration(data) => data.to_payload().len(),
+                ConfigParam::EpochStabilityDepth(data) => data.to_payload().len(),
+                ConfigParam::ConsensusGenesisPraosActiveSlotsCoeff(data) => data.to_payload().len(),
+                ConfigParam::BlockContentMaxSize(data) => data.to_payload().len(),
+                ConfigParam::AddBftLeader(data) => data.to_payload().len(),
+                ConfigParam::RemoveBftLeader(data) => data.to_payload().len(),
+                ConfigParam::LinearFee(data) => data.to_payload().len(),
+                ConfigParam::ProposalExpiration(data) => data.to_payload().len(),
+                ConfigParam::KesUpdateSpeed(data) => data.to_payload().as_slice().len(),
+                ConfigParam::TreasuryAdd(data) => data.to_payload().len(),
+                ConfigParam::TreasuryParams(data) => data.to_payload().len(),
+                ConfigParam::RewardPot(data) => data.to_payload().len(),
+                ConfigParam::RewardParams(data) => data.to_payload().len(),
+                ConfigParam::PerCertificateFees(data) => data.to_payload().len(),
+                ConfigParam::FeesInTreasury(data) => data.to_payload().len(),
                 ConfigParam::RewardLimitNone => 0,
-                ConfigParam::RewardLimitByAbsoluteStake(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::PoolRewardParticipationCapping(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::AddCommitteeId(data) => data.to_payload().as_slice().serialized_size(),
-                ConfigParam::RemoveCommitteeId(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::PerVoteCertificateFees(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
-                ConfigParam::TransactionMaxExpiryEpochs(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
+                ConfigParam::RewardLimitByAbsoluteStake(data) => data.to_payload().len(),
+                ConfigParam::PoolRewardParticipationCapping(data) => data.to_payload().len(),
+                ConfigParam::AddCommitteeId(data) => data.to_payload().len(),
+                ConfigParam::RemoveCommitteeId(data) => data.to_payload().len(),
+                ConfigParam::PerVoteCertificateFees(data) => data.to_payload().len(),
+                ConfigParam::TransactionMaxExpiryEpochs(data) => data.to_payload().len(),
                 #[cfg(feature = "evm")]
-                ConfigParam::EvmConfiguration(data) => {
-                    data.to_payload().as_slice().serialized_size()
-                }
+                ConfigParam::EvmConfiguration(data) => data.to_payload().len(),
                 #[cfg(feature = "evm")]
-                ConfigParam::EvmEnvironment(data) => data.to_payload().as_slice().serialized_size(),
+                ConfigParam::EvmEnvironment(data) => data.to_payload().len(),
             }
     }
-}
 
-impl Serialize for ConfigParam {
     fn serialize<W: Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         let tag = Tag::from(self);
         let bytes = match self {

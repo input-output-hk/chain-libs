@@ -2,7 +2,7 @@
 use crate::fragment::Fragment;
 use chain_core::{
     packer::Codec,
-    property::{self, Deserialize, ReadError, Serialize, SerializedSize, WriteError},
+    property::{self, Deserialize, ReadError, Serialize, WriteError},
 };
 
 use std::slice;
@@ -92,7 +92,7 @@ impl property::Block for Block {
     }
 }
 
-impl SerializedSize for Block {
+impl Serialize for Block {
     fn serialized_size(&self) -> usize {
         let mut res = self.header.serialized_size();
         for message in self.contents.iter() {
@@ -100,9 +100,7 @@ impl SerializedSize for Block {
         }
         res
     }
-}
 
-impl Serialize for Block {
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         self.header.serialize(codec)?;
         for message in self.contents.iter() {

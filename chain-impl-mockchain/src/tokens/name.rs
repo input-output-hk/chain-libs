@@ -1,6 +1,6 @@
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, ReadError, Serialize, SerializedSize, WriteError},
+    property::{Deserialize, ReadError, Serialize, WriteError},
 };
 use thiserror::Error;
 use typed_bytes::ByteBuilder;
@@ -47,13 +47,11 @@ impl TryFrom<Vec<u8>> for TokenName {
     }
 }
 
-impl SerializedSize for TokenName {
-    fn serialized_size(&self) -> usize {
-        0_u8.serialized_size() + self.0.as_slice().serialized_size()
-    }
-}
-
 impl Serialize for TokenName {
+    fn serialized_size(&self) -> usize {
+        Codec::u8_size() + self.0.len()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(self.0.len() as u8)?;
         codec.put_bytes(self.0.as_slice())

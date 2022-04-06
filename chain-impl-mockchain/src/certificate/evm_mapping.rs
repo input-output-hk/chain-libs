@@ -7,7 +7,7 @@ use crate::transaction::{
 };
 use chain_core::{
     packer::Codec,
-    property::{DeserializeFromSlice, ReadError, Serialize, SerializedSize, WriteError},
+    property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -85,7 +85,7 @@ impl Payload for EvmMapping {
 
 /* Ser/De ******************************************************************* */
 
-impl SerializedSize for EvmMapping {
+impl Serialize for EvmMapping {
     fn serialized_size(&self) -> usize {
         #[allow(unused_mut)]
         let mut res = 0;
@@ -95,9 +95,7 @@ impl SerializedSize for EvmMapping {
         }
         res
     }
-}
 
-impl Serialize for EvmMapping {
     fn serialize<W: std::io::Write>(&self, _codec: &mut Codec<W>) -> Result<(), WriteError> {
         #[cfg(feature = "evm")]
         {
