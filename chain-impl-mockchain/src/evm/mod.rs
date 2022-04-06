@@ -218,8 +218,8 @@ impl Deserialize for EvmTransaction {
     fn deserialize<R: std::io::Read>(_codec: &mut Codec<R>) -> Result<Self, ReadError> {
         #[cfg(feature = "evm")]
         {
-            let mut rlp_bytes = vec![];
-            _codec.read_to_end(&mut rlp_bytes)?;
+            let len = _codec.get_be_u64()?;
+            let rlp_bytes = _codec.get_bytes(len as usize)?;
             decode(rlp_bytes.as_slice()).map_err(|e| ReadError::InvalidData(format!("{:?}", e)))
         }
         #[cfg(not(feature = "evm"))]
