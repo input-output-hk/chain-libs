@@ -168,7 +168,8 @@ impl EvmTransaction {
     pub fn serialize_in(&self, _bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
         #[cfg(feature = "evm")]
         {
-            _bb.bytes(&self.rlp_bytes())
+            let bytes = self.rlp_bytes();
+            _bb.u64(bytes.len() as u64).bytes(&bytes)
         }
         #[cfg(not(feature = "evm"))]
         {
