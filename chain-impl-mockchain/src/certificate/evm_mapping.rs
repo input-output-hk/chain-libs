@@ -23,7 +23,7 @@ pub struct EvmMapping {
     #[cfg(feature = "evm")]
     #[cfg_attr(
         all(any(test, feature = "property-test-api"), feature = "evm"),
-        strategy(test::pt::address_strategy())
+        strategy(test::prop_impls::address_strategy())
     )]
     evm_address: Address,
     #[cfg(feature = "evm")]
@@ -170,7 +170,7 @@ mod test {
         }
     }
 
-    pub mod pt {
+    pub mod prop_impls {
         use chain_evm::primitive_types::H160;
         use chain_evm::Address;
         use proptest::arbitrary::any;

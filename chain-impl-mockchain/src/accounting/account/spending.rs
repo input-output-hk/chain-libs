@@ -284,7 +284,7 @@ mod tests {
     }
 
     #[cfg(feature = "property-test-api")]
-    mod pt {
+    mod prop_impls {
         use proptest::prelude::*;
 
         use crate::{account::SpendingCounter, accounting::account::SpendingCounterIncreasing};

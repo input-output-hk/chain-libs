@@ -599,7 +599,7 @@ mod tests {
     }
 
     #[cfg(feature = "property-test-api")]
-    mod pt {
+    mod prop_impls {
         use imhamt::Hamt;
         use proptest::prelude::*;
 
