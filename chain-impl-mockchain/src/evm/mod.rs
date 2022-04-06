@@ -339,12 +339,4 @@ mod test {
             rlp_decoded == b
         }
     }
-
-    quickcheck! {
-        // tests serialized bytes are RLP-encoded
-        fn evm_transaction_serialized_with_rlp(b: EvmTransaction) -> bool {
-            let bytes = b.serialize_as_vec().unwrap();
-            b.rlp_bytes() == bytes
-        }
-    }
 }
