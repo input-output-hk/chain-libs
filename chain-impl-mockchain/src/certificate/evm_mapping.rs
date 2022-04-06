@@ -142,10 +142,15 @@ mod test {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod prop_impl {
-    use chain_evm::Address;
-    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+    use proptest::prelude::*;
 
-    use crate::{account::Identifier, certificate::EvmMapping};
+    #[cfg(feature = "evm")]
+    use crate::account::Identifier;
+    use crate::certificate::EvmMapping;
+    #[cfg(feature = "evm")]
+    use chain_evm::Address;
+    #[cfg(feature = "evm")]
+    use proptest::{arbitrary::StrategyFor, strategy::Map};
 
     impl Arbitrary for EvmMapping {
         type Parameters = ();
