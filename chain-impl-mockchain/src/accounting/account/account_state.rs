@@ -636,6 +636,9 @@ mod tests {
                     tokens: Hamt::new(),
                     last_rewards: LastRewards::default(),
                     extra: (),
+                    #[cfg(feature = "evm")]
+                    evm_state: chain_evm::state::AccountState::default(),
+
 
                 }
             }
