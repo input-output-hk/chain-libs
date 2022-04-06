@@ -1,4 +1,6 @@
 use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::*;
 
 use chain_core::{
     mempack::{ReadBuf, ReadError, Readable},
@@ -22,21 +24,10 @@ use typed_bytes::ByteBuilder;
 pub struct MintingPolicy(
     #[cfg_attr(
         any(test, feature = "property-test-api"),
-        strategy(test_impls::minting_policies())
+        strategy(Just(vec![]))
     )]
     Vec<MintingPolicyEntry>,
 );
-
-#[cfg(any(test, feature = "property-test-api"))]
-mod test_impls {
-    use proptest::{arbitrary::any, strategy::Strategy};
-
-    use super::*;
-
-    pub(super) fn minting_policies() -> impl Strategy<Value = Vec<MintingPolicyEntry>> {
-        any::<()>().prop_map(|()| vec![])
-    }
-}
 
 /// An entry of a minting policy. Currently there are no entries available.
 /// This is reserved for the future use.

@@ -23,23 +23,11 @@ pub struct EvmMapping {
     #[cfg(feature = "evm")]
     #[cfg_attr(
         all(any(test, feature = "property-test-api"), feature = "evm"),
-        strategy(test_impls::address_strategy())
+        strategy(test::pt::address_strategy())
     )]
     evm_address: Address,
     #[cfg(feature = "evm")]
     pub account_id: UnspecifiedAccountIdentifier,
-}
-
-#[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
-mod test_impls {
-    use super::*;
-    use chain_evm::primitive_types::H160;
-    use proptest::arbitrary::any;
-    use proptest::strategy::Strategy;
-
-    pub(super) fn address_strategy() -> impl Strategy<Value = Address> {
-        any::<[u8; 20]>().prop_map(|bytes| H160::from_slice(&bytes))
-    }
 }
 
 impl EvmMapping {
@@ -179,6 +167,17 @@ mod test {
             let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
             let decoded = EvmMapping::read(&mut chain_core::mempack::ReadBuf::from(&bytes)).unwrap();
             decoded == b
+        }
+    }
+
+    pub mod pt {
+        use chain_evm::primitive_types::H160;
+        use chain_evm::Address;
+        use proptest::arbitrary::any;
+        use proptest::strategy::Strategy;
+
+        pub fn address_strategy() -> impl Strategy<Value = Address> {
+            any::<[u8; 20]>().prop_map(|bytes| H160::from_slice(&bytes))
         }
     }
 }

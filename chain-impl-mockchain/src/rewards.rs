@@ -51,23 +51,6 @@ impl Ratio {
     }
 }
 
-#[cfg(any(test, feature = "property-test-api"))]
-mod test_impls {
-    use super::*;
-    use proptest::arbitrary::any;
-    use proptest::strategy::Strategy;
-
-    pub(super) fn non_zero_u64_strategy() -> impl Strategy<Value = NonZeroU64> {
-        any::<u64>()
-            .prop_map(|i| i.try_into().ok())
-            .prop_filter_map("must be non zero", |i| i)
-    }
-
-    pub(super) fn option_non_zero_u64_strategy() -> impl Strategy<Value = Option<NonZeroU64>> {
-        any::<u64>().prop_map(|i| i.try_into().ok())
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     any(test, feature = "property-test-api"),
@@ -443,6 +426,23 @@ mod tests {
                 2 => CompoundingType::Halvening,
                 _ => unreachable!(),
             }
+        }
+    }
+
+    mod test_impls {
+        use std::num::NonZeroU64;
+
+        use proptest::arbitrary::any;
+        use proptest::strategy::Strategy;
+
+        pub(super) fn non_zero_u64_strategy() -> impl Strategy<Value = NonZeroU64> {
+            any::<u64>()
+                .prop_map(|i| i.try_into().ok())
+                .prop_filter_map("must be non zero", |i| i)
+        }
+
+        pub(super) fn option_non_zero_u64_strategy() -> impl Strategy<Value = Option<NonZeroU64>> {
+            any::<u64>().prop_map(|i| i.try_into().ok())
         }
     }
 }

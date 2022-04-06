@@ -94,39 +94,6 @@ pub struct AccountState<Extra> {
     pub extra: Extra,
 }
 
-#[cfg(any(test, feature = "property-test-api"))]
-mod test_impls {
-    use super::*;
-    use proptest::prelude::*;
-
-    prop_compose! {
-        fn arbitrary_account_state()(
-            spending in any::<SpendingCounterIncreasing>(),
-            pool_id in any::<PoolId>(),
-            value in any::<Value>(),
-            ) -> AccountState<()> {
-            AccountState {
-                spending,
-                delegation: DelegationType::Full(pool_id),
-                value,
-                tokens: Hamt::new(),
-                last_rewards: LastRewards::default(),
-                extra: (),
-
-            }
-        }
-    }
-
-    impl Arbitrary for AccountState<()> {
-        type Parameters = ();
-        type Strategy = BoxedStrategy<Self>;
-
-        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            arbitrary_account_state().boxed()
-        }
-    }
-}
-
 impl<Extra> AccountState<Extra> {
     /// Create a new account state with a specific start value
     pub fn new(v: Value, e: Extra) -> Self {
@@ -629,5 +596,45 @@ mod tests {
             .token_add(token.clone(), Value(u64::MAX))
             .unwrap();
         assert!(account_state.token_add(token, Value(1)).is_err());
+    }
+
+    #[cfg(feature = "property-test-api")]
+    mod pt {
+        use imhamt::Hamt;
+        use proptest::prelude::*;
+
+        use crate::{
+            account::DelegationType,
+            accounting::account::{AccountState, LastRewards, SpendingCounterIncreasing},
+            certificate::PoolId,
+            value::Value,
+        };
+
+        prop_compose! {
+            fn arbitrary_account_state()(
+                spending in any::<SpendingCounterIncreasing>(),
+                pool_id in any::<PoolId>(),
+                value in any::<Value>(),
+            ) -> AccountState<()> {
+                AccountState {
+                    spending,
+                    delegation: DelegationType::Full(pool_id),
+                    value,
+                    tokens: Hamt::new(),
+                    last_rewards: LastRewards::default(),
+                    extra: (),
+
+                }
+            }
+        }
+
+        impl Arbitrary for AccountState<()> {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                arbitrary_account_state().boxed()
+            }
+        }
     }
 }
