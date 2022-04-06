@@ -222,6 +222,9 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
                 // move state
                 self.0
                     .insert_or_update(new_identifier, state.clone(), |st| {
+                        if !st.evm_state.is_empty() {
+                            return Err(LedgerError::AlreadyExists);
+                        }
                         Ok(Some(AccountState {
                             value: st.value.checked_add(state.value)?,
                             evm_state: state.evm_state,

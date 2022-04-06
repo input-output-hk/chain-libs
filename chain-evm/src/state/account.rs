@@ -90,6 +90,12 @@ impl Account {
     }
 }
 
+impl AccountState {
+    pub fn is_empty(&self) -> bool {
+        self.nonce == Nonce::zero() && self.code.is_empty() && self.storage.is_empty()
+    }
+}
+
 /// In-memory representation of all accounts.
 pub type AccountTrie = Trie<Address, Account>;
 

@@ -96,7 +96,7 @@ impl AddressMapping {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ledger {
     pub(crate) logs: LogsState,
     pub(crate) environment: Environment,
@@ -539,13 +539,13 @@ mod test {
         // Prev state:
         // evm_mapping: [] (empty)
         // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1, evm_state != empty',
-        //             'accountd_id1' <-> 'state2, evm_state == empty' ]
+        //             'accountd_id' <-> 'state2, evm_state == empty' ]
         //
-        // Applly 'mapping' ('accountd_id1', 'evm_address')
+        // Applly 'mapping' ('accountd_id', 'evm_address')
         //
         // Post state;
-        // evm_mapping: [ 'accountd_id1' <-> 'evm_address' ]
-        // accounts: ['accountd_id1' <-> 'state3' (state3.value == state2.value + state1.value) ]
+        // evm_mapping: [ 'accountd_id' <-> 'evm_address' ]
+        // accounts: ['accountd_id' <-> 'state3' (state3.value == state2.value + state1.value) ]
 
         let mapping = EvmMapping {
             account_id: JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap()),
@@ -606,6 +606,161 @@ mod test {
         assert_eq!(
             evm.address_mapping.jor_address(&mapping.evm_address),
             mapping.account_id.clone()
+        );
+    }
+
+    #[test]
+    fn apply_map_accounts_error_test_1() {
+        // Prev state:
+        // evm_mapping: [] (empty)
+        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1, evm_state != empty',
+        //             'accountd_id' <-> 'state2, evm_state != empty' ]
+        //
+        // Applly 'mapping' ('accountd_id', 'evm_address')
+        //
+        // Post state;
+        // Error Error::CannotMap(account::LedgerError::AlreadyExists)
+
+        let mapping = EvmMapping {
+            account_id: JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap()),
+            evm_address: EvmAddress::from_low_u64_be(0),
+        };
+
+        let value1 = Value(100);
+        let value2 = Value(150);
+        let evm_state1 = AccountState {
+            storage: Default::default(),
+            code: vec![0, 1, 2],
+            nonce: Nonce::one(),
+        };
+        let evm_state2 = AccountState {
+            storage: Default::default(),
+            code: vec![3, 4, 5],
+            nonce: Nonce::one(),
+        };
+
+        let evm = Ledger::new();
+        let accounts = account::Ledger::new()
+            .evm_insert_or_update(
+                transfrom_evm_to_jor(&mapping.evm_address),
+                value1,
+                evm_state1.clone(),
+                (),
+            )
+            .unwrap()
+            .evm_insert_or_update(mapping.account_id.clone(), value2, evm_state2.clone(), ())
+            .unwrap();
+
+        assert_eq!(
+            accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
+            Ok(&JorAccount::new_evm(evm_state1.clone(), value1, ()))
+        );
+
+        assert_eq!(
+            accounts.get_state(&mapping.account_id),
+            Ok(&JorAccount::new_evm(evm_state2.clone(), value2, ()))
+        );
+
+        assert_ne!(
+            evm.address_mapping.jor_address(&mapping.evm_address),
+            mapping.account_id.clone()
+        );
+
+        assert_eq!(
+            Ledger::apply_map_accounts(evm, accounts, &mapping),
+            Err(Error::CannotMap(account::LedgerError::AlreadyExists))
+        );
+    }
+
+    #[test]
+    fn apply_map_accounts_error_test_2() {
+        // Prev state:
+        // evm_mapping: [ 'accountd_id' <-> 'evm_address1' ]
+        // accounts: [] (empty)
+        //
+        // Applly 'mapping' ('accountd_id', 'evm_address2')
+        //
+        // Post state;
+        // Error Error::ExistingMapping( 'accountd_id' , 'evm_address2' )
+
+        let evm_address1 = EvmAddress::from_low_u64_be(0);
+        let evm_address2 = EvmAddress::from_low_u64_be(1);
+        let mapping = EvmMapping {
+            account_id: JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap()),
+            evm_address: evm_address2,
+        };
+
+        let mut evm = Ledger::new();
+        let mut accounts = account::Ledger::new();
+        (accounts, evm.address_mapping) = evm
+            .address_mapping
+            .map_accounts(mapping.account_id.clone(), evm_address2, accounts)
+            .unwrap();
+
+        assert_eq!(
+            accounts.get_state(&mapping.account_id),
+            Err(account::LedgerError::NonExistent)
+        );
+
+        assert_ne!(
+            evm.address_mapping.jor_address(&evm_address1),
+            mapping.account_id.clone()
+        );
+
+        assert_eq!(
+            evm.address_mapping.jor_address(&evm_address2),
+            mapping.account_id.clone()
+        );
+
+        assert_eq!(
+            Ledger::apply_map_accounts(evm, accounts, &mapping),
+            Err(Error::ExistingMapping(mapping.account_id, evm_address2))
+        );
+    }
+
+    #[test]
+    fn apply_map_accounts_error_test_3() {
+        // Prev state:
+        // evm_mapping: [ 'accountd_id1' <-> 'evm_address' ]
+        // accounts: [] (empty)
+        //
+        // Applly 'mapping' ('accountd_id2', 'evm_address')
+        //
+        // Post state;
+        // Error Error::ExistingMapping( 'accountd_id2' , 'evm_address' )
+
+        let account_id1 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
+        let account_id2 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[1; 32]).unwrap());
+        let mapping = EvmMapping {
+            account_id: account_id2.clone(),
+            evm_address: EvmAddress::from_low_u64_be(0),
+        };
+
+        let mut evm = Ledger::new();
+        let mut accounts = account::Ledger::new();
+        (accounts, evm.address_mapping) = evm
+            .address_mapping
+            .map_accounts(account_id1.clone(), mapping.evm_address, accounts)
+            .unwrap();
+
+        assert_eq!(
+            accounts.get_state(&mapping.account_id),
+            Err(account::LedgerError::NonExistent)
+        );
+
+        assert_eq!(
+            evm.address_mapping.jor_address(&mapping.evm_address),
+            account_id1.clone()
+        );
+
+        assert_ne!(
+            evm.address_mapping.jor_address(&mapping.evm_address),
+            account_id2.clone()
+        );
+
+        assert_eq!(
+            Ledger::apply_map_accounts(evm, accounts, &mapping),
+            Err(Error::ExistingMapping(account_id2, mapping.evm_address))
         );
     }
 }
