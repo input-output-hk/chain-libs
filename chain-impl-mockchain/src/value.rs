@@ -123,7 +123,7 @@ impl Deserialize for Value {
 
 impl Serialize for Value {
     fn serialized_size(&self) -> usize {
-        Codec::u8_size()
+        Codec::u64_size()
     }
 
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {

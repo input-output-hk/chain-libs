@@ -72,7 +72,9 @@ impl Deserialize for TokenName {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
-    #[allow(unused_imports)]
+    #[cfg(test)]
+    use crate::testing::serialization::serialization_bijection;
+    #[cfg(test)]
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
 
@@ -89,9 +91,6 @@ mod tests {
 
     #[quickcheck_macros::quickcheck]
     fn token_name_serialization_bijection(token_name: TokenName) -> TestResult {
-        let token_name_got = token_name.bytes();
-        let mut codec = Codec::new(token_name_got.as_slice());
-        let result = TokenName::deserialize(&mut codec).unwrap();
-        TestResult::from_bool(token_name == result)
+        serialization_bijection(token_name)
     }
 }

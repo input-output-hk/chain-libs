@@ -96,11 +96,21 @@ impl Deserialize for MintingPolicy {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::testing::serialization::serialization_bijection;
+    #[cfg(test)]
+    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for MintingPolicy {
         fn arbitrary<G: Gen>(_g: &mut G) -> Self {
             Self::new()
+        }
+    }
+
+    quickcheck! {
+        fn minting_policy_serialization_bijection(policy: MintingPolicy) -> TestResult {
+            serialization_bijection(policy)
         }
     }
 }

@@ -64,13 +64,23 @@ impl std::fmt::Display for Identifier {
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
     use super::*;
+    #[cfg(test)]
+    use crate::testing::serialization::serialization_bijection;
     use chain_crypto::{Ed25519, KeyPair};
+    #[cfg(test)]
+    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for Identifier {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let kp: KeyPair<Ed25519> = Arbitrary::arbitrary(g);
             Identifier::from(kp.into_keys().1)
+        }
+    }
+
+    quickcheck! {
+        fn identifier_serialization_bijection(id: Identifier) -> TestResult {
+            serialization_bijection(id)
         }
     }
 }
