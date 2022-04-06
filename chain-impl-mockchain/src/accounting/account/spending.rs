@@ -283,7 +283,7 @@ mod tests {
         assert!(sc_increasing.next_verify(incorrect_sc).is_err());
     }
 
-    #[cfg(feature = "property-test-api")]
+    #[cfg(any(test, feature = "property-test-api"))]
     mod prop_impls {
         use proptest::prelude::*;
 

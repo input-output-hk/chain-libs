@@ -611,7 +611,7 @@ mod tests {
         assert!(account_state.token_add(token, Value(1)).is_err());
     }
 
-    #[cfg(feature = "property-test-api")]
+    #[cfg(any(test, feature = "property-test-api"))]
     mod prop_impls {
         use imhamt::Hamt;
         use proptest::prelude::*;
@@ -638,8 +638,6 @@ mod tests {
                     extra: (),
                     #[cfg(feature = "evm")]
                     evm_state: chain_evm::state::AccountState::default(),
-
-
                 }
             }
         }
