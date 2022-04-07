@@ -317,7 +317,7 @@ impl Serialize for Header {
 impl Deserialize for Header {
     fn deserialize<R: std::io::Read>(codec: &mut Codec<R>) -> Result<Self, ReadError> {
         let tag = codec.get_u8()?;
-        let header_size = match BlockVersion::from_u8(codec.get_u8()?) {
+        let header_size = match BlockVersion::from_u8(tag) {
             Some(BlockVersion::Ed25519Signed) => HEADER_BFT_SIZE,
             Some(BlockVersion::Genesis) => HEADER_COMMON_SIZE,
             Some(BlockVersion::KesVrfproof) => HEADER_GP_SIZE,
