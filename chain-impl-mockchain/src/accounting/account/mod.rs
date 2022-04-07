@@ -75,12 +75,12 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
     /// If the identifier is already present, error out.
     pub fn add_account(
         &self,
-        identifier: &ID,
+        identifier: ID,
         initial_value: Value,
         extra: Extra,
     ) -> Result<Self, LedgerError> {
         self.0
-            .insert(identifier.clone(), AccountState::new(initial_value, extra))
+            .insert(identifier, AccountState::new(initial_value, extra))
             .map(Ledger)
             .map_err(|e| e.into())
     }
@@ -208,6 +208,29 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
             .map_err(|e| e.into())
     }
 
+    #[cfg(feature = "evm")]
+    pub fn evm_insert_or_update(
+        &self,
+        identifier: &ID,
+        value: Value,
+        evm_state: chain_evm::state::AccountState,
+        extra: Extra,
+    ) -> Result<Self, LedgerError> {
+        self.0
+            .insert_or_update(
+                identifier.clone(),
+                AccountState::new_evm(evm_state.clone(), value, extra),
+                |st| {
+                    Ok(Some(AccountState {
+                        evm_state,
+                        value,
+                        ..st.clone()
+                    }))
+                },
+            )
+            .map(Ledger)
+    }
+
     pub fn iter(&self) -> Iter<'_, ID, Extra> {
         Iter(self.0.iter())
     }
@@ -274,7 +297,7 @@ mod tests {
             // Add all arbitrary accounts
             for account_id in arbitrary_accounts_ids.iter() {
                 ledger = ledger
-                    .add_account(account_id, AverageValue::arbitrary(gen).into(), ())
+                    .add_account(account_id.clone(), AverageValue::arbitrary(gen).into(), ())
                     .unwrap();
 
                 for token in &arbitrary_voting_tokens {
@@ -318,7 +341,7 @@ mod tests {
         let initial_total_value = ledger.get_total_value().unwrap();
 
         // add new account
-        ledger = match ledger.add_account(&account_id, value, ()) {
+        ledger = match ledger.add_account(account_id.clone(), value, ()) {
             Ok(ledger) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
@@ -329,7 +352,7 @@ mod tests {
         };
 
         // add account again should throw an error
-        if ledger.add_account(&account_id, value, ()).is_ok() {
+        if ledger.add_account(account_id.clone(), value, ()).is_ok() {
             return TestResult::error(format!(
                 "Account with id {} again should should",
                 account_id
@@ -429,6 +452,8 @@ mod tests {
                     delegation: DelegationType::Full(stake_pool_id),
                     value: value_after_reward,
                     tokens: Hamt::new(),
+                    #[cfg(feature = "evm")]
+                    evm_state: chain_evm::state::AccountState::default(),
                     extra: (),
                 };
 
@@ -535,7 +560,9 @@ mod tests {
         value_to_remove: Value,
     ) {
         let mut ledger = Ledger::new();
-        ledger = ledger.add_account(&id, account_state.value(), ()).unwrap();
+        ledger = ledger
+            .add_account(id.clone(), account_state.value(), ())
+            .unwrap();
         let result = ledger.remove_value(&id, SpendingCounter::zero(), value_to_remove);
         let expected_result = account_state.value() - value_to_remove;
         match (result, expected_result) {
@@ -558,7 +585,9 @@ mod tests {
     #[proptest]
     fn ledger_removes_account_only_if_zeroed(id: Identifier, account_state: AccountState<()>) {
         let mut ledger = Ledger::new();
-        ledger = ledger.add_account(&id, account_state.value(), ()).unwrap();
+        ledger = ledger
+            .add_account(id.clone(), account_state.value(), ())
+            .unwrap();
         let result = ledger.remove_account(&id);
         let expected_zero = account_state.value() == Value::zero();
         match (result, expected_zero) {
