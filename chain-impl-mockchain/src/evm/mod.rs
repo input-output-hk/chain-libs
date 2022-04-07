@@ -267,7 +267,7 @@ mod test {
             let caller = [u8::arbitrary(g); H160::len_bytes()].into();
             let value = u128::arbitrary(g).into();
             let gas_limit = Arbitrary::arbitrary(g);
-            let access_list: AccessList = match u8::arbitrary(g) % 5 {
+            let access_list: AccessList = match u8::arbitrary(g) % 2 {
                 0 => vec![],
                 _ => vec![
                     AccessListItem {
