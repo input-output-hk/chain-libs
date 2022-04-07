@@ -481,7 +481,7 @@ mod test {
     fn apply_map_accounts_test_2() {
         // Prev state:
         // evm_mapping: [] (empty)
-        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state, evm_state != empty' ]
+        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state` (state.evm_state != empty) ]
         //
         // Applly 'mapping' ('account_id', 'evm_address')
         //
@@ -538,8 +538,8 @@ mod test {
     fn apply_map_accounts_test_3() {
         // Prev state:
         // evm_mapping: [] (empty)
-        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1, evm_state != empty',
-        //             'accountd_id' <-> 'state2, evm_state == empty' ]
+        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1` (state1.evm_state != empty, state1.value = value1),
+        //             'accountd_id' <-> 'state2' (state2.evm_state == empty, state2.value = value2) ]
         //
         // Applly 'mapping' ('accountd_id', 'evm_address')
         //
@@ -613,8 +613,8 @@ mod test {
     fn apply_map_accounts_error_test_1() {
         // Prev state:
         // evm_mapping: [] (empty)
-        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1, evm_state != empty',
-        //             'accountd_id' <-> 'state2, evm_state != empty' ]
+        // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1` (state1.evm_state != empty),
+        //             'accountd_id' <-> 'state2` (state2.evm_state != empty' ]
         //
         // Applly 'mapping' ('accountd_id', 'evm_address')
         //
@@ -653,12 +653,12 @@ mod test {
 
         assert_eq!(
             accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
-            Ok(&JorAccount::new_evm(evm_state1.clone(), value1, ()))
+            Ok(&JorAccount::new_evm(evm_state1, value1, ()))
         );
 
         assert_eq!(
             accounts.get_state(&mapping.account_id),
-            Ok(&JorAccount::new_evm(evm_state2.clone(), value2, ()))
+            Ok(&JorAccount::new_evm(evm_state2, value2, ()))
         );
 
         assert_ne!(
@@ -704,12 +704,12 @@ mod test {
 
         assert_ne!(
             evm.address_mapping.jor_address(&evm_address1),
-            mapping.account_id.clone()
+            mapping.account_id
         );
 
         assert_eq!(
             evm.address_mapping.jor_address(&evm_address2),
-            mapping.account_id.clone()
+            mapping.account_id
         );
 
         assert_eq!(
@@ -750,12 +750,12 @@ mod test {
 
         assert_eq!(
             evm.address_mapping.jor_address(&mapping.evm_address),
-            account_id1.clone()
+            account_id1
         );
 
         assert_ne!(
             evm.address_mapping.jor_address(&mapping.evm_address),
-            account_id2.clone()
+            account_id2
         );
 
         assert_eq!(
