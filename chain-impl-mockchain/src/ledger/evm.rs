@@ -443,7 +443,7 @@ mod test {
         // Applly 'mapping' ('account_id', 'evm_address')
         //
         // Post state;
-        // evm_mapping: [ 'accountd_id' <-> 'evm_address' ]
+        // evm_mapping: [ 'account_id' <-> 'evm_address' ]
         // accounts: [] (empty)
 
         let mapping = EvmMapping {
@@ -486,8 +486,8 @@ mod test {
         // Applly 'mapping' ('account_id', 'evm_address')
         //
         // Post state;
-        // evm_mapping: [ 'accountd_id' <-> 'evm_address' ]
-        // accounts: [ 'accountd_id' <-> 'state' ]
+        // evm_mapping: [ 'account_id' <-> 'evm_address' ]
+        // accounts: [ 'account_id' <-> 'state' ]
 
         let mapping = EvmMapping {
             account_id: JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap()),
@@ -539,13 +539,13 @@ mod test {
         // Prev state:
         // evm_mapping: [] (empty)
         // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1` (state1.evm_state != empty, state1.value = value1),
-        //             'accountd_id' <-> 'state2' (state2.evm_state == empty, state2.value = value2) ]
+        //             'account_id' <-> 'state2' (state2.evm_state == empty, state2.value = value2) ]
         //
-        // Applly 'mapping' ('accountd_id', 'evm_address')
+        // Applly 'mapping' ('account_id', 'evm_address')
         //
         // Post state;
-        // evm_mapping: [ 'accountd_id' <-> 'evm_address' ]
-        // accounts: ['accountd_id' <-> 'state3' (state3.value == state2.value + state1.value) ]
+        // evm_mapping: [ 'account_id' <-> 'evm_address' ]
+        // accounts: ['account_id' <-> 'state3' (state3.value == state2.value + state1.value) ]
 
         let mapping = EvmMapping {
             account_id: JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap()),
@@ -614,9 +614,9 @@ mod test {
         // Prev state:
         // evm_mapping: [] (empty)
         // accounts: [ transfrom_evm_to_jor('evm_address') <-> 'state1` (state1.evm_state != empty),
-        //             'accountd_id' <-> 'state2` (state2.evm_state != empty' ]
+        //             'account_id' <-> 'state2` (state2.evm_state != empty' ]
         //
-        // Applly 'mapping' ('accountd_id', 'evm_address')
+        // Applly 'mapping' ('account_id', 'evm_address')
         //
         // Post state;
         // Error Error::CannotMap(account::LedgerError::AlreadyExists)
@@ -675,13 +675,13 @@ mod test {
     #[test]
     fn apply_map_accounts_error_test_2() {
         // Prev state:
-        // evm_mapping: [ 'accountd_id' <-> 'evm_address1' ]
+        // evm_mapping: [ 'account_id' <-> 'evm_address1' ]
         // accounts: [] (empty)
         //
-        // Applly 'mapping' ('accountd_id', 'evm_address2')
+        // Applly 'mapping' ('account_id', 'evm_address2')
         //
         // Post state;
-        // Error Error::ExistingMapping( 'accountd_id' , 'evm_address2' )
+        // Error Error::ExistingMapping( 'account_id' , 'evm_address2' )
 
         let evm_address1 = EvmAddress::from_low_u64_be(0);
         let evm_address2 = EvmAddress::from_low_u64_be(1);
@@ -721,13 +721,13 @@ mod test {
     #[test]
     fn apply_map_accounts_error_test_3() {
         // Prev state:
-        // evm_mapping: [ 'accountd_id1' <-> 'evm_address' ]
+        // evm_mapping: [ 'account_id1' <-> 'evm_address' ]
         // accounts: [] (empty)
         //
-        // Applly 'mapping' ('accountd_id2', 'evm_address')
+        // Applly 'mapping' ('account_id2', 'evm_address')
         //
         // Post state;
-        // Error Error::ExistingMapping( 'accountd_id2' , 'evm_address' )
+        // Error Error::ExistingMapping( 'account_id2' , 'evm_address' )
 
         let account_id1 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
         let account_id2 = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[1; 32]).unwrap());
