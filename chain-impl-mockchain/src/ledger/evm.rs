@@ -569,7 +569,7 @@ mod test {
                 (),
             )
             .unwrap()
-            .add_account(&mapping.account_id, value2, ())
+            .add_account(mapping.account_id.clone(), value2, ())
             .unwrap();
 
         assert_eq!(
