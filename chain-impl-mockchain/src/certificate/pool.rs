@@ -29,10 +29,6 @@ pub type IndexSignatures = Vec<(u8, SingleAccountBindingSignature)>;
 
 /// Pool information
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct PoolRegistration {
     /// A random value, for user purpose similar to a UUID.
     /// it may not be unique over a blockchain, so shouldn't be used a unique identifier
@@ -56,7 +52,7 @@ pub struct PoolRegistration {
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
-mod test_impls {
+mod prop_impls {
     use super::*;
     use chain_crypto::testing::TestCryptoGen;
     use proptest::prelude::*;

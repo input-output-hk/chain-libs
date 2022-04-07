@@ -18,19 +18,7 @@ pub struct EvmMapping {
     #[cfg(feature = "evm")]
     pub account_id: Identifier,
     #[cfg(feature = "evm")]
-    pub account_id: UnspecifiedAccountIdentifier,
-}
-
-#[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
-mod test_impls {
-    use super::*;
-    use chain_evm::ethereum_types::H160;
-    use proptest::arbitrary::any;
-    use proptest::strategy::Strategy;
-
-    pub(super) fn address_strategy() -> impl Strategy<Value = Address> {
-        any::<[u8; 20]>().prop_map(|bytes| H160::from_slice(&bytes))
-    }
+    pub evm_address: Address,
 }
 
 impl EvmMapping {

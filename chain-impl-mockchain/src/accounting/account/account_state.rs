@@ -12,10 +12,6 @@ use std::collections::hash_map::DefaultHasher;
 /// * Full delegation of this account to a specific pool
 /// * Ratio of stake to multiple pools
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub enum DelegationType {
     NonDelegated,
     Full(PoolId),
@@ -94,39 +90,6 @@ pub struct AccountState<Extra> {
     #[cfg(feature = "evm")]
     pub evm_state: chain_evm::state::AccountState,
     pub extra: Extra,
-}
-
-#[cfg(any(test, feature = "property-test-api"))]
-mod test_impls {
-    use super::*;
-    use proptest::prelude::*;
-
-    prop_compose! {
-        fn arbitrary_account_state()(
-            spending in any::<SpendingCounterIncreasing>(),
-            pool_id in any::<PoolId>(),
-            value in any::<Value>(),
-            ) -> AccountState<()> {
-            AccountState {
-                spending,
-                delegation: DelegationType::Full(pool_id),
-                value,
-                tokens: Hamt::new(),
-                last_rewards: LastRewards::default(),
-                extra: (),
-
-            }
-        }
-    }
-
-    impl Arbitrary for AccountState<()> {
-        type Parameters = ();
-        type Strategy = BoxedStrategy<Self>;
-
-        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            arbitrary_account_state().boxed()
-        }
-    }
 }
 
 impl<Extra> AccountState<Extra> {
