@@ -435,16 +435,6 @@ mod pt {
             })
         }
     }
-    use crate::certificate::OwnerStakeDelegation;
-
-    impl Arbitrary for OwnerStakeDelegation {
-        type Parameters = ();
-        type Strategy = Map<StrategyFor<DelegationType>, fn(DelegationType) -> Self>;
-
-        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            any::<DelegationType>().prop_map(|delegation| Self { delegation })
-        }
-    }
 
     impl Arbitrary for DelegationType {
         type Parameters = ();

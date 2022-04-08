@@ -18,6 +18,10 @@ use typed_bytes::{ByteArray, ByteBuilder};
 /// This structure is not sufficient to identify the owner, and instead we rely on a special
 /// authenticated transaction, which has 1 input.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct OwnerStakeDelegation {
     pub delegation: DelegationType,
 }
