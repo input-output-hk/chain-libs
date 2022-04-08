@@ -1,4 +1,7 @@
 use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::*;
+
 use chain_core::{
     packer::Codec,
     property::{Deserialize, ReadError, Serialize, WriteError},
@@ -20,7 +23,7 @@ use typed_bytes::ByteBuilder;
 pub struct MintingPolicy(
     #[cfg_attr(
         any(test, feature = "property-test-api"),
-        strategy(proptest::prelude::Just(vec![]))
+        strategy(Just(vec![]))
     )]
     Vec<MintingPolicyEntry>,
 );

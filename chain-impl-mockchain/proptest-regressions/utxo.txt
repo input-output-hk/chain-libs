@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-xx 9bc9516ad979ebbece54463971810ab234b5776b3ef1b831bad64751a0405218 # shrinks to input = _TransactionUnspentRemoveArgs { outputs: ArbitraryTransactionOutputs { utxos: {0: Output { address: Address(Test, Single(d3b2805e47b874a0dbe4515669bf003369174ca32eaa52c6bf788896d10cfcc0)), value: Value(253) }}, idx_to_remove: 255 } }

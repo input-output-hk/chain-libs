@@ -303,15 +303,11 @@ pub fn tax_cut(v: Value, tax_type: &TaxType) -> Result<TaxDistribution, ValueErr
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
-    #![allow(dead_code, unused_imports)]
-    use crate::testing::average_value;
+    #![allow(dead_code, unused_imports)] // proptest macro bug
 
-    // proptest macro bug
     use super::*;
-    #[cfg(test)]
-    use quickcheck::TestResult;
+    use crate::testing::average_value;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
     use test_strategy::proptest;
 
     #[proptest]

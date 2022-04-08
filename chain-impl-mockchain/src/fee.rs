@@ -216,6 +216,14 @@ mod test {
     }
 
     proptest::proptest! {
+        // This test is extremely slow with proptest due to complex flattening rules (still running
+        // after 20 minutes on my laptop), so we reduce the number of cases considered
+        #![proptest_config(proptest::prelude::ProptestConfig {
+            cases: 10,
+            max_flat_map_regens: 10,
+            ..Default::default()
+        })]
+
         #[test]
         fn linear_fee_certificate_calculation(
             certificate in any::<crate::certificate::Certificate>(),

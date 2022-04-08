@@ -357,7 +357,7 @@ pub struct GenesisPraosLeader {
 }
 
 #[cfg(any(test, feature = "property-test-api"))]
-mod test_impls {
+mod prop_impl {
     use super::*;
     use crypto::testing::{self, TestCryptoGen};
     use lazy_static::lazy_static;
