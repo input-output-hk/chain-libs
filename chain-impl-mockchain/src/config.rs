@@ -114,7 +114,7 @@ pub enum RewardParams {
         ratio: Ratio,
         epoch_start: Epoch,
         #[cfg_attr(
-            any(test, feature = "property-test-api"), 
+            any(test, feature = "property-test-api"),
             strategy(Just(NonZeroU32::try_from(20).unwrap()))
         )]
         epoch_rate: NonZeroU32,
@@ -124,7 +124,7 @@ pub enum RewardParams {
         ratio: Ratio,
         epoch_start: Epoch,
         #[cfg_attr(
-            any(test, feature = "property-test-api"), 
+            any(test, feature = "property-test-api"),
             strategy(Just(NonZeroU32::try_from(20).unwrap()))
         )]
         epoch_rate: NonZeroU32,
