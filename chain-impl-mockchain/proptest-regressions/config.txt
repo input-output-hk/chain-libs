@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-xx f4bf3a72894d9ffcc01623b7320cabaad786dc0b55b4d3bfff11f439a207ed35 # shrinks to input = _ConfigParamSerializeReadableArgs { param: TreasuryParams(TaxType { fixed: Value(0), ratio: Ratio { numerator: 6703619859255839083, denominator: 1 }, max_limit: None }) }
