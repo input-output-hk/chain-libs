@@ -870,11 +870,14 @@ mod test {
             let account_id2 =
                 JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[1; 32]).unwrap());
             let value1 = Value(100);
-            let value2 = Value(40);
+            let value2 = Value(200);
+            let value3 = Value(40);
 
             let mut evm = Ledger::new();
             let mut accounts = account::Ledger::new()
                 .add_account(account_id1.clone(), value1, ())
+                .unwrap()
+                .add_account(account_id2.clone(), value2, ())
                 .unwrap();
             (accounts, evm.address_mapping) = evm
                 .address_mapping
@@ -891,14 +894,24 @@ mod test {
             );
 
             assert_eq!(
+                accounts.get_state(&account_id2),
+                Ok(&JorAccount::new(value2, ()))
+            );
+
+            assert_eq!(
                 evm.address_mapping.jor_address(&evm_address1),
                 account_id1.clone()
+            );
+
+            assert_eq!(
+                evm.address_mapping.jor_address(&evm_address2),
+                account_id2.clone()
             );
 
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
                 address: evm_address2,
-                value: value2.0.into(),
+                value: value3.0.into(),
                 data: Vec::new(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -914,14 +927,96 @@ mod test {
                         nonce: Nonce::one(),
                         code: Vec::new()
                     },
-                    value1.sub(value2).unwrap(),
+                    value1.checked_sub(value3).unwrap(),
                     ()
                 ))
             );
 
             assert_eq!(
                 accounts.get_state(&account_id2),
+                Ok(&JorAccount::new(value2.checked_add(value3).unwrap(), ()))
+            );
+        }
+    }
+
+    #[test]
+    fn run_transaction_call_test_error_1() {
+        execute(chain_evm::Config::Frontier);
+        execute(chain_evm::Config::Istanbul);
+        execute(chain_evm::Config::Berlin);
+        execute(chain_evm::Config::London);
+
+        fn execute(config: chain_evm::Config) {
+            // Prev state:
+            // evm_mapping: [ 'accountd_id1' <-> 'evm_address1',
+            //                'accountd_id2' <-> 'evm_address2' ]
+            // accounts: [ 'accountd_id1' <-> 'state1` (state1.evm_state == empty, state1.value = value1),
+            //             'accountd_id2' <-> 'state2` (state2.evm_state == empty, state2.value = value2) ]
+            //
+            // Applly 'transaction' (caller: `evm_address1`, address: `evm_address2`, value: `value3` (valu3 > valu1), data: []  )
+            //
+            // Post state;
+            // Error Error::EvmTransaction(chain_evm::machine::Error::TransactionError(ExitError::OutOfFund)
+
+            let evm_address1 = EvmAddress::from_low_u64_be(0);
+            let evm_address2 = EvmAddress::from_low_u64_be(1);
+            let account_id1 =
+                JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
+            let account_id2 =
+                JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[1; 32]).unwrap());
+            let value1 = Value(100);
+            let value2 = Value(200);
+            let value3 = Value(120);
+
+            let mut evm = Ledger::new();
+            let mut accounts = account::Ledger::new()
+                .add_account(account_id1.clone(), value1, ())
+                .unwrap()
+                .add_account(account_id2.clone(), value2, ())
+                .unwrap();
+            (accounts, evm.address_mapping) = evm
+                .address_mapping
+                .map_accounts(account_id1.clone(), evm_address1, accounts)
+                .unwrap();
+            (accounts, evm.address_mapping) = evm
+                .address_mapping
+                .map_accounts(account_id2.clone(), evm_address2, accounts)
+                .unwrap();
+
+            assert_eq!(
+                accounts.get_state(&account_id1),
+                Ok(&JorAccount::new(value1, ()))
+            );
+
+            assert_eq!(
+                accounts.get_state(&account_id2),
                 Ok(&JorAccount::new(value2, ()))
+            );
+
+            assert_eq!(
+                evm.address_mapping.jor_address(&evm_address1),
+                account_id1.clone()
+            );
+
+            assert_eq!(
+                evm.address_mapping.jor_address(&evm_address2),
+                account_id2.clone()
+            );
+
+            let transaction = EvmTransaction::Call {
+                caller: evm_address1,
+                address: evm_address2,
+                value: value3.0.into(),
+                data: Vec::new(),
+                gas_limit: u64::max_value(),
+                access_list: Vec::new(),
+            };
+
+            assert_eq!(
+                Ledger::run_transaction(evm, accounts, transaction, config),
+                Err(Error::EvmTransaction(
+                    chain_evm::machine::Error::TransactionError(ExitError::OutOfFund)
+                ))
             );
         }
     }
