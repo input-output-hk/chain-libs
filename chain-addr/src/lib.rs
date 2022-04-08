@@ -418,7 +418,7 @@ impl std::str::FromStr for AddressReadable {
 
 impl Serialize for Address {
     fn serialized_size(&self) -> usize {
-        std::mem::size_of::<u8>()
+        Codec::u8_size()
             + match &self.1 {
                 Kind::Single(spend) => spend.as_ref().len(),
                 Kind::Group(spend, group) => spend.as_ref().len() + group.as_ref().len(),

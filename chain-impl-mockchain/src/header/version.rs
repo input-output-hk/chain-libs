@@ -150,7 +150,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn conversion_u16(block_version: AnyBlockVersion) -> TestResult {
+    pub fn conversion_u8(block_version: AnyBlockVersion) -> TestResult {
         let bytes: u8 = block_version.into();
         let new_block_version: AnyBlockVersion = AnyBlockVersion::from(bytes);
         TestResult::from_bool(block_version == new_block_version)
