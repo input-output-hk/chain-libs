@@ -230,12 +230,13 @@ impl From<ActiveSlotsCoeffError> for Error {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
+    #![allow(dead_code)]  // proptest macro bug
     use super::*;
     use crate::certificate::UpdateProposal;
     #[cfg(test)]
     use crate::milli::Milli;
     #[cfg(test)]
-    use crate::testing::serialization::serialization_bijection;
+    use crate::testing::serialization::serialization_bijection_prop;
     #[cfg(test)]
     use crate::{
         config::ConfigParam,
@@ -244,11 +245,9 @@ mod tests {
     };
     #[cfg(test)]
     use chain_addr::Discrimination;
-    #[cfg(test)]
-    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
     use std::iter;
+    use test_strategy::proptest;
 
     impl Arbitrary for UpdateProposalState {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -287,10 +286,9 @@ mod tests {
         update_state.apply_vote(&signed_update_vote, settings)
     }
 
-    quickcheck! {
-        fn update_proposal_serialize_deserialize_bijection(update_proposal: UpdateProposal) -> TestResult {
-            serialization_bijection(update_proposal)
-        }
+    #[proptest]
+    fn update_proposal_serialize_deserialize_bijection(update_proposal: UpdateProposal) {
+        serialization_bijection_prop(update_proposal)?;
     }
 
     #[test]

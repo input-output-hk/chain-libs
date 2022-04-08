@@ -162,12 +162,20 @@ pub struct PoolUpdate {
 
 /// Retirement info for a pool
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolRetirement {
     pub pool_id: PoolId,
     pub retirement_time: TimeOffsetSeconds,
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum PoolSignature {
     Operator(SingleAccountBindingSignature),
     Owners(PoolOwnersSignature),
@@ -175,6 +183,10 @@ pub enum PoolSignature {
 
 /// Representant of a structure signed by a pool's owners
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolOwnersSignature {
     pub signatures: IndexSignatures,
 }

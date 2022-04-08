@@ -293,8 +293,7 @@ mod tests {
     };
     use chain_addr::{Address, Discrimination};
     use proptest::{prop_assert, prop_assert_eq};
-    use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
+    use quickcheck::{Arbitrary, Gen};
     use std::collections::HashMap;
     use std::iter;
     use test_strategy::proptest;
@@ -460,8 +459,8 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn ledger_iter_values_correctly(initial_utxos: ArbitraryUtxos) -> TestResult {
+    #[proptest]
+    fn ledger_iter_values_correctly(initial_utxos: ArbitraryUtxos) {
         let mut ledger = Ledger::new();
         ledger = initial_utxos.fill(ledger);
 
@@ -471,15 +470,14 @@ mod tests {
                 let condition = !ledger.iter().any(|x| {
                     x.fragment_id == key && x.output_index == id && x.output.clone() == output
                 });
-                if condition {
-                    return TestResult::error(format!(
-                        "Cannot find item using iter: {:?},{:?}",
-                        key, id
-                    ));
-                }
+                prop_assert!(
+                    !condition,
+                    "Cannot find item using iter: {:?},{:?}",
+                    key,
+                    id
+                );
             }
         }
-        TestResult::passed()
     }
 
     #[test]

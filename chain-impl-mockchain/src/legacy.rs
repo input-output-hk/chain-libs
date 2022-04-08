@@ -94,4 +94,30 @@ mod tests {
             UtxoDeclaration { addrs }
         }
     }
+
+    mod prop_impl {
+        use cardano_legacy_address::ExtendedAddr;
+        use ed25519_bip32::{XPub, XPUB_SIZE};
+        use proptest::prelude::*;
+
+        use crate::{legacy::UtxoDeclaration, value::Value};
+
+        impl Arbitrary for UtxoDeclaration {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                let single_element = any::<(Value, [u8; XPUB_SIZE])>().prop_map(|(value, buf)| {
+                    let xpub = XPub::from_slice(&buf).unwrap();
+                    let ea = ExtendedAddr::new_simple(&xpub, None);
+                    let addr = ea.to_address();
+                    (addr, value)
+                });
+
+                proptest::collection::vec(single_element, 0..(u8::MAX as usize))
+                    .prop_map(|addrs| Self { addrs })
+                    .boxed()
+            }
+        }
+    }
 }

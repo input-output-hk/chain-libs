@@ -1,11 +1,10 @@
+#![allow(dead_code)] // proptest macro bug
 use super::*;
 use crate::config::ConfigParam;
 #[cfg(test)]
-use crate::testing::serialization::serialization_bijection;
-#[cfg(test)]
-use quickcheck::TestResult;
+use crate::testing::serialization::serialization_bijection_prop;
 use quickcheck::{Arbitrary, Gen};
-use quickcheck_macros::quickcheck;
+use test_strategy::proptest;
 
 impl Arbitrary for Fragment {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -46,12 +45,26 @@ impl Arbitrary for ConfigParams {
     }
 }
 
-quickcheck! {
-    fn fragment_serialization_bijection(b: Fragment) -> TestResult {
-        serialization_bijection(b)
-    }
+mod prop_impls {
+    use crate::{config::ConfigParam, fragment::ConfigParams};
+    use proptest::{arbitrary::StrategyFor, collection::VecStrategy, prelude::*, strategy::Map};
 
-    fn initial_ents_serialization_bijection(config_params: ConfigParams) -> TestResult {
-        serialization_bijection(config_params)
+    impl Arbitrary for ConfigParams {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<ConfigParam>>, fn(Vec<ConfigParam>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proptest::collection::vec(any::<ConfigParam>(), 0..(u8::MAX as usize)).prop_map(Self)
+        }
     }
+}
+
+#[proptest]
+fn fragment_serialization_bijection(b: Fragment) {
+    serialization_bijection_prop(b)?;
+}
+
+#[proptest]
+fn initial_ents_serialization_bijection(config_params: ConfigParams) {
+    serialization_bijection_prop(config_params)?;
 }

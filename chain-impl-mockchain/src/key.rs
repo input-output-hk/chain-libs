@@ -412,14 +412,14 @@ impl DeserializeFromSlice for GenesisPraosLeader {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
+    #![allow(dead_code)]  // proptest macro bug
     use super::*;
     #[cfg(test)]
-    use crate::testing::serialization::serialization_bijection;
+    use crate::testing::serialization::serialization_bijection_prop;
     use chain_crypto::{testing, PublicKey, RistrettoGroup2HashDh, SecretKey, SumEd25519_12};
     use lazy_static::lazy_static;
-    #[cfg(test)]
-    use quickcheck::TestResult;
-    use quickcheck::{quickcheck, Arbitrary, Gen};
+    use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for Hash {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -452,9 +452,8 @@ mod tests {
         }
     }
 
-    quickcheck! {
-        fn leader_id_serialize_deserialize_biyection(leader_id: BftLeaderId) -> TestResult {
-            serialization_bijection(leader_id)
-        }
+    #[proptest]
+    fn leader_id_serialize_deserialize_biyection(leader_id: BftLeaderId) {
+        serialization_bijection_prop(leader_id)?;
     }
 }

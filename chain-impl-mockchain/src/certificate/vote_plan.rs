@@ -79,6 +79,10 @@ mod test_impls {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct VotePlanProof {
     pub id: vote::CommitteeId,
     pub signature: SingleAccountBindingSignature,

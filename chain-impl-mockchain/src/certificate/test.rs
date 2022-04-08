@@ -340,7 +340,6 @@ mod pt {
 
     use std::num::NonZeroU8;
 
-    use chain_time::DurationSeconds;
     use chain_vote::{Crs, EncryptedTally};
     use proptest::{
         arbitrary::StrategyFor,
@@ -355,8 +354,7 @@ mod pt {
         account::DelegationType,
         certificate::{
             DecryptedPrivateTally, DecryptedPrivateTallyProposal, ExternalProposalId, PoolId,
-            PoolRetirement, Proposal, UpdateProposal, UpdateProposerId, VoteAction, VotePlanId,
-            VoteTally,
+            Proposal, UpdateProposal, UpdateProposerId, VoteAction, VotePlanId, VoteTally,
         },
         config::ConfigParam,
         fragment::ConfigParams,
@@ -525,21 +523,6 @@ mod pt {
             let public = any::<VotePlanId>().prop_map(Self::new_public);
 
             prop_oneof![private, public].boxed()
-        }
-    }
-
-    impl Arbitrary for PoolRetirement {
-        type Parameters = ();
-        type Strategy = Map<StrategyFor<(u64, PoolId)>, fn((u64, PoolId)) -> Self>;
-
-        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            any::<(u64, PoolId)>().prop_map(|(time, pool_id)| {
-                let retirement_time = DurationSeconds::from(time).into();
-                PoolRetirement {
-                    retirement_time,
-                    pool_id,
-                }
-            })
         }
     }
 }

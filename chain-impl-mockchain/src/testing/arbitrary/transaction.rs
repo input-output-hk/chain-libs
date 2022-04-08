@@ -6,6 +6,7 @@ use crate::{
         arbitrary::{utils as arbitrary_utils, AverageValue},
         data::{AddressData, AddressDataValue},
         ledger::TestLedger,
+        utils::proptest::random_non_zero_subset,
     },
     transaction::{Input, Output},
     value::*,
@@ -109,6 +110,28 @@ impl ArbitraryValidTransactionData {
         )
     }
 
+    fn random_output_subset_proptest(
+        source: &[AddressDataValue],
+        total_input_funds: u64,
+    ) -> impl proptest::strategy::Strategy<Value = (Vec<AddressDataValue>, LinearFee)> {
+        use proptest::prelude::*;
+        random_non_zero_subset(Just(source.to_vec()))
+            .prop_filter(
+                "each output must receive at least one coin",
+                move |outputs| total_input_funds / (outputs.len() as u64) != 0,
+            )
+            .prop_map(move |outputs| {
+                let outputs: Vec<_> = outputs.iter().cloned().map(|x| x.address_data).collect();
+                let funds_per_output = total_input_funds / outputs.len() as u64;
+                let output_address_len = outputs.len() as u64;
+                let remainder = total_input_funds - (output_address_len * funds_per_output);
+                let fee = LinearFee::new(remainder, 0, 0);
+                (
+                    Self::distribute_values_for_outputs(outputs, funds_per_output),
+                    fee,
+                )
+            })
+    }
     fn distribute_values_for_outputs(
         outputs: Vec<AddressData>,
         funds_per_output: u64,
@@ -304,5 +327,56 @@ impl UtxoVerifier {
             }
         }
         Ok(())
+    }
+}
+
+mod prop_impl {
+    use proptest::collection::vec;
+    use proptest::prelude::*;
+
+    use crate::testing::{average_value, utils::proptest::random_subset, ArbitraryAddressDataVec};
+
+    use super::ArbitraryValidTransactionData;
+
+    impl Arbitrary for ArbitraryValidTransactionData {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            use ArbitraryValidTransactionData as tx_data;
+            any::<ArbitraryAddressDataVec>()
+                .prop_flat_map(move |source| {
+                    assert!(!source.0.is_empty());
+                    vec(average_value(), source.0.len())
+                        .prop_flat_map(move |values| {
+                            let address_values =
+                                Just(tx_data::zip_addresses_and_values(&source.0, values));
+                            (address_values.clone(), random_subset(address_values))
+                        })
+                        .prop_flat_map(move |(address_values, input_addresses_values)| {
+                            let total_input_value = input_addresses_values
+                                .iter()
+                                .cloned()
+                                .map(|x| x.value.0)
+                                .sum();
+
+                            tx_data::random_output_subset_proptest(
+                                &address_values,
+                                total_input_value,
+                            )
+                            .prop_map(
+                                move |(output_address_values, fee)| {
+                                    ArbitraryValidTransactionData::new(
+                                        address_values.clone(),
+                                        input_addresses_values.clone(),
+                                        output_address_values,
+                                        fee,
+                                    )
+                                },
+                            )
+                        })
+                })
+                .boxed()
+        }
     }
 }

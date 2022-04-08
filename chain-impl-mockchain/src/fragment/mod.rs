@@ -25,6 +25,10 @@ pub mod test;
 
 /// All possible messages recordable in the content
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum Fragment {
     Initial(ConfigParams),
     OldUtxoDeclaration(legacy::UtxoDeclaration),
@@ -41,6 +45,7 @@ pub enum Fragment {
     VoteTally(Transaction<certificate::VoteTally>),
     MintToken(Transaction<certificate::MintToken>),
     Evm(Transaction<EvmTransaction>),
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmMapping(Transaction<certificate::EvmMapping>),
 }
 

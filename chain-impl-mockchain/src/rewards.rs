@@ -303,7 +303,10 @@ pub fn tax_cut(v: Value, tax_type: &TaxType) -> Result<TaxDistribution, ValueErr
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
-    #![allow(dead_code, unused_imports)]  // proptest macro bug
+    #![allow(dead_code, unused_imports)]
+    use crate::testing::average_value;
+
+    // proptest macro bug
     use super::*;
     #[cfg(test)]
     use quickcheck::TestResult;
@@ -312,7 +315,7 @@ mod tests {
     use test_strategy::proptest;
 
     #[proptest]
-    fn tax_cut_fully_accounted(v: Value, treasury_tax: TaxType) {
+    fn tax_cut_fully_accounted(#[strategy(average_value())] v: Value, treasury_tax: TaxType) {
         if let Ok(td) = tax_cut(v, &treasury_tax) {
             let sum = (td.taxed + td.after_tax).unwrap();
             if sum != v {

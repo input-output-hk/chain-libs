@@ -346,4 +346,62 @@ mod test {
             decoded == b
         }
     }
+
+    mod prop_impls {
+        use chain_evm::ethereum_types::H160;
+        use proptest::prelude::*;
+
+        use crate::evm::EvmTransaction;
+
+        impl Arbitrary for EvmTransaction {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                const H160_BYTES: usize = 20;
+                const H256_BYTES: usize = 32;
+
+                any::<([u8; H160_BYTES], u128, u64)>()
+                    .prop_flat_map(|(caller, value, gas_limit)| {
+                        let caller = H160::from_slice(&caller);
+                        prop_oneof![
+                            any::<Vec<u8>>().prop_map(move |init_code| {
+                                Self::Create {
+                                    caller,
+                                    value: value.into(),
+                                    init_code,
+                                    gas_limit,
+                                    access_list: vec![],
+                                }
+                            }),
+                            any::<(Vec<u8>, [u8; H256_BYTES])>().prop_map(
+                                move |(init_code, salt)| {
+                                    Self::Create2 {
+                                        caller,
+                                        value: value.into(),
+                                        init_code,
+                                        gas_limit,
+                                        access_list: vec![],
+                                        salt: salt.into(),
+                                    }
+                                }
+                            ),
+                            any::<(Vec<u8>, [u8; H160_BYTES])>().prop_map(
+                                move |(data, address)| {
+                                    Self::Call {
+                                        caller,
+                                        value: value.into(),
+                                        gas_limit,
+                                        access_list: vec![],
+                                        address: address.into(),
+                                        data,
+                                    }
+                                }
+                            ),
+                        ]
+                    })
+                    .boxed()
+            }
+        }
+    }
 }

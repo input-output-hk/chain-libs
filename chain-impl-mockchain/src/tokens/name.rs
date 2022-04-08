@@ -82,10 +82,12 @@ impl Deserialize for TokenName {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
+    #![allow(unused_imports)]  // for proptest macro bug
     use super::*;
-    #[allow(unused_imports)]
+    use proptest::prop_assert_eq;
     use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for TokenName {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -98,11 +100,11 @@ mod tests {
         }
     }
 
-    #[quickcheck_macros::quickcheck]
-    fn token_name_serialization_bijection(token_name: TokenName) -> TestResult {
+    #[proptest]
+    fn token_name_serialization_bijection(#[allow(dead_code)] token_name: TokenName) {
         let token_name_got = token_name.bytes();
         let mut codec = Codec::new(token_name_got.as_slice());
         let result = TokenName::deserialize(&mut codec).unwrap();
-        TestResult::from_bool(token_name == result)
+        prop_assert_eq!(token_name , result);
     }
 }

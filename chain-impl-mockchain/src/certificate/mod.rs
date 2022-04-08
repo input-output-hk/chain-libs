@@ -350,11 +350,11 @@ pub enum SignedCertificate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+    use proptest::prelude::*;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    pub fn need_auth(certificate: Certificate) -> TestResult {
+    #[proptest]
+    fn needs_auth(certificate: Certificate) {
         let expected_result = match certificate {
             Certificate::PoolRegistration(_) => true,
             Certificate::PoolUpdate(_) => true,
@@ -369,6 +369,6 @@ mod tests {
             Certificate::MintToken(_) => false,
             Certificate::EvmMapping(_) => true,
         };
-        TestResult::from_bool(certificate.need_auth() == expected_result)
+        prop_assert_eq!(certificate.need_auth(), expected_result);
     }
 }
