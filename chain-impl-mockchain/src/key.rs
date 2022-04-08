@@ -412,7 +412,7 @@ impl DeserializeFromSlice for GenesisPraosLeader {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
-    #![allow(dead_code)]  // proptest macro bug
+    #![allow(dead_code)] // proptest macro bug
     use super::*;
     #[cfg(test)]
     use crate::testing::serialization::serialization_bijection_prop;

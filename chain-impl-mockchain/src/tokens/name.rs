@@ -82,7 +82,7 @@ impl Deserialize for TokenName {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
-    #![allow(unused_imports)]  // for proptest macro bug
+    #![allow(unused_imports)] // for proptest macro bug
     use super::*;
     use proptest::prop_assert_eq;
     use quickcheck::TestResult;
@@ -105,6 +105,6 @@ mod tests {
         let token_name_got = token_name.bytes();
         let mut codec = Codec::new(token_name_got.as_slice());
         let result = TokenName::deserialize(&mut codec).unwrap();
-        prop_assert_eq!(token_name , result);
+        prop_assert_eq!(token_name, result);
     }
 }

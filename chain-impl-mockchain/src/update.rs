@@ -230,7 +230,7 @@ impl From<ActiveSlotsCoeffError> for Error {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
-    #![allow(dead_code)]  // proptest macro bug
+    #![allow(dead_code)] // proptest macro bug
     use super::*;
     use crate::certificate::UpdateProposal;
     #[cfg(test)]
