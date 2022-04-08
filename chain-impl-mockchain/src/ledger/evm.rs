@@ -778,7 +778,7 @@ mod test {
             // evm_mapping: [ 'accountd_id' <-> 'evm_address1' ]
             // accounts: [ 'accountd_id' <-> 'state` (state.evm_state == empty, state.value = value1) ]
             //
-            // Applly 'transaction' (caller: `evm_address1`, address: `evm_address2`, value: `value2`, data: []  )
+            // Applly 'transaction CALL' (caller: `evm_address1`, address: `evm_address2`, value: `value2`, data: []  )
             //
             // Post state;
             // evm_mapping: [ 'account_id' <-> 'evm_address1' ]
@@ -855,7 +855,7 @@ mod test {
             // accounts: [ 'accountd_id1' <-> 'state1` (state1.evm_state == empty, state1.value = value1),
             //             'accountd_id2' <-> 'state2` (state2.evm_state == empty, state2.value = value2) ]
             //
-            // Applly 'transaction' (caller: `evm_address1`, address: `evm_address2`, value: `value3`, data: []  )
+            // Applly 'transaction CALL' (caller: `evm_address1`, address: `evm_address2`, value: `value3`, data: []  )
             //
             // Post state;
             // evm_mapping: [ 'accountd_id1' <-> 'evm_address1',
@@ -953,7 +953,7 @@ mod test {
             // accounts: [ 'accountd_id1' <-> 'state1` (state1.evm_state == empty, state1.value = value1),
             //             'accountd_id2' <-> 'state2` (state2.evm_state == empty, state2.value = value2) ]
             //
-            // Applly 'transaction' (caller: `evm_address1`, address: `evm_address2`, value: `value3` (valu3 > valu1), data: []  )
+            // Applly 'transaction CALL' (caller: `evm_address1`, address: `evm_address2`, value: `value3` (valu3 > valu1), data: []  )
             //
             // Post state;
             // Error Error::EvmTransaction(chain_evm::machine::Error::TransactionError(ExitError::OutOfFund)
@@ -1035,7 +1035,7 @@ mod test {
             // accounts: [ 'accountd_id1' <-> 'state1` (state1.evm_state == empty, state1.value = value1),
             //             'accountd_id2' <-> 'state2` (state2.evm_state == empty, state2.value = value2, value2 == U64_MAX_VALUE) ]
             //
-            // Applly 'transaction' (caller: `evm_address1`, address: `evm_address2`, value: `value3`, data: []  )
+            // Applly 'transaction CALL' (caller: `evm_address1`, address: `evm_address2`, value: `value3`, data: []  )
             //
             // Post state;
             // Error Error::EvmTransaction(chain_evm::machine::Error::TransactionError(ExitError::Other("Balance overflow")))
@@ -1102,6 +1102,51 @@ mod test {
                     ))
                 ))
             );
+        }
+    }
+
+    #[test]
+    fn run_transaction_create_test_1() {
+        execute(chain_evm::Config::Frontier);
+        execute(chain_evm::Config::Istanbul);
+        execute(chain_evm::Config::Berlin);
+        execute(chain_evm::Config::London);
+
+        fn execute(config: chain_evm::Config) {
+            // Prev state:
+            // evm_mapping: [ ]
+            // accounts: [ 'accountd_id1' <-> 'state1` (state1.evm_state == empty, state1.value = value1) ]
+            //
+            //
+
+            let evm_address = EvmAddress::from_low_u64_be(0);
+            let account_id = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
+            let value = Value(100);
+
+            let mut evm = Ledger::new();
+            let mut accounts = account::Ledger::new()
+                .add_account(account_id.clone(), value, ())
+                .unwrap();
+
+            assert_eq!(
+                accounts.get_state(&account_id),
+                Ok(&JorAccount::new(value, ()))
+            );
+
+            assert_ne!(
+                evm.address_mapping.jor_address(&evm_address),
+                account_id.clone()
+            );
+
+            let transaction = EvmTransaction::Create {
+                caller: evm_address,
+                value: 0_u64.into(),
+                init_code: Vec::new(),
+                gas_limit: u64::max_value(),
+                access_list: Vec::new(),
+            };
+
+            (accounts, evm) = Ledger::run_transaction(evm, accounts, transaction, config).unwrap();
         }
     }
 }
