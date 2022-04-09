@@ -224,14 +224,12 @@ impl<'a, T> VirtualMachine<'a, T> {
 pub fn generate_address_create<State: EvmState>(
     vm: VirtualMachine<State>,
     caller: Address,
-) -> (VirtualMachine<State>, Address) {
+) -> Address {
     let precompiles = Precompiles::new();
     let config = vm.config;
     let executor = StackExecutor::new_with_precompiles(vm, config, &precompiles);
 
-    let address = executor.create_address(CreateScheme::Legacy { caller });
-
-    (executor.into_state(), address)
+    executor.create_address(CreateScheme::Legacy { caller })
 }
 
 pub fn generate_address_create2<State: EvmState>(
@@ -239,20 +237,18 @@ pub fn generate_address_create2<State: EvmState>(
     caller: Address,
     init_code: ByteCode,
     salt: H256,
-) -> (VirtualMachine<State>, Address) {
+) -> Address {
     let precompiles = Precompiles::new();
     let config = vm.config;
     let executor = StackExecutor::new_with_precompiles(vm, config, &precompiles);
 
     let code_hash = H256::from_slice(Keccak256::digest(&init_code).as_slice());
 
-    let address = executor.create_address(CreateScheme::Create2 {
+    executor.create_address(CreateScheme::Create2 {
         caller,
         code_hash,
         salt,
-    });
-
-    (executor.into_state(), address)
+    })
 }
 
 /// Top-level abstraction for the EVM with the

@@ -8,6 +8,7 @@ use crate::value::Value;
 use crate::{account::Identifier as JorAddress, accounting::account::AccountState as JorAccount};
 use chain_core::packer::Codec;
 use chain_core::property::DeserializeFromSlice;
+use chain_evm::machine::{generate_address_create, generate_address_create2};
 use chain_evm::ExitError;
 use chain_evm::{
     machine::{
@@ -31,6 +32,8 @@ pub enum Error {
     CannotMap(#[from] LedgerError),
     #[error("EVM transaction error: {0}")]
     EvmTransaction(#[from] chain_evm::machine::Error),
+    #[error("It is not a contranct generation transaction type")]
+    NotAContractType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,6 +179,46 @@ impl<'a> EvmState for EvmStateImpl<'a> {
 }
 
 impl Ledger {
+    pub fn generate_contract_address(
+        mut evm: Ledger,
+        accounts: account::Ledger,
+        contract: EvmTransaction,
+        config: chain_evm::Config,
+    ) -> Result<(EvmAddress, account::Ledger, Ledger), Error> {
+        let config = config.into();
+        let mut vm_state = EvmStateImpl {
+            accounts,
+            evm: &mut evm,
+        };
+
+        match contract {
+            EvmTransaction::Create {
+                caller,
+                value: _,
+                init_code: _,
+                gas_limit,
+                access_list: _,
+            } => {
+                let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
+                let address = generate_address_create(vm, caller);
+                Ok((address, vm_state.accounts, evm))
+            }
+            EvmTransaction::Create2 {
+                caller,
+                value: _,
+                init_code,
+                salt,
+                gas_limit,
+                access_list: _,
+            } => {
+                let mut vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
+                let address = generate_address_create2(vm, caller, init_code, salt);
+                Ok((address, vm_state.accounts, evm))
+            }
+            _ => Err(Error::NotAContractType),
+        }
+    }
+
     pub fn apply_map_accounts(
         mut evm: Ledger,
         mut accounts: account::Ledger,
@@ -1123,8 +1166,8 @@ mod test {
             let account_id = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
             let value = Value(100);
 
-            let mut evm = Ledger::new();
-            let mut accounts = account::Ledger::new()
+            let evm = Ledger::new();
+            let accounts = account::Ledger::new()
                 .add_account(account_id.clone(), value, ())
                 .unwrap();
 
@@ -1146,7 +1189,26 @@ mod test {
                 access_list: Vec::new(),
             };
 
-            (accounts, evm) = Ledger::run_transaction(evm, accounts, transaction, config).unwrap();
+            for (id, state) in accounts.iter() {
+                dbg!(id, state.evm_state.clone());
+            }
+
+            let (contract_address, mut accounts, evm) =
+                Ledger::generate_contract_address(evm, accounts, transaction.clone(), config)
+                    .unwrap();
+
+            (accounts, _) = Ledger::run_transaction(evm, accounts, transaction, config).unwrap();
+
+            for (id, state) in accounts.iter() {
+                dbg!(id, state.evm_state.clone());
+            }
+
+            dbg!(transfrom_evm_to_jor(&contract_address));
+
+            assert_eq!(
+                accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                Ok(&JorAccount::new(Value(0), ()))
+            )
         }
     }
 }
