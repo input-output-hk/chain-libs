@@ -131,6 +131,10 @@ impl EntryOwned {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Globals {
     pub date: BlockDate,
     pub chain_length: ChainLength,

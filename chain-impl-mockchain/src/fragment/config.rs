@@ -46,23 +46,28 @@ impl DeserializeFromSlice for ConfigParams {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+    use test_strategy::proptest;
+
     use super::*;
 
-    quickcheck! {
-        fn config_params_serialize(params: ConfigParams) -> bool {
-            use chain_core::property::{Serialize as _,};
-            let bytes = params.serialize_as_vec().unwrap();
-            let decoded = ConfigParams::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
+    #[proptest]
+    fn config_params_serialize(params: ConfigParams) {
+        use chain_core::property::Serialize as _;
+        let bytes = params.serialize_as_vec().unwrap();
+        let decoded =
+            ConfigParams::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
 
-            params == decoded
-        }
+        prop_assert_eq!(params, decoded);
+    }
 
-        fn config_params_serialize_readable(params: ConfigParams) -> bool {
-            use chain_core::property::Serialize as _;
-            let bytes = params.serialize_as_vec().unwrap();
-            let decoded = ConfigParams::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
+    #[proptest]
+    fn config_params_serialize_readable(params: ConfigParams) {
+        use chain_core::property::Serialize as _;
+        let bytes = params.serialize_as_vec().unwrap();
+        let decoded =
+            ConfigParams::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
 
-            params == decoded
-        }
+        prop_assert_eq!(params, decoded);
     }
 }

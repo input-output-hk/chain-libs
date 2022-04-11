@@ -136,9 +136,17 @@ impl Default for UpdateState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct UpdateProposalState {
     pub proposal: UpdateProposal,
     pub proposal_date: BlockDate,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(prop_impl::hamt_strat())
+    )]
     pub votes: Hamt<DefaultHasher, UpdateVoterId, ()>,
 }
 
@@ -288,7 +296,7 @@ mod tests {
 
     #[proptest]
     fn update_proposal_serialize_deserialize_bijection(update_proposal: UpdateProposal) {
-        serialization_bijection_prop(update_proposal)?;
+        serialization_bijection_prop(update_proposal);
     }
 
     #[test]
@@ -742,5 +750,19 @@ mod tests {
 
             }
         }
+    }
+}
+
+mod prop_impl {
+    use std::collections::hash_map::DefaultHasher;
+
+    use imhamt::Hamt;
+    use proptest::{collection::hash_map, prelude::*};
+
+    use crate::certificate::UpdateVoterId;
+
+    pub(super) fn hamt_strat() -> impl Strategy<Value = Hamt<DefaultHasher, UpdateVoterId, ()>> {
+        hash_map(any::<UpdateVoterId>(), any::<()>(), 0..100000)
+            .prop_map(|map| Hamt::from_iter(map.into_iter()))
     }
 }

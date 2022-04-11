@@ -3,34 +3,30 @@ use super::{
     NoExtra, Payload, Transaction, TxBuilder, UnspecifiedAccountIdentifier, UtxoPointer, Witness,
 };
 use crate::account::SpendingCounter;
-#[cfg(test)]
 use crate::certificate::OwnerStakeDelegation;
 use crate::date::BlockDate;
 use crate::key::{EitherEd25519SecretKey, SpendingSignature};
 #[cfg(test)]
-use crate::testing::serialization::serialization_bijection;
+use crate::testing::serialization::serialization_bijection_prop;
 use chain_crypto::{testing::arbitrary_secret_key, Ed25519, SecretKey, Signature};
-#[cfg(test)]
-use quickcheck::TestResult;
 use quickcheck::{Arbitrary, Gen};
-use quickcheck_macros::quickcheck;
 use test_strategy::proptest;
 
-quickcheck! {
-    fn transaction_encode_decode(transaction: Transaction<NoExtra>) -> TestResult {
-        serialization_bijection(transaction)
-    }
-    fn stake_owner_delegation_tx_encode_decode(transaction: Transaction<OwnerStakeDelegation>) -> TestResult {
-        serialization_bijection(transaction)
-    }
-    /*
-    fn certificate_tx_encode_decode(transaction: Transaction<Address, Certificate>) -> TestResult {
-        chain_core::property::testing::serialization_bijection(transaction)
-    }
-    */
-    fn signed_transaction_encode_decode(transaction: Transaction<NoExtra>) -> TestResult {
-        serialization_bijection(transaction)
-    }
+#[proptest]
+fn transaction_encode_decode(#[allow(dead_code)] transaction: Transaction<NoExtra>) {
+    serialization_bijection_prop(transaction)
+}
+
+#[proptest]
+fn stake_owner_delegation_tx_encode_decode(
+    #[allow(dead_code)] transaction: Transaction<OwnerStakeDelegation>,
+) {
+    serialization_bijection_prop(transaction);
+}
+
+#[proptest]
+fn signed_transaction_encode_decode(#[allow(dead_code)] transaction: Transaction<NoExtra>) {
+    serialization_bijection_prop(transaction);
 }
 
 #[cfg(test)]

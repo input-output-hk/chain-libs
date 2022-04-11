@@ -61,10 +61,10 @@ mod prop_impls {
 
 #[proptest]
 fn fragment_serialization_bijection(b: Fragment) {
-    serialization_bijection_prop(b)?;
+    serialization_bijection_prop(b);
 }
 
 #[proptest]
 fn initial_ents_serialization_bijection(config_params: ConfigParams) {
-    serialization_bijection_prop(config_params)?;
+    serialization_bijection_prop(config_params);
 }

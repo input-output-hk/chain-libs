@@ -72,7 +72,7 @@ where
     T: std::clone::Clone,
 {
     let index = usize::arbitrary(gen) % source.len();
-    source.iter().cloned().nth(index).unwrap()
+    source.get(index).unwrap().clone()
 }
 
 pub fn choose_random_map_subset<G: Gen, T, U>(

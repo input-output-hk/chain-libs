@@ -119,7 +119,10 @@ impl DeserializeFromSlice for EvmMapping {
 #[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test {
     use super::*;
+    #[cfg(test)]
+    use proptest::prop_assert_eq;
     use quickcheck::Arbitrary;
+    use test_strategy::proptest;
 
     impl Arbitrary for EvmMapping {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
@@ -130,12 +133,12 @@ mod test {
         }
     }
 
-    quickcheck! {
-        fn evm_transaction_serialization_bijection(b: EvmMapping) -> bool {
-            let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let decoded = EvmMapping::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
-            decoded == b
-        }
+    #[proptest]
+    fn evm_transaction_serialization_bijection(#[allow(dead_code)] b: EvmMapping) {
+        let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
+        let decoded =
+            EvmMapping::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
+        prop_assert_eq!(decoded, b);
     }
 }
 

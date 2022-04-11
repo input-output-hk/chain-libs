@@ -44,6 +44,7 @@ pub enum Fragment {
     VoteCast(Transaction<certificate::VoteCast>),
     VoteTally(Transaction<certificate::VoteTally>),
     MintToken(Transaction<certificate::MintToken>),
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     Evm(Transaction<EvmTransaction>),
     #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmMapping(Transaction<certificate::EvmMapping>),

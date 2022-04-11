@@ -454,6 +454,6 @@ mod tests {
 
     #[proptest]
     fn leader_id_serialize_deserialize_biyection(leader_id: BftLeaderId) {
-        serialization_bijection_prop(leader_id)?;
+        serialization_bijection_prop(leader_id);
     }
 }

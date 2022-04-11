@@ -302,7 +302,10 @@ impl Payload for EvmTransaction {
 mod test {
     use super::*;
     use chain_evm::ethereum_types::H160;
+    #[allow(unused_imports)]
+    use proptest::prop_assert_eq;
     use quickcheck::Arbitrary;
+    use test_strategy::proptest;
 
     impl Arbitrary for EvmTransaction {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
@@ -339,12 +342,11 @@ mod test {
         }
     }
 
-    quickcheck! {
-        fn evm_transaction_serialization_bijection(b: EvmTransaction) -> bool {
-            let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let decoded = EvmTransaction::deserialize_from_slice(&mut Codec::new(&bytes)).unwrap();
-            decoded == b
-        }
+    #[proptest]
+    fn evm_transaction_serialization_bijection(#[allow(dead_code)] b: EvmTransaction) {
+        let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
+        let decoded = EvmTransaction::deserialize_from_slice(&mut Codec::new(&bytes)).unwrap();
+        prop_assert_eq!(decoded, b);
     }
 
     mod prop_impls {

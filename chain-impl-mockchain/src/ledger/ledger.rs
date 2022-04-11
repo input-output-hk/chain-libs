@@ -45,6 +45,10 @@ use thiserror::Error;
 
 // static parameters, effectively this is constant in the parameter of the blockchain
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct LedgerStaticParameters {
     pub block0_initial_hash: HeaderId,
     pub block0_start_time: config::Block0Date,

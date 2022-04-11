@@ -19,6 +19,10 @@ pub enum PoolError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolLastRewards {
     pub epoch: Epoch,
     pub value_taxed: Value,
@@ -36,6 +40,10 @@ impl PoolLastRewards {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolState {
     pub last_rewards: PoolLastRewards,
     pub registration: Arc<PoolRegistration>,

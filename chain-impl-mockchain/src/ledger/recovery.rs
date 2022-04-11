@@ -1205,7 +1205,7 @@ pub mod test {
     use crate::testing::{ConfigBuilder, LedgerBuilder, StakePoolBuilder};
     use cardano_legacy_address::Addr;
     use chain_crypto::Blake2b256;
-    use quickcheck::{quickcheck, TestResult};
+    use test_strategy::proptest;
     use typed_bytes::{ByteArray, ByteSlice};
 
     #[test]
@@ -1440,11 +1440,7 @@ pub mod test {
     }
 
     #[cfg(test)]
-    fn pack_unpack_bijection<T, Pack, Unpack>(
-        pack_method: &Pack,
-        unpack_method: &Unpack,
-        value: T,
-    ) -> TestResult
+    fn pack_unpack_bijection<T, Pack, Unpack>(pack_method: &Pack, unpack_method: &Unpack, value: T)
     where
         Pack: Fn(&T, &mut Codec<Vec<u8>>) -> Result<(), WriteError>,
         Unpack: Fn(&mut Codec<&[u8]>) -> Result<T, ReadError>,
@@ -1452,130 +1448,116 @@ pub mod test {
     {
         let vec = Vec::new();
         let mut codec = Codec::new(vec);
-        match pack_method(&value, &mut codec) {
-            Ok(_) => (),
-            Err(e) => return TestResult::error(format!("{}", e)),
-        };
+        pack_method(&value, &mut codec).unwrap();
 
         let inner = codec.into_inner();
         let mut codec = Codec::new(inner.as_slice());
-        match unpack_method(&mut codec) {
-            Ok(other_value) => TestResult::from_bool(value == other_value),
-            Err(e) => TestResult::error(format!("{}", e)),
-        }
+        unpack_method(&mut codec).unwrap();
     }
 
-    quickcheck! {
-        fn account_identifier_pack_unpack_bijection(id: crate::account::Identifier) -> TestResult {
-            pack_unpack_bijection(
-                &pack_account_identifier,
-                &unpack_account_identifier,
-                id
-            )
-        }
+    #[proptest]
+    fn account_identifier_pack_unpack_bijection(id: crate::account::Identifier) {
+        pack_unpack_bijection(&pack_account_identifier, &unpack_account_identifier, id)
+    }
 
-        fn consensus_version_serialization_bijection(consensus_version: ConsensusVersion) -> TestResult {
-            pack_unpack_bijection(
-                 &|v, p| pack_consensus_version(*v, p),
-                 &unpack_consensus_version,
-                 consensus_version
-             )
-         }
+    #[proptest]
+    fn consensus_version_serialization_bijection(consensus_version: ConsensusVersion) {
+        pack_unpack_bijection(
+            &|v, p| pack_consensus_version(*v, p),
+            &unpack_consensus_version,
+            consensus_version,
+        )
+    }
 
-        fn pool_registration_serialize_deserialize_biyection(pool_registration: PoolRegistration) -> TestResult {
-            pack_unpack_bijection(
-                &pack_pool_registration,
-                &unpack_pool_registration,
-                pool_registration
-            )
-        }
+    #[proptest]
+    fn pool_registration_serialize_deserialize_biyection(pool_registration: PoolRegistration) {
+        pack_unpack_bijection(
+            &pack_pool_registration,
+            &unpack_pool_registration,
+            pool_registration,
+        )
+    }
 
-        fn config_param_pack_unpack_bijection(config_param: ConfigParam) -> TestResult {
-            pack_unpack_bijection(
-                &pack_config_param,
-                &unpack_config_param,
-                config_param
-            )
-        }
+    #[proptest]
+    fn config_param_pack_unpack_bijection(config_param: ConfigParam) {
+        pack_unpack_bijection(&pack_config_param, &unpack_config_param, config_param)
+    }
 
-        fn blockdate_pack_unpack_bijection(block_date: BlockDate) -> TestResult {
-            pack_unpack_bijection(
-                &|v, p| pack_block_date(*v, p),
-                &unpack_block_date,
-                block_date
-            )
-        }
+    #[proptest]
+    fn blockdate_pack_unpack_bijection(block_date: BlockDate) {
+        pack_unpack_bijection(
+            &|v, p| pack_block_date(*v, p),
+            &unpack_block_date,
+            block_date,
+        )
+    }
 
-        fn per_certificate_fee_pack_unpack_bijection(per_certificate_fee: PerCertificateFee) -> TestResult {
-            pack_unpack_bijection(
-                &pack_per_certificate_fee,
-                &unpack_per_certificate_fee,
-                per_certificate_fee
-            )
-        }
+    #[proptest]
+    fn per_certificate_fee_pack_unpack_bijection(per_certificate_fee: PerCertificateFee) {
+        pack_unpack_bijection(
+            &pack_per_certificate_fee,
+            &unpack_per_certificate_fee,
+            per_certificate_fee,
+        )
+    }
 
-        fn per_vote_certificate_fee_pack_unpack_bijection(per_vote_certificate_fee: PerVoteCertificateFee) -> TestResult {
-            pack_unpack_bijection(
-                &pack_per_vote_certificate_fee,
-                &unpack_per_vote_certificate_fee,
-                per_vote_certificate_fee
-            )
-        }
+    #[proptest]
+    fn per_vote_certificate_fee_pack_unpack_bijection(
+        per_vote_certificate_fee: PerVoteCertificateFee,
+    ) {
+        pack_unpack_bijection(
+            &pack_per_vote_certificate_fee,
+            &unpack_per_vote_certificate_fee,
+            per_vote_certificate_fee,
+        )
+    }
 
-        fn linear_fee_pack_unpack_bijection(linear_fee: LinearFee) -> TestResult {
-            pack_unpack_bijection(
-                &pack_linear_fee,
-                &unpack_linear_fee,
-                linear_fee
-            )
-        }
+    #[proptest]
+    fn linear_fee_pack_unpack_bijection(linear_fee: LinearFee) {
+        pack_unpack_bijection(&pack_linear_fee, &unpack_linear_fee, linear_fee)
+    }
 
-        fn leader_id_pack_unpack_biyection(leader_id: BftLeaderId) -> TestResult {
-            pack_unpack_bijection(
-                &pack_leader_id,
-                &unpack_leader_id,
-                leader_id
-            )
-        }
+    #[proptest]
+    fn leader_id_pack_unpack_biyection(leader_id: BftLeaderId) {
+        pack_unpack_bijection(&pack_leader_id, &unpack_leader_id, leader_id)
+    }
 
-        fn globals_pack_unpack_bijection(globals: Globals) -> TestResult {
-            pack_unpack_bijection(
-                &pack_globals,
-                &unpack_globals,
-                globals
-            )
-        }
+    #[proptest]
+    fn globals_pack_unpack_bijection(globals: Globals) {
+        pack_unpack_bijection(&pack_globals, &unpack_globals, globals)
+    }
 
-        fn ledger_static_parameters_pack_unpack_bijection(ledger_static_parameters: LedgerStaticParameters) -> TestResult {
-            pack_unpack_bijection(
-                &pack_ledger_static_parameters,
-                &unpack_ledger_static_parameters,
-                ledger_static_parameters
-            )
-        }
+    #[proptest]
+    fn ledger_static_parameters_pack_unpack_bijection(
+        ledger_static_parameters: LedgerStaticParameters,
+    ) {
+        pack_unpack_bijection(
+            &pack_ledger_static_parameters,
+            &unpack_ledger_static_parameters,
+            ledger_static_parameters,
+        )
+    }
 
-        fn pool_state_pack_unpack_bijection(pool_state: PoolState) -> TestResult {
-            pack_unpack_bijection(
-                &pack_pool_state,
-                &unpack_pool_state,
-                pool_state
-            )
-        }
+    #[proptest]
+    fn pool_state_pack_unpack_bijection(pool_state: PoolState) {
+        pack_unpack_bijection(&pack_pool_state, &unpack_pool_state, pool_state)
+    }
 
-        fn pool_last_rewards_pack_unpack_bijection(pool_last_rewards: PoolLastRewards) -> TestResult {
-            pack_unpack_bijection(
-                &pack_pool_last_rewards,
-                &unpack_pool_last_rewards,
-                pool_last_rewards
-            )
-        }
+    #[proptest]
+    fn pool_last_rewards_pack_unpack_bijection(pool_last_rewards: PoolLastRewards) {
+        pack_unpack_bijection(
+            &pack_pool_last_rewards,
+            &unpack_pool_last_rewards,
+            pool_last_rewards,
+        )
+    }
 
-        fn update_proposal_state_pack_unpack_bijection(update_proposal_state: UpdateProposalState) -> TestResult {
-            pack_unpack_bijection(
-                &pack_update_proposal_state,
-                &unpack_update_proposal_state,
-                update_proposal_state
-            )
-        }
+    #[proptest]
+    fn update_proposal_state_pack_unpack_bijection(update_proposal_state: UpdateProposalState) {
+        pack_unpack_bijection(
+            &pack_update_proposal_state,
+            &unpack_update_proposal_state,
+            update_proposal_state,
+        )
     }
 }

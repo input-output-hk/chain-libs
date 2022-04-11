@@ -309,3 +309,37 @@ impl<'a, H: Default + Hasher, K: Eq + Hash, V> IntoIterator for &'a Hamt<H, K, V
         self.iter()
     }
 }
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod prop_impl {
+    use std::{
+        collections::HashMap,
+        fmt::Debug,
+        hash::{Hash, Hasher},
+    };
+
+    use proptest::{
+        arbitrary::StrategyFor,
+        collection::{hash_map, HashMapStrategy},
+        prelude::*,
+        strategy::Map,
+    };
+
+    use crate::Hamt;
+
+    impl<H, K, V> Arbitrary for Hamt<H, K, V>
+    where
+        K: Debug + Clone + Arbitrary + Hash + Eq,
+        V: Debug + Clone + Arbitrary,
+        H: Debug + Hasher + Default,
+    {
+        type Parameters = ();
+        type Strategy =
+            Map<HashMapStrategy<StrategyFor<K>, StrategyFor<V>>, fn(HashMap<K, V>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            hash_map(any::<K>(), any::<V>(), 0..100000)
+                .prop_map(|map| Hamt::from_iter(map.into_iter()))
+        }
+    }
+}

@@ -1,9 +1,8 @@
-#[cfg(test)]
 use crate::block::Header;
 #[cfg(test)]
 use crate::header::HeaderDesc;
 #[cfg(test)]
-use crate::testing::serialization::serialization_bijection;
+use crate::testing::serialization::serialization_bijection_prop;
 use crate::{
     block::{Block, BlockVersion, HeaderRaw},
     fragment::{Contents, ContentsBuilder, Fragment},
@@ -15,53 +14,63 @@ use chain_core::{
     property::{Block as _, Deserialize, Serialize},
 };
 #[cfg(test)]
-#[cfg(test)]
-use quickcheck::TestResult;
+use proptest::prop_assert_eq;
 use quickcheck::{Arbitrary, Gen};
+use test_strategy::proptest;
 
-quickcheck! {
-    fn headerraw_serialization_bijection(b: HeaderRaw) -> TestResult {
-        serialization_bijection(b)
-    }
-    fn header_serialization_bijection(b: Header) -> TestResult {
-        serialization_bijection(b)
-    }
+#[proptest]
+fn headerraw_serialization_bijection(b: HeaderRaw) {
+    serialization_bijection_prop(b);
+}
 
-    fn block_serialization_bijection(b: Block) -> TestResult {
-        serialization_bijection(b)
-    }
+#[proptest]
+fn header_serialization_bijection(b: Header) {
+    serialization_bijection_prop(b);
+}
 
-    fn header_properties(block: Block) -> TestResult {
-        use chain_core::property::Header as Prop;
-        let header = block.header.clone();
-        assert_eq!(header.hash(),block.id());
-        assert_eq!(header.id(),block.id());
-        assert_eq!(header.parent_id(),block.parent_id());
-        assert_eq!(header.date(),block.date());
-        assert_eq!(header.version(),block.version());
+#[proptest]
+fn block_serialization_bijection(b: Block) {
+    serialization_bijection_prop(b);
+}
 
-        assert_eq!(header.get_bft_leader_id(),block.header.get_bft_leader_id());
-        assert_eq!(header.get_stakepool_id(),block.header.get_stakepool_id());
-        assert_eq!(header.common(),block.header.common());
-        assert_eq!(header.to_raw(),block.header.to_raw());
-        assert_eq!(header.as_auth_slice(),block.header.as_auth_slice());
-        assert!(are_desc_equal(header.description(),block.header.description()));
-        assert_eq!(header.size(),block.header.size());
+#[proptest]
+fn header_properties(block: Block) {
+    use chain_core::property::Header as Prop;
+    let header = block.header.clone();
 
-        TestResult::from_bool(header.chain_length() == block.chain_length())
-    }
+    prop_assert_eq!(header.hash(), block.id());
+    prop_assert_eq!(header.id(), block.id());
+    prop_assert_eq!(header.parent_id(), block.parent_id());
+    prop_assert_eq!(header.date(), block.date());
+    prop_assert_eq!(header.version(), block.version());
+    prop_assert_eq!(header.get_bft_leader_id(), block.header.get_bft_leader_id());
+    prop_assert_eq!(header.get_stakepool_id(), block.header.get_stakepool_id());
+    prop_assert_eq!(header.common(), block.header.common());
+    prop_assert_eq!(header.to_raw(), block.header.to_raw());
+    prop_assert_eq!(header.as_auth_slice(), block.header.as_auth_slice());
+    prop_assert_eq!(header.description().id, block.header.description().id);
+    prop_assert_eq!(header.size(), block.header.size());
 
-    // TODO: add a separate test with headers with correct content size to stress hash
-    // checking when tests are migrated to proptest
-    fn inconsistent_block_deserialization(header: Header, contents: Contents) -> bool {
-        let (content_hash, content_size) = contents.compute_hash_size();
+    prop_assert_eq!(header.chain_length(), block.chain_length());
+}
 
-        let maybe_block = Block { header: header.clone(), contents };
+// TODO: add a separate test with headers with correct content size to stress hash
+// checking when tests are migrated to proptest
+#[proptest]
+fn inconsistent_block_deserialization(header: Header, contents: Contents) {
+    let (content_hash, content_size) = contents.compute_hash_size();
 
-        let block = Block::deserialize(&mut Codec::new(maybe_block.serialize_as_vec().unwrap().as_slice()));
+    let maybe_block = Block {
+        header: header.clone(),
+        contents,
+    };
 
-        (content_hash != header.block_content_hash() || content_size != header.block_content_size()) == block.is_err()
-    }
+    let block = Block::deserialize(&mut Codec::new(
+        maybe_block.serialize_as_vec().unwrap().as_slice(),
+    ));
+    let should_err =
+        content_hash != header.block_content_hash() || content_size != header.block_content_size();
+    prop_assert_eq!(should_err, block.is_err());
 }
 
 #[cfg(test)]
@@ -126,6 +135,91 @@ impl Arbitrary for Block {
         Block {
             header,
             contents: content,
+        }
+    }
+}
+
+mod prop_impl {
+    use proptest::arbitrary::StrategyFor;
+    use proptest::collection::{vec, VecStrategy};
+    use proptest::prelude::*;
+    use proptest::strategy::Map;
+
+    use crate::block::{
+        BftProof, Block, BlockDate, BlockVersion, ChainLength, Contents, ContentsBuilder,
+        GenesisPraosProof, HeaderRaw,
+    };
+    use crate::fragment::Fragment;
+    use crate::header::HeaderBuilderNew;
+    use crate::key::Hash;
+
+    impl Arbitrary for HeaderRaw {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<u8>>, fn(Vec<u8>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            vec(any::<u8>(), 0..(u16::MAX as usize)).prop_map(Self)
+        }
+    }
+
+    prop_compose! {
+        fn block_strategy()(
+            content in any::<Contents>(),
+            ver in any::<BlockVersion>(),
+            parent_hash in any::<Hash>(),
+            chain_length in any::<ChainLength>(),
+            date in any::<BlockDate>(),
+            bft_proof in any::<BftProof>(),
+            gp_proof in any::<GenesisPraosProof>(),
+        ) -> Block {
+            let hdrbuilder = HeaderBuilderNew::new(ver, &content)
+                .set_parent(&parent_hash, chain_length)
+                .set_date(date);
+            let header = match ver {
+                BlockVersion::Genesis => hdrbuilder.into_unsigned_header().unwrap().generalize(),
+                BlockVersion::Ed25519Signed => {
+                    hdrbuilder
+                        .into_bft_builder()
+                        .unwrap()
+                        .set_consensus_data(&bft_proof.leader_id)
+                        .set_signature(bft_proof.signature)
+                        .generalize()
+                }
+                BlockVersion::KesVrfproof => {
+                    hdrbuilder
+                        .into_genesis_praos_builder()
+                        .unwrap()
+                        .set_consensus_data(&gp_proof.node_id, &gp_proof.vrf_proof)
+                        .set_signature(gp_proof.kes_proof)
+                        .generalize()
+                }
+            };
+            Block {
+                header,
+                contents: content,
+            }
+        }
+    }
+
+    impl Arbitrary for Block {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            block_strategy().boxed()
+        }
+    }
+
+    impl Arbitrary for Contents {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<Fragment>>, fn(Vec<Fragment>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            vec(any::<Fragment>(), 0..12).prop_map(|fragments| {
+                let mut content = ContentsBuilder::new();
+                content.push_many(fragments);
+                content.into()
+            })
         }
     }
 }

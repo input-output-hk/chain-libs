@@ -4,7 +4,6 @@ use chain_core::{
     packer::Codec,
     property::{DeserializeFromSlice, Serialize},
 };
-use proptest::{prop_assert_eq, test_runner::TestCaseResult};
 use quickcheck::{Arbitrary, TestResult};
 
 /// test that any arbitrary given object can serialize and deserialize
@@ -25,7 +24,7 @@ where
     TestResult::from_bool(decoded_t == t)
 }
 
-pub fn serialization_bijection_prop<T>(t: T) -> TestCaseResult
+pub fn serialization_bijection_prop<T>(t: T)
 where
     T: Serialize + DeserializeFromSlice + Eq + Debug,
 {
@@ -38,6 +37,5 @@ where
         Ok(v) => v,
     };
 
-    prop_assert_eq!(t, decoded_t);
-    Ok(())
+    assert_eq!(t, decoded_t);
 }
