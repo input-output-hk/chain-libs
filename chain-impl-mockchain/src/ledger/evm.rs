@@ -179,6 +179,7 @@ impl<'a> EvmState for EvmStateImpl<'a> {
 }
 
 impl Ledger {
+    #[allow(dead_code)]
     pub fn generate_contract_address(
         mut evm: Ledger,
         accounts: account::Ledger,
@@ -211,7 +212,7 @@ impl Ledger {
                 gas_limit,
                 access_list: _,
             } => {
-                let mut vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
+                let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 let address = generate_address_create2(vm, caller, init_code, salt);
                 Ok((address, vm_state.accounts, evm))
             }
@@ -1150,48 +1151,55 @@ mod test {
 
     #[test]
     fn run_transaction_create_test_1() {
-        execute(chain_evm::Config::Frontier);
+        // execute(chain_evm::Config::Frontier);
         execute(chain_evm::Config::Istanbul);
         execute(chain_evm::Config::Berlin);
         execute(chain_evm::Config::London);
 
         fn execute(config: chain_evm::Config) {
             // Prev state:
-            // evm_mapping: [ ]
-            // accounts: [ 'accountd_id1' <-> 'state1` (state1.evm_state == empty, state1.value = value1) ]
+            // evm_mapping: [ 'accountd_id` <-> `evm_address` ]
+            // accounts: [ 'accountd_id' <-> 'state1` (state1.evm_state == empty, state1.value = value1) ]
             //
+            // Applly 'transaction CREATE' (caller: `evm_address`, value: `value2`, init_code: []  )
             //
+            // Post state;
+            // evm_mapping: [ 'accountd_id` <-> `evm_address` ]
+            // accounts: [ 'accountd_id' <-> 'state1` (state1.evm_state != empty, state1.value = value1 - value2),
+            //             'transfrom_evm_to_jor(contract_address)' <-> 'state2` (state2.evm_state != empty, state2.value = value2) ]
 
             let evm_address = EvmAddress::from_low_u64_be(0);
             let account_id = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
-            let value = Value(100);
+            let value1 = Value(100);
+            let value2 = Value(10);
+            let code = Vec::new();
 
-            let evm = Ledger::new();
-            let accounts = account::Ledger::new()
-                .add_account(account_id.clone(), value, ())
+            let mut evm = Ledger::new();
+            let mut accounts = account::Ledger::new()
+                .add_account(account_id.clone(), value1, ())
+                .unwrap();
+            (accounts, evm.address_mapping) = evm
+                .address_mapping
+                .map_accounts(account_id.clone(), evm_address, accounts)
                 .unwrap();
 
             assert_eq!(
                 accounts.get_state(&account_id),
-                Ok(&JorAccount::new(value, ()))
+                Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_ne!(
+            assert_eq!(
                 evm.address_mapping.jor_address(&evm_address),
                 account_id.clone()
             );
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
-                value: 0_u64.into(),
-                init_code: Vec::new(),
+                value: value2.0.into(),
+                init_code: code.clone(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
-
-            for (id, state) in accounts.iter() {
-                dbg!(id, state.evm_state.clone());
-            }
 
             let (contract_address, mut accounts, evm) =
                 Ledger::generate_contract_address(evm, accounts, transaction.clone(), config)
@@ -1199,16 +1207,31 @@ mod test {
 
             (accounts, _) = Ledger::run_transaction(evm, accounts, transaction, config).unwrap();
 
-            for (id, state) in accounts.iter() {
-                dbg!(id, state.evm_state.clone());
-            }
-
-            dbg!(transfrom_evm_to_jor(&contract_address));
-
             assert_eq!(
                 accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
-                Ok(&JorAccount::new(Value(0), ()))
-            )
+                Ok(&JorAccount::new_evm(
+                    AccountState {
+                        storage: Default::default(),
+                        code,
+                        nonce: Nonce::one()
+                    },
+                    value2,
+                    ()
+                ))
+            );
+
+            assert_eq!(
+                accounts.get_state(&account_id),
+                Ok(&JorAccount::new_evm(
+                    AccountState {
+                        storage: Default::default(),
+                        code: Vec::new(),
+                        nonce: Nonce::one()
+                    },
+                    value1.checked_sub(value2).unwrap(),
+                    ()
+                ))
+            );
         }
     }
 }

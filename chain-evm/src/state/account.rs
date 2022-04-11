@@ -84,15 +84,13 @@ pub struct AccountState {
 
 impl Account {
     pub fn is_empty(&self) -> bool {
-        self.state.nonce.is_zero()
-            && self.balance == Balance::zero()
-            && self.state.storage.is_empty()
+        self.balance == Balance::zero() && self.state.is_empty()
     }
 }
 
 impl AccountState {
     pub fn is_empty(&self) -> bool {
-        self.nonce == Nonce::zero() && self.code.is_empty() && self.storage.is_empty()
+        self.nonce.is_zero() && self.code.is_empty() && self.storage.is_empty()
     }
 }
 
