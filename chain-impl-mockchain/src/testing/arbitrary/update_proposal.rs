@@ -84,7 +84,7 @@ mod pt {
             let leader_id = BftLeaderId(key.to_public());
             (leader_id, key)
         });
-        vec(pair, 1..20).prop_map(|vec| vec.into_iter().collect())
+        vec(pair, 1..2).prop_map(|vec| vec.into_iter().collect())
     }
 
     prop_compose! {
@@ -119,21 +119,6 @@ mod pt {
                     })
                 })
                 .boxed()
-
-            // any::<SecretKey<Ed25519>>()
-            //     .prop_flat_map(|block_signing_key| {
-            //         proposal_and_leaders().prop_flat_map(|(proposal, leaders)| {
-            //             random_subset(Just(leaders.clone())).prop_map(move |voters| {
-            //                 UpdateProposalData {
-            //                     leaders: leaders.clone().into_iter().collect(),
-            //                     voters: voters.clone().into_iter().collect(),
-            //                     proposal: proposal.clone(),
-            //                     block_signing_key: block_signing_key.clone(),
-            //                 }
-            //             })
-            //         })
-            //     })
-            //     .boxed()
         }
     }
 }

@@ -61,6 +61,12 @@ pub fn average_value() -> impl proptest::strategy::Strategy<Value = Value> {
     (253u64..10253).prop_map(Value)
 }
 
+pub fn maybe_average_value() -> impl proptest::strategy::Strategy<Value = Option<Value>> {
+    use proptest::prelude::*;
+
+    prop_oneof![Just(None), (253u64..10253).prop_map(|i| Some(Value(i))),]
+}
+
 impl From<AverageValue> for Value {
     fn from(value: AverageValue) -> Self {
         value.0

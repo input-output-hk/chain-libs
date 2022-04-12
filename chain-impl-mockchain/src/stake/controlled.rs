@@ -183,10 +183,13 @@ mod tests {
         account::{self, Identifier},
         rewards::Ratio,
         stake::Stake,
-        testing::{utxo::ArbitaryLedgerUtxo, TestGen},
+        testing::{utxo::prop_impls::utxo_strat, TestGen},
+        utxo::Ledger,
     };
-    use quickcheck_macros::quickcheck;
+    use chain_addr::Address;
+    use proptest::prop_assert_eq;
     use std::num::NonZeroU64;
+    use test_strategy::proptest;
 
     fn create_stake_control_from(
         assigned: &[(Identifier, Stake)],
@@ -413,15 +416,18 @@ mod tests {
         assert_eq!(stake_control.ratio_by(&second_identifier), expected_ratio);
     }
 
-    #[quickcheck]
-    pub fn stake_control_from_ledger(accounts: account::Ledger, utxos: ArbitaryLedgerUtxo) {
-        let stake_control = StakeControl::new_with(&accounts, &utxos.0);
+    #[proptest]
+    fn stake_control_from_ledger(
+        accounts: account::Ledger,
+        #[strategy(utxo_strat())] utxos: Ledger<Address>,
+    ) {
+        let stake_control = StakeControl::new_with(&accounts, &utxos);
         //verify sum
         let accounts = accounts.get_total_value().unwrap();
-        let utxo_or_group = utxos.0.values().map(|x| x.value).sum();
+        let utxo_or_group = utxos.values().map(|x| x.value).sum();
         let expected_sum = accounts
             .checked_add(utxo_or_group)
             .expect("cannot calculate expected total");
-        assert_eq!(stake_control.total(), expected_sum.into());
+        prop_assert_eq!(stake_control.total(), expected_sum.into());
     }
 }

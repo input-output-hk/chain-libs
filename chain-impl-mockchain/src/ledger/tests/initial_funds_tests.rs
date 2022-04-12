@@ -1,7 +1,9 @@
 #![cfg(test)]
 
 use crate::fragment::Fragment;
+use crate::ledger::Error::FeeCalculationError;
 use crate::testing::OldAddressBuilder;
+use crate::value::ValueError;
 use crate::{
     accounting::account::DelegationType,
     ledger::{Block0Error, Error::Block0},
@@ -17,21 +19,21 @@ use crate::{
 };
 use chain_addr::Discrimination;
 use chain_core::property::Fragment as _;
-use quickcheck::TestResult;
-use quickcheck_macros::quickcheck;
+#[cfg(test)]
+use proptest::prop_assume;
+use test_strategy::proptest;
 
-#[quickcheck]
-pub fn ledger_verifies_value_of_initial_funds(
-    arbitrary_faucets: ArbitraryAddressDataValueVec,
-) -> TestResult {
+#[proptest]
+fn ledger_verifies_value_of_initial_funds(arbitrary_faucets: ArbitraryAddressDataValueVec) {
     let config = ConfigBuilder::new().with_discrimination(Discrimination::Test);
-
-    TestResult::from_bool(
-        LedgerBuilder::from_config(config)
-            .initial_funds(&arbitrary_faucets.values())
-            .build()
-            .is_ok(),
-    )
+    let result = LedgerBuilder::from_config(config)
+        .initial_funds(&arbitrary_faucets.values())
+        .build();
+    prop_assume!(!matches!(
+        result,
+        Err(FeeCalculationError(ValueError::Overflow))
+    ));
+    result.unwrap();
 }
 
 #[test]

@@ -36,3 +36,35 @@ impl Arbitrary for ArbitaryLedgerUtxo {
         ArbitaryLedgerUtxo(ledger)
     }
 }
+
+pub mod prop_impls {
+    use std::collections::HashMap;
+
+    use chain_addr::{Address, Discrimination};
+    use proptest::{collection::hash_map, prelude::*};
+
+    use crate::{
+        key::Hash,
+        testing::{average_value, data::AddressData},
+        transaction::Output,
+        utxo::Ledger,
+    };
+
+    pub fn utxo_strat() -> impl Strategy<Value = Ledger<Address>> {
+        (1..=50usize, average_value())
+            .prop_flat_map(|(size, value)| {
+                let out = prop_oneof![
+                    Just(AddressData::utxo(Discrimination::Test).make_output(value)),
+                    Just(AddressData::delegation(Discrimination::Test).make_output(value)),
+                ];
+                hash_map(any::<Hash>(), (Just(0u8), out), size)
+            })
+            .prop_map(|map: HashMap<Hash, (u8, Output<Address>)>| {
+                let mut ledger = Ledger::new();
+                for (key, value) in map {
+                    ledger = ledger.add(&key, &[value]).unwrap();
+                }
+                ledger
+            })
+    }
+}

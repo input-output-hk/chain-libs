@@ -383,6 +383,7 @@ mod tests {
     mod pt {
         use std::collections::HashMap;
 
+        use chain_addr::Address;
         use proptest::{
             arbitrary::StrategyFor,
             collection::{hash_map, vec, HashMapStrategy},
@@ -393,9 +394,27 @@ mod tests {
         use crate::{
             key::Hash,
             testing::{average_value, data::AddressData},
+            utxo::Ledger,
         };
 
         use super::{ArbitraryTransactionOutputs, ArbitraryUtxos};
+
+        impl Arbitrary for Ledger<Address> {
+            type Parameters = ();
+            type Strategy = Map<StrategyFor<ArbitraryUtxos>, fn(ArbitraryUtxos) -> Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<ArbitraryUtxos>().prop_map(|utxos| {
+                    let mut ledger = Ledger::new();
+
+                    for (key, value) in utxos.0 {
+                        let utxo = value.to_vec();
+                        ledger = ledger.add(&key, utxo.as_slice()).unwrap();
+                    }
+                    ledger
+                })
+            }
+        }
 
         impl Arbitrary for ArbitraryUtxos {
             type Parameters = ();

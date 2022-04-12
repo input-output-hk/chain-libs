@@ -268,8 +268,8 @@ mod tests {
         value::Value,
     };
 
-    use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
+    use proptest::{prop_assert, prop_assert_eq, prop_assume};
+    use quickcheck::{Arbitrary, Gen};
     use std::collections::HashSet;
     use std::iter;
     use test_strategy::proptest;
@@ -327,117 +327,81 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn account_ledger_test(
+    #[proptest(proptest::prelude::ProptestConfig {
+        cases: 10,
+        max_flat_map_regens: 1,
+        ..Default::default()
+    })]
+    fn account_ledger_test(
         mut ledger: Ledger,
         account_id: Identifier,
-        value: Value,
+        #[strategy(Value::non_zero_strategy())] value: Value,
         stake_pool_id: PoolId,
-    ) -> TestResult {
-        if value == Value::zero() || ledger.exists(&account_id) {
-            return TestResult::discard();
-        }
+    ) {
+        prop_assume!(!ledger.exists(&account_id));
 
         let initial_total_value = ledger.get_total_value().unwrap();
 
         // add new account
-        ledger = match ledger.add_account(account_id.clone(), value, ()) {
-            Ok(ledger) => ledger,
-            Err(err) => {
-                return TestResult::error(format!(
-                    "Add account with id {} should be successful: {:?}",
-                    account_id, err
-                ))
-            }
-        };
+        ledger = ledger.add_account(account_id.clone(), value, ()).unwrap();
 
         // add account again should throw an error
-        if ledger.add_account(account_id.clone(), value, ()).is_ok() {
-            return TestResult::error(format!(
-                "Account with id {} again should should",
-                account_id
-            ));
-        }
-        assert!(
+        ledger
+            .add_account(account_id.clone(), value, ())
+            .unwrap_err();
+        prop_assert!(
             ledger.exists(&account_id),
             "Account with id {} should exist",
             account_id
         );
-        assert!(
+        prop_assert!(
             ledger.iter().any(|(x, _)| *x == account_id),
             "Account with id {} should be listed amongst other",
             account_id
         );
 
         // verify total value was increased
-        let test_result = test_total_value(
+        prop_assert_eq!(
             (initial_total_value + value).unwrap(),
-            ledger.get_total_value().unwrap(),
+            ledger.get_total_value().unwrap()
         );
-        if test_result.is_error() {
-            return test_result;
-        }
 
         // set delegation to stake pool
-        ledger = match ledger
+        ledger = ledger
             .set_delegation(&account_id, &DelegationType::Full(stake_pool_id.clone()))
-        {
-            Ok(ledger) => ledger,
-            Err(err) => {
-                return TestResult::error(format!(
-                    "Set delegation operation for id {} should be successful: {:?}",
-                    account_id, err
-                ))
-            }
-        };
+            .unwrap();
 
         // verify total value is still the same
-        assert!(!test_total_value(
+        prop_assert_eq!(
             (initial_total_value + value).unwrap(),
-            ledger.get_total_value().unwrap(),
-        )
-        .is_failure());
+            ledger.get_total_value().unwrap()
+        );
 
         // add value to account
-        ledger = match ledger.add_value(&account_id, value) {
-            Ok(ledger) => ledger,
-            Err(err) => {
-                return TestResult::error(format!(
-                    "Add value to account operation for id {} should be successful: {:?}",
-                    account_id, err
-                ))
-            }
-        };
+        let result = ledger.add_value(&account_id, value);
+        prop_assume!(!matches!(
+            result,
+            Err(LedgerError::ValueError(ValueError::Overflow))
+        ));
+        ledger = ledger.add_value(&account_id, value).unwrap();
 
         // verify total value was increased
-        let test_result = test_total_value(
+        prop_assert_eq!(
             (initial_total_value + (value + value).unwrap()).unwrap(),
-            ledger.get_total_value().unwrap(),
+            ledger.get_total_value().unwrap()
         );
-        if test_result.is_error() {
-            return test_result;
-        }
 
         //add reward to account
-        ledger = match ledger.add_rewards_to_account(&account_id, 0, value, ()) {
-            Ok(ledger) => ledger,
-            Err(err) => {
-                return TestResult::error(format!(
-                    "Add rewards to account operation for id {} should be successful: {:?}",
-                    account_id, err
-                ))
-            }
-        };
+        ledger = ledger
+            .add_rewards_to_account(&account_id, 0, value, ())
+            .unwrap();
 
         let value_after_reward = Value(value.0 * 3);
         // verify total value was increased
-        let test_result = test_total_value(
+        prop_assert_eq!(
             (initial_total_value + value_after_reward).unwrap(),
-            ledger.get_total_value().unwrap(),
+            ledger.get_total_value().unwrap()
         );
-        if test_result.is_error() {
-            return test_result;
-        }
 
         let mut spending_counter = SpendingCounter::zero();
         //verify account state
@@ -457,100 +421,58 @@ mod tests {
                     extra: (),
                 };
 
-                if *account_state != expected_account_state {
-                    return TestResult::error(format!(
-                        "Account state is incorrect expected {:?} but got {:?}",
-                        expected_account_state, account_state
-                    ));
-                }
+                prop_assert_eq!(account_state, &expected_account_state);
             }
             Err(err) => {
-                return TestResult::error(format!(
+                panic!(
                     "Get state for id {} should be successful: {:?}",
                     account_id, err
-                ))
+                )
             }
         }
 
         // remove value from account
-        ledger = match ledger.remove_value(&account_id, spending_counter, value) {
-            Ok(ledger) => ledger,
-            Err(err) => {
-                return TestResult::error(format!(
-                    "Removew value operation for id {} should be successful: {:?}",
-                    account_id, err
-                ))
-            }
-        };
+        ledger = ledger
+            .remove_value(&account_id, spending_counter, value)
+            .unwrap();
+
         spending_counter = spending_counter.increment();
         let value_before_reward = Value(value.0 * 2);
         // verify total value was decreased
-        let test_result = test_total_value(
+        prop_assert_eq!(
             (initial_total_value + value_before_reward).unwrap(),
-            ledger.get_total_value().unwrap(),
+            ledger.get_total_value().unwrap()
         );
-        if test_result.is_error() {
-            return test_result;
-        }
 
         // verify remove account fails beause account still got some founds
-        if ledger.remove_account(&account_id).is_ok() {
-            return TestResult::error(format!(
-                "Remove account should be unsuccesfull... account for id {} still got funds",
-                account_id
-            ));
-        }
+        ledger.remove_account(&account_id).unwrap_err();
 
         // removes all funds from account
-        ledger = match ledger.remove_value(&account_id, spending_counter, value_before_reward) {
-            Ok(ledger) => ledger,
-            Err(err) => {
-                return TestResult::error(format!(
-                    "Remove all funds operation for id {} should be successful: {:?}",
-                    account_id, err
-                ))
-            }
-        };
+        ledger = ledger
+            .remove_value(&account_id, spending_counter, value_before_reward)
+            .unwrap();
 
         // commented line to prevent a warning, but it should be updated to reflect the correct state of spending credential
         // spending_counter = spending_counter.increment();
 
         // removes account
-        ledger = match ledger.remove_account(&account_id) {
-            Ok(ledger) => ledger,
-            Err(err) => {
-                return TestResult::error(format!(
-                    "Remove account operation for id {} should be successful: {:?}",
-                    account_id, err
-                ))
-            }
-        };
+        ledger = ledger.remove_account(&account_id).unwrap();
 
-        assert!(!ledger.exists(&account_id), "account should not exist");
-        assert!(
+        prop_assert!(!ledger.exists(&account_id), "account should not exist");
+        prop_assert!(
             !ledger.iter().any(|(x, _)| *x == account_id),
             "Account with id {:?} should not be listed amongst accounts",
             account_id
         );
-        assert_eq!(
+        prop_assert_eq!(
             initial_total_value,
             ledger.get_total_value().unwrap(),
             "total funds is not equal to initial total_value"
         );
 
-        //Account state is should be none
-        TestResult::from_bool(ledger.get_state(&account_id).is_err())
-    }
+        // Account state should be none
 
-    fn test_total_value(expected: Value, actual: Value) -> TestResult {
-        if actual == expected {
-            TestResult::passed()
-        } else {
-            TestResult::error(format!(
-                "Wrong total value expected {} but got {}",
-                expected, actual
-            ))
-        }
+        prop_assert!(ledger.get_state(&account_id).is_err());
     }
 
     #[proptest]
@@ -615,5 +537,81 @@ mod tests {
         assert!(ledger
             .add_value_or_account(&TestGen::identifier(), Value(10), ())
             .is_ok());
+    }
+}
+
+mod prop_impl {
+    use proptest::collection::{hash_map, vec};
+    use proptest::prelude::*;
+
+    use crate::account::{Identifier, Ledger};
+    use crate::certificate::PoolRegistration;
+    use crate::testing::utils::proptest::random_non_zero_subset;
+    use crate::testing::{average_value, maybe_average_value};
+    use crate::tokens::identifier::TokenIdentifier;
+
+    use super::DelegationType;
+
+    fn ledger_strat() -> impl Strategy<Value = Ledger> {
+        // this differs from quickcheck impl:
+        //
+        // quickcheck impl uses an arbitrary usize, but in practice it doesn't ever come close to
+        // usize::MAX
+        //
+        // proptest will actually try to use usize::MAX if using any::<usize>() as a strategy,
+        // which causes collections to fail to allocate
+        (1..100usize, 0..100usize, 0..100usize).prop_flat_map(
+            |(num_accounts, mut num_pools, num_tokens)| {
+                num_pools = num_pools % num_accounts + 1;
+                let ids_and_values = hash_map(any::<Identifier>(), average_value(), num_accounts);
+                let stake_pools = vec(any::<PoolRegistration>(), num_pools);
+                let tokens = hash_map(any::<TokenIdentifier>(), maybe_average_value(), num_tokens);
+                let random_stake_pool_indices = vec(0..num_pools, num_accounts);
+                (
+                    ids_and_values,
+                    stake_pools,
+                    tokens,
+                    random_stake_pool_indices,
+                )
+                    .prop_flat_map(
+                        |(ids_and_values, stake_pools, tokens, indices)| {
+                            let random_ids = random_non_zero_subset(Just(ids_and_values.clone()));
+                            let mut ledger = Ledger::new();
+                            for (account_id, value) in &ids_and_values {
+                                ledger =
+                                    ledger.add_account(account_id.clone(), *value, ()).unwrap();
+
+                                for (token, value) in &tokens {
+                                    if let Some(value) = value {
+                                        ledger = ledger
+                                            .token_add(account_id, token.clone(), *value)
+                                            .unwrap();
+                                    }
+                                }
+                            }
+
+                            (random_ids, Just(ledger)).prop_map(move |(random_ids, mut ledger)| {
+                                for (i, (account_id, _)) in random_ids.iter().enumerate() {
+                                    let index = indices[i];
+                                    let pool_id = stake_pools.get(index).unwrap().to_id();
+                                    ledger = ledger
+                                        .set_delegation(account_id, &DelegationType::Full(pool_id))
+                                        .unwrap()
+                                }
+                                ledger
+                            })
+                        },
+                    )
+            },
+        )
+    }
+
+    impl Arbitrary for Ledger {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            ledger_strat().boxed()
+        }
     }
 }

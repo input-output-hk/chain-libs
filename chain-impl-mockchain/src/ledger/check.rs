@@ -241,23 +241,4 @@ mod tests {
         let result = valid_stake_owner_delegation_transaction(&tx.as_slice());
         prop_assert_eq!(result.is_ok(), is_valid);
     }
-
-    /*
-    #[quickcheck]
-    pub fn test_valid_pool_retirement_certificate(
-        cert: certificate::PoolOwnersSigned<T>,
-    ) -> TestResult {
-        let is_valid = cert.signatures.len() > 0 && cert.signatures.len() < 256;
-        let result = valid_pool_retirement_certificate(&cert);
-        to_quickchek_result(result, is_valid)
-    }
-    #[quickcheck]
-    pub fn test_valid_pool_update_certificate(
-        cert: certificate::PoolOwnersSigned<certificate::PoolUpdate>,
-    ) -> TestResult {
-        let is_valid = cert.signatures.len() > 0 && cert.signatures.len() < 256;
-        let result = valid_pool_update_certificate(&cert);
-        to_quickchek_result(result, is_valid)
-    }
-    */
 }

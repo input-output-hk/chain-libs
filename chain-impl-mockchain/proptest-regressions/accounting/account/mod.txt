@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 9e84588c1a387103d3e49c1884f583c905f5e83840f990bebe5db44c4918aed7 # shrinks to input = _AccountLedgerTestArgs { ledger: [(Identifier(0000000000000000000000000000000000000000000000000000000000000000), AccountState { spending: SpendingCounterIncreasing { nexts: [SpendingCounter(0), SpendingCounter(536870912), SpendingCounter(1073741824), SpendingCounter(1610612736), SpendingCounter(2147483648), SpendingCounter(2684354560), SpendingCounter(3221225472), SpendingCounter(3758096384)] }, delegation: Full($hash_ty(0xdef6b6812bbaccc0dd7c32b1996c10bf312b8dd64a1895f8f65aa2caa5471c4d)), value: Value(253), tokens: Hamt { root: Node { bitmap: SmallBitmap 00000000000000000000000000000000, children: [] }, hasher: PhantomData }, last_rewards: LastRewards { epoch: 0, reward: Value(0) }, evm_state: AccountState { storage: Trie(Hamt { root: Node { bitmap: SmallBitmap 00000000000000000000000000000000, children: [] }, hasher: PhantomData }), code: [], nonce: 0 }, extra: () })], account_id: Identifier(0000000000000000000000000000000000000000000000000000000000000001), value: Value(6148914691236517121), stake_pool_id: $hash_ty(0x0000000000000000000000000000000000000000000000000000000000000000) }

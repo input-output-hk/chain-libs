@@ -74,6 +74,15 @@ impl Value {
     pub fn bytes(self) -> [u8; VALUE_SERIALIZED_SIZE] {
         self.0.to_be_bytes()
     }
+
+    #[cfg(any(test, feature = "property-test-api"))]
+    pub fn non_zero_strategy() -> impl proptest::strategy::Strategy<Value = Self> {
+        use std::num::NonZeroU64;
+
+        use proptest::prelude::*;
+
+        any::<NonZeroU64>().prop_map(|n| Self(n.into()))
+    }
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]

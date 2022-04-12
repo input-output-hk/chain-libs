@@ -1,7 +1,5 @@
 use crate::block::Header;
 #[cfg(test)]
-use crate::header::HeaderDesc;
-#[cfg(test)]
 use crate::testing::serialization::serialization_bijection_prop;
 use crate::{
     block::{Block, BlockVersion, HeaderRaw},
@@ -19,22 +17,22 @@ use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 
 #[proptest]
-fn headerraw_serialization_bijection(b: HeaderRaw) {
+fn headerraw_serialization_bijection(#[allow(dead_code)] b: HeaderRaw) {
     serialization_bijection_prop(b);
 }
 
 #[proptest]
-fn header_serialization_bijection(b: Header) {
+fn header_serialization_bijection(#[allow(dead_code)] b: Header) {
     serialization_bijection_prop(b);
 }
 
 #[proptest]
-fn block_serialization_bijection(b: Block) {
+fn block_serialization_bijection(#[allow(dead_code)] b: Block) {
     serialization_bijection_prop(b);
 }
 
 #[proptest]
-fn header_properties(block: Block) {
+fn header_properties(#[allow(dead_code)] block: Block) {
     use chain_core::property::Header as Prop;
     let header = block.header.clone();
 
@@ -57,7 +55,10 @@ fn header_properties(block: Block) {
 // TODO: add a separate test with headers with correct content size to stress hash
 // checking when tests are migrated to proptest
 #[proptest]
-fn inconsistent_block_deserialization(header: Header, contents: Contents) {
+fn inconsistent_block_deserialization(
+    #[allow(dead_code)] header: Header,
+    #[allow(dead_code)] contents: Contents,
+) {
     let (content_hash, content_size) = contents.compute_hash_size();
 
     let maybe_block = Block {
@@ -73,10 +74,6 @@ fn inconsistent_block_deserialization(header: Header, contents: Contents) {
     prop_assert_eq!(should_err, block.is_err());
 }
 
-#[cfg(test)]
-fn are_desc_equal(left: HeaderDesc, right: HeaderDesc) -> bool {
-    left.id == right.id
-}
 
 impl Arbitrary for HeaderRaw {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
