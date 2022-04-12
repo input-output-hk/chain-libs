@@ -216,7 +216,6 @@ impl<'a> From<&'a Certificate> for CertificatePayload {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 #[cfg_attr(
     any(test, feature = "property-test-api"),
@@ -351,24 +350,30 @@ pub enum SignedCertificate {
 mod tests {
     use super::*;
     use proptest::prelude::*;
-    use test_strategy::proptest;
 
-    #[proptest]
-    fn needs_auth(certificate: Certificate) {
-        let expected_result = match certificate {
-            Certificate::PoolRegistration(_) => true,
-            Certificate::PoolUpdate(_) => true,
-            Certificate::PoolRetirement(_) => true,
-            Certificate::StakeDelegation(_) => true,
-            Certificate::OwnerStakeDelegation(_) => false,
-            Certificate::VotePlan(_) => true,
-            Certificate::VoteCast(_) => false,
-            Certificate::VoteTally(_) => true,
-            Certificate::UpdateProposal(_) => true,
-            Certificate::UpdateVote(_) => true,
-            Certificate::MintToken(_) => false,
-            Certificate::EvmMapping(_) => true,
-        };
-        prop_assert_eq!(certificate.need_auth(), expected_result);
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 100,
+            max_flat_map_regens: 100,
+            ..Default::default()
+        })]
+        #[test]
+        fn needs_auth(certificate in any::<Certificate>()) {
+            let expected_result = match certificate {
+                Certificate::PoolRegistration(_) => true,
+                Certificate::PoolUpdate(_) => true,
+                Certificate::PoolRetirement(_) => true,
+                Certificate::StakeDelegation(_) => true,
+                Certificate::OwnerStakeDelegation(_) => false,
+                Certificate::VotePlan(_) => true,
+                Certificate::VoteCast(_) => false,
+                Certificate::VoteTally(_) => true,
+                Certificate::UpdateProposal(_) => true,
+                Certificate::UpdateVote(_) => true,
+                Certificate::MintToken(_) => false,
+                Certificate::EvmMapping(_) => true,
+            };
+            prop_assert_eq!(certificate.need_auth(), expected_result);
+        }
     }
 }
