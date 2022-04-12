@@ -42,7 +42,7 @@ pub struct AddressMapping {
     jor_to_evm: Hamt<DefaultHasher, JorAddress, EvmAddress>,
 }
 
-fn transfrom_evm_to_jor(evm_id: &EvmAddress) -> JorAddress {
+fn transform_evm_to_jor(evm_id: &EvmAddress) -> JorAddress {
     let mut data = [0u8; EvmAddress::len_bytes() + 3];
     data[0..3].copy_from_slice(b"evm");
     data[3..].copy_from_slice(evm_id.as_bytes());
@@ -63,7 +63,7 @@ impl AddressMapping {
     fn jor_address(&self, evm_id: &EvmAddress) -> JorAddress {
         match self.evm_to_jor.lookup(evm_id).cloned() {
             Some(jor_address) => jor_address,
-            None => transfrom_evm_to_jor(evm_id),
+            None => transform_evm_to_jor(evm_id),
         }
     }
 
@@ -90,7 +90,7 @@ impl AddressMapping {
             .map_err(|_| Error::ExistingMapping(jor_id.clone(), evm_id))?;
 
         // should update and move account evm account state
-        let old_jor_id = transfrom_evm_to_jor(&evm_id);
+        let old_jor_id = transform_evm_to_jor(&evm_id);
         accounts = accounts.evm_move_state(jor_id, &old_jor_id)?;
 
         self.evm_to_jor = evm_to_jor;
@@ -406,7 +406,7 @@ mod test {
         fn address_transformation_test(evm_rand_seed: u64) -> bool {
             let evm_id = EvmAddress::from_low_u64_be(evm_rand_seed);
 
-            transfrom_evm_to_jor(&evm_id);
+            transform_evm_to_jor(&evm_id);
             true
         }
     }
@@ -550,7 +550,7 @@ mod test {
         let mut evm = Ledger::new();
         let mut accounts = account::Ledger::new()
             .evm_insert_or_update(
-                transfrom_evm_to_jor(&mapping.evm_address),
+                transform_evm_to_jor(&mapping.evm_address),
                 value,
                 evm_state.clone(),
                 (),
@@ -558,7 +558,7 @@ mod test {
             .unwrap();
 
         assert_eq!(
-            accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
+            accounts.get_state(&transform_evm_to_jor(&mapping.evm_address)),
             Ok(&JorAccount::new_evm(evm_state.clone(), value, ()))
         );
 
@@ -609,7 +609,7 @@ mod test {
         let mut evm = Ledger::new();
         let mut accounts = account::Ledger::new()
             .evm_insert_or_update(
-                transfrom_evm_to_jor(&mapping.evm_address),
+                transform_evm_to_jor(&mapping.evm_address),
                 value1,
                 evm_state.clone(),
                 (),
@@ -619,7 +619,7 @@ mod test {
             .unwrap();
 
         assert_eq!(
-            accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
+            accounts.get_state(&transform_evm_to_jor(&mapping.evm_address)),
             Ok(&JorAccount::new_evm(evm_state.clone(), value1, ()))
         );
 
@@ -636,7 +636,7 @@ mod test {
         (accounts, evm) = Ledger::apply_map_accounts(evm, accounts, &mapping).unwrap();
 
         assert_eq!(
-            accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
+            accounts.get_state(&transform_evm_to_jor(&mapping.evm_address)),
             Err(LedgerError::NonExistent)
         );
 
@@ -688,7 +688,7 @@ mod test {
         let evm = Ledger::new();
         let accounts = account::Ledger::new()
             .evm_insert_or_update(
-                transfrom_evm_to_jor(&mapping.evm_address),
+                transform_evm_to_jor(&mapping.evm_address),
                 value1,
                 evm_state1.clone(),
                 (),
@@ -698,7 +698,7 @@ mod test {
             .unwrap();
 
         assert_eq!(
-            accounts.get_state(&transfrom_evm_to_jor(&mapping.evm_address)),
+            accounts.get_state(&transform_evm_to_jor(&mapping.evm_address)),
             Ok(&JorAccount::new_evm(evm_state1, value1, ()))
         );
 
@@ -876,7 +876,7 @@ mod test {
             );
 
             assert_eq!(
-                accounts.get_state(&transfrom_evm_to_jor(&evm_address2)),
+                accounts.get_state(&transform_evm_to_jor(&evm_address2)),
                 Ok(&JorAccount::new(value2, ()))
             );
         }
@@ -1185,7 +1185,7 @@ mod test {
 
             if config == chain_evm::Config::Frontier {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
@@ -1198,7 +1198,7 @@ mod test {
                 );
             } else {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
@@ -1282,12 +1282,12 @@ mod test {
 
             if config == chain_evm::Config::Frontier {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Err(LedgerError::NonExistent)
                 );
             } else {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
@@ -1373,7 +1373,7 @@ mod test {
 
             if config == chain_evm::Config::Frontier {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
@@ -1386,7 +1386,7 @@ mod test {
                 );
             } else {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
@@ -1471,12 +1471,12 @@ mod test {
 
             if config == chain_evm::Config::Frontier {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Err(LedgerError::NonExistent)
                 );
             } else {
                 assert_eq!(
-                    accounts.get_state(&transfrom_evm_to_jor(&contract_address)),
+                    accounts.get_state(&transform_evm_to_jor(&contract_address)),
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
