@@ -849,10 +849,7 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address1),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address1), account_id);
 
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
@@ -942,15 +939,9 @@ mod test {
                 Ok(&JorAccount::new(value2, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address1),
-                account_id1.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address1), account_id1);
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address2),
-                account_id2.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address2), account_id2);
 
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
@@ -1037,15 +1028,9 @@ mod test {
                 Ok(&JorAccount::new(value2, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address1),
-                account_id1.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address1), account_id1);
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address2),
-                account_id2.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address2), account_id2);
 
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
@@ -1119,15 +1104,9 @@ mod test {
                 Ok(&JorAccount::new(value2, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address1),
-                account_id1.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address1), account_id1);
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address2),
-                account_id2.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address2), account_id2);
 
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
@@ -1188,10 +1167,7 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
@@ -1288,10 +1264,7 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
@@ -1381,10 +1354,7 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
@@ -1482,10 +1452,7 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
@@ -1574,15 +1541,12 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1633,15 +1597,12 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1692,15 +1653,12 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code,
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
@@ -1752,15 +1710,12 @@ mod test {
                 Ok(&JorAccount::new(value1, ()))
             );
 
-            assert_eq!(
-                evm.address_mapping.jor_address(&evm_address),
-                account_id.clone()
-            );
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code,
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
