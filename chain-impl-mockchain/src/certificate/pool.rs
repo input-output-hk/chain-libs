@@ -5,10 +5,9 @@ use crate::transaction::{
     AccountIdentifier, Payload, PayloadAuthData, PayloadData, PayloadSlice,
     SingleAccountBindingSignature, TransactionBindingAuthData,
 };
-use chain_core::property::WriteError;
 use chain_core::{
     packer::Codec,
-    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize},
+    property::{Deserialize, DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 use chain_crypto::{digest::DigestOf, Blake2b256, Ed25519, PublicKey, Verification};
 use chain_time::{DurationSeconds, TimeOffsetSeconds};
@@ -29,6 +28,10 @@ pub type IndexSignatures = Vec<(u8, SingleAccountBindingSignature)>;
 
 /// Pool information
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolRegistration {
     /// A random value, for user purpose similar to a UUID.
     /// it may not be unique over a blockchain, so shouldn't be used a unique identifier
@@ -53,6 +56,10 @@ pub struct PoolRegistration {
 
 /// Permission system related to the pool
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolPermissions(u64);
 
 pub type ManagementThreshold = u8;
@@ -192,12 +199,20 @@ impl Deserialize for PoolRetirement {
 }
 
 impl Serialize for PoolUpdate {
+    fn serialized_size(&self) -> usize {
+        self.serialize().as_slice().len()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
 }
 
 impl Serialize for PoolRetirement {
+    fn serialized_size(&self) -> usize {
+        self.serialize().as_slice().len()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }
@@ -254,6 +269,10 @@ impl Payload for PoolRetirement {
 }
 
 impl Serialize for PoolRegistration {
+    fn serialized_size(&self) -> usize {
+        self.serialize().as_slice().len()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_bytes(self.serialize().as_slice())
     }

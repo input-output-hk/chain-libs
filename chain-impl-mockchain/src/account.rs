@@ -16,6 +16,10 @@ pub type Witness = Signature<WitnessAccountData, AccountAlg>;
 
 /// Account Identifier (also used as Public Key)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Identifier(PublicKey<AccountAlg>);
 
 impl From<PublicKey<AccountAlg>> for Identifier {
@@ -37,6 +41,10 @@ impl AsRef<PublicKey<AccountAlg>> for Identifier {
 }
 
 impl Serialize for Identifier {
+    fn serialized_size(&self) -> usize {
+        self.0.as_ref().len()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         serialize_public_key(&self.0, codec)
     }
@@ -60,13 +68,23 @@ impl std::fmt::Display for Identifier {
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
     use super::*;
+    #[cfg(test)]
+    use crate::testing::serialization::serialization_bijection;
     use chain_crypto::{Ed25519, KeyPair};
+    #[cfg(test)]
+    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
 
     impl Arbitrary for Identifier {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let kp: KeyPair<Ed25519> = Arbitrary::arbitrary(g);
             Identifier::from(kp.into_keys().1)
+        }
+    }
+
+    quickcheck! {
+        fn identifier_serialization_bijection(id: Identifier) -> TestResult {
+            serialization_bijection(id)
         }
     }
 }

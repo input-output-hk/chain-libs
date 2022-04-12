@@ -8,6 +8,10 @@ use thiserror::Error;
 
 /// Unspent transaction value.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Value(pub u64);
 
 const VALUE_SERIALIZED_SIZE: usize = 8;
@@ -122,6 +126,10 @@ impl Deserialize for Value {
 }
 
 impl Serialize for Value {
+    fn serialized_size(&self) -> usize {
+        Codec::u64_size()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_be_u64(self.0)
     }
