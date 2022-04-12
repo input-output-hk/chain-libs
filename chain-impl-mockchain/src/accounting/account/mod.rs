@@ -372,21 +372,6 @@ mod tests {
     ) -> bool {
         let mut ledger = Ledger::new();
 
-        assert_eq!(
-            ledger.get_state(&account_id1),
-            Err(LedgerError::NonExistent)
-        );
-
-        assert_eq!(
-            ledger.get_state(&account_id2),
-            Err(LedgerError::NonExistent)
-        );
-
-        assert_eq!(
-            ledger.get_state(&account_id3),
-            Err(LedgerError::NonExistent)
-        );
-
         ledger = ledger
             .evm_insert_or_update(account_id1.clone(), value1, evm_state1.clone(), ())
             .unwrap();
