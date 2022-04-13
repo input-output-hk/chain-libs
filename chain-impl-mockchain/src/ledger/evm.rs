@@ -42,6 +42,16 @@ pub struct AddressMapping {
     jor_to_evm: Hamt<DefaultHasher, JorAddress, EvmAddress>,
 }
 
+/// One way transforming procedure from `EvmAddress` to `JorAddress`.
+/// This allows to map any `EvmAddress` to the `JorAddress` before explicit execution of the `EvmMapping` transaction.
+/// Intention - is to have possibility to link an EVM Contarct account with a Jormungandr account.
+///
+/// Algorithm description:
+///  1. Get `evm_address` bytes representation -> evm_address_bytes
+///  2. Append b"evm" bytes prefix to the evm_address_bytes -> bytes_data
+///  3. Calculate hash (pub struct Hash(crypto::Blake2b256) hash) from the bytes_data -> hash_bytes
+///  4. Intialize `jor_address` from the hash_bytes using the original serde procedure.
+///
 fn transform_evm_to_jor(evm_id: &EvmAddress) -> JorAddress {
     let mut data = [0u8; EvmAddress::len_bytes() + 3];
     data[0..3].copy_from_slice(b"evm");
