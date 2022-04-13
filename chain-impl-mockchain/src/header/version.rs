@@ -182,6 +182,7 @@ mod tests {
     }
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
 mod prop_impls {
     use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
 
