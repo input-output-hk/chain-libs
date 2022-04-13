@@ -1,12 +1,16 @@
+use crate::testing::VoteTestGen;
+use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
 use crate::{
     fee::{LinearFee, PerCertificateFee},
+    header::BlockDate,
     testing::{
         builders::StakePoolBuilder,
         ledger::ConfigBuilder,
-        scenario::{prepare_scenario, wallet},
+        scenario::{prepare_scenario, proposal, vote_plan, wallet},
         verifiers::LedgerStateVerifier,
     },
     value::Value,
+    vote::Choice,
 };
 use chain_addr::Discrimination;
 use quickcheck_macros::quickcheck;
@@ -16,6 +20,7 @@ use std::num::NonZeroU64;
 const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
 const STAKE_POOL: &str = "stake_pool";
+const VOTE_PLAN: &str = "fund1";
 
 #[test]
 pub fn per_certificate_fees() {
@@ -238,4 +243,94 @@ fn verify_total_funds_after_transaction_with_fee(fee: u64) {
         .total_value_is(&total_funds)
         .pots()
         .has_fee_equals_to(&Value(fee));
+}
+
+#[quickcheck]
+pub fn vote_cast_fees(constant_fee: u64, coefficient: u64, certificate: u64) {
+    let expected_fees = constant_fee + coefficient + certificate;
+    let favorable = Choice::new(1);
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
+
+    let (mut ledger, controller) = prepare_scenario()
+        .with_config(
+            ConfigBuilder::new()
+                .with_fee(LinearFee::new(constant_fee, coefficient, certificate))
+                .with_rewards(Value(1000)),
+        )
+        .with_initials(vec![wallet(ALICE)
+            .with(1_000)
+            .with_token(voting_token, 1_000)
+            .owns(STAKE_POOL)
+            .committee_member()])
+        .with_vote_plans(vec![vote_plan(VOTE_PLAN)
+            .owner(ALICE)
+            .consecutive_epoch_dates()
+            .with_proposal(
+                proposal(VoteTestGen::external_proposal_id())
+                    .options(3)
+                    .action_off_chain(),
+            )])
+        .build()
+        .unwrap();
+
+    let mut alice = controller.wallet(ALICE).unwrap();
+    let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
+    let proposal = vote_plan.proposal(0);
+
+    controller
+        .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
+        .unwrap();
+    alice.confirm_transaction();
+
+    LedgerStateVerifier::new(ledger.clone().into())
+        .info("fee pot is filled with expected fees amount")
+        .pots()
+        .has_fee_equals_to(&Value(expected_fees));
+
+    LedgerStateVerifier::new(ledger.into())
+        .info("account balance is correct")
+        .address_has_expected_balance(alice.as_account_data(), Value(1000 - expected_fees));
+}
+
+#[quickcheck]
+pub fn vote_tally_fees(constant_fee: u64, coefficient: u64, certificate: u64) {
+    let expected_fees = constant_fee + coefficient + certificate;
+
+    let (mut ledger, controller) = prepare_scenario()
+        .with_config(
+            ConfigBuilder::new()
+                .with_fee(LinearFee::new(constant_fee, coefficient, certificate))
+                .with_rewards(Value(1000)),
+        )
+        .with_initials(vec![wallet(ALICE)
+            .with(1_000)
+            .owns(STAKE_POOL)
+            .committee_member()])
+        .with_vote_plans(vec![vote_plan(VOTE_PLAN)
+            .owner(ALICE)
+            .consecutive_epoch_dates()])
+        .build()
+        .unwrap();
+
+    let mut alice = controller.wallet(ALICE).unwrap();
+    let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
+
+    ledger.fast_forward_to(BlockDate {
+        epoch: 1,
+        slot_id: 1,
+    });
+
+    controller
+        .tally_vote_public(&alice, &vote_plan, &mut ledger)
+        .unwrap();
+    alice.confirm_transaction();
+
+    LedgerStateVerifier::new(ledger.clone().into())
+        .info("fee pot is filled with expected fees amount")
+        .pots()
+        .has_fee_equals_to(&Value(expected_fees));
+
+    LedgerStateVerifier::new(ledger.into())
+        .info("account balance is correct")
+        .address_has_expected_balance(alice.as_account_data(), Value(1000 - expected_fees));
 }
