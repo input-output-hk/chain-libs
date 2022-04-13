@@ -2,7 +2,7 @@ use crate::block::Header;
 #[cfg(test)]
 use crate::testing::serialization::serialization_bijection_prop;
 use crate::{
-    block::{Block, BlockVersion, HeaderRaw},
+    block::{Block, BlockVersion},
     fragment::{Contents, ContentsBuilder, Fragment},
     header::{BftProof, GenesisPraosProof, HeaderBuilderNew},
 };

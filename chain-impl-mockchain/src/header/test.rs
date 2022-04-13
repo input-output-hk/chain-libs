@@ -19,13 +19,13 @@ fn header_serialization_bijection(#[allow(dead_code)] b: Header) {
 
 impl Arbitrary for BlockVersion {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        BlockVersion::from_u16(u16::arbitrary(g) % 3).unwrap()
+        BlockVersion::from_u8(u8::arbitrary(g) % 3).unwrap()
     }
 }
 
 impl Arbitrary for AnyBlockVersion {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        u16::arbitrary(g).into()
+        u8::arbitrary(g).into()
     }
 }
 

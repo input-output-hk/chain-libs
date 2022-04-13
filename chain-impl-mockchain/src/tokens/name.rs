@@ -63,6 +63,10 @@ impl TryFrom<Vec<u8>> for TokenName {
 }
 
 impl Serialize for TokenName {
+    fn serialized_size(&self) -> usize {
+        Codec::u8_size() + self.0.len()
+    }
+
     fn serialize<W: std::io::Write>(&self, codec: &mut Codec<W>) -> Result<(), WriteError> {
         codec.put_u8(self.0.len() as u8)?;
         codec.put_bytes(self.0.as_slice())
@@ -82,10 +86,10 @@ impl Deserialize for TokenName {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
-    #![allow(unused_imports)] // for proptest macro bug
     use super::*;
-    use proptest::prop_assert_eq;
-    use quickcheck::TestResult;
+    #[cfg(test)]
+    use crate::testing::serialization::serialization_bijection_prop;
+    #[cfg(test)]
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 
@@ -102,9 +106,6 @@ mod tests {
 
     #[proptest]
     fn token_name_serialization_bijection(#[allow(dead_code)] token_name: TokenName) {
-        let token_name_got = token_name.bytes();
-        let mut codec = Codec::new(token_name_got.as_slice());
-        let result = TokenName::deserialize(&mut codec).unwrap();
-        prop_assert_eq!(token_name, result);
+        serialization_bijection_prop(token_name);
     }
 }
