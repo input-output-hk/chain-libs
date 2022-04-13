@@ -753,6 +753,7 @@ mod tests {
     }
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
 mod prop_impl {
     use std::collections::hash_map::DefaultHasher;
 

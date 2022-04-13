@@ -540,6 +540,7 @@ mod tests {
     }
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
 mod prop_impl {
     use proptest::collection::{hash_map, vec};
     use proptest::prelude::*;

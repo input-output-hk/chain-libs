@@ -2974,6 +2974,7 @@ mod tests {
     }
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
 mod prop_impls {
     use chain_time::TimeEra;
     use proptest::prelude::*;
