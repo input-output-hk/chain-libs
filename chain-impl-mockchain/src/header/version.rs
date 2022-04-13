@@ -3,10 +3,6 @@ use crate::chaintypes::ConsensusType;
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub enum AnyBlockVersion {
     Supported(BlockVersion),
     Unsupported(u8),
@@ -160,7 +156,8 @@ mod tests {
     #[proptest]
     fn conversion_u8(block_version: AnyBlockVersion) {
         let bytes: u8 = block_version.into();
-        let new_block_version: AnyBlockVersion = AnyBlockVersion::from(bytes);
+        let new_block_version = AnyBlockVersion::from(bytes);
+        println!("{:?}, {:?}", bytes, new_block_version);
         prop_assert_eq!(block_version, new_block_version);
     }
 
@@ -182,5 +179,20 @@ mod tests {
             BlockVersion::KesVrfproof.to_consensus_type(),
             Some(ConsensusType::GenesisPraos)
         );
+    }
+}
+
+mod prop_impls {
+    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+    use super::AnyBlockVersion;
+
+    impl Arbitrary for AnyBlockVersion {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<u8>, fn(u8) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<u8>().prop_map(From::from)
+        }
     }
 }

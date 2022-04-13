@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+xx 9c670f08e4541eb1052f202a655751f307e01a27373341c8eed752ad5b11d805 # shrinks to input = _ConversionU8Args { block_version: Unsupported(0) }
