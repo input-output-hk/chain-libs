@@ -16,10 +16,6 @@ use proptest::prop_assert_eq;
 use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 
-#[proptest]
-fn headerraw_serialization_bijection(#[allow(dead_code)] b: HeaderRaw) {
-    serialization_bijection_prop(b);
-}
 
 #[proptest]
 fn header_serialization_bijection(#[allow(dead_code)] b: Header) {
@@ -72,18 +68,6 @@ fn inconsistent_block_deserialization(
     let should_err =
         content_hash != header.block_content_hash() || content_size != header.block_content_size();
     prop_assert_eq!(should_err, block.is_err());
-}
-
-
-impl Arbitrary for HeaderRaw {
-    fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        let len = u16::arbitrary(g);
-        let mut v = Vec::new();
-        for _ in 0..len {
-            v.push(u8::arbitrary(g))
-        }
-        HeaderRaw(v)
-    }
 }
 
 impl Arbitrary for Contents {
@@ -144,20 +128,11 @@ mod prop_impl {
 
     use crate::block::{
         BftProof, Block, BlockDate, BlockVersion, ChainLength, Contents, ContentsBuilder,
-        GenesisPraosProof, HeaderRaw,
+        GenesisPraosProof,
     };
     use crate::fragment::Fragment;
     use crate::header::HeaderBuilderNew;
     use crate::key::Hash;
-
-    impl Arbitrary for HeaderRaw {
-        type Parameters = ();
-        type Strategy = Map<VecStrategy<StrategyFor<u8>>, fn(Vec<u8>) -> Self>;
-
-        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            vec(any::<u8>(), 0..(u16::MAX as usize)).prop_map(Self)
-        }
-    }
 
     prop_compose! {
         fn block_strategy()(

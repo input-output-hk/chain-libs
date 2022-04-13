@@ -110,10 +110,9 @@ impl Deserialize for MintingPolicy {
 mod tests {
     use super::*;
     #[cfg(test)]
-    use crate::testing::serialization::serialization_bijection;
-    #[cfg(test)]
-    use quickcheck::TestResult;
+    use crate::testing::serialization::serialization_bijection_prop;
     use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for MintingPolicy {
         fn arbitrary<G: Gen>(_g: &mut G) -> Self {
@@ -121,9 +120,8 @@ mod tests {
         }
     }
 
-    quickcheck! {
-        fn minting_policy_serialization_bijection(policy: MintingPolicy) -> TestResult {
-            serialization_bijection(policy)
-        }
+    #[proptest]
+    fn minting_policy_serialization_bijection(#[allow(dead_code)] policy: MintingPolicy) {
+        serialization_bijection_prop(policy);
     }
 }

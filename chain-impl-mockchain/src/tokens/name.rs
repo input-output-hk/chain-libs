@@ -89,7 +89,6 @@ mod tests {
     use super::*;
     #[cfg(test)]
     use crate::testing::serialization::serialization_bijection_prop;
-    #[cfg(test)]
     use quickcheck::{Arbitrary, Gen};
     use test_strategy::proptest;
 

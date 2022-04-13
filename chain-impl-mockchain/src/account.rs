@@ -69,11 +69,10 @@ impl std::fmt::Display for Identifier {
 mod test {
     use super::*;
     #[cfg(test)]
-    use crate::testing::serialization::serialization_bijection;
+    use crate::testing::serialization::serialization_bijection_prop;
     use chain_crypto::{Ed25519, KeyPair};
-    #[cfg(test)]
-    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for Identifier {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -82,9 +81,8 @@ mod test {
         }
     }
 
-    quickcheck! {
-        fn identifier_serialization_bijection(id: Identifier) -> TestResult {
-            serialization_bijection(id)
-        }
+    #[proptest]
+    fn identifier_serialization_bijection(#[allow(dead_code)] id: Identifier) {
+        serialization_bijection_prop(id);
     }
 }

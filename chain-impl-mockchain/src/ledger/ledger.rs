@@ -344,7 +344,7 @@ impl LedgerParameters {
 }
 
 impl Ledger {
-    #[cfg_attr(feature = "evm", allow(clippy::let_and_return))]
+    #[allow(clippy::let_and_return)]
     pub(crate) fn empty(
         settings: setting::Settings,
         static_params: LedgerStaticParameters,
