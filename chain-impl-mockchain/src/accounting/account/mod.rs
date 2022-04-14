@@ -268,7 +268,7 @@ mod tests {
         value::Value,
     };
 
-    use proptest::{prop_assert, prop_assert_eq, prop_assume};
+    use proptest::{prop_assert, prop_assert_eq};
     use quickcheck::{Arbitrary, Gen};
     use std::collections::HashSet;
     use std::iter;
@@ -338,7 +338,9 @@ mod tests {
         #[strategy(Value::non_zero_strategy())] value: Value,
         stake_pool_id: PoolId,
     ) {
-        prop_assume!(!ledger.exists(&account_id));
+        if !ledger.exists(&account_id) {
+            return Ok(());
+        }
 
         let initial_total_value = ledger.get_total_value().unwrap();
 
@@ -379,10 +381,10 @@ mod tests {
 
         // add value to account
         let result = ledger.add_value(&account_id, value);
-        prop_assume!(!matches!(
-            result,
-            Err(LedgerError::ValueError(ValueError::Overflow))
-        ));
+        let mut ledger = match result {
+            Err(LedgerError::ValueError(ValueError::Overflow)) => return Ok(()),
+            r => r.unwrap(),
+        };
         ledger = ledger.add_value(&account_id, value).unwrap();
 
         // verify total value was increased

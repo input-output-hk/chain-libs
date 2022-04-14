@@ -50,7 +50,11 @@ fn ledger_accepts_correct_transaction(faucet: AddressDataValue, receiver: Addres
     )
 }
 
-#[proptest]
+#[proptest(proptest::prelude::ProptestConfig {
+    cases: 10,
+    max_local_rejects: 1000000,  
+    ..Default::default()
+})]
 fn total_funds_are_const_in_ledger(transaction_data: ArbitraryValidTransactionData) {
     let config = ConfigBuilder::new()
         .with_discrimination(Discrimination::Test)

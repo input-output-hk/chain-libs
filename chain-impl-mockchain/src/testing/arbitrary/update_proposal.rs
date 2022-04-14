@@ -84,7 +84,7 @@ mod pt {
             let leader_id = BftLeaderId(key.to_public());
             (leader_id, key)
         });
-        vec(pair, 1..2).prop_map(|vec| vec.into_iter().collect())
+        vec(pair, 1).prop_map(|vec| vec.into_iter().collect())
     }
 
     prop_compose! {
@@ -108,16 +108,14 @@ mod pt {
 
         fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             proposal_leader_key()
-                .prop_flat_map(|(proposal, leaders, key)| {
-                    random_subset(Just(leaders.clone())).prop_map(move |voters| {
-                        UpdateProposalData {
-                            leaders: leaders.clone().into_iter().collect(),
-                            voters: voters.into_iter().collect(),
-                            proposal: proposal.clone(),
-                            block_signing_key: key.clone(),
-                        }
-                    })
-                })
+                .prop_map(
+                    |(proposal, leaders, block_signing_key)| UpdateProposalData {
+                        proposal,
+                        leaders: leaders.clone().into_iter().collect(),
+                        voters: leaders.into_iter().collect(),
+                        block_signing_key,
+                    },
+                )
                 .boxed()
         }
     }

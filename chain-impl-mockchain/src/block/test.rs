@@ -16,7 +16,6 @@ use proptest::prop_assert_eq;
 use quickcheck::{Arbitrary, Gen};
 use test_strategy::proptest;
 
-
 #[proptest]
 fn header_serialization_bijection(#[allow(dead_code)] b: Header) {
     serialization_bijection_prop(b);

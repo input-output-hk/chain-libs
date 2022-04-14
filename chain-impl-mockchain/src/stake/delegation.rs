@@ -260,6 +260,7 @@ mod tests {
         delegation_state
             .deregister_stake_pool(&stake_pool_id)
             .unwrap();
+        dbg!(&delegation_state);
 
         // deregister stake pool again should throw error
         delegation_state
