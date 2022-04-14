@@ -262,7 +262,7 @@ mod tests {
         prop_assert!(delegation_state.stake_pool_exists(&stake_pool_id));
 
         // deregister stake pool should be ok
-        delegation_state
+        let delegation_state = delegation_state
             .deregister_stake_pool(&stake_pool_id)
             .unwrap();
 
