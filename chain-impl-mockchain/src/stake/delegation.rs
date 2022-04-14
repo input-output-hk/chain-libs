@@ -260,7 +260,6 @@ mod tests {
         delegation_state
             .deregister_stake_pool(&stake_pool_id)
             .unwrap();
-        dbg!(&delegation_state);
 
         // deregister stake pool again should throw error
         delegation_state
@@ -271,9 +270,17 @@ mod tests {
         prop_assert!(!delegation_state.stake_pool_exists(&stake_pool_id));
 
         // stake pool should not be in collection
-        prop_assert!(delegation_state
+        prop_assert!(!delegation_state
             .stake_pool_ids()
             .any(|x| x == stake_pool_id));
+        println!("{:?}, {:?}", x, y);
+    }
+
+    #[test]
+    fn hamt_test() {
+        let hamt = Hamt::<DefaultHasher, i32, i32>::new();
+        let hamt = hamt.insert(1, 2).unwrap();
+        hamt.remove(&10).unwrap();
     }
 }
 
