@@ -194,7 +194,7 @@ mod tests {
 
     use super::*;
     use crate::certificate::PoolRegistration;
-    use proptest::prop_assert;
+    use proptest::{prop_assert, prop_assume};
     use quickcheck::{Arbitrary, Gen};
     use std::iter;
     use test_strategy::proptest;
@@ -236,6 +236,11 @@ mod tests {
 
     #[proptest]
     fn delegation_state_tests(delegation_state: PoolsState, stake_pool: PoolRegistration) {
+        // it's possible (but unlikely) that the randomly generated pool will already contain the
+        // id
+        prop_assume!(delegation_state
+            .stake_pool_ids()
+            .all(|x| x != stake_pool.to_id()));
         // register stake pool first time should be ok
         let delegation_state = delegation_state
             .register_stake_pool(stake_pool.clone())
