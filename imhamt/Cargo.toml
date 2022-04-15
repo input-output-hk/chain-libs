@@ -30,3 +30,6 @@ name = "imhamt"
 
 [features]
 property-test-api = ["proptest", "test-strategy"]
+
+[build-dependencies]
+rustc_version = "0.4"
