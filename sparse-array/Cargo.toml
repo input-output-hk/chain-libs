@@ -6,4 +6,4 @@ edition = "2021"
 
 [dev-dependencies]
 proptest = { git = "https://github.com/input-output-hk/proptest.git" }
-test-strategy = "0.1"
+test-strategy = "0.2"
