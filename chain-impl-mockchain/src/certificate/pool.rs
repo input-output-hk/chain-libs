@@ -187,6 +187,10 @@ pub enum PoolSignature {
     derive(test_strategy::Arbitrary)
 )]
 pub struct PoolOwnersSignature {
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        any(proptest::collection::size_range(1..255).lift())
+    )]
     pub signatures: IndexSignatures,
 }
 

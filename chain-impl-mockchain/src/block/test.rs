@@ -23,19 +23,22 @@ fn header_serialization_bijection(#[allow(dead_code)] b: Header) {
     serialization_bijection_prop(b);
 }
 
-#[proptest]
+#[proptest(ProptestConfig {
+    max_flat_map_regens: 10,
+    ..Default::default()
+})]
 fn block_serialization_bijection(#[allow(dead_code)] b: Block) {
     serialization_bijection_prop(b);
 }
 
 #[proptest(ProptestConfig {
     max_flat_map_regens: 10,
-    cases: 10,
     ..Default::default()
 })]
 fn header_properties(#[allow(dead_code)] block: Block) {
     use chain_core::property::Header as Prop;
     let header = block.header.clone();
+
 
     prop_assert_eq!(header.hash(), block.id());
     prop_assert_eq!(header.id(), block.id());
