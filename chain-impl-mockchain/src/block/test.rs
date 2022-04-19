@@ -1,6 +1,8 @@
 use crate::block::Header;
 #[cfg(test)]
 use crate::testing::serialization::serialization_bijection_prop;
+#[cfg(test)]
+use proptest::prelude::ProptestConfig;
 use crate::{
     block::{Block, BlockVersion},
     fragment::{Contents, ContentsBuilder, Fragment},
@@ -26,7 +28,11 @@ fn block_serialization_bijection(#[allow(dead_code)] b: Block) {
     serialization_bijection_prop(b);
 }
 
-#[proptest]
+#[proptest(ProptestConfig {
+    max_flat_map_regens: 10,
+    cases: 10,
+    ..Default::default()
+})]
 fn header_properties(#[allow(dead_code)] block: Block) {
     use chain_core::property::Header as Prop;
     let header = block.header.clone();
@@ -49,7 +55,11 @@ fn header_properties(#[allow(dead_code)] block: Block) {
 
 // TODO: add a separate test with headers with correct content size to stress hash
 // checking when tests are migrated to proptest
-#[proptest]
+#[proptest(ProptestConfig {
+    max_flat_map_regens: 10,
+    cases: 10,
+    ..Default::default()
+})]
 fn inconsistent_block_deserialization(
     #[allow(dead_code)] header: Header,
     #[allow(dead_code)] contents: Contents,
