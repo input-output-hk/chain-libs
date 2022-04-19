@@ -1,8 +1,6 @@
 use crate::block::Header;
 #[cfg(test)]
 use crate::testing::serialization::serialization_bijection_prop;
-#[cfg(test)]
-use proptest::prelude::ProptestConfig;
 use crate::{
     block::{Block, BlockVersion},
     fragment::{Contents, ContentsBuilder, Fragment},
@@ -13,6 +11,8 @@ use chain_core::{
     packer::Codec,
     property::{Block as _, Deserialize, Serialize},
 };
+#[cfg(test)]
+use proptest::prelude::ProptestConfig;
 #[cfg(test)]
 use proptest::prop_assert_eq;
 use quickcheck::{Arbitrary, Gen};
