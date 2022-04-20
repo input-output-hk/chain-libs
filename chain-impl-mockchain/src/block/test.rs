@@ -39,7 +39,6 @@ fn header_properties(#[allow(dead_code)] block: Block) {
     use chain_core::property::Header as Prop;
     let header = block.header.clone();
 
-
     prop_assert_eq!(header.hash(), block.id());
     prop_assert_eq!(header.id(), block.id());
     prop_assert_eq!(header.parent_id(), block.parent_id());
