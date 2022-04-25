@@ -4,7 +4,7 @@ use chain_core::{
 };
 use ethereum::{
     util::enveloped, EIP1559TransactionMessage, EIP2930TransactionMessage,
-    LegacyTransactionMessage, TransactionV2,
+    LegacyTransactionMessage, TransactionSignature, TransactionV2,
 };
 use ethereum_types::{H256, U256};
 use rlp::{decode, Decodable, DecoderError, Encodable, Rlp, RlpStream};
@@ -23,6 +23,98 @@ impl EthereumTransaction {
     pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
         let bytes = self.rlp_bytes();
         bb.u64(bytes.len() as u64).bytes(&bytes)
+    }
+
+    pub fn hash(&self) -> H256 {
+        match self {
+            Self::Legacy(tx) => tx.hash(),
+            Self::EIP2930(tx) => tx.hash(),
+            Self::EIP1559(tx) => tx.hash(),
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.rlp_bytes().freeze().to_vec()
+    }
+
+    /// Sign the current transaction given an H256-encoded secret key.
+    ///
+    /// Legacy transaction signature as specified in [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
+    pub fn sign(self, secret: &H256) -> EthereumSignedTransaction {
+        let secret = {
+            let mut sk: [u8; 32] = [0u8; 32];
+            sk.copy_from_slice(&secret[0..]);
+            secp256k1::SecretKey::from_slice(&sk).unwrap()
+        };
+        match self {
+            Self::Legacy(tx) => {
+                let sig = super::util::sign_transaction_hash(&tx.hash(), &secret).unwrap();
+                let (recovery_id, sig_bytes) = sig.serialize_compact();
+                let chain_id = tx.chain_id.unwrap();
+                let signature = TransactionSignature::new(
+                    recovery_id.to_i32() as u64 % 2 + chain_id * 2 + 35,
+                    H256::from_slice(&sig_bytes[0..32]),
+                    H256::from_slice(&sig_bytes[32..64]),
+                )
+                .unwrap();
+                EthereumSignedTransaction(TransactionV2::Legacy(ethereum::LegacyTransaction {
+                    nonce: tx.nonce,
+                    gas_price: tx.gas_price,
+                    gas_limit: tx.gas_limit,
+                    action: tx.action,
+                    value: tx.value,
+                    input: tx.input,
+                    signature,
+                }))
+            }
+            Self::EIP2930(tx) => {
+                let sig = super::util::sign_transaction_hash(&tx.hash(), &secret).unwrap();
+                let (recovery_id, sig_bytes) = sig.serialize_compact();
+                let signature = TransactionSignature::new(
+                    recovery_id.to_i32() as u64,
+                    H256::from_slice(&sig_bytes[0..32]),
+                    H256::from_slice(&sig_bytes[32..64]),
+                )
+                .unwrap();
+                EthereumSignedTransaction(TransactionV2::EIP2930(ethereum::EIP2930Transaction {
+                    chain_id: tx.chain_id,
+                    nonce: tx.nonce,
+                    gas_price: tx.gas_price,
+                    gas_limit: tx.gas_limit,
+                    action: tx.action,
+                    value: tx.value,
+                    input: tx.input,
+                    access_list: tx.access_list,
+                    odd_y_parity: recovery_id.to_i32() != 0,
+                    r: *signature.r(),
+                    s: *signature.s(),
+                }))
+            }
+            Self::EIP1559(tx) => {
+                let sig = super::util::sign_transaction_hash(&tx.hash(), &secret).unwrap();
+                let (recovery_id, sig_bytes) = sig.serialize_compact();
+                let signature = TransactionSignature::new(
+                    recovery_id.to_i32() as u64,
+                    H256::from_slice(&sig_bytes[0..32]),
+                    H256::from_slice(&sig_bytes[32..64]),
+                )
+                .unwrap();
+                EthereumSignedTransaction(TransactionV2::EIP1559(ethereum::EIP1559Transaction {
+                    chain_id: tx.chain_id,
+                    nonce: tx.nonce,
+                    max_priority_fee_per_gas: tx.max_priority_fee_per_gas,
+                    max_fee_per_gas: tx.max_fee_per_gas,
+                    gas_limit: tx.gas_limit,
+                    action: tx.action,
+                    value: tx.value,
+                    input: tx.input,
+                    access_list: tx.access_list,
+                    odd_y_parity: recovery_id.to_i32() != 0,
+                    r: *signature.r(),
+                    s: *signature.s(),
+                }))
+            }
+        }
     }
 }
 
@@ -144,6 +236,10 @@ impl EthereumSignedTransaction {
     pub fn serialize_in(&self, bb: ByteBuilder<Self>) -> ByteBuilder<Self> {
         let bytes = self.rlp_bytes();
         bb.u64(bytes.len() as u64).bytes(&bytes)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.rlp_bytes().freeze().to_vec()
     }
 }
 

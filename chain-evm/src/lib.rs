@@ -6,6 +6,7 @@ pub mod machine;
 mod precompiles;
 pub mod state;
 pub mod transaction;
+pub mod util;
 
 #[cfg(test)]
 mod tests;
