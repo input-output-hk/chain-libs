@@ -1,3 +1,4 @@
+use crate::Address;
 use chain_core::{
     packer::Codec,
     property::{Deserialize, ReadError, Serialize, WriteError},
@@ -8,6 +9,11 @@ use ethereum::{
 };
 use ethereum_types::{H256, U256};
 use rlp::{decode, Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use secp256k1::{
+    ecdsa::{RecoverableSignature, RecoveryId},
+    Message,
+};
+use sha3::{Digest, Keccak256};
 use typed_bytes::ByteBuilder;
 
 /// Wrapper type for `ethereum::TransactionV2`, which includes the `EIP1559Transaction`, `EIP2930Transaction`, `LegacyTransaction` variants.
@@ -37,22 +43,27 @@ impl EthereumTransaction {
         self.rlp_bytes().freeze().to_vec()
     }
 
+    pub fn from_bytes(data: &[u8]) -> Result<Self, DecoderError> {
+        let rlp = Rlp::new(data);
+        EthereumTransaction::decode(&rlp)
+    }
+
     /// Sign the current transaction given an H256-encoded secret key.
     ///
     /// Legacy transaction signature as specified in [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
     pub fn sign(self, secret: &H256) -> EthereumSignedTransaction {
-        let secret = {
-            let mut sk: [u8; 32] = [0u8; 32];
-            sk.copy_from_slice(&secret[0..]);
-            secp256k1::SecretKey::from_slice(&sk).unwrap()
-        };
+        let secret = crate::util::Secret::from_hash(secret).unwrap();
         match self {
             Self::Legacy(tx) => {
-                let sig = super::util::sign_transaction_hash(&tx.hash(), &secret).unwrap();
+                let sig = super::util::sign_data_hash(&tx.hash(), &secret).unwrap();
                 let (recovery_id, sig_bytes) = sig.serialize_compact();
-                let chain_id = tx.chain_id.unwrap();
+                let v = if let Some(chain_id) = tx.chain_id {
+                    recovery_id.to_i32() as u64 % 2 + chain_id * 2 + 35
+                } else {
+                    recovery_id.to_i32() as u64 + 27
+                };
                 let signature = TransactionSignature::new(
-                    recovery_id.to_i32() as u64 % 2 + chain_id * 2 + 35,
+                    v,
                     H256::from_slice(&sig_bytes[0..32]),
                     H256::from_slice(&sig_bytes[32..64]),
                 )
@@ -68,7 +79,7 @@ impl EthereumTransaction {
                 }))
             }
             Self::EIP2930(tx) => {
-                let sig = super::util::sign_transaction_hash(&tx.hash(), &secret).unwrap();
+                let sig = super::util::sign_data_hash(&tx.hash(), &secret).unwrap();
                 let (recovery_id, sig_bytes) = sig.serialize_compact();
                 let signature = TransactionSignature::new(
                     recovery_id.to_i32() as u64,
@@ -91,7 +102,7 @@ impl EthereumTransaction {
                 }))
             }
             Self::EIP1559(tx) => {
-                let sig = super::util::sign_transaction_hash(&tx.hash(), &secret).unwrap();
+                let sig = super::util::sign_data_hash(&tx.hash(), &secret).unwrap();
                 let (recovery_id, sig_bytes) = sig.serialize_compact();
                 let signature = TransactionSignature::new(
                     recovery_id.to_i32() as u64,
@@ -240,6 +251,93 @@ impl EthereumSignedTransaction {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         self.rlp_bytes().freeze().to_vec()
+    }
+
+    pub fn from_bytes(data: &[u8]) -> Result<Self, DecoderError> {
+        let rlp = Rlp::new(data);
+        EthereumSignedTransaction::decode(&rlp)
+    }
+
+    pub fn recover(&self) -> Result<Address, secp256k1::Error> {
+        match &self.0 {
+            TransactionV2::Legacy(tx) => {
+                let signature = tx.signature.clone();
+                let recid = RecoveryId::from_i32(signature.v() as i32).unwrap();
+                let r = signature.r().as_fixed_bytes();
+                let s = signature.s().as_fixed_bytes();
+                let mut data = [0u8; 64];
+                for (i, v) in r.iter().enumerate() {
+                    data[i] = *v;
+                }
+                for (i, v) in s.iter().enumerate() {
+                    data[i + 32] = *v;
+                }
+                let signature = RecoverableSignature::from_compact(&data, recid).unwrap();
+                let tx_hash = LegacyTransactionMessage::from(tx.clone()).hash();
+                let msg = Message::from_slice(tx_hash.as_fixed_bytes()).unwrap();
+                let pubkey = signature.recover(&msg)?;
+                let pubkey_bytes = pubkey.serialize_uncompressed();
+                Ok(Address::from_slice(
+                    &Keccak256::digest(&pubkey_bytes[1..]).as_slice()[12..],
+                ))
+            }
+            TransactionV2::EIP2930(tx) => {
+                let recid = RecoveryId::from_i32(1).unwrap();
+                let r = tx.r.as_fixed_bytes();
+                let s = tx.s.as_fixed_bytes();
+                let mut data = [0u8; 64];
+                for (i, v) in r.iter().enumerate() {
+                    data[i] = *v;
+                }
+                for (i, v) in s.iter().enumerate() {
+                    data[i + 32] = *v;
+                }
+                let signature = RecoverableSignature::from_compact(&data, recid).unwrap();
+                let tx_hash = EIP2930TransactionMessage::from(tx.clone()).hash();
+                let msg = Message::from_slice(tx_hash.as_fixed_bytes()).unwrap();
+                let pubkey = signature.recover(&msg)?;
+                let pubkey_bytes = pubkey.serialize_uncompressed();
+                Ok(Address::from_slice(
+                    &Keccak256::digest(&pubkey_bytes[1..]).as_slice()[12..],
+                ))
+            }
+            TransactionV2::EIP1559(tx) => {
+                let recid = RecoveryId::from_i32(1).unwrap();
+                let r = tx.r.as_fixed_bytes();
+                let s = tx.s.as_fixed_bytes();
+                let mut data = [0u8; 64];
+                for (i, v) in r.iter().enumerate() {
+                    data[i] = *v;
+                }
+                for (i, v) in s.iter().enumerate() {
+                    data[i + 32] = *v;
+                }
+                let signature = RecoverableSignature::from_compact(&data, recid).unwrap();
+                let tx_hash = EIP1559TransactionMessage::from(tx.clone()).hash();
+                let msg = Message::from_slice(tx_hash.as_fixed_bytes()).unwrap();
+                let pubkey = signature.recover(&msg)?;
+                let pubkey_bytes = pubkey.serialize_uncompressed();
+                Ok(Address::from_slice(
+                    &Keccak256::digest(&pubkey_bytes[1..]).as_slice()[12..],
+                ))
+            }
+        }
+    }
+}
+
+impl From<EthereumSignedTransaction> for EthereumTransaction {
+    fn from(other: EthereumSignedTransaction) -> Self {
+        match other.0 {
+            TransactionV2::Legacy(tx) => {
+                EthereumTransaction::Legacy(LegacyTransactionMessage::from(tx))
+            }
+            TransactionV2::EIP2930(tx) => {
+                EthereumTransaction::EIP2930(EIP2930TransactionMessage::from(tx))
+            }
+            TransactionV2::EIP1559(tx) => {
+                EthereumTransaction::EIP1559(EIP1559TransactionMessage::from(tx))
+            }
+        }
     }
 }
 

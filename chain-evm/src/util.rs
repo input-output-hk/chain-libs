@@ -1,9 +1,14 @@
+use crate::{
+    transaction::{EthereumSignedTransaction, EthereumTransaction},
+    Address,
+};
 use ethereum_types::H256;
 use evm::ExitError;
-
 use secp256k1::{
-    ecdsa::RecoverableSignature, rand::rngs::ThreadRng, KeyPair, Message, Secp256k1, SecretKey,
+    ecdsa::RecoverableSignature, rand::rngs::ThreadRng, KeyPair, Message, PublicKey, Secp256k1,
+    SecretKey,
 };
+use sha3::{Digest, Keccak256};
 
 pub fn generate_keypair() -> KeyPair {
     let secp = Secp256k1::new();
@@ -11,12 +16,49 @@ pub fn generate_keypair() -> KeyPair {
     KeyPair::new(&secp, &mut rng)
 }
 
-pub fn sign_transaction_hash(
-    tx_hash: &H256,
-    secret: &SecretKey,
-) -> Result<RecoverableSignature, ExitError> {
+pub struct Secret(SecretKey);
+
+impl Secret {
+    pub fn from_hash(data: &H256) -> Result<Self, secp256k1::Error> {
+        Ok(Self(SecretKey::from_slice(data.as_fixed_bytes())?))
+    }
+
+    pub fn from_slice(data: &[u8]) -> Result<Self, secp256k1::Error> {
+        Ok(Self(SecretKey::from_slice(data)?))
+    }
+
+    pub fn seckey(&self) -> &SecretKey {
+        &self.0
+    }
+
+    pub fn secret_hash(&self) -> H256 {
+        H256::from_slice(&self.0.secret_bytes())
+    }
+
+    pub fn address(&self) -> Address {
+        let pubkey_bytes = PublicKey::from_secret_key_global(&self.0).serialize_uncompressed();
+        Address::from_slice(&Keccak256::digest(&pubkey_bytes[1..]).as_slice()[12..])
+    }
+    pub fn sign(&self, tx: EthereumTransaction) -> EthereumSignedTransaction {
+        tx.sign(&self.secret_hash())
+    }
+}
+
+impl From<&KeyPair> for Secret {
+    fn from(other: &KeyPair) -> Self {
+        Secret(SecretKey::from_keypair(other))
+    }
+}
+
+pub fn create_account_secret() -> Secret {
+    let keypair = generate_keypair();
+    Secret::from(&keypair)
+}
+
+pub fn sign_data_hash(tx_hash: &H256, secret: &Secret) -> Result<RecoverableSignature, ExitError> {
     let s = Secp256k1::new();
     let h = Message::from_slice(tx_hash.as_fixed_bytes()).map_err(|_| ExitError::InvalidCode)?;
+    let secret = secret.seckey();
     Ok(s.sign_ecdsa_recoverable(&h, secret))
 }
 
@@ -24,7 +66,7 @@ pub fn sign_transaction_hash(
 mod tests {
     use super::*;
     use ethereum::LegacyTransactionMessage;
-    use ethereum_types::{H160, U256};
+    use ethereum_types::U256;
     use secp256k1::PublicKey;
     use std::str::FromStr;
 
@@ -45,13 +87,13 @@ mod tests {
                 chain_id: Some(TEST_CHAIN_ID),
             });
         let tx_hash = unsigned_tx.hash();
-        let seckey = SecretKey::from_slice(&keypair.secret_bytes()).unwrap();
-        let signature = sign_transaction_hash(&tx_hash, &seckey).unwrap();
+        let secret = Secret::from_slice(&keypair.secret_bytes()).unwrap();
+        let signature = sign_data_hash(&tx_hash, &secret).unwrap();
 
         let msg = Message::from_slice(tx_hash.as_fixed_bytes())
             .map_err(|_| ExitError::InvalidCode)
             .unwrap();
-        let pubkey = PublicKey::from_secret_key_global(&seckey);
+        let pubkey = PublicKey::from_secret_key_global(secret.seckey());
 
         assert_eq!(signature.recover(&msg), Ok(pubkey))
     }
@@ -65,7 +107,7 @@ mod tests {
                 gas_price: U256::from(20_u64 * 10_u64.pow(9)),
                 gas_limit: U256::from(21_000_u64),
                 action: ethereum::TransactionAction::Call(
-                    H160::from_str("0x3535353535353535353535353535353535353535").unwrap(),
+                    Address::from_str("0x3535353535353535353535353535353535353535").unwrap(),
                 ),
                 value: U256::from(10u64.pow(18)),
                 input: Vec::new(),
@@ -86,11 +128,10 @@ mod tests {
         );
 
         // given a secret key
-        let seckey = SecretKey::from_slice(&[0x46; 32]).unwrap();
-        let secret = H256::from_slice(&seckey.secret_bytes());
+        let secret = Secret::from_slice(&[0x46; 32]).unwrap();
 
         // the transaction signature is
-        let signature = sign_transaction_hash(&tx_hash, &seckey).unwrap();
+        let signature = sign_data_hash(&tx_hash, &secret).unwrap();
         let (recovery_id, _signature_bytes) = signature.serialize_compact();
         assert_eq!(
             recovery_id.to_i32() as u64 % 2 + TEST_CHAIN_ID * 2 + 35,
@@ -98,10 +139,51 @@ mod tests {
         );
 
         // test signed transaction
-        let signed = unsigned_tx.sign(&secret);
+        let signed = unsigned_tx.sign(&secret.secret_hash());
         assert_eq!(
             hex::encode(signed.to_bytes().as_slice()),
             "f86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83"
         );
+    }
+
+    #[test]
+    fn test_recovery_of_legacy_signed_transaction() {
+        let raw_signed_tx = "f86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83";
+        let signed =
+            EthereumSignedTransaction::from_bytes(&hex::decode(raw_signed_tx).unwrap()).unwrap();
+        let tx_hash = EthereumTransaction::from(signed).hash();
+        assert_eq!(
+            format!("{:x}", tx_hash),
+            "daf5a779ae972f972197303d7b574746c7ef83eadac0f2791ad23db92e4c8e53"
+        );
+    }
+
+    #[test]
+    fn test_decoding_rlp_legacy_signed_transaction() {
+        let raw_signed_tx = "f86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83";
+        let signed =
+            EthereumSignedTransaction::from_bytes(&hex::decode(raw_signed_tx).unwrap()).unwrap();
+        assert_eq!(
+            hex::encode(signed.to_bytes().as_slice()),
+            "f86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83"
+        );
+    }
+
+    #[test]
+    fn account_secret_has_valid_address() {
+        // example taken from https://web3js.readthedocs.io/en/v1.7.3/web3-eth-accounts.html#example
+        //address: "0xb8CE9ab6943e0eCED004cDe8e3bBed6568B2Fa01",
+        //privateKey: "0x348ce564d427a3311b6536bbcff9390d69395b06ed6c486954e971d960fe8709",
+        let mut secret_bytes = [0u8; 32];
+        hex::decode_to_slice(
+            "348ce564d427a3311b6536bbcff9390d69395b06ed6c486954e971d960fe8709",
+            &mut secret_bytes,
+        )
+        .unwrap();
+        let secret = Secret::from_slice(&secret_bytes).unwrap();
+        assert_eq!(
+            secret.address(),
+            Address::from_str("b8CE9ab6943e0eCED004cDe8e3bBed6568B2Fa01").unwrap()
+        )
     }
 }
