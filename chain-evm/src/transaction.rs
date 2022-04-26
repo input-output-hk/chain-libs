@@ -262,20 +262,15 @@ impl EthereumSignedTransaction {
         match &self.0 {
             TransactionV2::Legacy(tx) => {
                 let signature = tx.signature.clone();
-                let recid = if let Some(chain_id) = signature.chain_id() {
-                    RecoveryId::from_i32(signature.v() as i32 - 35 - chain_id as i32 * 2).unwrap()
-                } else {
-                    RecoveryId::from_i32(signature.v() as i32 - 27).unwrap()
+                let recid = RecoveryId::from_i32(signature.standard_v() as i32).unwrap();
+                let data = {
+                    let r = signature.r().as_fixed_bytes();
+                    let s = signature.s().as_fixed_bytes();
+                    let mut data = [0u8; 64];
+                    data[..32].copy_from_slice(&r[..]);
+                    data[32..].copy_from_slice(&s[..]);
+                    data
                 };
-                let r = signature.r().as_fixed_bytes();
-                let s = signature.s().as_fixed_bytes();
-                let mut data = [0u8; 64];
-                for (i, v) in r.iter().enumerate() {
-                    data[i] = *v;
-                }
-                for (i, v) in s.iter().enumerate() {
-                    data[i + 32] = *v;
-                }
                 let signature = RecoverableSignature::from_compact(&data, recid).unwrap();
                 let tx_hash = LegacyTransactionMessage::from(tx.clone()).hash();
                 let msg = Message::from_slice(tx_hash.as_fixed_bytes()).unwrap();
@@ -287,15 +282,14 @@ impl EthereumSignedTransaction {
             }
             TransactionV2::EIP2930(tx) => {
                 let recid = RecoveryId::from_i32(tx.odd_y_parity as i32).unwrap();
-                let r = tx.r.as_fixed_bytes();
-                let s = tx.s.as_fixed_bytes();
-                let mut data = [0u8; 64];
-                for (i, v) in r.iter().enumerate() {
-                    data[i] = *v;
-                }
-                for (i, v) in s.iter().enumerate() {
-                    data[i + 32] = *v;
-                }
+                let data = {
+                    let r = tx.r.as_fixed_bytes();
+                    let s = tx.s.as_fixed_bytes();
+                    let mut data = [0u8; 64];
+                    data[..32].copy_from_slice(&r[..]);
+                    data[32..].copy_from_slice(&s[..]);
+                    data
+                };
                 let signature = RecoverableSignature::from_compact(&data, recid).unwrap();
                 let tx_hash = EIP2930TransactionMessage::from(tx.clone()).hash();
                 let msg = Message::from_slice(tx_hash.as_fixed_bytes()).unwrap();
@@ -307,15 +301,14 @@ impl EthereumSignedTransaction {
             }
             TransactionV2::EIP1559(tx) => {
                 let recid = RecoveryId::from_i32(tx.odd_y_parity as i32).unwrap();
-                let r = tx.r.as_fixed_bytes();
-                let s = tx.s.as_fixed_bytes();
-                let mut data = [0u8; 64];
-                for (i, v) in r.iter().enumerate() {
-                    data[i] = *v;
-                }
-                for (i, v) in s.iter().enumerate() {
-                    data[i + 32] = *v;
-                }
+                let data = {
+                    let r = tx.r.as_fixed_bytes();
+                    let s = tx.s.as_fixed_bytes();
+                    let mut data = [0u8; 64];
+                    data[..32].copy_from_slice(&r[..]);
+                    data[32..].copy_from_slice(&s[..]);
+                    data
+                };
                 let signature = RecoverableSignature::from_compact(&data, recid).unwrap();
                 let tx_hash = EIP1559TransactionMessage::from(tx.clone()).hash();
                 let msg = Message::from_slice(tx_hash.as_fixed_bytes()).unwrap();
