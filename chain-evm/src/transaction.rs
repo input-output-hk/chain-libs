@@ -58,7 +58,7 @@ impl EthereumTransaction {
                 let sig = super::util::sign_data_hash(&tx.hash(), &secret).unwrap();
                 let (recovery_id, sig_bytes) = sig.serialize_compact();
                 let v = if let Some(chain_id) = tx.chain_id {
-                    recovery_id.to_i32() as u64 % 2 + chain_id * 2 + 35
+                    recovery_id.to_i32() as u64 + chain_id * 2 + 35
                 } else {
                     recovery_id.to_i32() as u64 + 27
                 };
@@ -262,7 +262,11 @@ impl EthereumSignedTransaction {
         match &self.0 {
             TransactionV2::Legacy(tx) => {
                 let signature = tx.signature.clone();
-                let recid = RecoveryId::from_i32(signature.v() as i32).unwrap();
+                let recid = if let Some(chain_id) = signature.chain_id() {
+                    RecoveryId::from_i32(signature.v() as i32 - 35 - chain_id as i32 * 2).unwrap()
+                } else {
+                    RecoveryId::from_i32(signature.v() as i32 - 27).unwrap()
+                };
                 let r = signature.r().as_fixed_bytes();
                 let s = signature.s().as_fixed_bytes();
                 let mut data = [0u8; 64];
@@ -282,7 +286,7 @@ impl EthereumSignedTransaction {
                 ))
             }
             TransactionV2::EIP2930(tx) => {
-                let recid = RecoveryId::from_i32(1).unwrap();
+                let recid = RecoveryId::from_i32(tx.odd_y_parity as i32).unwrap();
                 let r = tx.r.as_fixed_bytes();
                 let s = tx.s.as_fixed_bytes();
                 let mut data = [0u8; 64];
@@ -302,7 +306,7 @@ impl EthereumSignedTransaction {
                 ))
             }
             TransactionV2::EIP1559(tx) => {
-                let recid = RecoveryId::from_i32(1).unwrap();
+                let recid = RecoveryId::from_i32(tx.odd_y_parity as i32).unwrap();
                 let r = tx.r.as_fixed_bytes();
                 let s = tx.s.as_fixed_bytes();
                 let mut data = [0u8; 64];

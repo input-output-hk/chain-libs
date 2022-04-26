@@ -133,10 +133,7 @@ mod tests {
         // the transaction signature is
         let signature = sign_data_hash(&tx_hash, &secret).unwrap();
         let (recovery_id, _signature_bytes) = signature.serialize_compact();
-        assert_eq!(
-            recovery_id.to_i32() as u64 % 2 + TEST_CHAIN_ID * 2 + 35,
-            37u64
-        );
+        assert_eq!(recovery_id.to_i32() as u64 + TEST_CHAIN_ID * 2 + 35, 37u64);
 
         // test signed transaction
         let signed = unsigned_tx.sign(&secret.secret_hash());
@@ -151,11 +148,9 @@ mod tests {
         let raw_signed_tx = "f86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83";
         let signed =
             EthereumSignedTransaction::from_bytes(&hex::decode(raw_signed_tx).unwrap()).unwrap();
-        let tx_hash = EthereumTransaction::from(signed).hash();
-        assert_eq!(
-            format!("{:x}", tx_hash),
-            "daf5a779ae972f972197303d7b574746c7ef83eadac0f2791ad23db92e4c8e53"
-        );
+        // given the signing secret key's address
+        let caller = Address::from_str("0x9d8a62f656a8d1615c1294fd71e9cfb3e4855a4f").unwrap();
+        assert_eq!(signed.recover().unwrap(), caller);
     }
 
     #[test]
@@ -171,9 +166,15 @@ mod tests {
 
     #[test]
     fn account_secret_has_valid_address() {
+        // example taken from `test_legacy_transaction_signature` secret
+        let secret = Secret::from_slice(&[0x46; 32]).unwrap();
+        assert_eq!(
+            secret.address(),
+            Address::from_str("0x9d8a62f656a8d1615c1294fd71e9cfb3e4855a4f").unwrap()
+        );
         // example taken from https://web3js.readthedocs.io/en/v1.7.3/web3-eth-accounts.html#example
         //address: "0xb8CE9ab6943e0eCED004cDe8e3bBed6568B2Fa01",
-        //privateKey: "0x348ce564d427a3311b6536bbcff9390d69395b06ed6c486954e971d960fe8709",
+        //privateKey: "0x4646464646464646464646464646464646464646464646464646464646464646",
         let mut secret_bytes = [0u8; 32];
         hex::decode_to_slice(
             "348ce564d427a3311b6536bbcff9390d69395b06ed6c486954e971d960fe8709",
