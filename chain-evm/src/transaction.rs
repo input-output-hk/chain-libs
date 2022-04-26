@@ -240,7 +240,7 @@ impl Deserialize for EthereumTransaction {
 
 /// Wrapper type for `ethereum::TransactionV2`, which includes the `EIP1559Transaction`, `EIP2930Transaction`, `LegacyTransaction` variants.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EthereumSignedTransaction(TransactionV2);
+pub struct EthereumSignedTransaction(pub(crate) TransactionV2);
 
 impl EthereumSignedTransaction {
     /// Serialize the contract into a `ByteBuilder`.

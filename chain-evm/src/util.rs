@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_legacy_transaction_signature() {
-        // This test takes values fount at https://eips.ethereum.org/EIPS/eip-155#example
+        // This test takes values found at https://eips.ethereum.org/EIPS/eip-155#example
         let unsigned_tx =
             crate::transaction::EthereumTransaction::Legacy(LegacyTransactionMessage {
                 nonce: U256::from(9_u64),
@@ -129,11 +129,6 @@ mod tests {
 
         // given a secret key
         let secret = Secret::from_slice(&[0x46; 32]).unwrap();
-
-        // the transaction signature is
-        let signature = sign_data_hash(&tx_hash, &secret).unwrap();
-        let (recovery_id, _signature_bytes) = signature.serialize_compact();
-        assert_eq!(recovery_id.to_i32() as u64 + TEST_CHAIN_ID * 2 + 35, 37u64);
 
         // test signed transaction
         let signed = unsigned_tx.sign(&secret.secret_hash());
@@ -167,6 +162,8 @@ mod tests {
     #[test]
     fn account_secret_has_valid_address() {
         // example taken from `test_legacy_transaction_signature` secret
+        //address: "0x9d8a62f656a8d1615c1294fd71e9cfb3e4855a4f",
+        //privateKey: "0x4646464646464646464646464646464646464646464646464646464646464646",
         let secret = Secret::from_slice(&[0x46; 32]).unwrap();
         assert_eq!(
             secret.address(),
@@ -174,7 +171,7 @@ mod tests {
         );
         // example taken from https://web3js.readthedocs.io/en/v1.7.3/web3-eth-accounts.html#example
         //address: "0xb8CE9ab6943e0eCED004cDe8e3bBed6568B2Fa01",
-        //privateKey: "0x4646464646464646464646464646464646464646464646464646464646464646",
+        //privateKey: "0x348ce564d427a3311b6536bbcff9390d69395b06ed6c486954e971d960fe8709",
         let mut secret_bytes = [0u8; 32];
         hex::decode_to_slice(
             "348ce564d427a3311b6536bbcff9390d69395b06ed6c486954e971d960fe8709",
