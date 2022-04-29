@@ -3,6 +3,7 @@ pub mod config_builder;
 pub mod kind_type;
 pub mod ledger_builder;
 pub mod output;
+pub mod random;
 pub mod transaction;
 pub mod update_proposal;
 pub mod utils;
@@ -21,6 +22,7 @@ use std::cmp;
 pub use transaction::*;
 pub use update_proposal::*;
 pub use wallet::WalletCollection;
+pub use random::*;
 
 impl Arbitrary for Value {
     fn arbitrary<G: Gen>(gen: &mut G) -> Self {

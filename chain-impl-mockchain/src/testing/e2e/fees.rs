@@ -21,6 +21,9 @@ const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
 const STAKE_POOL: &str = "stake_pool";
 const VOTE_PLAN: &str = "fund1";
+const BASIC_REWARD: u64 = 500;
+const BASIC_VOTING_TOKEN_VALUE: u64 = 1000;
+const BASIC_BALANCE: u64 = 1500;
 
 #[test]
 pub fn per_certificate_fees() {
@@ -246,20 +249,20 @@ fn verify_total_funds_after_transaction_with_fee(fee: u64) {
 }
 
 #[quickcheck]
-pub fn vote_cast_fees(constant_fee: u64, coefficient: u64, certificate: u64) {
-    let expected_fees = constant_fee + coefficient + certificate;
+pub fn vote_cast_fees(linear_fee: LinearFee) {
+    let expected_fees = linear_fee.constant + linear_fee.coefficient + linear_fee.certificate;
     let favorable = Choice::new(1);
-    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();//TestGen::token_name();//
 
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new()
-                .with_fee(LinearFee::new(constant_fee, coefficient, certificate))
-                .with_rewards(Value(1000)),
+                .with_fee(linear_fee)
+                .with_rewards(Value(BASIC_REWARD)),
         )
         .with_initials(vec![wallet(ALICE)
-            .with(1_000)
-            .with_token(voting_token, 1_000)
+            .with(BASIC_BALANCE)
+            .with_token(voting_token, BASIC_VOTING_TOKEN_VALUE)
             .owns(STAKE_POOL)
             .committee_member()])
         .with_vote_plans(vec![vote_plan(VOTE_PLAN)
@@ -274,12 +277,15 @@ pub fn vote_cast_fees(constant_fee: u64, coefficient: u64, certificate: u64) {
         .unwrap();
 
     let mut alice = controller.wallet(ALICE).unwrap();
+
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
+
     let proposal = vote_plan.proposal(0);
 
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
         .unwrap();
+
     alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.clone().into())
@@ -289,21 +295,21 @@ pub fn vote_cast_fees(constant_fee: u64, coefficient: u64, certificate: u64) {
 
     LedgerStateVerifier::new(ledger.into())
         .info("account balance is correct")
-        .address_has_expected_balance(alice.as_account_data(), Value(1000 - expected_fees));
+        .address_has_expected_balance(alice.as_account_data(), Value(BASIC_BALANCE - expected_fees));
 }
 
 #[quickcheck]
-pub fn vote_tally_fees(constant_fee: u64, coefficient: u64, certificate: u64) {
-    let expected_fees = constant_fee + coefficient + certificate;
+pub fn vote_tally_fees(linear_fee: LinearFee) {
+    let expected_fees = linear_fee.constant + linear_fee.coefficient + linear_fee.certificate;
 
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
             ConfigBuilder::new()
-                .with_fee(LinearFee::new(constant_fee, coefficient, certificate))
-                .with_rewards(Value(1000)),
+                .with_fee(linear_fee)
+                .with_rewards(Value(BASIC_REWARD)),
         )
         .with_initials(vec![wallet(ALICE)
-            .with(1_000)
+            .with(BASIC_BALANCE)
             .owns(STAKE_POOL)
             .committee_member()])
         .with_vote_plans(vec![vote_plan(VOTE_PLAN)
@@ -332,5 +338,5 @@ pub fn vote_tally_fees(constant_fee: u64, coefficient: u64, certificate: u64) {
 
     LedgerStateVerifier::new(ledger.into())
         .info("account balance is correct")
-        .address_has_expected_balance(alice.as_account_data(), Value(1000 - expected_fees));
+        .address_has_expected_balance(alice.as_account_data(), Value(BASIC_BALANCE - expected_fees));
 }
