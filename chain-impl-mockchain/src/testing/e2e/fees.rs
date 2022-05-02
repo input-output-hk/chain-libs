@@ -252,7 +252,7 @@ fn verify_total_funds_after_transaction_with_fee(fee: u64) {
 pub fn vote_cast_fees(linear_fee: LinearFee) {
     let expected_fees = linear_fee.constant + linear_fee.coefficient + linear_fee.certificate;
     let favorable = Choice::new(1);
-    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();//TestGen::token_name();//
+    let voting_token = TokenName::try_from(vec![0u8; TOKEN_NAME_MAX_SIZE]).unwrap();
 
     let (mut ledger, controller) = prepare_scenario()
         .with_config(
@@ -295,7 +295,10 @@ pub fn vote_cast_fees(linear_fee: LinearFee) {
 
     LedgerStateVerifier::new(ledger.into())
         .info("account balance is correct")
-        .address_has_expected_balance(alice.as_account_data(), Value(BASIC_BALANCE - expected_fees));
+        .address_has_expected_balance(
+            alice.as_account_data(),
+            Value(BASIC_BALANCE - expected_fees),
+        );
 }
 
 #[quickcheck]
@@ -338,5 +341,8 @@ pub fn vote_tally_fees(linear_fee: LinearFee) {
 
     LedgerStateVerifier::new(ledger.into())
         .info("account balance is correct")
-        .address_has_expected_balance(alice.as_account_data(), Value(BASIC_BALANCE - expected_fees));
+        .address_has_expected_balance(
+            alice.as_account_data(),
+            Value(BASIC_BALANCE - expected_fees),
+        );
 }

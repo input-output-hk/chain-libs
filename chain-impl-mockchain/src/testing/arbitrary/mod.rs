@@ -18,11 +18,11 @@ use quickcheck::{Arbitrary, Gen};
 pub use address::*;
 pub use kind_type::*;
 pub use output::*;
+pub use random::*;
 use std::cmp;
 pub use transaction::*;
 pub use update_proposal::*;
 pub use wallet::WalletCollection;
-pub use random::*;
 
 impl Arbitrary for Value {
     fn arbitrary<G: Gen>(gen: &mut G) -> Self {
