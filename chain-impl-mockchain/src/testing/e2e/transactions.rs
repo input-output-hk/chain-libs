@@ -15,7 +15,7 @@ const BASIC_BALANCE: u64 = 1000;
 
 #[quickcheck]
 pub fn validate_ledger_state_after_transaction(amount: Random1to10, linear_fee: LinearFee) {
-    let total_fees = linear_fee.calculate(None, 1, 1); //linear_fee.constant + linear_fee.coefficient + linear_fee.certificate - (linear_fee.certificate - linear_fee.coefficient);
+    let total_fees = linear_fee.calculate(None, 1, 1);
     let valid_transaction_amount = total_fees.0 + amount.0;
     let alice_initial_balance = BASIC_BALANCE + valid_transaction_amount + total_fees.0;
     let bob_initial_balance = BASIC_BALANCE;
