@@ -50,9 +50,9 @@ pub fn validate_ledger_state_after_transaction(amount: Random1to10, linear_fee: 
 
 #[quickcheck]
 pub fn validate_ledger_state_after_invalid_transaction(amount: Random1to10, linear_fee: LinearFee) {
-    let total_fees = linear_fee.constant + linear_fee.coefficient + linear_fee.certificate;
-    let valid_transaction_amount = total_fees + amount.0;
-    let alice_initial_balance = amount.0 + valid_transaction_amount + total_fees;
+    let total_fees = linear_fee.calculate(None, 1, 1);
+    let valid_transaction_amount = total_fees.0 + amount.0;
+    let alice_initial_balance = amount.0 + valid_transaction_amount + total_fees.0;
     let bob_initial_balance = BASIC_BALANCE;
 
     let (mut ledger, controller) = prepare_scenario()
@@ -72,7 +72,7 @@ pub fn validate_ledger_state_after_invalid_transaction(amount: Random1to10, line
             &alice,
             &bob,
             &mut ledger,
-            valid_transaction_amount + total_fees,
+            valid_transaction_amount + total_fees.0,
         )
         .unwrap();
 
@@ -83,13 +83,13 @@ pub fn validate_ledger_state_after_invalid_transaction(amount: Random1to10, line
         &alice,
         &bob,
         &mut ledger,
-        valid_transaction_amount + total_fees,
+        valid_transaction_amount + total_fees.0,
     );
 
     alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.into()).address_has_expected_balance(
         alice.as_account_data(),
-        Value(alice_initial_balance - (valid_transaction_amount + total_fees)),
+        Value(alice_initial_balance - (valid_transaction_amount + total_fees.0)),
     );
 }
