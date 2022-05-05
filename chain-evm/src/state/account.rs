@@ -128,7 +128,7 @@ mod test {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             Self {
                 storage: Storage::new(),
-                code: Arbitrary::arbitrary(g),
+                code: Box::new([Arbitrary::arbitrary(g); 32]),
                 nonce: u64::arbitrary(g).into(),
             }
         }

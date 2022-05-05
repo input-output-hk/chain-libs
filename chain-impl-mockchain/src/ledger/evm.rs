@@ -553,7 +553,7 @@ mod test {
         let value = Value(100);
         let evm_state = AccountState {
             storage: Default::default(),
-            code: vec![0, 1, 2],
+            code: vec![0, 1, 2].into(),
             nonce: Nonce::one(),
         };
 
@@ -612,7 +612,7 @@ mod test {
         let value2 = Value(150);
         let evm_state = AccountState {
             storage: Default::default(),
-            code: vec![0, 1, 2],
+            code: vec![0, 1, 2].into(),
             nonce: Nonce::one(),
         };
 
@@ -686,12 +686,12 @@ mod test {
         let value2 = Value(150);
         let evm_state1 = AccountState {
             storage: Default::default(),
-            code: vec![0, 1, 2],
+            code: vec![0, 1, 2].into(),
             nonce: Nonce::one(),
         };
         let evm_state2 = AccountState {
             storage: Default::default(),
-            code: vec![3, 4, 5],
+            code: vec![3, 4, 5].into(),
             nonce: Nonce::one(),
         };
 
@@ -865,7 +865,7 @@ mod test {
                 caller: evm_address1,
                 address: evm_address2,
                 value: value2.0.into(),
-                data: Vec::new(),
+                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -878,7 +878,7 @@ mod test {
                     AccountState {
                         storage: Default::default(),
                         nonce: Nonce::one(),
-                        code: Vec::new()
+                        code: Vec::new().into()
                     },
                     value1.sub(value2).unwrap(),
                     ()
@@ -957,7 +957,7 @@ mod test {
                 caller: evm_address1,
                 address: evm_address2,
                 value: value3.0.into(),
-                data: Vec::new(),
+                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -970,7 +970,7 @@ mod test {
                     AccountState {
                         storage: Default::default(),
                         nonce: Nonce::one(),
-                        code: Vec::new()
+                        code: Vec::new().into()
                     },
                     value1.checked_sub(value3).unwrap(),
                     ()
@@ -1046,7 +1046,7 @@ mod test {
                 caller: evm_address1,
                 address: evm_address2,
                 value: value3.0.into(),
-                data: Vec::new(),
+                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1122,7 +1122,7 @@ mod test {
                 caller: evm_address1,
                 address: evm_address2,
                 value: value3.0.into(),
-                data: Vec::new(),
+                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1182,7 +1182,7 @@ mod test {
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1199,7 +1199,7 @@ mod test {
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
-                            code,
+                            code: code.into(),
                             nonce: Nonce::zero()
                         },
                         value2,
@@ -1212,7 +1212,7 @@ mod test {
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
-                            code,
+                            code: code.into(),
                             nonce: Nonce::one()
                         },
                         value2,
@@ -1226,7 +1226,7 @@ mod test {
                 Ok(&JorAccount::new_evm(
                     AccountState {
                         storage: Default::default(),
-                        code: Vec::new(),
+                        code: Vec::new().into(),
                         nonce: Nonce::one()
                     },
                     value1.checked_sub(value2).unwrap(),
@@ -1279,7 +1279,7 @@ mod test {
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1301,7 +1301,7 @@ mod test {
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
-                            code,
+                            code: code.into(),
                             nonce: Nonce::one()
                         },
                         value2,
@@ -1315,7 +1315,7 @@ mod test {
                 Ok(&JorAccount::new_evm(
                     AccountState {
                         storage: Default::default(),
-                        code: Vec::new(),
+                        code: Vec::new().into(),
                         nonce: Nonce::one()
                     },
                     value1.checked_sub(value2).unwrap(),
@@ -1369,7 +1369,7 @@ mod test {
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
@@ -1387,7 +1387,7 @@ mod test {
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
-                            code,
+                            code: code.into(),
                             nonce: Nonce::zero()
                         },
                         value2,
@@ -1400,7 +1400,7 @@ mod test {
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
-                            code,
+                            code: code.into(),
                             nonce: Nonce::one()
                         },
                         value2,
@@ -1414,7 +1414,7 @@ mod test {
                 Ok(&JorAccount::new_evm(
                     AccountState {
                         storage: Default::default(),
-                        code: Vec::new(),
+                        code: Vec::new().into(),
                         nonce: Nonce::one()
                     },
                     value1.checked_sub(value2).unwrap(),
@@ -1467,7 +1467,7 @@ mod test {
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code.clone(),
+                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
@@ -1490,7 +1490,7 @@ mod test {
                     Ok(&JorAccount::new_evm(
                         AccountState {
                             storage: Default::default(),
-                            code,
+                            code: code.into(),
                             nonce: Nonce::one()
                         },
                         value2,
@@ -1504,7 +1504,7 @@ mod test {
                 Ok(&JorAccount::new_evm(
                     AccountState {
                         storage: Default::default(),
-                        code: Vec::new(),
+                        code: Vec::new().into(),
                         nonce: Nonce::one()
                     },
                     value1.checked_sub(value2).unwrap(),
@@ -1556,7 +1556,7 @@ mod test {
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code,
+                init_code: code.into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1612,7 +1612,7 @@ mod test {
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code,
+                init_code: code.into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
             };
@@ -1668,7 +1668,7 @@ mod test {
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code,
+                init_code: code.into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
@@ -1725,7 +1725,7 @@ mod test {
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
                 value: value2.0.into(),
-                init_code: code,
+                init_code: code.into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
