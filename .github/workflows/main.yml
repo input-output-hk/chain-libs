@@ -146,7 +146,7 @@ jobs:
         with:
           command: bench
           args: --features with-bench --no-run --locked
-
+      
       - name: Install cargo-nextest
         uses: actions-rs/cargo@v1
         continue-on-error: false
@@ -167,7 +167,7 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
         with:
-          command: install
+          command: nextest
           args: >-
             run ${{ matrix.mode }} --locked
             --manifest-path chain-network/Cargo.toml --no-default-features
@@ -191,7 +191,7 @@ jobs:
         with:
           command: nextest
           args: >-
-            run ${{ matrix.mode }} --locked
+            ${{ matrix.mode }} --locked
             --manifest-path chain-impl-mockchain/Cargo.toml --features evm
 
   lints:
