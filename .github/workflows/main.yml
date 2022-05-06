@@ -146,7 +146,7 @@ jobs:
         with:
           command: bench
           args: --features with-bench --no-run --locked
-      
+
       - name: Install cargo-nextest
         uses: actions-rs/cargo@v1
         continue-on-error: false
