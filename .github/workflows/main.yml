@@ -146,13 +146,20 @@ jobs:
         with:
           command: bench
           args: --features with-bench --no-run --locked
+      
+      - name: Install cargo-nextest
+        uses: actions-rs/cargo@v1
+        continue-on-error: false
+        with:
+          command: install
+          args: cargo-nextest
 
       - name: Run tests
         uses: actions-rs/cargo@v1
         continue-on-error: false
         with:
-          command: test
-          args: ${{ matrix.mode }} ${{ matrix.features }} --locked
+          command: nextest
+          args: run ${{ matrix.mode }} ${{ matrix.features }} --locked
 
       - name: Test chain-network without default features
         uses: actions-rs/cargo@v1
@@ -160,9 +167,9 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
         with:
-          command: test
+          command: install
           args: >-
-            ${{ matrix.mode }} --locked
+            run ${{ matrix.mode }} --locked
             --manifest-path chain-network/Cargo.toml --no-default-features
 
       - name: Test chain-vote with p256k1 backend
@@ -171,9 +178,9 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
         with:
-          command: test
+          command: nextest
           args: >-
-            ${{ matrix.mode }} --locked
+            run ${{ matrix.mode }} --locked
             --manifest-path chain-vote/Cargo.toml --features p256k1
 
       - name: Test evm support in the ledger
@@ -182,9 +189,9 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
         with:
-          command: test
+          command: nextest
           args: >-
-            ${{ matrix.mode }} --locked
+            run ${{ matrix.mode }} --locked
             --manifest-path chain-impl-mockchain/Cargo.toml --features evm
 
   lints:
