@@ -285,6 +285,7 @@ fn convert_access_list_to_tuples_vec(access_list: AccessList) -> Vec<(Address, V
 
 /// Execute a CREATE transaction
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::boxed_local)]
 pub fn transact_create<State: EvmState>(
     vm: VirtualMachine<State>,
     value: U256,

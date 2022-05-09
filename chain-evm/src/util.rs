@@ -3,19 +3,20 @@ use crate::{
     Address,
 };
 use ethereum_types::H256;
-use evm::ExitError;
 use secp256k1::{
     ecdsa::RecoverableSignature, rand::rngs::ThreadRng, KeyPair, Message, PublicKey, Secp256k1,
     SecretKey,
 };
 use sha3::{Digest, Keccak256};
 
+/// Generate new SECP256K1 keypair.
 pub fn generate_keypair() -> KeyPair {
     let secp = Secp256k1::new();
     let mut rng = ThreadRng::default();
     KeyPair::new(&secp, &mut rng)
 }
 
+/// A secret key for an Ethereum account.
 pub struct Secret(SecretKey);
 
 impl Secret {
@@ -39,7 +40,10 @@ impl Secret {
         let pubkey_bytes = PublicKey::from_secret_key_global(&self.0).serialize_uncompressed();
         Address::from_slice(&Keccak256::digest(&pubkey_bytes[1..]).as_slice()[12..])
     }
-    pub fn sign(&self, tx: EthereumTransaction) -> EthereumSignedTransaction {
+    pub fn sign(
+        &self,
+        tx: EthereumTransaction,
+    ) -> Result<EthereumSignedTransaction, secp256k1::Error> {
         tx.sign(&self.secret_hash())
     }
 }
@@ -50,14 +54,19 @@ impl From<&KeyPair> for Secret {
     }
 }
 
-pub fn create_account_secret() -> Secret {
+/// Generate a secret key for an Ethereum account from the global context.
+pub fn generate_account_secret() -> Secret {
     let keypair = generate_keypair();
     Secret::from(&keypair)
 }
 
-pub fn sign_data_hash(tx_hash: &H256, secret: &Secret) -> Result<RecoverableSignature, ExitError> {
+/// Sign a given hash of data with a secret key.
+pub fn sign_data_hash(
+    tx_hash: &H256,
+    secret: &Secret,
+) -> Result<RecoverableSignature, secp256k1::Error> {
     let s = Secp256k1::new();
-    let h = Message::from_slice(tx_hash.as_fixed_bytes()).map_err(|_| ExitError::InvalidCode)?;
+    let h = Message::from_slice(tx_hash.as_fixed_bytes())?;
     let secret = secret.seckey();
     Ok(s.sign_ecdsa_recoverable(&h, secret))
 }
@@ -90,9 +99,7 @@ mod tests {
         let secret = Secret::from_slice(&keypair.secret_bytes()).unwrap();
         let signature = sign_data_hash(&tx_hash, &secret).unwrap();
 
-        let msg = Message::from_slice(tx_hash.as_fixed_bytes())
-            .map_err(|_| ExitError::InvalidCode)
-            .unwrap();
+        let msg = Message::from_slice(tx_hash.as_fixed_bytes()).unwrap();
         let pubkey = PublicKey::from_secret_key_global(secret.seckey());
 
         assert_eq!(signature.recover(&msg), Ok(pubkey))
@@ -131,7 +138,7 @@ mod tests {
         let secret = Secret::from_slice(&[0x46; 32]).unwrap();
 
         // test signed transaction
-        let signed = unsigned_tx.sign(&secret.secret_hash());
+        let signed = unsigned_tx.sign(&secret.secret_hash()).unwrap();
         assert_eq!(
             hex::encode(signed.to_bytes().as_slice()),
             "f86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83"
