@@ -191,7 +191,7 @@ jobs:
         with:
           command: nextest
           args: >-
-            ${{ matrix.mode }} --locked
+            run ${{ matrix.mode }} --locked
             --manifest-path chain-impl-mockchain/Cargo.toml --features evm
 
   lints:
