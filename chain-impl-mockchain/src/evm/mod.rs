@@ -70,7 +70,7 @@ impl Decodable for EvmTransaction {
             Ok(EvmTransaction::Create {
                 caller: rlp.val_at(1)?,
                 value: rlp.val_at(2)?,
-                init_code: rlp.val_at(3)?,
+                init_code: rlp.list_at(3)?.into_boxed_slice(),
                 gas_limit: rlp.val_at(4)?,
                 access_list: rlp.list_at(5)?,
             })
@@ -79,7 +79,7 @@ impl Decodable for EvmTransaction {
             Ok(EvmTransaction::Create2 {
                 caller: rlp.val_at(1)?,
                 value: rlp.val_at(2)?,
-                init_code: rlp.val_at(3)?,
+                init_code: rlp.list_at(3)?.into_boxed_slice(),
                 salt: rlp.val_at(4)?,
                 gas_limit: rlp.val_at(5)?,
                 access_list: rlp.list_at(6)?,
@@ -90,7 +90,7 @@ impl Decodable for EvmTransaction {
                 caller: rlp.val_at(1)?,
                 address: rlp.val_at(2)?,
                 value: rlp.val_at(3)?,
-                data: rlp.val_at(4)?,
+                data: rlp.list_at(4)?.into_boxed_slice(),
                 gas_limit: rlp.val_at(5)?,
                 access_list: rlp.list_at(6)?,
             })
@@ -121,7 +121,7 @@ impl Encodable for EvmTransaction {
                 s.append(&u8::from(self));
                 s.append(caller);
                 s.append(value);
-                s.append(init_code);
+                s.append_list(init_code);
                 s.append(gas_limit);
                 s.append_list(access_list);
             }
@@ -137,7 +137,7 @@ impl Encodable for EvmTransaction {
                 s.append(&u8::from(self));
                 s.append(caller);
                 s.append(value);
-                s.append(init_code);
+                s.append_list(init_code);
                 s.append(salt);
                 s.append(gas_limit);
                 s.append_list(access_list);
@@ -155,7 +155,7 @@ impl Encodable for EvmTransaction {
                 s.append(caller);
                 s.append(address);
                 s.append(value);
-                s.append(data);
+                s.append_list(data);
                 s.append(gas_limit);
                 s.append_list(access_list);
             }
@@ -323,20 +323,12 @@ mod test {
     }
 
     quickcheck! {
-        // this tests RLP encoding/decoding using the Serialize/Deserialize traits
+        // this tests encoding/decoding using the Serialize/Deserialize traits
+        // with RLP encoding under the hood
         fn evm_transaction_serialization_bijection(b: EvmTransaction) -> bool {
             let encoded = b.serialize_as_vec().unwrap();
             let decoded = EvmTransaction::deserialize(&mut Codec::new(encoded.as_slice())).unwrap();
             decoded == b
-        }
-    }
-
-    quickcheck! {
-        // this tests RLP encoding/decoding using the rlp::Encodable/rlp::Decodable traits
-        fn evm_transaction_serialization_bijection_rlp(b: EvmTransaction) -> bool {
-            let rlp_encoded = b.rlp_bytes();
-            let rlp_decoded: EvmTransaction = decode(&rlp_encoded).unwrap();
-            rlp_decoded == b
         }
     }
 }
