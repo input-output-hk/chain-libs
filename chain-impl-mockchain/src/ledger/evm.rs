@@ -47,8 +47,8 @@ pub struct AddressMapping {
 ///
 /// Algorithm description:
 ///  1. Get `evm_address` bytes representation -> evm_address_bytes
-///  2. Append b"evm" bytes prefix to the evm_address_bytes -> bytes_data
-///  3. Calculate hash (pub struct Hash(crypto::Blake2b256) hash) from the bytes_data -> hash_bytes
+///  2. Prepend b"evm" bytes prefix to the evm_address_bytes -> bytes_data
+///  3. Calculate blake2b256 hash from the bytes_data -> hash_bytes
 ///  4. Intialize `jor_address` from the hash_bytes using the original serde procedure.
 ///
 fn transform_evm_to_jor(evm_id: &EvmAddress) -> JorAddress {
