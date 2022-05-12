@@ -9,11 +9,10 @@ use crate::{account::Identifier as JorAddress, accounting::account::AccountState
 use chain_core::packer::Codec;
 use chain_core::property::DeserializeFromSlice;
 use chain_evm::machine::{generate_address_create, generate_address_create2};
-use chain_evm::ExitError;
 use chain_evm::{
     machine::{
         transact_call, transact_create, transact_create2, BlockHash, BlockNumber, BlockTimestamp,
-        Environment, EvmState, Log, VirtualMachine,
+        Environment, EvmState, ExitError, Log, VirtualMachine,
     },
     state::{Account as EvmAccount, LogsState},
     Address as EvmAddress,
