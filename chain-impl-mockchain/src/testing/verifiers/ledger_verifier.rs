@@ -1,7 +1,7 @@
 use crate::{
     account::{self, Identifier, Ledger as AccountLedger},
     accounting::account::{account_state::AccountState, DelegationType},
-    certificate::{PoolId, PoolRegistration},
+    certificate::{EvmMapping, PoolId, PoolRegistration},
     ledger::{ledger::Ledger, Pots},
     stake::PoolsState,
     stake::{Stake, StakeDistribution},
@@ -188,6 +188,26 @@ impl LedgerStateVerifier {
 
     pub fn votes(&self) -> VotesVerifier {
         VotesVerifier::new(self.ledger.active_vote_plans())
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn is_mapped_to_evm(&self, evm_mapping: &EvmMapping) -> &Self {
+        let stats = [
+            "jormungandr account: ",
+            &evm_mapping.account_id().to_string(),
+            ", evm account: ",
+            &evm_mapping.evm_address().to_string(),
+        ]
+        .concat();
+        assert!(self.ledger.evm.stats().contains(&stats));
+        self
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn is_not_mapped_to_evm(&self, wallet: &Wallet) -> &Self {
+        let stats = ["jormungandr account: ", &wallet.public_key().to_string()].concat();
+        assert!(!self.ledger.evm.stats().contains(&stats));
+        self
     }
 }
 

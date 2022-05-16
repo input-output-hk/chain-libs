@@ -1,5 +1,7 @@
 mod vote;
 
+use super::data::Wallet;
+use crate::certificate::EvmMapping;
 use crate::fragment::Contents;
 use crate::fragment::Fragment;
 use crate::header::BlockDate;
@@ -32,6 +34,7 @@ use crate::{
 use chain_addr::Discrimination;
 use chain_crypto::SecretKey;
 use chain_crypto::{vrf_evaluate_and_prove, Ed25519, KeyPair, PublicKey};
+use chain_evm::machine::Address;
 use chain_time::{Epoch as TimeEpoch, SlotDuration, TimeEra, TimeFrame, Timeline};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -230,6 +233,14 @@ impl TestGen {
             policy: Default::default(),
             to: id,
             value: Value(1),
+        }
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn evm_mapping_for_wallet(wallet: &Wallet) -> EvmMapping {
+        EvmMapping {
+            account_id: wallet.public_key().into(),
+            evm_address: Address::from_low_u64_be(Self::rand().next_u64()),
         }
     }
 }

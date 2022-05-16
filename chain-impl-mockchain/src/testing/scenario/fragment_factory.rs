@@ -1,8 +1,8 @@
 use crate::{
     accounting::account::{DelegationRatio, DelegationType},
     certificate::{
-        Certificate, MintToken, PoolId, PoolUpdate, UpdateProposal, UpdateVote, VoteCast, VotePlan,
-        VoteTally,
+        Certificate, EvmMapping, MintToken, PoolId, PoolUpdate, UpdateProposal, UpdateVote,
+        VoteCast, VotePlan, VoteTally,
     },
     date::BlockDate,
     fee::LinearFee,
@@ -235,5 +235,15 @@ impl FragmentFactory {
             certificate,
             self.witness_mode,
         )
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn evm_mapping(
+        &self,
+        valid_until: BlockDate,
+        owner: &Wallet,
+        evm_mapping: EvmMapping,
+    ) -> Fragment {
+        self.transaction_with_cert(valid_until, Some(owner), &evm_mapping.into())
     }
 }
