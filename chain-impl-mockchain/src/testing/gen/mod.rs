@@ -1,6 +1,7 @@
 mod vote;
-
+#[cfg(feature = "evm")]
 use super::data::Wallet;
+#[cfg(feature = "evm")]
 use crate::certificate::EvmMapping;
 use crate::fragment::Contents;
 use crate::fragment::Fragment;
@@ -34,6 +35,7 @@ use crate::{
 use chain_addr::Discrimination;
 use chain_crypto::SecretKey;
 use chain_crypto::{vrf_evaluate_and_prove, Ed25519, KeyPair, PublicKey};
+#[cfg(feature = "evm")]
 use chain_evm::machine::Address;
 use chain_time::{Epoch as TimeEpoch, SlotDuration, TimeEra, TimeFrame, Timeline};
 use rand::SeedableRng;

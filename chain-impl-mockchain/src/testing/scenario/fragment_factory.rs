@@ -1,8 +1,10 @@
+#[cfg(feature = "evm")]
+use crate::certificate::EvmMapping;
 use crate::{
     accounting::account::{DelegationRatio, DelegationType},
     certificate::{
-        Certificate, EvmMapping, MintToken, PoolId, PoolUpdate, UpdateProposal, UpdateVote,
-        VoteCast, VotePlan, VoteTally,
+        Certificate, MintToken, PoolId, PoolUpdate, UpdateProposal, UpdateVote, VoteCast, VotePlan,
+        VoteTally,
     },
     date::BlockDate,
     fee::LinearFee,

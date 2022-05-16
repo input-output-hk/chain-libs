@@ -1,7 +1,7 @@
 use crate::{
     account::{self, Identifier, Ledger as AccountLedger},
     accounting::account::{account_state::AccountState, DelegationType},
-    certificate::{EvmMapping, PoolId, PoolRegistration},
+    certificate::{PoolId, PoolRegistration},
     ledger::{ledger::Ledger, Pots},
     stake::PoolsState,
     stake::{Stake, StakeDistribution},
@@ -14,6 +14,9 @@ use crate::{
 use chain_addr::Address;
 use chain_crypto::{Ed25519, PublicKey};
 use std::fmt;
+
+#[cfg(feature = "evm")]
+use crate::certificate::EvmMapping;
 
 #[derive(Clone)]
 pub struct Info {

@@ -1,7 +1,9 @@
+#[cfg(feature = "evm")]
+use crate::certificate::EvmMapping;
 use crate::{
     certificate::{
-        DecryptedPrivateTally, EvmMapping, ExternalProposalId, MintToken, Proposal, UpdateProposal,
-        UpdateVote, VoteCast, VotePlan, VoteTally,
+        DecryptedPrivateTally, ExternalProposalId, MintToken, Proposal, UpdateProposal, UpdateVote,
+        VoteCast, VotePlan, VoteTally,
     },
     date::BlockDate,
     fee::LinearFee,

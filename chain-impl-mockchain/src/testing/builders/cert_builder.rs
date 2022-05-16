@@ -1,15 +1,18 @@
+#[cfg(feature = "evm")]
+use crate::certificate::EvmMapping;
 use crate::{
     account::{DelegationType, Identifier},
     certificate::{
-        Certificate, EvmMapping, OwnerStakeDelegation, PoolId, PoolRegistration, PoolRetirement,
-        PoolUpdate, StakeDelegation, UpdateProposal, UpdateProposalId, UpdateProposerId,
-        UpdateVote, UpdateVoterId, VotePlanId, VoteTally,
+        Certificate, OwnerStakeDelegation, PoolId, PoolRegistration, PoolRetirement, PoolUpdate,
+        StakeDelegation, UpdateProposal, UpdateProposalId, UpdateProposerId, UpdateVote,
+        UpdateVoterId, VotePlanId, VoteTally,
     },
     config::ConfigParam,
     fragment::ConfigParams,
     testing::data::AddressData,
     transaction::UnspecifiedAccountIdentifier,
 };
+#[cfg(feature = "evm")]
 use chain_evm::Address;
 use chain_time::units::DurationSeconds;
 
