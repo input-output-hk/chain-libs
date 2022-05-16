@@ -263,7 +263,7 @@ impl Ledger {
                 access_list,
             } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
-                transact_create(vm, value, init_code, access_list)?;
+                transact_create(vm, value.into(), init_code, access_list)?;
             }
             EvmTransaction::Create2 {
                 caller,
@@ -274,7 +274,7 @@ impl Ledger {
                 access_list,
             } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
-                transact_create2(vm, value, init_code, salt, access_list)?;
+                transact_create2(vm, value.into(), init_code, salt, access_list)?;
             }
             EvmTransaction::Call {
                 caller,
@@ -285,7 +285,7 @@ impl Ledger {
                 access_list,
             } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
-                let _byte_code_msg = transact_call(vm, address, value, data, access_list)?;
+                let _byte_code_msg = transact_call(vm, address, value.into(), data, access_list)?;
             }
         }
         Ok((vm_state.accounts, evm))
