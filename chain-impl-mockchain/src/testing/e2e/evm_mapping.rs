@@ -45,7 +45,12 @@ pub fn evm_mapping() {
         .is_mapped_to_evm(&bob_evm_mapping)
         .is_mapped_to_evm(&alice_evm_mapping);
 
+    //established mapping should not be overridden
     assert!(controller
         .evm_mapping(&bob, bob_evm_mapping.clone(), &mut ledger)
         .is_err());
+
+    LedgerStateVerifier::new(ledger.clone().into())
+        .is_mapped_to_evm(&bob_evm_mapping)
+        .is_mapped_to_evm(&alice_evm_mapping);
 }
