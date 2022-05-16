@@ -52,6 +52,20 @@ pub enum EvmTransaction {
 }
 
 #[cfg(feature = "evm")]
+impl Default for EvmTransaction {
+    fn default() -> Self {
+        Self::Call {
+            caller: Default::default(),
+            address: Default::default(),
+            value: Default::default(),
+            data: Default::default(),
+            gas_limit: Default::default(),
+            access_list: Default::default(),
+        }
+    }
+}
+
+#[cfg(feature = "evm")]
 impl From<&EvmTransaction> for u8 {
     fn from(other: &EvmTransaction) -> Self {
         use EvmTransaction::*;
