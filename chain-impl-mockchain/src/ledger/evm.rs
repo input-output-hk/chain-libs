@@ -902,7 +902,7 @@ mod test {
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
                 address: evm_address2,
-                value: value2.0.into(),
+                value: value2.0,
                 data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -994,7 +994,7 @@ mod test {
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
                 address: evm_address2,
-                value: value3.0.into(),
+                value: value3.0,
                 data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -1083,7 +1083,7 @@ mod test {
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
                 address: evm_address2,
-                value: value3.0.into(),
+                value: value3.0,
                 data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -1159,7 +1159,7 @@ mod test {
             let transaction = EvmTransaction::Call {
                 caller: evm_address1,
                 address: evm_address2,
-                value: value3.0.into(),
+                value: value3.0,
                 data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -1219,7 +1219,7 @@ mod test {
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -1316,7 +1316,7 @@ mod test {
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -1406,7 +1406,7 @@ mod test {
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
@@ -1504,7 +1504,7 @@ mod test {
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
@@ -1593,7 +1593,7 @@ mod test {
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -1649,7 +1649,7 @@ mod test {
 
             let transaction = EvmTransaction::Create {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
@@ -1705,7 +1705,7 @@ mod test {
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
@@ -1762,7 +1762,7 @@ mod test {
 
             let transaction = EvmTransaction::Create2 {
                 caller: evm_address,
-                value: value2.0.into(),
+                value: value2.0,
                 init_code: code.into(),
                 gas_limit: u64::max_value(),
                 salt: chain_evm::ethereum_types::H256::zero(),
