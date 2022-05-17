@@ -24,6 +24,8 @@ pub fn evm_mapping() {
     let bob_evm_mapping = TestGen::evm_mapping_for_wallet(&bob);
 
     LedgerStateVerifier::new(ledger.clone().into())
+        .info("Before mapping alice")
+        .evm()
         .is_not_mapped_to_evm(&alice)
         .is_not_mapped_to_evm(&bob);
 
@@ -32,6 +34,8 @@ pub fn evm_mapping() {
         .unwrap();
 
     LedgerStateVerifier::new(ledger.clone().into())
+        .info("After mapping alice")
+        .evm()
         .is_mapped_to_evm(&alice_evm_mapping)
         .is_not_mapped_to_evm(&bob);
 
@@ -42,6 +46,8 @@ pub fn evm_mapping() {
     bob.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.clone().into())
+        .info("After mapping alice and bob")
+        .evm()
         .is_mapped_to_evm(&bob_evm_mapping)
         .is_mapped_to_evm(&alice_evm_mapping);
 }
@@ -61,13 +67,19 @@ pub fn evm_mapping_cannot_be_overridden() {
 
     let alice_evm_mapping = TestGen::evm_mapping_for_wallet(&alice);
 
-    LedgerStateVerifier::new(ledger.clone().into()).is_not_mapped_to_evm(&alice);
+    LedgerStateVerifier::new(ledger.clone().into())
+        .info("Before mapping alice")
+        .evm()
+        .is_not_mapped_to_evm(&alice);
 
     controller
         .evm_mapping(&alice, alice_evm_mapping.clone(), &mut ledger)
         .unwrap();
 
-    LedgerStateVerifier::new(ledger.clone().into()).is_mapped_to_evm(&alice_evm_mapping);
+    LedgerStateVerifier::new(ledger.clone().into())
+        .info("After mapping alice")
+        .evm()
+        .is_mapped_to_evm(&alice_evm_mapping);
 
     alice.confirm_transaction();
 
@@ -76,13 +88,19 @@ pub fn evm_mapping_cannot_be_overridden() {
         .evm_mapping(&alice, alice_evm_mapping.clone(), &mut ledger)
         .is_err());
 
-    LedgerStateVerifier::new(ledger.clone().into()).is_mapped_to_evm(&alice_evm_mapping);
+    LedgerStateVerifier::new(ledger.clone().into())
+        .info("After trying to map alice again")
+        .evm()
+        .is_mapped_to_evm(&alice_evm_mapping);
 
     let alice_evm_mapping2 = TestGen::evm_mapping_for_wallet(&alice);
 
     assert!(controller
-        .evm_mapping(&alice, alice_evm_mapping2.clone(), &mut ledger)
+        .evm_mapping(&alice, alice_evm_mapping2, &mut ledger)
         .is_err());
 
-    LedgerStateVerifier::new(ledger.clone().into()).is_mapped_to_evm(&alice_evm_mapping);
+    LedgerStateVerifier::new(ledger.clone().into())
+        .info("After trying to map alice to a different evm address")
+        .evm()
+        .is_mapped_to_evm(&alice_evm_mapping);
 }
