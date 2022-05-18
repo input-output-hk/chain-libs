@@ -12,7 +12,7 @@ use secp256k1::{
 use sha3::{Digest, Keccak256};
 
 /// Byte size for 'r' and 's' components of a signature.
-const SIGNATURE_BYTES: usize = 32;
+pub const SIGNATURE_BYTES: usize = 32;
 
 /// Wrapper type for `ethereum::TransactionV2`, which includes the `EIP1559Transaction`, `EIP2930Transaction`, `LegacyTransaction` variants.
 #[derive(Clone, Debug, PartialEq, Eq)]

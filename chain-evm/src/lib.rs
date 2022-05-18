@@ -1,6 +1,7 @@
 pub use ethereum;
 pub use ethereum_types;
 pub use rlp;
+pub use sha3;
 
 pub mod machine;
 mod precompiles;

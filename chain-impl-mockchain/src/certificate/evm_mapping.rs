@@ -8,13 +8,21 @@ use chain_core::{
     property::{DeserializeFromSlice, ReadError, Serialize, WriteError},
 };
 #[cfg(feature = "evm")]
-use chain_evm::Address;
+use chain_evm::{
+    ethereum::TransactionSignature,
+    ethereum_types::{H256, U256},
+    rlp::{self, Decodable, DecoderError, Encodable, Rlp, RlpStream},
+    sha3::{Digest, Keccak256},
+    transaction::SIGNATURE_BYTES,
+    util::{decode_h256_from_u256, sign_data_hash, Secret},
+    Address,
+};
 use typed_bytes::{ByteArray, ByteBuilder};
 
 use super::CertificateSlice;
 
+/// Represents a mapping between a Jormungandr account and an EVM account.
 #[derive(Debug, Clone, PartialEq, Eq)]
-
 pub struct EvmMapping {
     #[cfg(feature = "evm")]
     pub account_id: Identifier,
@@ -53,6 +61,34 @@ impl EvmMapping {
 
     pub fn serialize(&self) -> ByteArray<Self> {
         self.serialize_in(ByteBuilder::new()).finalize()
+    }
+
+    #[cfg(feature = "evm")]
+    /// Returns the hash used for signing.
+    pub fn signing_hash(&self) -> H256 {
+        H256::from_slice(Keccak256::digest(&rlp::encode(self)).as_slice())
+    }
+
+    #[cfg(feature = "evm")]
+    /// Returns the hash used for signing.
+    pub fn sign(&self, secret: &H256) -> Result<SignedEvmMapping, ()> {
+        let secret = Secret::from_hash(secret).unwrap();
+        let sig = sign_data_hash(&self.signing_hash(), &secret).unwrap();
+        let (recovery_id, sig_bytes) = sig.serialize_compact();
+        let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
+        let signature = TransactionSignature::new(
+            recovery_id.to_i32() as u64,
+            H256::from_slice(r),
+            H256::from_slice(s),
+        )
+        .ok_or(())?;
+        Ok(SignedEvmMapping {
+            account_id: self.account_id.clone(),
+            evm_address: self.evm_address,
+            odd_y_parity: recovery_id.to_i32() != 0,
+            r: *signature.r(),
+            s: *signature.s(),
+        })
     }
 }
 
@@ -127,6 +163,101 @@ impl DeserializeFromSlice for EvmMapping {
     }
 }
 
+/* RLP en/de ******************************************************************* */
+
+#[cfg(feature = "evm")]
+impl Decodable for EvmMapping {
+    fn decode(rlp: &Rlp<'_>) -> Result<Self, DecoderError> {
+        if rlp.item_count()? == 2 {
+            let account_id_h256 = decode_h256_from_u256(rlp.val_at::<U256>(0)?)?;
+            let account_key = chain_crypto::PublicKey::<crate::account::AccountAlg>::from_binary(
+                account_id_h256.as_fixed_bytes(),
+            )
+            .map_err(|_| DecoderError::Custom("invalid account identifier"))?;
+            return Ok(Self {
+                account_id: account_key.into(),
+                evm_address: rlp.val_at(1)?,
+            });
+        }
+        Err(DecoderError::Custom("invalid evm mapping type"))
+    }
+}
+
+#[cfg(feature = "evm")]
+impl Encodable for EvmMapping {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.begin_list(2);
+        s.append(&U256::from_big_endian(self.account_id.as_ref().as_ref()));
+        s.append(&self.evm_address);
+    }
+}
+
+/// Represents a signed mapping between a Jormungandr account and an EVM account.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedEvmMapping {
+    #[cfg(feature = "evm")]
+    pub account_id: Identifier,
+    #[cfg(feature = "evm")]
+    pub evm_address: Address,
+    #[cfg(feature = "evm")]
+    pub odd_y_parity: bool,
+    #[cfg(feature = "evm")]
+    pub r: H256,
+    #[cfg(feature = "evm")]
+    pub s: H256,
+}
+
+pub enum Error {
+    WrongSignature,
+}
+
+#[cfg(feature = "evm")]
+impl SignedEvmMapping {
+    /// Verifies that the signing key corresponds to the `evm_address`.
+    pub fn verify(&self) -> Result<bool, Error> {
+        Ok(self.recover()? == self.evm_address)
+    }
+    /// Returns the address used to sign this EVM mapping
+    pub fn recover(&self) -> Result<Address, Error> {
+        unimplemented!();
+    }
+}
+
+/* RLP en/de ******************************************************************* */
+
+#[cfg(feature = "evm")]
+impl Decodable for SignedEvmMapping {
+    fn decode(rlp: &Rlp<'_>) -> Result<Self, DecoderError> {
+        if rlp.item_count()? == 5 {
+            let account_id_h256 = decode_h256_from_u256(rlp.val_at::<U256>(0)?)?;
+            let account_key = chain_crypto::PublicKey::<crate::account::AccountAlg>::from_binary(
+                account_id_h256.as_fixed_bytes(),
+            )
+            .map_err(|_| DecoderError::Custom("invalid account identifier"))?;
+            return Ok(Self {
+                account_id: account_key.into(),
+                evm_address: rlp.val_at(1)?,
+                odd_y_parity: rlp.val_at(2)?,
+                r: decode_h256_from_u256(rlp.val_at::<U256>(3)?)?,
+                s: decode_h256_from_u256(rlp.val_at::<U256>(4)?)?,
+            });
+        }
+        Err(DecoderError::Custom("invalid signed evm mapping type"))
+    }
+}
+
+#[cfg(feature = "evm")]
+impl Encodable for SignedEvmMapping {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.begin_list(5);
+        s.append(&U256::from_big_endian(self.account_id.as_ref().as_ref()));
+        s.append(&self.evm_address);
+        s.append(&self.odd_y_parity);
+        s.append(&U256::from_big_endian(&self.r[..]));
+        s.append(&U256::from_big_endian(&self.s[..]));
+    }
+}
+
 #[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test {
     use super::*;
@@ -141,10 +272,38 @@ mod test {
         }
     }
 
+    impl Arbitrary for SignedEvmMapping {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                account_id: Arbitrary::arbitrary(g),
+                evm_address: [u8::arbitrary(g); Address::len_bytes()].into(),
+                odd_y_parity: Arbitrary::arbitrary(g),
+                r: [u8::arbitrary(g); 32].into(),
+                s: [u8::arbitrary(g); 32].into(),
+            }
+        }
+    }
+
     quickcheck! {
-        fn evm_transaction_serialization_bijection(b: EvmMapping) -> bool {
+        fn evm_mapping_serialization_bijection(b: EvmMapping) -> bool {
             let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
             let decoded = EvmMapping::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
+            decoded == b
+        }
+    }
+
+    quickcheck! {
+        fn evm_mapping_rlp_bijection(b: EvmMapping) -> bool {
+            let encoded = b.rlp_bytes();
+            let decoded = EvmMapping::decode(&Rlp::new(&encoded[..])).unwrap();
+            decoded == b
+        }
+    }
+
+    quickcheck! {
+        fn signed_evm_mapping_rlp_bijection(b: SignedEvmMapping) -> bool {
+            let encoded = b.rlp_bytes();
+            let decoded = SignedEvmMapping::decode(&Rlp::new(&encoded[..])).unwrap();
             decoded == b
         }
     }

@@ -2,12 +2,18 @@ use crate::{
     transaction::{EthereumSignedTransaction, EthereumUnsignedTransaction},
     Address,
 };
-use ethereum_types::H256;
+use ethereum_types::{H256, U256};
 use secp256k1::{
     ecdsa::RecoverableSignature, rand::rngs::ThreadRng, KeyPair, Message, PublicKey, Secp256k1,
     SecretKey,
 };
 use sha3::{Digest, Keccak256};
+
+pub fn decode_h256_from_u256(encoded: U256) -> Result<H256, rlp::DecoderError> {
+    let mut bytes = [0u8; 32];
+    encoded.to_big_endian(&mut bytes);
+    Ok(H256::from(bytes))
+}
 
 /// Generate new SECP256K1 keypair.
 pub fn generate_keypair() -> KeyPair {
