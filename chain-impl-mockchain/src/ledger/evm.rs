@@ -1,7 +1,7 @@
 use crate::account::{self, LedgerError};
 use crate::certificate::EvmMapping;
 use crate::chaineval::HeaderContentEvalContext;
-use crate::evm::EvmTransaction;
+use crate::evm::{EvmActionType, EvmTransaction};
 use crate::header::BlockDate;
 use crate::key::Hash;
 use crate::value::Value;
@@ -200,27 +200,15 @@ impl Ledger {
             accounts,
             evm: &mut evm,
         };
-
-        match contract {
-            EvmTransaction::Create {
-                caller,
-                value: _,
-                init_code: _,
-                gas_limit,
-                access_list: _,
-            } => {
+        let caller = contract.caller;
+        let gas_limit = contract.gas_limit;
+        match contract.action_type {
+            EvmActionType::Create { init_code: _ } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 let address = generate_address_create(vm, caller);
                 Ok((address, vm_state.accounts, evm))
             }
-            EvmTransaction::Create2 {
-                caller,
-                value: _,
-                init_code,
-                salt,
-                gas_limit,
-                access_list: _,
-            } => {
+            EvmActionType::Create2 { init_code, salt } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 let address = generate_address_create2(vm, caller, init_code, salt);
                 Ok((address, vm_state.accounts, evm))
@@ -254,36 +242,20 @@ impl Ledger {
             accounts,
             evm: &mut evm,
         };
-        match contract {
-            EvmTransaction::Create {
-                caller,
-                value,
-                init_code,
-                gas_limit,
-                access_list,
-            } => {
+        let value = contract.value;
+        let caller = contract.caller;
+        let gas_limit = contract.gas_limit;
+        let access_list = contract.access_list;
+        match contract.action_type {
+            EvmActionType::Create { init_code } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 transact_create(vm, value.into(), init_code, access_list)?;
             }
-            EvmTransaction::Create2 {
-                caller,
-                value,
-                init_code,
-                salt,
-                gas_limit,
-                access_list,
-            } => {
+            EvmActionType::Create2 { init_code, salt } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 transact_create2(vm, value.into(), init_code, salt, access_list)?;
             }
-            EvmTransaction::Call {
-                caller,
-                address,
-                value,
-                data,
-                gas_limit,
-                access_list,
-            } => {
+            EvmActionType::Call { address, data } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 let _byte_code_msg = transact_call(vm, address, value.into(), data, access_list)?;
             }
@@ -899,13 +871,15 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address1), account_id);
 
-            let transaction = EvmTransaction::Call {
+            let transaction = EvmTransaction {
                 caller: evm_address1,
-                address: evm_address2,
                 value: value2.0,
-                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Call {
+                    address: evm_address2,
+                    data: Vec::new().into(),
+                },
             };
 
             (accounts, _) = Ledger::run_transaction(evm, accounts, transaction, config).unwrap();
@@ -991,13 +965,15 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address2), account_id2);
 
-            let transaction = EvmTransaction::Call {
+            let transaction = EvmTransaction {
                 caller: evm_address1,
-                address: evm_address2,
                 value: value3.0,
-                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Call {
+                    address: evm_address2,
+                    data: Vec::new().into(),
+                },
             };
 
             (accounts, _) = Ledger::run_transaction(evm, accounts, transaction, config).unwrap();
@@ -1080,13 +1056,15 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address2), account_id2);
 
-            let transaction = EvmTransaction::Call {
+            let transaction = EvmTransaction {
                 caller: evm_address1,
-                address: evm_address2,
                 value: value3.0,
-                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Call {
+                    address: evm_address2,
+                    data: Vec::new().into(),
+                },
             };
 
             assert_eq!(
@@ -1156,13 +1134,15 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address2), account_id2);
 
-            let transaction = EvmTransaction::Call {
+            let transaction = EvmTransaction {
                 caller: evm_address1,
-                address: evm_address2,
                 value: value3.0,
-                data: Vec::new().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Call {
+                    address: evm_address2,
+                    data: Vec::new().into(),
+                },
             };
 
             assert_eq!(
@@ -1217,12 +1197,14 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Create {
+                    init_code: code.clone().into(),
+                },
             };
 
             let (contract_address, mut accounts, evm) =
@@ -1314,12 +1296,15 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+
+                action_type: EvmActionType::Create {
+                    init_code: code.clone().into(),
+                },
             };
 
             let (contract_address, mut accounts, evm) =
@@ -1404,13 +1389,15 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create2 {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
-                salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Create2 {
+                    init_code: code.clone().into(),
+                    salt: chain_evm::ethereum_types::H256::zero(),
+                },
             };
 
             let (contract_address, mut accounts, evm) =
@@ -1502,13 +1489,15 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create2 {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.clone().into(),
                 gas_limit: u64::max_value(),
-                salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Create2 {
+                    init_code: code.clone().into(),
+                    salt: chain_evm::ethereum_types::H256::zero(),
+                },
             };
 
             let (contract_address, mut accounts, evm) =
@@ -1591,12 +1580,14 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Create {
+                    init_code: code.into(),
+                },
             };
 
             assert_eq!(
@@ -1647,12 +1638,14 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.into(),
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Create {
+                    init_code: code.into(),
+                },
             };
 
             assert_eq!(
@@ -1703,13 +1696,16 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create2 {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.into(),
                 gas_limit: u64::max_value(),
-                salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Create2 {
+                    init_code: code.into(),
+
+                    salt: chain_evm::ethereum_types::H256::zero(),
+                },
             };
 
             assert_eq!(
@@ -1760,13 +1756,16 @@ mod test {
 
             assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
 
-            let transaction = EvmTransaction::Create2 {
+            let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
-                init_code: code.into(),
                 gas_limit: u64::max_value(),
-                salt: chain_evm::ethereum_types::H256::zero(),
                 access_list: Vec::new(),
+                action_type: EvmActionType::Create2 {
+                    init_code: code.into(),
+
+                    salt: chain_evm::ethereum_types::H256::zero(),
+                },
             };
 
             assert_eq!(
