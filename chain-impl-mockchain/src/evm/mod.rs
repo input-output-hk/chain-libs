@@ -56,47 +56,40 @@ impl From<&EvmActionType> for u8 {
 #[cfg(feature = "evm")]
 impl Decodable for EvmTransaction {
     fn decode(rlp: &Rlp<'_>) -> Result<Self, DecoderError> {
-        fn decode_tx_create(rlp: &Rlp<'_>) -> Result<EvmTransaction, DecoderError> {
-            Ok(EvmTransaction {
-                caller: rlp.val_at(1)?,
-                value: rlp.val_at(2)?,
-                gas_limit: rlp.val_at(4)?,
-                access_list: rlp.list_at(5)?,
-                action_type: EvmActionType::Create {
-                    init_code: rlp.list_at(3)?.into_boxed_slice(),
-                },
-            })
-        }
-        fn decode_tx_create2(rlp: &Rlp<'_>) -> Result<EvmTransaction, DecoderError> {
-            Ok(EvmTransaction {
-                caller: rlp.val_at(1)?,
-                value: rlp.val_at(2)?,
-                gas_limit: rlp.val_at(5)?,
-                access_list: rlp.list_at(6)?,
-                action_type: EvmActionType::Create2 {
-                    init_code: rlp.list_at(3)?.into_boxed_slice(),
-                    salt: rlp.val_at(4)?,
-                },
-            })
-        }
-        fn decode_tx_call(rlp: &Rlp<'_>) -> Result<EvmTransaction, DecoderError> {
-            Ok(EvmTransaction {
-                caller: rlp.val_at(1)?,
-                value: rlp.val_at(3)?,
-                gas_limit: rlp.val_at(5)?,
-                access_list: rlp.list_at(6)?,
-                action_type: EvmActionType::Call {
-                    address: rlp.val_at(2)?,
-
-                    data: rlp.list_at(4)?.into_boxed_slice(),
-                },
-            })
-        }
-
+        let caller = rlp.val_at(1)?;
+        let value = rlp.val_at(2)?;
+        let gas_limit = rlp.val_at(3)?;
+        let access_list = rlp.list_at(4)?;
         match rlp.val_at(0)? {
-            0u8 => decode_tx_create(rlp),
-            1u8 => decode_tx_create2(rlp),
-            2u8 => decode_tx_call(rlp),
+            0u8 => Ok(EvmTransaction {
+                caller,
+                value,
+                gas_limit,
+                access_list,
+                action_type: EvmActionType::Create {
+                    init_code: rlp.list_at(5)?.into_boxed_slice(),
+                },
+            }),
+            1u8 => Ok(EvmTransaction {
+                caller,
+                value,
+                gas_limit,
+                access_list,
+                action_type: EvmActionType::Create2 {
+                    init_code: rlp.list_at(5)?.into_boxed_slice(),
+                    salt: rlp.val_at(6)?,
+                },
+            }),
+            2u8 => Ok(EvmTransaction {
+                caller,
+                value,
+                gas_limit,
+                access_list,
+                action_type: EvmActionType::Call {
+                    address: rlp.val_at(5)?,
+                    data: rlp.list_at(6)?.into_boxed_slice(),
+                },
+            }),
             _ => Err(DecoderError::Custom("invalid evm transaction")),
         }
     }
@@ -111,29 +104,29 @@ impl Encodable for EvmTransaction {
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
-                s.append_list(init_code);
                 s.append(&self.gas_limit);
                 s.append_list(&self.access_list);
+                s.append_list(init_code);
             }
             EvmActionType::Create2 { init_code, salt } => {
                 s.begin_list(7);
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
-                s.append_list(init_code);
-                s.append(salt);
                 s.append(&self.gas_limit);
                 s.append_list(&self.access_list);
+                s.append_list(init_code);
+                s.append(salt);
             }
             EvmActionType::Call { address, data } => {
                 s.begin_list(7);
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
-                s.append(address);
                 s.append(&self.value);
-                s.append_list(data);
                 s.append(&self.gas_limit);
                 s.append_list(&self.access_list);
+                s.append(address);
+                s.append_list(data);
             }
         }
     }
