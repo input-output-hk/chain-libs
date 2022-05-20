@@ -523,6 +523,48 @@ mod test {
     }
 
     #[test]
+    fn validate_transaction_nonce_test() {
+        let evm_address = EvmAddress::from_low_u64_be(0);
+
+        let value = Value(100);
+        let evm_state = AccountState {
+            storage: Default::default(),
+            code: vec![0, 1, 2].into(),
+            nonce: 0,
+        };
+
+        let evm = Ledger::new();
+        let accounts = account::Ledger::new()
+            .evm_insert_or_update(
+                transform_evm_to_jor(&evm_address),
+                value,
+                evm_state.clone(),
+                (),
+            )
+            .unwrap();
+
+        let mut transaction = EvmTransaction {
+            caller: evm_address,
+            value: value.0,
+            nonce: 0,
+            gas_limit: u64::max_value(),
+            access_list: Vec::new(),
+            action_type: EvmActionType::Create {
+                init_code: Vec::new().into(),
+            },
+        };
+
+        assert!(Ledger::validate_transaction_nonce(&evm, &accounts, &transaction).is_ok());
+
+        transaction.nonce = 1;
+
+        assert_eq!(
+            Ledger::validate_transaction_nonce(&evm, &accounts, &transaction),
+            Err(Error::InvalidNonce(0, 1))
+        );
+    }
+
+    #[test]
     fn apply_map_accounts_test_1() {
         // Prev state:
         // evm_mapping: [] (empty)
@@ -1807,6 +1849,69 @@ mod test {
                 Err(Error::EvmTransaction(
                     chain_evm::machine::Error::TransactionError(ExitError::OutOfFund)
                 ))
+            );
+        }
+    }
+
+    #[test]
+    fn run_transaction_replay_atack_test() {
+        execute(chain_evm::Config::Frontier);
+        execute(chain_evm::Config::Istanbul);
+        execute(chain_evm::Config::Berlin);
+        execute(chain_evm::Config::London);
+
+        fn execute(config: chain_evm::Config) {
+            // Prev state:
+            // evm_mapping: [ 'accountd_id` <-> `evm_address` ]
+            // accounts: [ 'accountd_id' <-> 'state1` (state1.evm_state == empty, state1.value = value1) ]
+            //
+            // Applly 'transaction CREATE' (caller: `evm_address`, value: `value2`, init_code: []  )
+            //
+            // Applly 'transaction CREATE' (caller: `evm_address`, value: `value2`, init_code: []  )
+            //
+            // Post state;
+            // ErrorError::EvmTransaction(chain_evm::machine::Error::InvalidNonce(1, 0))
+
+            let evm_address = EvmAddress::from_low_u64_be(0);
+            let account_id = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
+            let value1 = Value(100);
+            let value2 = Value(10);
+            let code = Vec::new();
+
+            let mut evm = Ledger::new();
+            let mut accounts = account::Ledger::new()
+                .add_account(account_id.clone(), value1, ())
+                .unwrap();
+            (accounts, evm.address_mapping) = evm
+                .address_mapping
+                .map_accounts(account_id.clone(), evm_address, accounts)
+                .unwrap();
+
+            assert_eq!(
+                accounts.get_state(&account_id),
+                Ok(&JorAccount::new(value1, ()))
+            );
+
+            assert_eq!(evm.address_mapping.jor_address(&evm_address), account_id);
+
+            let transaction = EvmTransaction {
+                caller: evm_address,
+                value: value2.0,
+                nonce: 0,
+                gas_limit: u64::max_value(),
+                access_list: Vec::new(),
+                action_type: EvmActionType::Create {
+                    init_code: code.clone().into(),
+                },
+            };
+
+            (accounts, evm) =
+                Ledger::run_transaction(evm, accounts, transaction.clone(), config).unwrap();
+
+            // repeat the same transaction
+            assert_eq!(
+                Ledger::run_transaction(evm, accounts, transaction, config),
+                Err(Error::InvalidNonce(1, 0))
             );
         }
     }
