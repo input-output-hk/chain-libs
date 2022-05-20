@@ -35,6 +35,8 @@ pub struct EvmTransaction {
     #[cfg(feature = "evm")]
     pub value: u64,
     #[cfg(feature = "evm")]
+    pub nonce: u64,
+    #[cfg(feature = "evm")]
     pub gas_limit: u64,
     #[cfg(feature = "evm")]
     pub access_list: AccessList,
@@ -58,36 +60,40 @@ impl Decodable for EvmTransaction {
     fn decode(rlp: &Rlp<'_>) -> Result<Self, DecoderError> {
         let caller = rlp.val_at(1)?;
         let value = rlp.val_at(2)?;
-        let gas_limit = rlp.val_at(3)?;
-        let access_list = rlp.list_at(4)?;
+        let nonce = rlp.val_at(3)?;
+        let gas_limit = rlp.val_at(4)?;
+        let access_list = rlp.list_at(5)?;
         match rlp.val_at(0)? {
             0u8 => Ok(EvmTransaction {
                 caller,
                 value,
+                nonce,
                 gas_limit,
                 access_list,
                 action_type: EvmActionType::Create {
-                    init_code: rlp.list_at(5)?.into_boxed_slice(),
+                    init_code: rlp.list_at(6)?.into_boxed_slice(),
                 },
             }),
             1u8 => Ok(EvmTransaction {
                 caller,
                 value,
+                nonce,
                 gas_limit,
                 access_list,
                 action_type: EvmActionType::Create2 {
-                    init_code: rlp.list_at(5)?.into_boxed_slice(),
-                    salt: rlp.val_at(6)?,
+                    init_code: rlp.list_at(6)?.into_boxed_slice(),
+                    salt: rlp.val_at(7)?,
                 },
             }),
             2u8 => Ok(EvmTransaction {
                 caller,
                 value,
+                nonce,
                 gas_limit,
                 access_list,
                 action_type: EvmActionType::Call {
-                    address: rlp.val_at(5)?,
-                    data: rlp.list_at(6)?.into_boxed_slice(),
+                    address: rlp.val_at(6)?,
+                    data: rlp.list_at(7)?.into_boxed_slice(),
                 },
             }),
             _ => Err(DecoderError::Custom("invalid evm transaction")),
@@ -104,6 +110,7 @@ impl Encodable for EvmTransaction {
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
+                s.append(&self.nonce);
                 s.append(&self.gas_limit);
                 s.append_list(&self.access_list);
                 s.append_list(init_code);
@@ -113,6 +120,7 @@ impl Encodable for EvmTransaction {
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
+                s.append(&self.nonce);
                 s.append(&self.gas_limit);
                 s.append_list(&self.access_list);
                 s.append_list(init_code);
@@ -123,6 +131,7 @@ impl Encodable for EvmTransaction {
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
+                s.append(&self.nonce);
                 s.append(&self.gas_limit);
                 s.append_list(&self.access_list);
                 s.append(address);
@@ -235,6 +244,7 @@ mod test {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             let caller = [u8::arbitrary(g); H160::len_bytes()].into();
             let value = u64::arbitrary(g);
+            let nonce = u64::arbitrary(g);
             let gas_limit = Arbitrary::arbitrary(g);
             let access_list: AccessList = match u8::arbitrary(g) % 2 {
                 0 => vec![],
@@ -265,6 +275,7 @@ mod test {
             Self {
                 caller,
                 value,
+                nonce,
                 gas_limit,
                 access_list,
                 action_type: Arbitrary::arbitrary(g),

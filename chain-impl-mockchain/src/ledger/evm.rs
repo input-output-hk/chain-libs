@@ -28,7 +28,9 @@ pub enum Error {
     )]
     ExistingMapping(JorAddress, EvmAddress),
     #[error("Canot map address: {0}")]
-    CannotMap(#[from] LedgerError),
+    CannotMap(#[source] LedgerError),
+    #[error("Invalid nonce, expected value: {0}, provided: {1}")]
+    InvalidNonce(u64, u64),
     #[error("EVM transaction error: {0}")]
     EvmTransaction(#[from] chain_evm::machine::Error),
     #[error("It is not a contranct generation transaction type")]
@@ -100,7 +102,9 @@ impl AddressMapping {
 
         // should update and move account evm account state
         let old_jor_id = transform_evm_to_jor(&evm_id);
-        accounts = accounts.evm_move_state(jor_id, &old_jor_id)?;
+        accounts = accounts
+            .evm_move_state(jor_id, &old_jor_id)
+            .map_err(Error::CannotMap)?;
 
         self.evm_to_jor = evm_to_jor;
         self.jor_to_evm = jor_to_evm;
@@ -188,8 +192,24 @@ impl<'a> EvmState for EvmStateImpl<'a> {
 }
 
 impl Ledger {
+    fn validate_transaction_nonce(
+        evm: &Ledger,
+        accounts: &account::Ledger,
+        transaction: &EvmTransaction,
+    ) -> Result<(), Error> {
+        let jor_address = evm.address_mapping.jor_address(&transaction.caller);
+        let expected_nonce = match accounts.get_state(&jor_address) {
+            Ok(account_state) => account_state.evm_state.nonce,
+            Err(LedgerError::NonExistent) => 0,
+            Err(_) => unimplemented!("other errors are not expected"),
+        };
+        (expected_nonce == transaction.nonce)
+            .then(|| ())
+            .ok_or(Error::InvalidNonce(expected_nonce, transaction.nonce))
+    }
+
     #[allow(dead_code)]
-    pub fn generate_contract_address(
+    fn generate_contract_address(
         mut evm: Ledger,
         accounts: account::Ledger,
         contract: EvmTransaction,
@@ -234,19 +254,21 @@ impl Ledger {
     pub fn run_transaction(
         mut evm: Ledger,
         accounts: account::Ledger,
-        contract: EvmTransaction,
+        transaction: EvmTransaction,
         config: chain_evm::Config,
     ) -> Result<(account::Ledger, Ledger), Error> {
+        Self::validate_transaction_nonce(&evm, &accounts, &transaction)?;
+
         let config = config.into();
         let mut vm_state = EvmStateImpl {
             accounts,
             evm: &mut evm,
         };
-        let value = contract.value;
-        let caller = contract.caller;
-        let gas_limit = contract.gas_limit;
-        let access_list = contract.access_list;
-        match contract.action_type {
+        let value = transaction.value;
+        let caller = transaction.caller;
+        let gas_limit = transaction.gas_limit;
+        let access_list = transaction.access_list;
+        match transaction.action_type {
             EvmActionType::Create { init_code } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 transact_create(vm, value.into(), init_code, access_list)?;
@@ -379,7 +401,7 @@ mod test {
 
     use super::*;
     use chain_crypto::{Ed25519, PublicKey};
-    use chain_evm::state::{AccountState, Nonce};
+    use chain_evm::state::AccountState;
 
     quickcheck! {
         fn address_transformation_test(evm_rand_seed: u64) -> bool {
@@ -564,7 +586,7 @@ mod test {
         let evm_state = AccountState {
             storage: Default::default(),
             code: vec![0, 1, 2].into(),
-            nonce: Nonce::one(),
+            nonce: 1,
         };
 
         let mut evm = Ledger::new();
@@ -623,7 +645,7 @@ mod test {
         let evm_state = AccountState {
             storage: Default::default(),
             code: vec![0, 1, 2].into(),
-            nonce: Nonce::one(),
+            nonce: 1,
         };
 
         let mut evm = Ledger::new();
@@ -697,12 +719,12 @@ mod test {
         let evm_state1 = AccountState {
             storage: Default::default(),
             code: vec![0, 1, 2].into(),
-            nonce: Nonce::one(),
+            nonce: 1,
         };
         let evm_state2 = AccountState {
             storage: Default::default(),
             code: vec![3, 4, 5].into(),
-            nonce: Nonce::one(),
+            nonce: 1,
         };
 
         let evm = Ledger::new();
@@ -874,6 +896,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address1,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Call {
@@ -889,7 +912,7 @@ mod test {
                 Ok(&JorAccount::new_evm(
                     AccountState {
                         storage: Default::default(),
-                        nonce: Nonce::one(),
+                        nonce: 1,
                         code: Vec::new().into()
                     },
                     value1.sub(value2).unwrap(),
@@ -968,6 +991,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address1,
                 value: value3.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Call {
@@ -983,7 +1007,7 @@ mod test {
                 Ok(&JorAccount::new_evm(
                     AccountState {
                         storage: Default::default(),
-                        nonce: Nonce::one(),
+                        nonce: 1,
                         code: Vec::new().into()
                     },
                     value1.checked_sub(value3).unwrap(),
@@ -1059,6 +1083,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address1,
                 value: value3.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Call {
@@ -1137,6 +1162,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address1,
                 value: value3.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Call {
@@ -1200,6 +1226,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create {
@@ -1220,7 +1247,7 @@ mod test {
                         AccountState {
                             storage: Default::default(),
                             code: code.into(),
-                            nonce: Nonce::zero()
+                            nonce: 0
                         },
                         value2,
                         ()
@@ -1233,7 +1260,7 @@ mod test {
                         AccountState {
                             storage: Default::default(),
                             code: code.into(),
-                            nonce: Nonce::one()
+                            nonce: 1
                         },
                         value2,
                         ()
@@ -1247,7 +1274,7 @@ mod test {
                     AccountState {
                         storage: Default::default(),
                         code: Vec::new().into(),
-                        nonce: Nonce::one()
+                        nonce: 1
                     },
                     value1.checked_sub(value2).unwrap(),
                     ()
@@ -1299,6 +1326,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
 
@@ -1325,7 +1353,7 @@ mod test {
                         AccountState {
                             storage: Default::default(),
                             code: code.into(),
-                            nonce: Nonce::one()
+                            nonce: 1
                         },
                         value2,
                         ()
@@ -1339,7 +1367,7 @@ mod test {
                     AccountState {
                         storage: Default::default(),
                         code: Vec::new().into(),
-                        nonce: Nonce::one()
+                        nonce: 1
                     },
                     value1.checked_sub(value2).unwrap(),
                     ()
@@ -1392,6 +1420,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create2 {
@@ -1413,7 +1442,7 @@ mod test {
                         AccountState {
                             storage: Default::default(),
                             code: code.into(),
-                            nonce: Nonce::zero()
+                            nonce: 0
                         },
                         value2,
                         ()
@@ -1426,7 +1455,7 @@ mod test {
                         AccountState {
                             storage: Default::default(),
                             code: code.into(),
-                            nonce: Nonce::one()
+                            nonce: 1
                         },
                         value2,
                         ()
@@ -1440,7 +1469,7 @@ mod test {
                     AccountState {
                         storage: Default::default(),
                         code: Vec::new().into(),
-                        nonce: Nonce::one()
+                        nonce: 1
                     },
                     value1.checked_sub(value2).unwrap(),
                     ()
@@ -1492,6 +1521,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create2 {
@@ -1518,7 +1548,7 @@ mod test {
                         AccountState {
                             storage: Default::default(),
                             code: code.into(),
-                            nonce: Nonce::one()
+                            nonce: 1
                         },
                         value2,
                         ()
@@ -1532,7 +1562,7 @@ mod test {
                     AccountState {
                         storage: Default::default(),
                         code: Vec::new().into(),
-                        nonce: Nonce::one()
+                        nonce: 1
                     },
                     value1.checked_sub(value2).unwrap(),
                     ()
@@ -1583,6 +1613,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create {
@@ -1641,6 +1672,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create {
@@ -1699,6 +1731,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create2 {
@@ -1759,6 +1792,7 @@ mod test {
             let transaction = EvmTransaction {
                 caller: evm_address,
                 value: value2.0,
+                nonce: 0,
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create2 {
