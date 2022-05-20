@@ -535,12 +535,7 @@ mod test {
 
         let evm = Ledger::new();
         let accounts = account::Ledger::new()
-            .evm_insert_or_update(
-                transform_evm_to_jor(&evm_address),
-                value,
-                evm_state.clone(),
-                (),
-            )
+            .evm_insert_or_update(transform_evm_to_jor(&evm_address), value, evm_state, ())
             .unwrap();
 
         let mut transaction = EvmTransaction {
@@ -1901,7 +1896,7 @@ mod test {
                 gas_limit: u64::max_value(),
                 access_list: Vec::new(),
                 action_type: EvmActionType::Create {
-                    init_code: code.clone().into(),
+                    init_code: code.into(),
                 },
             };
 

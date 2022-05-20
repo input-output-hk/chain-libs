@@ -127,7 +127,7 @@ mod test {
             Self {
                 storage: Storage::new(),
                 code: Box::new([Arbitrary::arbitrary(g); 32]),
-                nonce: u64::arbitrary(g).into(),
+                nonce: u64::arbitrary(g),
             }
         }
     }
