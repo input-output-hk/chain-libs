@@ -252,7 +252,7 @@ impl EvmVerifier {
                 .address_mapping
                 .evm_address(&wallet.public_key().into())
                 .is_none(),
-            "Found some mapping for: {} {} {}",
+            "Found some mapping for: {} Current mappings: {} {}",
             wallet.public_key(),
             self.evm_ledger.stats(),
             self.info
