@@ -1,15 +1,16 @@
-use crate::Address;
+use crate::{
+    crypto::{
+        secp256k1::{Message, RecoverableSignature, RecoveryId},
+        sha3::{Digest, Keccak256},
+    },
+    Address, Error,
+};
 use ethereum::{
     EIP1559TransactionMessage, EIP2930TransactionMessage, LegacyTransactionMessage,
     TransactionSignature, TransactionV2,
 };
 use ethereum_types::H256;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-use secp256k1::{
-    ecdsa::{RecoverableSignature, RecoveryId},
-    Message,
-};
-use sha3::{Digest, Keccak256};
 
 /// Byte size for 'r' and 's' components of a signature.
 pub const SIGNATURE_BYTES: usize = 32;
@@ -34,7 +35,7 @@ impl EthereumUnsignedTransaction {
     /// Sign the current transaction given an H256-encoded secret key.
     ///
     /// Legacy transaction signature as specified in [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
-    pub fn sign(self, secret: &H256) -> Result<EthereumSignedTransaction, secp256k1::Error> {
+    pub fn sign(self, secret: &H256) -> Result<EthereumSignedTransaction, Error> {
         let secret = crate::util::Secret::from_hash(secret)?;
         match self {
             Self::Legacy(tx) => {
@@ -132,7 +133,7 @@ impl EthereumSignedTransaction {
         EthereumSignedTransaction::decode(&rlp)
     }
 
-    pub fn recover(&self) -> Result<Address, secp256k1::Error> {
+    pub fn recover(&self) -> Result<Address, Error> {
         match &self.0 {
             TransactionV2::Legacy(tx) => {
                 let signature = tx.signature.clone();

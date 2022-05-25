@@ -1,6 +1,6 @@
 use crate::{
     transaction::{EthereumSignedTransaction, EthereumUnsignedTransaction},
-    Address,
+    Address, Error,
 };
 use ethereum_types::{H256, U256};
 use secp256k1::{
@@ -49,7 +49,7 @@ impl Secret {
     pub fn sign(
         &self,
         tx: EthereumUnsignedTransaction,
-    ) -> Result<EthereumSignedTransaction, secp256k1::Error> {
+    ) -> Result<EthereumSignedTransaction, Error> {
         tx.sign(&self.secret_hash())
     }
 }
@@ -67,10 +67,7 @@ pub fn generate_account_secret() -> Secret {
 }
 
 /// Sign a given hash of data with a secret key.
-pub fn sign_data_hash(
-    tx_hash: &H256,
-    secret: &Secret,
-) -> Result<RecoverableSignature, secp256k1::Error> {
+pub fn sign_data_hash(tx_hash: &H256, secret: &Secret) -> Result<RecoverableSignature, Error> {
     let s = Secp256k1::new();
     let h = Message::from_slice(tx_hash.as_fixed_bytes())?;
     let secret = secret.seckey();

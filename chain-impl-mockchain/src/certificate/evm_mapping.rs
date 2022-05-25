@@ -9,13 +9,16 @@ use chain_core::{
 };
 #[cfg(feature = "evm")]
 use chain_evm::{
+    crypto::{
+        secp256k1::{Message, RecoverableSignature, RecoveryId},
+        sha3::{Digest, Keccak256},
+    },
     ethereum::TransactionSignature,
     ethereum_types::{H256, U256},
     rlp::{self, Decodable, DecoderError, Encodable, Rlp, RlpStream},
-    sha3::{Digest, Keccak256},
     transaction::SIGNATURE_BYTES,
     util::{decode_h256_from_u256, sign_data_hash, Secret},
-    Address,
+    Address, Error,
 };
 use typed_bytes::{ByteArray, ByteBuilder};
 
@@ -71,9 +74,9 @@ impl EvmMapping {
 
     #[cfg(feature = "evm")]
     /// Returns the hash used for signing.
-    pub fn sign(&self, secret: &H256) -> Result<SignedEvmMapping, ()> {
-        let secret = Secret::from_hash(secret).unwrap();
-        let sig = sign_data_hash(&self.signing_hash(), &secret).unwrap();
+    pub fn sign(&self, secret: &H256) -> Result<SignedEvmMapping, Error> {
+        let secret = Secret::from_hash(secret)?;
+        let sig = sign_data_hash(&self.signing_hash(), &secret)?;
         let (recovery_id, sig_bytes) = sig.serialize_compact();
         let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
         let signature = TransactionSignature::new(
@@ -81,7 +84,7 @@ impl EvmMapping {
             H256::from_slice(r),
             H256::from_slice(s),
         )
-        .ok_or(())?;
+        .ok_or(Error::InvalidSignature)?;
         Ok(SignedEvmMapping {
             account_id: self.account_id.clone(),
             evm_address: self.evm_address,
@@ -207,8 +210,14 @@ pub struct SignedEvmMapping {
     pub s: H256,
 }
 
-pub enum Error {
-    WrongSignature,
+#[cfg(feature = "evm")]
+impl From<&SignedEvmMapping> for EvmMapping {
+    fn from(other: &SignedEvmMapping) -> Self {
+        Self {
+            account_id: other.account_id.clone(),
+            evm_address: other.evm_address,
+        }
+    }
 }
 
 #[cfg(feature = "evm")]
@@ -218,8 +227,24 @@ impl SignedEvmMapping {
         Ok(self.recover()? == self.evm_address)
     }
     /// Returns the address used to sign this EVM mapping
-    pub fn recover(&self) -> Result<Address, Error> {
-        unimplemented!();
+    fn recover(&self) -> Result<Address, Error> {
+        let recid = RecoveryId::from_i32(self.odd_y_parity as i32)?;
+        let data = {
+            let r = self.r.as_fixed_bytes();
+            let s = self.s.as_fixed_bytes();
+            let mut data = [0u8; 64];
+            data[..SIGNATURE_BYTES].copy_from_slice(&r[..]);
+            data[SIGNATURE_BYTES..].copy_from_slice(&s[..]);
+            data
+        };
+        let signature = RecoverableSignature::from_compact(&data, recid)?;
+        let tx_hash = EvmMapping::from(self).signing_hash();
+        let msg = Message::from_slice(tx_hash.as_fixed_bytes())?;
+        let pubkey = signature.recover(&msg)?;
+        let pubkey_bytes = pubkey.serialize_uncompressed();
+        Ok(Address::from_slice(
+            &Keccak256::digest(&pubkey_bytes[1..]).as_slice()[12..],
+        ))
     }
 }
 
