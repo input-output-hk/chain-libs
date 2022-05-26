@@ -207,9 +207,11 @@ impl Ledger {
             Err(LedgerError::NonExistent) => 0,
             Err(_) => unimplemented!("other errors are not expected"),
         };
-        (expected_nonce == transaction.nonce)
-            .then(|| ())
-            .ok_or(Error::InvalidNonce(expected_nonce, transaction.nonce))
+        if expected_nonce != transaction.nonce {
+            Err(Error::InvalidNonce(expected_nonce, transaction.nonce))
+        } else {
+            Ok(())
+        }
     }
 
     #[allow(dead_code)]

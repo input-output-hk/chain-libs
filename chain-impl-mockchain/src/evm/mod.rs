@@ -103,7 +103,7 @@ impl Encodable for EvmTransaction {
     fn rlp_append(&self, s: &mut RlpStream) {
         match &self.action_type {
             EvmActionType::Create { init_code } => {
-                s.begin_list(6);
+                s.begin_list(7);
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
@@ -113,7 +113,7 @@ impl Encodable for EvmTransaction {
                 s.append_list(init_code);
             }
             EvmActionType::Create2 { init_code, salt } => {
-                s.begin_list(7);
+                s.begin_list(8);
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
@@ -124,7 +124,7 @@ impl Encodable for EvmTransaction {
                 s.append(salt);
             }
             EvmActionType::Call { address, data } => {
-                s.begin_list(7);
+                s.begin_list(8);
                 s.append(&u8::from(&self.action_type));
                 s.append(&self.caller);
                 s.append(&self.value);
