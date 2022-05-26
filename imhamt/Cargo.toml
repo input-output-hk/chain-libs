@@ -17,7 +17,7 @@ test-strategy = "0.1"
 trybuild = "1"
 
 [target.'cfg(unix)'.dev-dependencies]
-jemalloc-ctl = "0.3"
+jemalloc-ctl = "0.5"
 jemallocator = "*"
 
 [[example]]
