@@ -533,11 +533,10 @@ impl Ledger {
                 Fragment::Evm(_tx) => {
                     #[cfg(feature = "evm")]
                     {
-                        let tx = _tx.as_slice().payload().into_payload();
                         (ledger.accounts, ledger.evm) = evm::Ledger::run_transaction(
                             ledger.evm,
                             ledger.accounts,
-                            tx,
+                            _tx.clone(),
                             ledger.settings.evm_config,
                         )?;
                     }
@@ -1087,11 +1086,10 @@ impl Ledger {
             Fragment::Evm(_tx) => {
                 #[cfg(feature = "evm")]
                 {
-                    let tx = _tx.as_slice().payload().into_payload();
                     (new_ledger.accounts, new_ledger.evm) = evm::Ledger::run_transaction(
                         new_ledger.evm,
                         new_ledger.accounts,
-                        tx,
+                        _tx.clone(),
                         new_ledger.settings.evm_config,
                     )?;
                 }
@@ -1488,6 +1486,22 @@ impl Ledger {
     #[cfg(feature = "evm")]
     pub fn evm_block_gas_limit(&self) -> u64 {
         self.settings.evm_environment.block_gas_limit
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn jormungandr_mapped_address(
+        &self,
+        evm_id: &chain_evm::Address,
+    ) -> crate::account::Identifier {
+        self.evm.address_mapping.jor_address(evm_id)
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn evm_mapped_address(
+        &self,
+        jor_id: &crate::account::Identifier,
+    ) -> Option<chain_evm::Address> {
+        self.evm.address_mapping.evm_address(jor_id)
     }
 
     pub fn utxo_out(
