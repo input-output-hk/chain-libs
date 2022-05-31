@@ -54,10 +54,11 @@ pub struct EvmTransaction {
 }
 
 #[cfg(feature = "evm")]
-impl From<EthereumSignedTransaction> for EvmTransaction {
-    fn from(val: EthereumSignedTransaction) -> Self {
-        let caller = val.recover().unwrap();
-        match val.0 {
+impl TryFrom<EthereumSignedTransaction> for EvmTransaction {
+    type Error = String;
+    fn try_from(val: EthereumSignedTransaction) -> Result<Self, Self::Error> {
+        let caller = val.recover().map_err(|e| e.to_string())?;
+        Ok(match val.0 {
             TransactionV2::Legacy(tx) => Self {
                 caller,
                 value: tx.value.as_u64(),
@@ -82,7 +83,7 @@ impl From<EthereumSignedTransaction> for EvmTransaction {
                 access_list: tx.access_list,
                 action_type: EvmActionType::build(tx.action, tx.input.into()),
             },
-        }
+        })
     }
 }
 
