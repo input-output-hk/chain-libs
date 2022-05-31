@@ -120,7 +120,7 @@ impl EthereumUnsignedTransaction {
 
 /// Wrapper type for `ethereum::TransactionV2`, which includes the `EIP1559Transaction`, `EIP2930Transaction`, `LegacyTransaction` variants.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EthereumSignedTransaction(pub(crate) TransactionV2);
+pub struct EthereumSignedTransaction(pub TransactionV2);
 
 impl EthereumSignedTransaction {
     pub fn to_bytes(&self) -> Vec<u8> {

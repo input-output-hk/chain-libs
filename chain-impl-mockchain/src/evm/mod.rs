@@ -5,6 +5,10 @@ use chain_core::{
 };
 #[cfg(feature = "evm")]
 pub use chain_evm::Config;
+use chain_evm::{
+    ethereum::{TransactionAction, TransactionV2},
+    transaction::EthereumSignedTransaction,
+};
 #[cfg(feature = "evm")]
 use chain_evm::{
     ethereum_types::H256,
@@ -24,6 +28,15 @@ pub enum EvmActionType {
     Call { address: Address, data: ByteCode },
 }
 
+impl EvmActionType {
+    fn build(action: TransactionAction, data: ByteCode) -> Self {
+        match action {
+            TransactionAction::Call(address) => Self::Call { address, data },
+            TransactionAction::Create => Self::Create { init_code: data },
+        }
+    }
+}
+
 /// Variants of supported EVM transactions
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EvmTransaction {
@@ -38,6 +51,39 @@ pub struct EvmTransaction {
     #[cfg(feature = "evm")]
     pub access_list: AccessList,
     pub action_type: EvmActionType,
+}
+
+#[cfg(feature = "evm")]
+impl From<EthereumSignedTransaction> for EvmTransaction {
+    fn from(val: EthereumSignedTransaction) -> Self {
+        let caller = val.recover().unwrap();
+        match val.0 {
+            TransactionV2::Legacy(tx) => Self {
+                caller,
+                value: tx.value.as_u64(),
+                nonce: tx.nonce.as_u64(),
+                gas_limit: tx.gas_limit.as_u64(),
+                access_list: AccessList::new(),
+                action_type: EvmActionType::build(tx.action, tx.input.into()),
+            },
+            TransactionV2::EIP2930(tx) => Self {
+                caller,
+                value: tx.value.as_u64(),
+                nonce: tx.nonce.as_u64(),
+                gas_limit: tx.gas_limit.as_u64(),
+                access_list: tx.access_list,
+                action_type: EvmActionType::build(tx.action, tx.input.into()),
+            },
+            TransactionV2::EIP1559(tx) => Self {
+                caller,
+                value: tx.value.as_u64(),
+                nonce: tx.nonce.as_u64(),
+                gas_limit: tx.gas_limit.as_u64(),
+                access_list: tx.access_list,
+                action_type: EvmActionType::build(tx.action, tx.input.into()),
+            },
+        }
+    }
 }
 
 #[cfg(feature = "evm")]
