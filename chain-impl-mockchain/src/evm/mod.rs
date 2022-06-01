@@ -5,6 +5,7 @@ use chain_core::{
 };
 #[cfg(feature = "evm")]
 pub use chain_evm::Config;
+#[cfg(feature = "evm")]
 use chain_evm::{
     ethereum::{TransactionAction, TransactionV2},
     transaction::EthereumSignedTransaction,
@@ -28,6 +29,7 @@ pub enum EvmActionType {
     Call { address: Address, data: ByteCode },
 }
 
+#[cfg(feature = "evm")]
 impl EvmActionType {
     fn build(action: TransactionAction, data: ByteCode) -> Self {
         match action {
@@ -50,6 +52,7 @@ pub struct EvmTransaction {
     pub gas_limit: u64,
     #[cfg(feature = "evm")]
     pub access_list: AccessList,
+    #[cfg(feature = "evm")]
     pub action_type: EvmActionType,
 }
 
