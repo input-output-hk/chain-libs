@@ -505,6 +505,69 @@ mod test {
     }
 
     #[test]
+    fn estimate_transaction_test() {
+        execute(chain_evm::Config::Frontier);
+        execute(chain_evm::Config::Istanbul);
+        execute(chain_evm::Config::Berlin);
+        execute(chain_evm::Config::London);
+
+        fn execute(config: chain_evm::Config) {
+            let evm_address1 = EvmAddress::from_low_u64_be(0);
+            let evm_address2 = EvmAddress::from_low_u64_be(1);
+            let account_id = JorAddress::from(<PublicKey<Ed25519>>::from_binary(&[0; 32]).unwrap());
+            let value1 = Value(u64::MAX);
+            let value2 = Value(1);
+
+            let mut evm = Ledger::new();
+            let mut accounts = account::Ledger::new()
+                .add_account(account_id.clone(), value1, ())
+                .unwrap();
+            (accounts, evm.address_mapping) = evm
+                .address_mapping
+                .map_accounts(account_id.clone(), evm_address1, accounts)
+                .unwrap();
+
+            // setup gas price
+            evm.environment.gas_price = 1.into();
+
+            let transaction = EvmTransaction {
+                caller: evm_address1,
+                value: value2.0,
+                nonce: 0,
+                gas_limit: u64::max_value(),
+                access_list: Vec::new(),
+                action_type: EvmActionType::Call {
+                    address: evm_address2,
+                    data: Vec::new().into(),
+                },
+            };
+
+            let estimated_gas = Ledger::estimate_transaction(
+                evm.clone(),
+                accounts.clone(),
+                transaction.clone(),
+                config,
+            )
+            .unwrap();
+
+            (accounts, _) = Ledger::run_transaction(evm, accounts, transaction, config).unwrap();
+
+            assert_eq!(
+                accounts.get_state(&account_id),
+                Ok(&JorAccount::new_evm(
+                    AccountState {
+                        storage: Default::default(),
+                        nonce: 1,
+                        code: Vec::new().into()
+                    },
+                    value1.sub(Value(value2.0 + estimated_gas)).unwrap(),
+                    ()
+                ))
+            );
+        }
+    }
+
+    #[test]
     fn address_mapping_test() {
         let mut address_mapping = AddressMapping::new();
         let mut accounts = account::Ledger::new();
