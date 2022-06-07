@@ -1482,7 +1482,7 @@ impl Ledger {
     #[cfg(feature = "evm")]
     pub fn estimate_evm_transaction(&self, tx: EvmTransaction) -> Result<u64, Error> {
         Ok(evm::Ledger::estimate_transaction(
-            &mut self.evm.clone(),
+            self.evm.clone(),
             self.accounts.clone(),
             tx,
             self.settings.evm_config,

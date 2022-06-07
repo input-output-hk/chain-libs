@@ -133,12 +133,12 @@ impl Default for Ledger {
     }
 }
 
-struct EvmStateImpl<'a> {
+struct EvmStateImpl {
     accounts: account::Ledger,
-    evm: &'a mut Ledger,
+    evm: Ledger,
 }
 
-impl<'a> EvmState for EvmStateImpl<'a> {
+impl EvmState for EvmStateImpl {
     fn environment(&self) -> &Environment {
         &self.evm.environment
     }
@@ -219,28 +219,25 @@ impl Ledger {
 
     #[allow(dead_code)]
     fn generate_contract_address(
-        mut evm: Ledger,
+        evm: Ledger,
         accounts: account::Ledger,
         contract: EvmTransaction,
         config: chain_evm::Config,
     ) -> Result<(EvmAddress, account::Ledger, Ledger), Error> {
         let config = config.into();
-        let mut vm_state = EvmStateImpl {
-            accounts,
-            evm: &mut evm,
-        };
+        let mut vm_state = EvmStateImpl { accounts, evm };
         let caller = contract.caller;
         let gas_limit = contract.gas_limit;
         match contract.action_type {
             EvmActionType::Create { init_code: _ } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 let address = generate_address_create(vm, caller);
-                Ok((address, vm_state.accounts, evm))
+                Ok((address, vm_state.accounts, vm_state.evm))
             }
             EvmActionType::Create2 { init_code, salt } => {
                 let vm = VirtualMachine::new(&mut vm_state, &config, caller, gas_limit, true);
                 let address = generate_address_create2(vm, caller, init_code, salt);
-                Ok((address, vm_state.accounts, evm))
+                Ok((address, vm_state.accounts, vm_state.evm))
             }
             _ => Err(Error::NotAContractType),
         }
@@ -261,13 +258,13 @@ impl Ledger {
     }
 
     pub fn estimate_transaction(
-        evm: &mut Ledger,
+        evm: Ledger,
         accounts: account::Ledger,
         transaction: EvmTransaction,
         config: chain_evm::Config,
     ) -> Result<u64, Error> {
         let config = config.into();
-        let mut vm_state = EvmStateImpl { accounts, evm: evm };
+        let mut vm_state = EvmStateImpl { accounts, evm };
 
         let value = transaction.value;
         let caller = transaction.caller;
@@ -308,7 +305,7 @@ impl Ledger {
     }
 
     pub fn run_transaction(
-        mut evm: Ledger,
+        evm: Ledger,
         accounts: account::Ledger,
         transaction: EvmTransaction,
         config: chain_evm::Config,
@@ -316,10 +313,7 @@ impl Ledger {
         Self::validate_transaction_nonce(&evm, &accounts, &transaction)?;
 
         let config = config.into();
-        let mut vm_state = EvmStateImpl {
-            accounts,
-            evm: &mut evm,
-        };
+        let mut vm_state = EvmStateImpl { accounts, evm };
         let value = transaction.value;
         let caller = transaction.caller;
         let gas_limit = transaction.gas_limit;
@@ -339,7 +333,7 @@ impl Ledger {
                     execute_transact_call(vm, address, value.into(), data, access_list)?;
             }
         }
-        Ok((vm_state.accounts, evm))
+        Ok((vm_state.accounts, vm_state.evm))
     }
 }
 
