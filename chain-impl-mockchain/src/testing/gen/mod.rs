@@ -251,7 +251,7 @@ impl TestGen {
         let evm_address = Address::from_low_u64_be(Self::rand().next_u64());
         EvmMapping {
             account_id: Self::ledger().jormungandr_mapped_address(&evm_address),
-            evm_address: Address::from_low_u64_be(Self::rand().next_u64()),
+            evm_address,
         }
     }
 }
