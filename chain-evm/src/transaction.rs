@@ -1,4 +1,4 @@
-use crate::Address;
+use crate::{util::Secret, Address};
 use ethereum::{
     EIP1559TransactionMessage, EIP2930TransactionMessage, LegacyTransactionMessage,
     TransactionSignature, TransactionV2,
@@ -34,8 +34,7 @@ impl EthereumUnsignedTransaction {
     /// Sign the current transaction given an H256-encoded secret key.
     ///
     /// Legacy transaction signature as specified in [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
-    pub fn sign(self, secret: &H256) -> Result<EthereumSignedTransaction, secp256k1::Error> {
-        let secret = crate::util::Secret::from_hash(secret)?;
+    pub fn sign(self, secret: &Secret) -> Result<EthereumSignedTransaction, secp256k1::Error> {
         match self {
             Self::Legacy(tx) => {
                 let sig = super::util::sign_data_hash(&tx.hash(), &secret)?;
