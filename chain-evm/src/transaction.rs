@@ -37,7 +37,7 @@ impl EthereumUnsignedTransaction {
     pub fn sign(self, secret: &Secret) -> Result<EthereumSignedTransaction, secp256k1::Error> {
         match self {
             Self::Legacy(tx) => {
-                let sig = super::util::sign_data_hash(&tx.hash(), &secret)?;
+                let sig = super::util::sign_data_hash(&tx.hash(), secret)?;
                 let (recovery_id, sig_bytes) = sig.serialize_compact();
                 let v = if let Some(chain_id) = tx.chain_id {
                     recovery_id.to_i32() as u64 + chain_id * 2 + 35
@@ -61,7 +61,7 @@ impl EthereumUnsignedTransaction {
                 )))
             }
             Self::EIP2930(tx) => {
-                let sig = super::util::sign_data_hash(&tx.hash(), &secret)?;
+                let sig = super::util::sign_data_hash(&tx.hash(), secret)?;
                 let (recovery_id, sig_bytes) = sig.serialize_compact();
                 let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
                 let signature = TransactionSignature::new(
@@ -87,7 +87,7 @@ impl EthereumUnsignedTransaction {
                 )))
             }
             Self::EIP1559(tx) => {
-                let sig = super::util::sign_data_hash(&tx.hash(), &secret)?;
+                let sig = super::util::sign_data_hash(&tx.hash(), secret)?;
                 let (recovery_id, sig_bytes) = sig.serialize_compact();
                 let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
                 let signature = TransactionSignature::new(

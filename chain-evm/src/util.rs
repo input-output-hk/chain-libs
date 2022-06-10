@@ -44,7 +44,7 @@ impl Secret {
         &self,
         tx: EthereumUnsignedTransaction,
     ) -> Result<EthereumSignedTransaction, secp256k1::Error> {
-        tx.sign(&self)
+        tx.sign(self)
     }
 }
 
