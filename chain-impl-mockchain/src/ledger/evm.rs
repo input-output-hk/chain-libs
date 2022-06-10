@@ -1,5 +1,5 @@
 use crate::account::{self, LedgerError};
-use crate::certificate::EvmMapping;
+use crate::certificate::SignedEvmMapping;
 use crate::chaineval::HeaderContentEvalContext;
 use crate::evm::{EvmActionType, EvmTransaction};
 use crate::header::BlockDate;
@@ -44,7 +44,7 @@ pub struct AddressMapping {
 }
 
 /// One way transforming procedure from `EvmAddress` to `JorAddress`.
-/// This allows to map any `EvmAddress` to the `JorAddress` before explicit execution of the `EvmMapping` transaction.
+/// This allows to map any `EvmAddress` to the `JorAddress` before explicit execution of the `SignedEvmMapping` transaction.
 /// Intention - is to have possibility to link an EVM Contarct account with a Jormungandr account.
 ///
 /// Algorithm description:
@@ -246,14 +246,14 @@ impl Ledger {
     pub fn apply_map_accounts(
         mut evm: Ledger,
         mut accounts: account::Ledger,
-        mapping: &EvmMapping,
+        mapping: &SignedEvmMapping,
     ) -> Result<(account::Ledger, Ledger), Error> {
+        mapping.verify()?;
         (accounts, evm.address_mapping) = evm.address_mapping.map_accounts(
             mapping.account_id().clone(),
             *mapping.evm_address(),
             accounts,
         )?;
-
         Ok((accounts, evm))
     }
 
@@ -406,8 +406,9 @@ mod test {
     use std::ops::Sub;
 
     use super::*;
+    use crate::certificate::EvmMapping;
     use chain_crypto::{Ed25519, PublicKey};
-    use chain_evm::state::AccountState;
+    use chain_evm::{ethereum_types::H256, state::AccountState};
 
     quickcheck! {
         fn address_transformation_test(evm_rand_seed: u64) -> bool {
@@ -595,16 +596,18 @@ mod test {
             mapping.account_id.clone()
         );
 
+        let secret = H256::from_slice(&[0x3f; 32]);
+        let mapping = mapping.sign(&secret).unwrap();
         (accounts, evm) = Ledger::apply_map_accounts(evm, accounts, &mapping).unwrap();
 
         assert_eq!(
-            accounts.get_state(&mapping.account_id),
+            accounts.get_state(mapping.account_id()),
             Err(LedgerError::NonExistent)
         );
 
         assert_eq!(
-            evm.address_mapping.jor_address(&mapping.evm_address),
-            mapping.account_id.clone()
+            evm.address_mapping.jor_address(mapping.evm_address()),
+            mapping.account_id().clone()
         );
     }
 
@@ -652,16 +655,18 @@ mod test {
             mapping.account_id.clone()
         );
 
+        let secret = H256::from_slice(&[0x3f; 32]);
+        let mapping = mapping.sign(&secret).unwrap();
         (accounts, evm) = Ledger::apply_map_accounts(evm, accounts, &mapping).unwrap();
 
         assert_eq!(
-            accounts.get_state(&mapping.account_id),
+            accounts.get_state(mapping.account_id()),
             Ok(&JorAccount::new_evm(evm_state, value, ()))
         );
 
         assert_eq!(
-            evm.address_mapping.jor_address(&mapping.evm_address),
-            mapping.account_id.clone()
+            evm.address_mapping.jor_address(mapping.evm_address()),
+            mapping.account_id().clone()
         );
     }
 
@@ -718,15 +723,17 @@ mod test {
             mapping.account_id.clone()
         );
 
+        let secret = H256::from_slice(&[0x3f; 32]);
+        let mapping = mapping.sign(&secret).unwrap();
         (accounts, evm) = Ledger::apply_map_accounts(evm, accounts, &mapping).unwrap();
 
         assert_eq!(
-            accounts.get_state(&transform_evm_to_jor(&mapping.evm_address)),
+            accounts.get_state(&transform_evm_to_jor(mapping.evm_address())),
             Err(LedgerError::NonExistent)
         );
 
         assert_eq!(
-            accounts.get_state(&mapping.account_id),
+            accounts.get_state(mapping.account_id()),
             Ok(&JorAccount::new_evm(
                 evm_state,
                 value1.saturating_add(value2),
@@ -735,8 +742,8 @@ mod test {
         );
 
         assert_eq!(
-            evm.address_mapping.jor_address(&mapping.evm_address),
-            mapping.account_id.clone()
+            evm.address_mapping.jor_address(mapping.evm_address()),
+            mapping.account_id().clone()
         );
     }
 
@@ -797,6 +804,8 @@ mod test {
             mapping.account_id.clone()
         );
 
+        let secret = H256::from_slice(&[0x3f; 32]);
+        let mapping = mapping.sign(&secret).unwrap();
         assert_eq!(
             Ledger::apply_map_accounts(evm, accounts, &mapping),
             Err(Error::CannotMap(LedgerError::AlreadyExists))
@@ -843,9 +852,14 @@ mod test {
             mapping.account_id
         );
 
+        let secret = H256::from_slice(&[0x3f; 32]);
+        let mapping = mapping.sign(&secret).unwrap();
         assert_eq!(
             Ledger::apply_map_accounts(evm, accounts, &mapping),
-            Err(Error::ExistingMapping(mapping.account_id, evm_address2))
+            Err(Error::ExistingMapping(
+                mapping.evm_mapping.account_id,
+                evm_address2
+            ))
         );
     }
 
@@ -889,9 +903,11 @@ mod test {
             account_id2
         );
 
+        let secret = H256::from_slice(&[0x3f; 32]);
+        let mapping = mapping.sign(&secret).unwrap();
         assert_eq!(
             Ledger::apply_map_accounts(evm, accounts, &mapping),
-            Err(Error::ExistingMapping(account_id2, mapping.evm_address))
+            Err(Error::ExistingMapping(account_id2, *mapping.evm_address()))
         );
     }
 

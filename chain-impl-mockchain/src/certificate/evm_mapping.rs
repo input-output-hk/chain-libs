@@ -87,52 +87,6 @@ impl EvmMapping {
     }
 }
 
-/* Auth/Payload ************************************************************* */
-
-
-/* Ser/De ******************************************************************* */
-
-impl Serialize for EvmMapping {
-    fn serialized_size(&self) -> usize {
-        #[allow(unused_mut)]
-        let mut res = 0;
-        #[cfg(feature = "evm")]
-        {
-            res += self.account_id.serialized_size() + self.evm_address.0.serialized_size();
-        }
-        res
-    }
-
-    fn serialize<W: std::io::Write>(&self, _codec: &mut Codec<W>) -> Result<(), WriteError> {
-        #[cfg(feature = "evm")]
-        {
-            self.account_id.serialize(_codec)?;
-            _codec.put_bytes(self.evm_address.as_bytes())?;
-        }
-        Ok(())
-    }
-}
-
-impl DeserializeFromSlice for EvmMapping {
-    fn deserialize_from_slice(_codec: &mut Codec<&[u8]>) -> Result<Self, ReadError> {
-        #[cfg(feature = "evm")]
-        {
-            let account_id = Identifier::deserialize_from_slice(_codec)?;
-            let evm_address = _codec.get_bytes(Address::len_bytes())?;
-
-            Ok(Self {
-                account_id,
-                evm_address: Address::from_slice(evm_address.as_slice()),
-            })
-        }
-        #[cfg(not(feature = "evm"))]
-        Err(ReadError::IoError(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "evm transactions are not supported in this build",
-        )))
-    }
-}
-
 /* RLP en/de ******************************************************************* */
 
 #[cfg(feature = "evm")]

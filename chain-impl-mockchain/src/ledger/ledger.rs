@@ -1421,7 +1421,7 @@ impl Ledger {
     #[cfg(feature = "evm")]
     pub fn apply_map_accounts<'a>(
         mut self,
-        mapping: &crate::certificate::EvmMapping,
+        mapping: &crate::certificate::SignedEvmMapping,
         auth_data: &TransactionBindingAuthData<'a>,
         sig: SingleAccountBindingSignature,
     ) -> Result<Self, Error> {
