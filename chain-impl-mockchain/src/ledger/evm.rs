@@ -27,14 +27,16 @@ pub enum Error {
         "For the provided jormungandr account: {} or evm account: {} mapping is already exist", .0.to_string(), .1.to_string()
     )]
     ExistingMapping(JorAddress, EvmAddress),
-    #[error("Canot map address: {0}")]
+    #[error("Cannot map address: {0}")]
     CannotMap(#[source] LedgerError),
     #[error("Invalid nonce, expected value: {0}, provided: {1}")]
     InvalidNonce(u64, u64),
     #[error("EVM transaction error: {0}")]
     EvmTransaction(#[from] chain_evm::machine::Error),
-    #[error("It is not a contranct generation transaction type")]
+    #[error("Invalid contract transaction type")]
     NotAContractType,
+    #[error("EVM failure: {0}")]
+    EvmFailure(#[from] chain_evm::Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
