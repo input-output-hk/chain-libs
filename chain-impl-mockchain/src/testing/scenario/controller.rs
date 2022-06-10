@@ -1,5 +1,5 @@
 #[cfg(feature = "evm")]
-use crate::certificate::EvmMapping;
+use crate::certificate::SignedEvmMapping;
 use crate::{
     certificate::{
         DecryptedPrivateTally, ExternalProposalId, MintToken, Proposal, UpdateProposal, UpdateVote,
@@ -370,7 +370,7 @@ impl Controller {
     pub fn evm_mapping(
         &self,
         owner: &Wallet,
-        evm_mapping: EvmMapping,
+        evm_mapping: SignedEvmMapping,
         test_ledger: &mut TestLedger,
     ) -> Result<(), LedgerError> {
         let fragment = self

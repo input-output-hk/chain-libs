@@ -1,5 +1,5 @@
 #[cfg(feature = "evm")]
-use crate::certificate::EvmMapping;
+use crate::certificate::SignedEvmMapping;
 use crate::{
     account::{DelegationType, Identifier},
     certificate::{
@@ -13,7 +13,7 @@ use crate::{
     transaction::UnspecifiedAccountIdentifier,
 };
 #[cfg(feature = "evm")]
-use chain_evm::Address;
+use chain_evm::{ethereum_types::H256, Address};
 use chain_time::units::DurationSeconds;
 
 pub fn build_stake_delegation_cert(
@@ -85,7 +85,11 @@ pub fn build_update_vote_cert(
 }
 
 #[cfg(feature = "evm")]
-pub fn build_evm_mapping_cert(evm_address: Address, account_id: Identifier) -> Certificate {
-    let update_vote = EvmMapping::new(evm_address, account_id);
-    Certificate::EvmMapping(update_vote)
+pub fn build_evm_mapping_cert(
+    evm_address: Address,
+    account_id: Identifier,
+    secret: &H256,
+) -> Certificate {
+    let evm_mapping = SignedEvmMapping::new(evm_address, account_id, secret).unwrap();
+    Certificate::EvmMapping(evm_mapping)
 }

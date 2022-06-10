@@ -2,7 +2,7 @@ mod vote;
 #[cfg(feature = "evm")]
 use super::data::Wallet;
 #[cfg(feature = "evm")]
-use crate::certificate::EvmMapping;
+use crate::certificate::{EvmMapping, SignedEvmMapping};
 use crate::fragment::Contents;
 use crate::fragment::Fragment;
 use crate::header::BlockDate;
@@ -36,7 +36,7 @@ use chain_addr::Discrimination;
 use chain_crypto::SecretKey;
 use chain_crypto::{vrf_evaluate_and_prove, Ed25519, KeyPair, PublicKey};
 #[cfg(feature = "evm")]
-use chain_evm::machine::Address;
+use chain_evm::{ethereum_types::H256, machine::Address};
 use chain_time::{Epoch as TimeEpoch, SlotDuration, TimeEra, TimeFrame, Timeline};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -239,10 +239,15 @@ impl TestGen {
     }
 
     #[cfg(feature = "evm")]
-    pub fn evm_mapping_for_wallet(wallet: &Wallet) -> EvmMapping {
-        EvmMapping {
-            account_id: wallet.public_key().into(),
-            evm_address: Address::from_low_u64_be(Self::rand().next_u64()),
+    pub fn evm_mapping_for_wallet(wallet: &Wallet) -> SignedEvmMapping {
+        SignedEvmMapping {
+            evm_mapping: EvmMapping {
+                account_id: wallet.public_key().into(),
+                evm_address: Address::from_low_u64_be(Self::rand().next_u64()),
+            },
+            odd_y_parity: true,
+            r: H256::from_low_u64_be(Self::rand().next_u64()),
+            s: H256::from_low_u64_be(Self::rand().next_u64()),
         }
     }
 }

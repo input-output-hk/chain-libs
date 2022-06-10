@@ -1,7 +1,8 @@
 use crate::{
     certificate::{
-        BftLeaderBindingSignature, Certificate, CertificatePayload, EvmMapping, PoolOwnersSigned,
-        PoolSignature, TallyProof, UpdateProposal, UpdateVote, VotePlan, VotePlanProof, VoteTally,
+        BftLeaderBindingSignature, Certificate, CertificatePayload, PoolOwnersSigned,
+        PoolSignature, SignedEvmMapping, TallyProof, UpdateProposal, UpdateVote, VotePlan,
+        VotePlanProof, VoteTally,
     },
     chaintypes::HeaderId,
     date::BlockDate,
@@ -379,7 +380,7 @@ pub fn update_vote_sign(
 
 pub fn evm_mapping_sign(
     keys: &[EitherEd25519SecretKey],
-    builder: &TxBuilderState<SetAuthData<EvmMapping>>,
+    builder: &TxBuilderState<SetAuthData<SignedEvmMapping>>,
 ) -> SingleAccountBindingSignature {
     let key: EitherEd25519SecretKey = keys[0].clone();
 

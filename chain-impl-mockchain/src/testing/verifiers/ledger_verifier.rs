@@ -16,7 +16,7 @@ use chain_crypto::{Ed25519, PublicKey};
 use std::fmt;
 
 #[cfg(feature = "evm")]
-use crate::certificate::EvmMapping;
+use crate::certificate::SignedEvmMapping;
 #[cfg(feature = "evm")]
 use crate::ledger::evm::Ledger as EvmLedger;
 #[derive(Clone)]
@@ -212,7 +212,7 @@ impl EvmVerifier {
         Self { evm_ledger, info }
     }
 
-    pub fn is_mapped_to_evm(&self, evm_mapping: &EvmMapping) -> &Self {
+    pub fn is_mapped_to_evm(&self, evm_mapping: &SignedEvmMapping) -> &Self {
         let mapping_info = [
             "jormungandr account: ",
             &evm_mapping.account_id().to_string(),
