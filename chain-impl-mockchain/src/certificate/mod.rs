@@ -23,7 +23,7 @@ pub use self::vote_tally::{
     VoteTally, VoteTallyPayload,
 };
 pub use delegation::{OwnerStakeDelegation, StakeDelegation};
-pub use evm_mapping::EvmMapping;
+pub use evm_mapping::{EvmMapping, SignedEvmMapping};
 pub use mint_token::MintToken;
 pub use pool::{
     GenesisPraosLeaderHash, IndexSignatures, ManagementThreshold, PoolId, PoolOwnersSigned,
@@ -45,7 +45,7 @@ pub enum CertificateSlice<'a> {
     UpdateProposal(PayloadSlice<'a, UpdateProposal>),
     UpdateVote(PayloadSlice<'a, UpdateVote>),
     MintToken(PayloadSlice<'a, MintToken>),
-    EvmMapping(PayloadSlice<'a, EvmMapping>),
+    EvmMapping(PayloadSlice<'a, SignedEvmMapping>),
 }
 
 impl<'a> From<PayloadSlice<'a, StakeDelegation>> for CertificateSlice<'a> {
@@ -113,8 +113,8 @@ impl<'a> From<PayloadSlice<'a, MintToken>> for CertificateSlice<'a> {
     }
 }
 
-impl<'a> From<PayloadSlice<'a, EvmMapping>> for CertificateSlice<'a> {
-    fn from(payload: PayloadSlice<'a, EvmMapping>) -> CertificateSlice<'a> {
+impl<'a> From<PayloadSlice<'a, SignedEvmMapping>> for CertificateSlice<'a> {
+    fn from(payload: PayloadSlice<'a, SignedEvmMapping>) -> CertificateSlice<'a> {
         CertificateSlice::EvmMapping(payload)
     }
 }
@@ -155,7 +155,7 @@ pub enum CertificatePayload {
     UpdateProposal(PayloadData<UpdateProposal>),
     UpdateVote(PayloadData<UpdateVote>),
     MintToken(PayloadData<MintToken>),
-    EvmMapping(PayloadData<EvmMapping>),
+    EvmMapping(PayloadData<SignedEvmMapping>),
 }
 
 impl CertificatePayload {
@@ -230,7 +230,7 @@ pub enum Certificate {
     UpdateProposal(UpdateProposal),
     UpdateVote(UpdateVote),
     MintToken(MintToken),
-    EvmMapping(EvmMapping),
+    EvmMapping(SignedEvmMapping),
 }
 
 impl From<StakeDelegation> for Certificate {
@@ -299,8 +299,8 @@ impl From<MintToken> for Certificate {
     }
 }
 
-impl From<EvmMapping> for Certificate {
-    fn from(evm_mapping: EvmMapping) -> Self {
+impl From<SignedEvmMapping> for Certificate {
+    fn from(evm_mapping: SignedEvmMapping) -> Self {
         Self::EvmMapping(evm_mapping)
     }
 }
@@ -319,7 +319,7 @@ impl Certificate {
             Certificate::UpdateProposal(_) => <UpdateProposal as Payload>::HAS_AUTH,
             Certificate::UpdateVote(_) => <UpdateVote as Payload>::HAS_AUTH,
             Certificate::MintToken(_) => <MintToken as Payload>::HAS_AUTH,
-            Certificate::EvmMapping(_) => <EvmMapping as Payload>::HAS_AUTH,
+            Certificate::EvmMapping(_) => <SignedEvmMapping as Payload>::HAS_AUTH,
         }
     }
 }
@@ -339,7 +339,7 @@ pub enum SignedCertificate {
     VoteTally(VoteTally, <VoteTally as Payload>::Auth),
     UpdateProposal(UpdateProposal, <UpdateProposal as Payload>::Auth),
     UpdateVote(UpdateVote, <UpdateVote as Payload>::Auth),
-    EvmMapping(EvmMapping, <EvmMapping as Payload>::Auth),
+    EvmMapping(SignedEvmMapping, <SignedEvmMapping as Payload>::Auth),
 }
 
 #[cfg(test)]
