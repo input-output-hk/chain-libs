@@ -25,4 +25,6 @@ pub enum Error {
     Signature(#[from] ::secp256k1::Error),
     #[error("invalid signature")]
     InvalidSignature,
+    #[error("rlp decoding error: {0}")]
+    RlpDecoding(#[from] rlp::DecoderError),
 }

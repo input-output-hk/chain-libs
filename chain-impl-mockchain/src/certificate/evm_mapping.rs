@@ -197,7 +197,7 @@ impl SignedEvmMapping {
         }
     }
 
-    pub fn from_bytes(data: &[u8]) -> Result<Self, DecoderError> {
+    pub fn from_bytes(data: &[u8]) -> Result<Self, Error> {
         #[cfg(feature = "evm")]
         {
             let rlp = Rlp::new(data);
@@ -205,9 +205,9 @@ impl SignedEvmMapping {
         }
         #[cfg(not(feature = "evm"))]
         {
-            Err(DecoderError::Custom(
+            Err(Error::RlpDecoding(DecoderError::Custom(
                 "evm transactions are not supported in this build",
-            ))
+            )))
         }
     }
 }
