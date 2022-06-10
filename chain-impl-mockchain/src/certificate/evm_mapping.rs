@@ -196,20 +196,6 @@ impl SignedEvmMapping {
             Vec::new()
         }
     }
-
-    pub fn from_bytes(data: &[u8]) -> Result<Self, Error> {
-        #[cfg(feature = "evm")]
-        {
-            let rlp = Rlp::new(data);
-            Self::decode(&rlp)
-        }
-        #[cfg(not(feature = "evm"))]
-        {
-            Err(Error::RlpDecoding(DecoderError::Custom(
-                "evm transactions are not supported in this build",
-            )))
-        }
-    }
 }
 
 /* Auth/Payload ************************************************************* */
@@ -331,14 +317,6 @@ mod test {
                 r: [u8::arbitrary(g); 32].into(),
                 s: [u8::arbitrary(g); 32].into(),
             }
-        }
-    }
-
-    quickcheck! {
-        fn evm_mapping_serialization_bijection(b: EvmMapping) -> bool {
-            let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
-            let decoded = EvmMapping::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
-            decoded == b
         }
     }
 
