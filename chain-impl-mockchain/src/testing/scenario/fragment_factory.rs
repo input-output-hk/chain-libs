@@ -1,5 +1,7 @@
 #[cfg(feature = "evm")]
 use crate::certificate::EvmMapping;
+#[cfg(feature = "evm")]
+use crate::evm::EvmTransaction;
 use crate::{
     accounting::account::{DelegationRatio, DelegationType},
     certificate::{
@@ -247,5 +249,15 @@ impl FragmentFactory {
         evm_mapping: EvmMapping,
     ) -> Fragment {
         self.transaction_with_cert(valid_until, Some(owner), &evm_mapping.into())
+    }
+
+    #[cfg(feature = "evm")]
+    pub fn evm_transaction(
+        &self,
+        valid_until: BlockDate,
+        owner: &Wallet,
+        evm_transaction: EvmTransaction,
+    ) -> Fragment {
+        self.transaction_with_cert(valid_until, Some(owner), &evm_transaction.into())
     }
 }
