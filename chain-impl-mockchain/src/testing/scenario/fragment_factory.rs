@@ -258,6 +258,6 @@ impl FragmentFactory {
         owner: &Wallet,
         evm_transaction: EvmTransaction,
     ) -> Fragment {
-        self.transaction_with_cert(valid_until, Some(owner), &evm_transaction.into())
+        Fragment::Evm(evm_transaction)
     }
 }

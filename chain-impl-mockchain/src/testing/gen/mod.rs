@@ -255,16 +255,17 @@ impl TestGen {
     #[cfg(feature = "evm")]
     pub fn evm_transaction(sender: &Wallet, receiver: &Wallet, amount: u64, max_gas_fee: u64, input_nonce: u64) -> EvmTransaction {
         let empty_data: Box::<[u8]> = vec![0].into_boxed_slice();
-        let evm_address = Address::from_low_u64_be(Self::rand().next_u64());
+        let evm_address_sender = Address::from_low_u64_be(Self::rand().next_u64());
+        let evm_address_receiver = Address::from_low_u64_be(Self::rand().next_u64());
         let empty_access_list = AccessList::new();
 
         EvmTransaction {
             value: amount,
             nonce: input_nonce,
             gas_limit: max_gas_fee,
-            caller: evm_address,
+            caller: evm_address_sender,
             access_list: empty_access_list,
-            action_type: EvmActionType::Call{address: evm_address, data: empty_data}
+            action_type: EvmActionType::Call{address: evm_address_receiver, data: empty_data}
         }
     }
 }
