@@ -6,6 +6,8 @@ use crate::evm::EvmTransaction;
 #[cfg(feature = "evm")]
 use crate::evm::EvmActionType;
 #[cfg(feature = "evm")]
+use chain_evm::AccessList;
+#[cfg(feature = "evm")]
 use crate::certificate::EvmMapping;
 use crate::fragment::Contents;
 use crate::fragment::Fragment;
@@ -251,11 +253,17 @@ impl TestGen {
     }
 
     #[cfg(feature = "evm")]
-    pub fn evm_transaction(sender: &Wallet, receiver: &Wallet, amount: u64, max_gas_fee: u64, nonce: u64) -> EvmTransaction {
+    pub fn evm_transaction(sender: &Wallet, receiver: &Wallet, amount: u64, max_gas_fee: u64, input_nonce: u64) -> EvmTransaction {
         let empty_data: Box::<[u8]> = vec![0].into_boxed_slice();
-        let evm_address = Address::new();
+        let evm_address = Address::from_low_u64_be(Self::rand().next_u64());
+        let empty_access_list = AccessList::new();
 
         EvmTransaction {
+            value: amount,
+            nonce: input_nonce,
+            gas_limit: max_gas_fee,
+            caller: evm_address,
+            access_list: empty_access_list,
             action_type: EvmActionType::Call{address: evm_address, data: empty_data}
         }
     }
