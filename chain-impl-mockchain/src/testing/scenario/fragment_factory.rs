@@ -254,8 +254,6 @@ impl FragmentFactory {
     #[cfg(feature = "evm")]
     pub fn evm_transaction(
         &self,
-        valid_until: BlockDate,
-        owner: &Wallet,
         evm_transaction: EvmTransaction,
     ) -> Fragment {
         Fragment::Evm(evm_transaction)

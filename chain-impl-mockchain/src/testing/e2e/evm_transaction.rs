@@ -8,10 +8,10 @@ const ALICE: &str = "Alice";
 const BOB: &str = "Bob";
 const INITIAL_FUNDS: u64 = 1000;
 const TRANSACTION_AMOUNT: u64 = 100;
-const MAX_GAS_FEE: u64 = 100;
+const MAX_GAS_FEE: u64 = 0;
 const FIRST_NONCE: u64 = 0;
-const SECOND_NONCE: u64 = 1;
-const INVALID_NONCE: u64 = 9845;
+//const SECOND_NONCE: u64 = 1;
+//const INVALID_NONCE: u64 = 9845;
 
 #[test] // Simple transaction scenario
 pub fn evm_transaction() {
@@ -23,6 +23,8 @@ pub fn evm_transaction() {
         .with_config(ConfigBuilder::new().with_evm_params(Config::default()))
         .build()
         .unwrap();
+
+    //println!("{:?}", ledger.settings());
 
     let mut alice = controller.wallet(ALICE).unwrap();
     let mut bob = controller.wallet(BOB).unwrap();
@@ -40,10 +42,13 @@ pub fn evm_transaction() {
     
     alice.confirm_transaction();
     bob.confirm_transaction();
-    
-    let alice_evm_transaction = TestGen::evm_transaction(&alice, &bob, TRANSACTION_AMOUNT, MAX_GAS_FEE, FIRST_NONCE);
 
-    controller.evm_transaction(&alice, alice_evm_transaction.clone(), &mut ledger).unwrap();
+    let alice_evm_address = ledger.get_evm_mapped_address(&alice.as_account().to_id()).unwrap();
+    let bob_evm_address = ledger.get_evm_mapped_address(&bob.as_account().to_id()).unwrap();
+    
+    let evm_transaction = TestGen::evm_transaction(alice_evm_address, bob_evm_address, TRANSACTION_AMOUNT, MAX_GAS_FEE, FIRST_NONCE);
+
+    controller.evm_transaction(evm_transaction.clone(), &mut ledger).unwrap();
 
     alice.confirm_transaction();
     
