@@ -24,13 +24,20 @@ pub fn evm_transaction() {
         .build()
         .unwrap();
 
-    //println!("{:?}", ledger.settings());
+    println!("****************************************************************** START");
+    println!("Ledger Settings: {:?}", ledger.settings());
+    println!("****************************************************************** FLAG 1");
 
     let mut alice = controller.wallet(ALICE).unwrap();
     let mut bob = controller.wallet(BOB).unwrap();
 
     let alice_evm_mapping = TestGen::evm_mapping_for_wallet(&alice);
     let bob_evm_mapping = TestGen::evm_mapping_for_wallet(&bob);
+
+
+    LedgerStateVerifier::new(ledger.clone().into())
+        .info("Alice initial balance is incorrect")
+        .account_has_expected_balance(alice.as_account_data(), Value(INITIAL_FUNDS));
 
     controller
     .evm_mapping(&alice, alice_evm_mapping.clone(), &mut ledger)
@@ -39,21 +46,25 @@ pub fn evm_transaction() {
     controller
     .evm_mapping(&bob, bob_evm_mapping.clone(), &mut ledger)
     .unwrap();
-    
+
     alice.confirm_transaction();
     bob.confirm_transaction();
 
     let alice_evm_address = ledger.get_evm_mapped_address(&alice.as_account().to_id()).unwrap();
     let bob_evm_address = ledger.get_evm_mapped_address(&bob.as_account().to_id()).unwrap();
+
+    println!("Alice's address:{:?}", alice_evm_address);
+    println!("Bob's address:{:?}", bob_evm_address);
     
     let evm_transaction = TestGen::evm_transaction(alice_evm_address, bob_evm_address, TRANSACTION_AMOUNT, MAX_GAS_FEE, FIRST_NONCE);
+
+    println!("Transaction: {:?}", evm_transaction);
 
     controller.evm_transaction(evm_transaction.clone(), &mut ledger).unwrap();
 
     alice.confirm_transaction();
     
     LedgerStateVerifier::new(ledger.clone().into())
-        .info("After alice send amount to bob")
-        .evm()
-        .account_balance_is(&bob, Value(INITIAL_FUNDS + TRANSACTION_AMOUNT))
+        .info("Bob final balance is incorrect.")
+        .account_has_expected_balance(bob.as_account_data(), Value(INITIAL_FUNDS + TRANSACTION_AMOUNT));
 }

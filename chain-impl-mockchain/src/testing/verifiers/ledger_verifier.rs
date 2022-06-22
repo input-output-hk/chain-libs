@@ -206,7 +206,7 @@ pub struct EvmVerifier {
     info: Info,
 }
 
-#[cfg(feature = "evm")]
+//#[cfg(feature = "evm")]
 impl EvmVerifier {
     pub fn new(evm_ledger: EvmLedger, info: Info) -> Self {
         Self { evm_ledger, info }
@@ -258,10 +258,6 @@ impl EvmVerifier {
             self.info
         );
         self
-    }
-
-    pub fn account_balance_is(&self, wallet: &Wallet, amount: Value){
-        assert!(true, "fake happy ending")
     }
 }
 
