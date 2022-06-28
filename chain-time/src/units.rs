@@ -1,7 +1,8 @@
+use serde::Deserialize;
 use std::time::Duration;
 
 /// Represent a Duration where the maximum precision is in the second
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
 #[cfg_attr(
     any(test, feature = "property-test-api"),
     derive(test_strategy::Arbitrary)

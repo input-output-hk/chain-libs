@@ -1,4 +1,5 @@
 use crate::units::DurationSeconds;
+use serde::Deserialize;
 use std::time::{Duration, SystemTime};
 
 /// Represent a timeline with a specific start point rooted on earth time.
@@ -10,7 +11,7 @@ pub struct Timeline(pub(crate) SystemTime);
 pub struct TimeOffset(pub(crate) Duration);
 
 /// Represent an offset in seconds in the timeline
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
 #[cfg_attr(
     any(test, feature = "property-test-api"),
     derive(test_strategy::Arbitrary)
