@@ -15,6 +15,7 @@ use crate::chaineval::HeaderContentEvalContext;
 use crate::chaintypes::{ChainLength, ConsensusType, HeaderId};
 use crate::config::{self, ConfigParam};
 use crate::date::{BlockDate, Epoch};
+#[cfg(feature = "evm")]
 use crate::evm::EvmTransaction;
 use crate::fee::{FeeAlgorithm, LinearFee};
 use crate::fragment::{BlockContentHash, BlockContentSize, Contents, Fragment, FragmentId};
