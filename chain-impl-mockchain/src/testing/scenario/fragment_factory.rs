@@ -252,10 +252,7 @@ impl FragmentFactory {
     }
 
     #[cfg(feature = "evm")]
-    pub fn evm_transaction(
-        &self,
-        evm_transaction: EvmTransaction,
-    ) -> Fragment {
+    pub fn evm_transaction(&self, evm_transaction: EvmTransaction) -> Fragment {
         Fragment::Evm(evm_transaction)
     }
 }

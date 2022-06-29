@@ -387,9 +387,7 @@ impl Controller {
         evm_transaction: EvmTransaction,
         test_ledger: &mut TestLedger,
     ) -> Result<(), LedgerError> {
-        let fragment = self
-            .fragment_factory
-            .evm_transaction(evm_transaction);
+        let fragment = self.fragment_factory.evm_transaction(evm_transaction);
         test_ledger.apply_fragment(&fragment, test_ledger.date())
     }
 }

@@ -2,13 +2,11 @@ mod vote;
 #[cfg(feature = "evm")]
 use super::data::Wallet;
 #[cfg(feature = "evm")]
-use crate::evm::EvmTransaction;
+use crate::certificate::EvmMapping;
 #[cfg(feature = "evm")]
 use crate::evm::EvmActionType;
 #[cfg(feature = "evm")]
-use chain_evm::AccessList;
-#[cfg(feature = "evm")]
-use crate::certificate::EvmMapping;
+use crate::evm::EvmTransaction;
 use crate::fragment::Contents;
 use crate::fragment::Fragment;
 use crate::header::BlockDate;
@@ -43,6 +41,8 @@ use chain_crypto::SecretKey;
 use chain_crypto::{vrf_evaluate_and_prove, Ed25519, KeyPair, PublicKey};
 #[cfg(feature = "evm")]
 use chain_evm::machine::Address;
+#[cfg(feature = "evm")]
+use chain_evm::AccessList;
 use chain_time::{Epoch as TimeEpoch, SlotDuration, TimeEra, TimeFrame, Timeline};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -253,8 +253,14 @@ impl TestGen {
     }
 
     #[cfg(feature = "evm")]
-    pub fn evm_transaction(evm_address_sender: Address, evm_address_receiver: Address, amount: u64, max_gas_fee: u64, input_nonce: u64) -> EvmTransaction {
-        let empty_data: Box::<[u8]> = vec![0].into_boxed_slice();
+    pub fn evm_transaction(
+        evm_address_sender: Address,
+        evm_address_receiver: Address,
+        amount: u64,
+        max_gas_fee: u64,
+        input_nonce: u64,
+    ) -> EvmTransaction {
+        let empty_data: Box<[u8]> = vec![0].into_boxed_slice();
         let empty_access_list = AccessList::new();
 
         EvmTransaction {
@@ -263,7 +269,10 @@ impl TestGen {
             gas_limit: max_gas_fee,
             caller: evm_address_sender,
             access_list: empty_access_list,
-            action_type: EvmActionType::Call{address: evm_address_receiver, data: empty_data}
+            action_type: EvmActionType::Call {
+                address: evm_address_receiver,
+                data: empty_data,
+            },
         }
     }
 }
