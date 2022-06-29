@@ -206,7 +206,7 @@ pub struct EvmVerifier {
     info: Info,
 }
 
-//#[cfg(feature = "evm")]
+#[cfg(feature = "evm")]
 impl EvmVerifier {
     pub fn new(evm_ledger: EvmLedger, info: Info) -> Self {
         Self { evm_ledger, info }
