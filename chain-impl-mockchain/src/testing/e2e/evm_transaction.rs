@@ -11,7 +11,7 @@ const TRANSACTION_AMOUNT: u64 = 100;
 const MAX_GAS_FEE: u64 = u64::MAX;
 const FIRST_NONCE: u64 = 0;
 
-#[test] // Simple transaction scenario
+#[test]
 pub fn evm_transaction_call_no_data() {
     let (mut ledger, controller) = prepare_scenario()
         .with_initials(vec![
