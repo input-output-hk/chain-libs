@@ -28,10 +28,6 @@ pub fn evm_transaction_call_no_data() {
     let alice_evm_mapping = TestGen::evm_mapping_for_wallet(&alice);
     let bob_evm_mapping = TestGen::evm_mapping_for_wallet(&bob);
 
-    LedgerStateVerifier::new(ledger.clone().into())
-        .info("Alice initial balance is incorrect")
-        .account_has_expected_balance(alice.as_account_data(), Value(INITIAL_FUNDS));
-
     controller
         .evm_mapping(&alice, alice_evm_mapping, &mut ledger)
         .unwrap();
