@@ -4,7 +4,7 @@ use crate::{
     chaintypes::ConsensusType,
     date::Epoch,
     key::BftLeaderId,
-    ledger::{Ledger, LedgerParameters},
+    ledger::Ledger,
     stake::StakeDistribution,
 };
 use chain_crypto::{Ed25519, RistrettoGroup2HashDh, SecretKey, SumEd25519_12};
@@ -94,8 +94,6 @@ pub struct Leadership {
     era: TimeEra,
     // Consensus specific metadata required for verifying/evaluating leaders
     inner: LeadershipConsensus,
-    // Ledger evaluation parameters fixed for a given epoch
-    ledger_parameters: LedgerParameters,
 }
 
 impl LeadershipConsensus {
@@ -163,7 +161,6 @@ impl Leadership {
             epoch,
             era: ledger.era.clone(),
             inner,
-            ledger_parameters: ledger.get_ledger_parameters(),
         }
     }
 
@@ -202,12 +199,6 @@ impl Leadership {
     /// get the consensus associated with the `Leadership`
     pub fn consensus(&self) -> &LeadershipConsensus {
         &self.inner
-    }
-
-    /// access the ledger parameter for the current leadership
-    #[inline]
-    pub fn ledger_parameters(&self) -> &LedgerParameters {
-        &self.ledger_parameters
     }
 
     /// Verify whether this header has been produced by a leader that fits with the leadership
