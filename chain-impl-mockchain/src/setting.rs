@@ -142,10 +142,6 @@ impl Settings {
         }
     }
 
-    pub fn linear_fees(&self) -> LinearFee {
-        self.linear_fees
-    }
-
     pub fn try_apply(&self, changes: &ConfigParams) -> Result<Self, update::Error> {
         let mut new_state = self.clone();
         let mut per_certificate_fees = None;
@@ -200,7 +196,7 @@ impl Settings {
                         .into();
                 }
                 ConfigParam::LinearFee(d) => {
-                    new_state.linear_fees = *d;
+                    new_state.linear_fees = d.clone();
                 }
                 ConfigParam::ProposalExpiration(d) => {
                     new_state.proposal_expiration = *d;
@@ -287,7 +283,7 @@ impl Settings {
         for bft_leader in self.bft_leaders.iter() {
             params.push(ConfigParam::AddBftLeader(bft_leader.clone()));
         }
-        params.push(ConfigParam::LinearFee(self.linear_fees));
+        params.push(ConfigParam::LinearFee(self.linear_fees.clone()));
         params.push(ConfigParam::ProposalExpiration(self.proposal_expiration));
         params.push(ConfigParam::TransactionMaxExpiryEpochs(
             self.transaction_max_expiry_epochs,

@@ -586,7 +586,7 @@ impl TestLedger {
     }
 
     pub fn fee(&self) -> LinearFee {
-        self.ledger.settings.linear_fees
+        self.ledger.settings.linear_fees.clone()
     }
 
     pub fn chain_length(&self) -> ChainLength {
