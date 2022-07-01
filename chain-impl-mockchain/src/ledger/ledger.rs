@@ -19,7 +19,7 @@ use crate::evm::EvmTransaction;
 use crate::fee::{FeeAlgorithm, LinearFee};
 use crate::fragment::{BlockContentHash, Contents, Fragment, FragmentId};
 use crate::rewards;
-use crate::setting::ActiveSlotsCoeffError;
+use crate::setting::{ActiveSlotsCoeffError, Settings};
 use crate::stake::{PercentStake, PoolError, PoolStakeInformation, PoolsState, StakeDistribution};
 use crate::tokens::identifier::TokenIdentifier;
 use crate::tokens::minting_policy::MintingPolicyViolation;
@@ -627,13 +627,8 @@ impl Ledger {
 
         // Take treasury cut
         total_reward = {
-            let treasury_distr = rewards::tax_cut(
-                total_reward,
-                &self
-                    .settings
-                    .treasury_params
-                    .unwrap_or_else(rewards::TaxType::zero),
-            )?;
+            let treasury_distr =
+                rewards::tax_cut(total_reward, &self.settings.to_treasury_params())?;
             new_ledger.pots.treasury_add(treasury_distr.taxed)?;
             treasury_distr.after_tax
         };
@@ -1763,6 +1758,10 @@ impl ApplyBlockLedger {
         };
 
         new_ledger
+    }
+
+    pub fn settings(&self) -> &Settings {
+        &self.ledger.settings
     }
 }
 

@@ -5,6 +5,7 @@
 use crate::config::EvmEnvSettings;
 use crate::fragment::{config::ConfigParams, BlockContentSize};
 use crate::milli::Milli;
+use crate::rewards::TaxType;
 use crate::update;
 use crate::{
     chaineval::PraosNonce,
@@ -36,8 +37,8 @@ pub struct Settings {
     /// it expires at the start of epoch 'epoch_p +
     /// proposal_expiration + 1'. FIXME: make updateable.
     pub proposal_expiration: u32,
-    pub reward_params: Option<RewardParams>,
-    pub treasury_params: Option<rewards::TaxType>,
+    reward_params: Option<RewardParams>,
+    treasury_params: Option<rewards::TaxType>,
     pub fees_goes_to: FeesGoesTo,
     pub rewards_limit: rewards::Limit,
     pub pool_participation_capping: Option<(NonZeroU32, NonZeroU32)>,
@@ -308,6 +309,10 @@ impl Settings {
         debug_assert_eq!(self, &Settings::new().try_apply(&params).unwrap());
 
         params
+    }
+
+    pub fn to_treasury_params(&self) -> TaxType {
+        self.treasury_params.unwrap_or_else(rewards::TaxType::zero)
     }
 
     pub fn to_reward_params(&self) -> rewards::Parameters {
