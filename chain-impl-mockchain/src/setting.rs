@@ -267,7 +267,7 @@ impl Settings {
         Ok(new_state)
     }
 
-    pub fn to_config_params(&self) -> ConfigParams {
+    pub fn config_params(&self) -> ConfigParams {
         let mut params = ConfigParams::new();
 
         params.push(ConfigParam::ConsensusVersion(self.consensus_version));
@@ -307,11 +307,11 @@ impl Settings {
         params
     }
 
-    pub fn to_treasury_params(&self) -> TaxType {
+    pub fn treasury_params(&self) -> TaxType {
         self.treasury_params.unwrap_or_else(rewards::TaxType::zero)
     }
 
-    pub fn to_reward_params(&self) -> rewards::Parameters {
+    pub fn reward_params(&self) -> rewards::Parameters {
         let reward_drawing_limit_max = self.rewards_limit.clone();
         let pool_participation_capping = self.pool_participation_capping;
 

@@ -598,7 +598,7 @@ impl Ledger {
 
         let expected_epoch_reward = rewards::rewards_contribution_calculation(
             epoch,
-            &self.settings.to_reward_params(),
+            &self.settings.reward_params(),
             &system_info,
         );
 
@@ -627,8 +627,7 @@ impl Ledger {
 
         // Take treasury cut
         total_reward = {
-            let treasury_distr =
-                rewards::tax_cut(total_reward, &self.settings.to_treasury_params())?;
+            let treasury_distr = rewards::tax_cut(total_reward, &self.settings.treasury_params())?;
             new_ledger.pots.treasury_add(treasury_distr.taxed)?;
             treasury_distr.after_tax
         };
@@ -639,7 +638,7 @@ impl Ledger {
 
         if total_reward > Value::zero() {
             // pool capping only exists if there's enough participants
-            let pool_capper = match self.settings.to_reward_params().pool_participation_capping {
+            let pool_capper = match self.settings.reward_params().pool_participation_capping {
                 None => None,
                 Some((threshold, expected_nb_pools)) => {
                     let nb_participants = leaders_log.nb_participants();

@@ -720,7 +720,13 @@ impl TestLedger {
         stake_pools: Vec<StakePool>,
         fragments: Vec<Fragment>,
     ) -> Result<bool, Error> {
-        let selection = LeadershipData::new(self.date().epoch, &self.ledger);
+        let selection = LeadershipData::new(
+            self.date().epoch,
+            self.ledger.get_stake_distribution(),
+            self.ledger.delegation.clone(),
+            self.ledger.settings.consensus_nonce.clone(),
+            self.ledger.settings.active_slots_coeff,
+        );
         for stake_pool in stake_pools {
             if selection
                 .leader(
