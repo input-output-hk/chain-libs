@@ -16,14 +16,12 @@ pub struct LeadershipData {
 
 impl LeadershipData {
     /// Create a new BFT leadership
-    pub fn new(leaders: &Arc<[BftLeaderId]>) -> Option<Self> {
+    pub fn new(leaders: Arc<[BftLeaderId]>) -> Option<Self> {
         if leaders.len() == 0 {
             return None;
         }
 
-        Some(LeadershipData {
-            leaders: Arc::clone(leaders),
-        })
+        Some(LeadershipData { leaders })
     }
 
     #[inline]
@@ -107,14 +105,14 @@ mod tests {
             TestGen::time_era(),
             Pots::zero(),
         );
-        assert!(LeadershipData::new(&ledger.settings.bft_leaders).is_none());
+        assert!(LeadershipData::new(ledger.settings.bft_leaders).is_none());
     }
 
     #[test]
     fn getters() {
         let leaders_size = 5;
         let (leaders, ledger) = generate_ledger_with_bft_leaders_count(leaders_size);
-        let leadership_data = LeadershipData::new(&ledger.settings.bft_leaders)
+        let leadership_data = LeadershipData::new(ledger.settings.bft_leaders)
             .expect("leaders ids collection is empty");
         assert_eq!(leadership_data.number_of_leaders(), leaders_size);
         assert_eq!(&leaders, leadership_data.leaders());
@@ -124,7 +122,7 @@ mod tests {
     fn round_robin_returns_correct_index() {
         let leaders_size = 5;
         let (leaders, ledger) = generate_ledger_with_bft_leaders_count(leaders_size);
-        let leadership_data = LeadershipData::new(&ledger.settings.bft_leaders)
+        let leadership_data = LeadershipData::new(ledger.settings.bft_leaders)
             .expect("leaders ids collection is empty");
 
         for i in 0..leaders_size * 2 {
@@ -145,7 +143,7 @@ mod tests {
             .private_key()
             .clone();
         let (_, ledger) = generate_ledger_with_bft_leaders(vec![leader_key.to_public()]);
-        let leadership_data = LeadershipData::new(&ledger.settings.bft_leaders)
+        let leadership_data = LeadershipData::new(ledger.settings.bft_leaders)
             .expect("leaders ids collection is empty");
 
         assert!(leadership_data.verify(&header).failure());
@@ -156,7 +154,7 @@ mod tests {
         let wrong_leader_key = TestGen::secret_key();
         let leader_key = TestGen::secret_key();
         let (_, ledger) = generate_ledger_with_bft_leaders(vec![leader_key.to_public()]);
-        let leadership_data = LeadershipData::new(&ledger.settings.bft_leaders)
+        let leadership_data = LeadershipData::new(ledger.settings.bft_leaders)
             .expect("leaders ids collection is empty");
 
         let header = HeaderBuilderNew::new(BlockVersion::Ed25519Signed, &Contents::empty())
@@ -175,7 +173,7 @@ mod tests {
         let wrong_leader_key = TestGen::secret_key();
         let leader_key = TestGen::secret_key();
         let (_, ledger) = generate_ledger_with_bft_leaders(vec![leader_key.to_public()]);
-        let leadership_data = LeadershipData::new(&ledger.settings.bft_leaders)
+        let leadership_data = LeadershipData::new(ledger.settings.bft_leaders)
             .expect("leaders ids collection is empty");
 
         let header = HeaderBuilderNew::new(BlockVersion::Ed25519Signed, &Contents::empty())
@@ -193,7 +191,7 @@ mod tests {
     fn verify_correct_verification() {
         let leader_key = TestGen::secret_key();
         let (_, ledger) = generate_ledger_with_bft_leaders(vec![leader_key.to_public()]);
-        let leadership_data = LeadershipData::new(&ledger.settings.bft_leaders)
+        let leadership_data = LeadershipData::new(ledger.settings.bft_leaders)
             .expect("leaders ids collection is empty");
 
         let header = HeaderBuilderNew::new(BlockVersion::Ed25519Signed, &Contents::empty())
