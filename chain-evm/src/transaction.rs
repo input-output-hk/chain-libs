@@ -1,7 +1,6 @@
 use crate::{util::Secret, Address};
 use ethereum::{
-    EIP1559TransactionMessage, EIP2930TransactionMessage, LegacyTransactionMessage,
-    TransactionSignature, TransactionV2,
+    EIP1559TransactionMessage, EIP2930TransactionMessage, LegacyTransactionMessage, TransactionV2,
 };
 use ethereum_types::H256;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
@@ -32,22 +31,10 @@ impl EthereumUnsignedTransaction {
     }
 
     /// Sign the current transaction given an H256-encoded secret key.
-    ///
-    /// Legacy transaction signature as specified in [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
     pub fn sign(self, secret: &Secret) -> Result<EthereumSignedTransaction, secp256k1::Error> {
         match self {
             Self::Legacy(tx) => {
-                let sig = super::util::sign_data_hash(&tx.hash(), secret)?;
-                let (recovery_id, sig_bytes) = sig.serialize_compact();
-                let v = if let Some(chain_id) = tx.chain_id {
-                    recovery_id.to_i32() as u64 + chain_id * 2 + 35
-                } else {
-                    recovery_id.to_i32() as u64 + 27
-                };
-                let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
-                let signature =
-                    TransactionSignature::new(v, H256::from_slice(r), H256::from_slice(s))
-                        .ok_or(secp256k1::Error::InvalidSignature)?;
+                let signature = crate::signature::sign_eip_155(&tx, secret)?;
                 Ok(EthereumSignedTransaction(TransactionV2::Legacy(
                     ethereum::LegacyTransaction {
                         nonce: tx.nonce,
@@ -61,15 +48,7 @@ impl EthereumUnsignedTransaction {
                 )))
             }
             Self::EIP2930(tx) => {
-                let sig = super::util::sign_data_hash(&tx.hash(), secret)?;
-                let (recovery_id, sig_bytes) = sig.serialize_compact();
-                let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
-                let signature = TransactionSignature::new(
-                    recovery_id.to_i32() as u64,
-                    H256::from_slice(r),
-                    H256::from_slice(s),
-                )
-                .ok_or(secp256k1::Error::InvalidSignature)?;
+                let signature = crate::signature::eip_1559_signature(&tx.hash(), secret)?;
                 Ok(EthereumSignedTransaction(TransactionV2::EIP2930(
                     ethereum::EIP2930Transaction {
                         chain_id: tx.chain_id,
@@ -80,22 +59,14 @@ impl EthereumUnsignedTransaction {
                         value: tx.value,
                         input: tx.input,
                         access_list: tx.access_list,
-                        odd_y_parity: recovery_id.to_i32() != 0,
+                        odd_y_parity: signature.v() != 0,
                         r: *signature.r(),
                         s: *signature.s(),
                     },
                 )))
             }
             Self::EIP1559(tx) => {
-                let sig = super::util::sign_data_hash(&tx.hash(), secret)?;
-                let (recovery_id, sig_bytes) = sig.serialize_compact();
-                let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
-                let signature = TransactionSignature::new(
-                    recovery_id.to_i32() as u64,
-                    H256::from_slice(r),
-                    H256::from_slice(s),
-                )
-                .ok_or(secp256k1::Error::InvalidSignature)?;
+                let signature = crate::signature::eip_1559_signature(&tx.hash(), secret)?;
                 Ok(EthereumSignedTransaction(TransactionV2::EIP1559(
                     ethereum::EIP1559Transaction {
                         chain_id: tx.chain_id,
@@ -107,7 +78,7 @@ impl EthereumUnsignedTransaction {
                         value: tx.value,
                         input: tx.input,
                         access_list: tx.access_list,
-                        odd_y_parity: recovery_id.to_i32() != 0,
+                        odd_y_parity: signature.v() != 0,
                         r: *signature.r(),
                         s: *signature.s(),
                     },
