@@ -6,7 +6,7 @@ use ethereum_types::H256;
 /// Byte size for 'r' and 's' components of a signature.
 const SIGNATURE_BYTES: usize = 32;
 
-/// Legacy transaction signature as specified in [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
+/// Legacy transaction signature, as specified in [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
 pub fn sign_eip_155(
     tx: &LegacyTransactionMessage,
     secret: &Secret,
@@ -23,7 +23,7 @@ pub fn sign_eip_155(
         .ok_or(secp256k1::Error::InvalidSignature)
 }
 
-/// Type 1 transaction signature as specified in [EIP-2930](https://eips.ethereum.org/EIPS/eip-2930).
+/// Type 1 transaction signature, as specified in [EIP-2930](https://eips.ethereum.org/EIPS/eip-2930).
 pub fn eip_2930_signature(
     tx_hash: &H256,
     secret: &Secret,
