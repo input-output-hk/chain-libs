@@ -39,10 +39,28 @@ pub fn eip_2930_signature(
     .ok_or(secp256k1::Error::InvalidSignature)
 }
 
-/// Type 2 transaction signature as specified in [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559).
+/// Type 2 transaction signature, as specified in [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559).
 pub fn eip_1559_signature(
     tx_hash: &H256,
     secret: &Secret,
 ) -> Result<TransactionSignature, secp256k1::Error> {
     eip_2930_signature(tx_hash, secret)
+}
+
+/// Signature for hex-encoded strings, as specified in [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559).
+pub fn eip_191_signature<T: AsRef<[u8]>>(
+    data: T,
+    secret: &Secret,
+) -> Result<TransactionSignature, secp256k1::Error> {
+    // first we check if the message is a valid hex-encoded message
+    let msg = hex::decode(data).map_err(|_| secp256k1::Error::InvalidSignature)?;
+    let sig = super::util::sign_data(&msg, secret)?;
+    let (recovery_id, sig_bytes) = sig.serialize_compact();
+    let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
+    TransactionSignature::new(
+        recovery_id.to_i32() as u64 % 2,
+        H256::from_slice(r),
+        H256::from_slice(s),
+    )
+    .ok_or(secp256k1::Error::InvalidSignature)
 }
