@@ -23,6 +23,12 @@ pub enum EthereumUnsignedTransaction {
 }
 
 impl EthereumUnsignedTransaction {
+    /// Decode an unsigned transaction from RLP-encoded bytes.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, DecoderError> {
+        let rlp = Rlp::new(data);
+        EthereumUnsignedTransaction::decode(&rlp)
+    }
+    /// Transaction hash, used for signing.
     pub fn hash(&self) -> H256 {
         match self {
             Self::Legacy(tx) => tx.hash(),
