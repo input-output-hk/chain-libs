@@ -3,7 +3,7 @@ pub mod secp256k1 {
     //! Re-export of types for constructing Ethereum signatures.
     pub use secp256k1::{
         ecdsa::{RecoverableSignature, RecoveryId},
-        Message,
+        Error, Message,
     };
 }
 
