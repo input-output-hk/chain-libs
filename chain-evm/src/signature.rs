@@ -2,6 +2,7 @@
 use crate::util::Secret;
 use ethereum::{LegacyTransactionMessage, TransactionSignature};
 use ethereum_types::H256;
+use secp256k1::ecdsa::RecoverableSignature;
 
 /// Byte size for 'r' and 's' components of a signature.
 const SIGNATURE_BYTES: usize = 32;
@@ -47,20 +48,13 @@ pub fn eip_1559_signature(
     eip_2930_signature(tx_hash, secret)
 }
 
-/// Signature for hex-encoded strings, as specified in [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559).
+/// Signature for hex-encoded strings, as specified in [EIP-191](https://eips.ethereum.org/EIPS/eip-191).
 pub fn eip_191_signature<T: AsRef<[u8]>>(
     data: T,
     secret: &Secret,
-) -> Result<TransactionSignature, secp256k1::Error> {
+) -> Result<RecoverableSignature, secp256k1::Error> {
     // first we check if the message is a valid hex-encoded message
     let msg = hex::decode(data).map_err(|_| secp256k1::Error::InvalidSignature)?;
-    let sig = super::util::sign_data(&msg, secret)?;
-    let (recovery_id, sig_bytes) = sig.serialize_compact();
-    let (r, s) = sig_bytes.split_at(SIGNATURE_BYTES);
-    TransactionSignature::new(
-        recovery_id.to_i32() as u64 % 2,
-        H256::from_slice(r),
-        H256::from_slice(s),
-    )
-    .ok_or(secp256k1::Error::InvalidSignature)
+    let msg_for_hash = format!("\x19Ethereum Signed Message:\n{}{:?}", msg.len(), msg);
+    super::util::sign_data(msg_for_hash.as_bytes(), secret)
 }
