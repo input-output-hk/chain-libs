@@ -167,11 +167,15 @@ CAST-PAYLOAD      = %x01 CHOICE; Public payload
                   / %x02 ENCRYPTED-VOTE PROOF-VOTE ; Private payload
 CHOICE            = U8
 ENCRYPTED-VOTE    = SIZE-ELEMENT-8BIT *CYPHERTEXT
-CYPHERTEXT       = 2 * SIZE-ELEMENT-65BIT
-PROOF-VOTE        = SIZE-ELEMENT-8BIT ANNOUNCEMENT CYPHERTEXT R-RESPONSE SCALAR
-ANNOUNCEMENT      = 3 * SIZE-ELEMENT-65BIT
-R-RESPONSE        = 2 * SIZE-ELEMENT-65BIT
-SCALAR            = SIZE-ELEMENT-32BIT
+CYPHERTEXT        = E1 E2 
+PROOF-VOTE        = SIZE-ELEMENT-8BIT *ANNOUNCEMENT *CYPHERTEXT *R-RESPONSE SCALAR ; size of the *ANNOUNCEMENT, *CYPHERTEXT, *R-RESPONSE are equal to SIZE-ELEMENT-8BIT value
+ANNOUNCEMENT      = I A B
+R-RESPONSE        = 3 * SCALAR
+I                 = GROUP-ELEMENT
+A                 = GROUP-ELEMENT
+B                 = GROUP-ELEMENT
+E1                = GROUP-ELEMENT
+E2                = GROUP-ELEMENT
 
 TALLY-CERT        = VOTE-PLAN-ID TALLY-PAYLOAD
 TALLY-PAYLOAD     = %x01 ; Public payload
@@ -265,3 +269,9 @@ U8                = OCTET   ; unsigned integer 8 bit
 U16               = 2OCTET ; unsigned integer 16 bit (BE)
 U32               = 4OCTET ; unsigned integer 32 bit (BE)
 U64               = 8OCTET ; unsigned integer 64 bit (BE)
+SIZE-BYTES-32BYTE = 320CTET ; unsigned integer 256 bit (32 bytes) (BE)
+SIZE-BYTES-64BYTE = 640CTET ; unsigned integer 512 bit (64 bytes) (BE)
+SIZE-BYTES-65BYTE = 650CTET ; unsigned integer 520 bit (65 bytes) (BE)
+SCALAR            = SIZE-BYTES-32BYTE
+GROUP-ELEMENT     = SIZE-BYTES-65BYTE ; ristretto255 backend (build with the feature=ristretto255, it is enabled by default)
+                  / SIZE-BYTES-32BYTE ; p256k1 backend (build with the feature=p256k1)
