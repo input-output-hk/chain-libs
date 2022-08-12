@@ -308,7 +308,7 @@ VoterId`.
 
 VoteCast message is used to vote for a particular voting event.
 
-VoteCast trnasction should have only 1 input, 0 output and 1 witness (signature).
+VoteCast transaction should have only 1 input, 0 output and 1 witness (signature).
 
 Full fragment representation in hex:
 ```
