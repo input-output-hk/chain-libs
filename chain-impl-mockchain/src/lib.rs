@@ -1,9 +1,5 @@
 #![warn(clippy::all)]
 
-#[cfg(any(test, feature = "property-test-api"))]
-#[macro_use]
-extern crate quickcheck;
-
 pub mod account;
 pub mod accounting;
 pub mod block;

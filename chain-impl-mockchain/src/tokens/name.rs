@@ -11,11 +11,22 @@ pub const TOKEN_NAME_MAX_SIZE: usize = 32;
 /// voting policies hashes are different tokens. A name can be empty. The maximum length of a token
 /// name is 32 bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct TokenName(Vec<u8>);
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use super::*;
+    use proptest::{arbitrary::StrategyFor, collection::VecStrategy, prelude::*, strategy::Map};
+
+    impl Arbitrary for TokenName {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<u8>>, fn(Vec<u8>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proptest::collection::vec(any::<u8>(), 0..=TOKEN_NAME_MAX_SIZE).prop_map(TokenName)
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 #[error("Token name can be no more that {} bytes long; got {} bytes", TOKEN_NAME_MAX_SIZE, .actual)]
@@ -77,10 +88,9 @@ impl Deserialize for TokenName {
 mod tests {
     use super::*;
     #[cfg(test)]
-    use crate::testing::serialization::serialization_bijection;
-    #[cfg(test)]
-    use quickcheck::TestResult;
+    use crate::testing::serialization::serialization_bijection_prop;
     use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for TokenName {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -93,8 +103,8 @@ mod tests {
         }
     }
 
-    #[quickcheck_macros::quickcheck]
-    fn token_name_serialization_bijection(token_name: TokenName) -> TestResult {
-        serialization_bijection(token_name)
+    #[proptest]
+    fn token_name_serialization_bijection(#[allow(dead_code)] token_name: TokenName) {
+        serialization_bijection_prop(token_name);
     }
 }

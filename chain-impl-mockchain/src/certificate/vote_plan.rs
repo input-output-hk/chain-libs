@@ -54,7 +54,35 @@ pub struct VotePlan {
     voting_token: TokenIdentifier,
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use super::*;
+    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+    impl Arbitrary for VoteAction {
+        type Parameters = ();
+        type Strategy = Map<
+            StrategyFor<Option<TreasuryGovernanceAction>>,
+            fn(Option<TreasuryGovernanceAction>) -> Self,
+        >;
+
+        fn arbitrary_with((): ()) -> Self::Strategy {
+            any::<Option<TreasuryGovernanceAction>>().prop_map(|action| {
+                if let Some(action) = action {
+                    VoteAction::Treasury { action }
+                } else {
+                    VoteAction::OffChain
+                }
+            })
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct VotePlanProof {
     pub id: vote::CommitteeId,
     pub signature: SingleAccountBindingSignature,
@@ -62,7 +90,8 @@ pub struct VotePlanProof {
 
 /// this is the action that will result of the vote
 ///
-///
+/// note: we cannot derive Arbitrary for this type because of a conflict with
+/// `VoteAction::Parameters` being both an enum variant and an associated type of `Arbitrary`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VoteAction {
     /// the action if off chain or not relevant to the blockchain
@@ -98,6 +127,17 @@ pub struct Proposal {
 pub enum PushProposal {
     Success,
     Full { proposal: Proposal },
+}
+
+impl PushProposal {
+    pub fn unwrap(self) {
+        match self {
+            Self::Success => {}
+            Self::Full { proposal } => {
+                panic!("push proposal failed: {:?}", proposal)
+            }
+        }
+    }
 }
 
 impl Proposal {
@@ -485,17 +525,15 @@ mod tests {
     use crate::tokens::name::{TokenName, TOKEN_NAME_MAX_SIZE};
     use crate::tokens::policy_hash::{PolicyHash, POLICY_HASH_SIZE};
     use chain_core::property::BlockDate as BlockDateProp;
-    use quickcheck_macros::quickcheck;
+    use std::convert::TryFrom;
+    use test_strategy::proptest;
 
-    #[quickcheck]
-    fn serialize_deserialize(vote_plan: VotePlan) -> bool {
+    #[proptest]
+    fn serialize_deserialize(vote_plan: VotePlan) {
         let serialized = vote_plan.serialize();
-
-        let result = VotePlan::deserialize_from_slice(&mut Codec::new(serialized.as_ref()));
-
-        let decoded = result.expect("can decode encoded vote plan");
-
-        decoded == vote_plan
+        let result =
+            VotePlan::deserialize_from_slice(&mut Codec::new(serialized.as_ref())).unwrap();
+        assert_eq!(result, vote_plan);
     }
 
     #[test]

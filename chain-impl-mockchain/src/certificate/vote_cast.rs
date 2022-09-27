@@ -10,6 +10,10 @@ use chain_core::{
 use typed_bytes::{ByteArray, ByteBuilder};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct VoteCast {
     vote_plan: VotePlanId,
     proposal_index: u8,

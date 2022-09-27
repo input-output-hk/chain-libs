@@ -15,6 +15,10 @@ pub struct LinearFee {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Default)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PerCertificateFee {
     pub certificate_pool_registration: Option<NonZeroU64>,
     pub certificate_stake_delegation: Option<NonZeroU64>,
@@ -22,6 +26,10 @@ pub struct PerCertificateFee {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Default)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PerVoteCertificateFee {
     pub certificate_vote_plan: Option<NonZeroU64>,
     pub certificate_vote_cast: Option<NonZeroU64>,
@@ -139,13 +147,13 @@ impl FeeAlgorithm for LinearFee {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
+    #![allow(unused_imports, dead_code)] // proptest macro bug
     use super::*;
     #[cfg(test)]
     use crate::certificate::{Certificate, CertificatePayload};
-    #[cfg(test)]
-    use quickcheck::TestResult;
+    use proptest::{arbitrary::any, prop_assert_eq, prop_assume, strategy::Strategy};
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for PerCertificateFee {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -178,42 +186,78 @@ mod test {
         }
     }
 
-    #[quickcheck]
-    pub fn linear_fee_certificate_calculation(
-        certificate: Certificate,
-        inputs: u8,
-        outputs: u8,
-        mut fee: LinearFee,
-        per_certificate_fees: PerCertificateFee,
-        per_vote_certificate_fees: PerVoteCertificateFee,
-    ) -> TestResult {
-        fee.per_certificate_fees(per_certificate_fees);
-        fee.per_vote_certificate_fees(per_vote_certificate_fees);
-        let per_certificate_fees = fee.per_certificate_fees;
-        if per_certificate_fees.certificate_pool_registration.is_none()
-            || per_certificate_fees.certificate_stake_delegation.is_none()
-            || per_certificate_fees
-                .certificate_owner_stake_delegation
-                .is_none()
-            || per_vote_certificate_fees.certificate_vote_plan.is_none()
-            || per_vote_certificate_fees.certificate_vote_cast.is_none()
-        {
-            return TestResult::discard();
+    mod pt {
+        use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+        use crate::fee::{LinearFee, PerCertificateFee, PerVoteCertificateFee};
+
+        type Triple = (u64, u64, u64);
+
+        impl Arbitrary for LinearFee {
+            type Parameters = ();
+            type Strategy = Map<StrategyFor<Triple>, fn(Triple) -> Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<(u64, u64, u64)>().prop_map(|(constant, coefficient, certificate)| Self {
+                    constant,
+                    coefficient,
+                    certificate,
+                    per_certificate_fees: PerCertificateFee::new(None, None, None),
+                    per_vote_certificate_fees: PerVoteCertificateFee::new(None, None),
+                })
+            }
         }
+    }
 
-        let certificate_payload: CertificatePayload = (&certificate).into();
-        let fee_value = fee.calculate(Some(certificate_payload.as_slice()), inputs, outputs);
-        let inputs_outputs_fee: u64 = (inputs + outputs) as u64 * fee.coefficient;
-        let expected_value = Value(
-            calculate_expected_cert_fee_value(&certificate, &fee)
-                + inputs_outputs_fee
-                + fee.constant,
-        );
+    #[allow(dead_code)] // used below, proptest macro doesn't preserve spans
+    fn input_output_strategy() -> impl Strategy<Value = (u8, u8)> {
+        (0..(u8::MAX - 1))
+            .prop_flat_map(|input| (0..(u8::MAX - input)).prop_map(move |output| (input, output)))
+    }
 
-        if fee_value == expected_value {
-            TestResult::passed()
-        } else {
-            TestResult::error(format!("Wrong fee: {} vs {}", fee_value, expected_value))
+    proptest::proptest! {
+        // This test is extremely slow with proptest due to complex flattening rules (still running
+        // after 20 minutes on my laptop), so we reduce the number of cases considered
+        #![proptest_config(proptest::prelude::ProptestConfig {
+            cases: 10,
+            max_flat_map_regens: 10,
+            ..Default::default()
+        })]
+
+        #[test]
+        fn linear_fee_certificate_calculation(
+            certificate in any::<crate::certificate::Certificate>(),
+            (inputs, outputs) in input_output_strategy(),
+            mut fee in any::<LinearFee>(),
+            per_certificate_fees in any::<PerCertificateFee>(),
+            per_vote_certificate_fees in any::<PerVoteCertificateFee>(),
+        ) {
+            fee.per_certificate_fees(per_certificate_fees);
+            fee.per_vote_certificate_fees(per_vote_certificate_fees);
+            let per_certificate_fees = fee.per_certificate_fees;
+            let should_discard = per_certificate_fees.certificate_pool_registration.is_none()
+                || per_certificate_fees.certificate_stake_delegation.is_none()
+                || per_certificate_fees
+                    .certificate_owner_stake_delegation
+                    .is_none()
+                || per_vote_certificate_fees.certificate_vote_plan.is_none()
+                || per_vote_certificate_fees.certificate_vote_cast.is_none();
+
+            if should_discard {
+                return Ok(());
+            }
+
+            let certificate_payload: CertificatePayload = (&certificate).into();
+            let fee_value = fee.calculate(Some(certificate_payload.as_slice()), inputs, outputs);
+            prop_assume!(((inputs + outputs) as u64)
+                .checked_mul(fee.coefficient)
+                .is_some());
+            let inputs_outputs_fee: u64 = (inputs + outputs) as u64 * fee.coefficient;
+            let cert_fee_value = calculate_expected_cert_fee_value(&certificate, &fee);
+            prop_assume!(cert_fee_value.checked_add(inputs_outputs_fee).and_then(|i| i.checked_add(fee.constant)).is_some());
+            let expected_value = Value(cert_fee_value + inputs_outputs_fee + fee.constant);
+
+            prop_assert_eq!(fee_value, expected_value);
         }
     }
 

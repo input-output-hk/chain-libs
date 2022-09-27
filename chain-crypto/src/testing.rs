@@ -19,6 +19,7 @@ pub struct TestCryptoGen(pub u64);
 /// A faster non-cryptographic RNG to be used in tests. NOTE: this RNG does
 /// implement `CryptoRng`, but it is not really cryptographic. It MUST NOT be
 /// used in the production code.
+#[derive(Debug)]
 pub struct TestCryptoRng(SmallRng);
 
 impl RngCore for TestCryptoRng {
@@ -69,6 +70,10 @@ impl TestCryptoGen {
     /// Get the nth deterministic keypair
     pub fn keypair<A: AsymmetricKey>(&self, idx: u32) -> KeyPair<A> {
         KeyPair::from(self.secret_key(idx))
+    }
+
+    pub fn prop_arb() -> impl Strategy<Value = Self> {
+        any::<u64>().prop_map(Self)
     }
 }
 
@@ -129,6 +134,27 @@ where
             .take(A::SIGNATURE_SIZE)
             .collect();
         Signature::from_binary(&bytes).unwrap()
+    }
+}
+
+mod pt {
+    use proptest::{arbitrary::StrategyFor, collection::VecStrategy, prelude::*, strategy::Map};
+
+    use super::{Signature, VerificationAlgorithm};
+
+    impl<T, A> Arbitrary for Signature<T, A>
+    where
+        A: VerificationAlgorithm + 'static,
+        A::Signature: Send,
+        T: Send + 'static,
+    {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<u8>>, fn(Vec<u8>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proptest::collection::vec(any::<u8>(), A::SIGNATURE_SIZE)
+                .prop_map(|bytes| Signature::from_binary(&bytes).unwrap())
+        }
     }
 }
 

@@ -49,6 +49,10 @@ use thiserror::Error;
 
 // static parameters, effectively this is constant in the parameter of the blockchain
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct LedgerStaticParameters {
     pub block0_initial_hash: HeaderId,
     pub block0_start_time: config::Block0Date,
@@ -318,6 +322,7 @@ pub enum Error {
 }
 
 impl Ledger {
+    #[allow(clippy::let_and_return)]
     pub(crate) fn empty(
         settings: setting::Settings,
         static_params: LedgerStaticParameters,
@@ -1909,9 +1914,11 @@ mod tests {
         transaction::Witness,
     };
     use chain_addr::Discrimination;
+
+    use proptest::{prop_assert, prop_assert_eq, prop_assert_ne, prop_assume};
     use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
     use std::{fmt, iter};
+    use test_strategy::proptest;
 
     impl Arbitrary for LedgerStaticParameters {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -1960,18 +1967,18 @@ mod tests {
         }
     }
 
-    #[quickcheck]
+    #[proptest]
     fn apply_empty_block_prop_test(
         mut context: HeaderContentEvalContext,
-        ledger: ArbitraryEmptyLedger,
-    ) -> TestResult {
-        let ledger: Ledger = ledger.into();
+        #[strategy(prop_impls::empty_ledger_strategy())] ledger: Ledger,
+    ) {
         let should_succeed = context.chain_length == ledger.chain_length.increase()
             && context.block_date > ledger.date;
 
         let contents = Contents::empty();
         context.content_hash = contents.compute_hash();
 
+<<<<<<< HEAD
         let result = ledger.apply_block(&contents, &context);
         match (result, should_succeed) {
             (Ok(_), true) => TestResult::passed(),
@@ -1979,6 +1986,10 @@ mod tests {
             (Err(err), true) => TestResult::error(format!("unexpected error: {}", err)),
             (Err(_), false) => TestResult::passed(),
         }
+=======
+        let result = ledger.apply_block(ledger.get_ledger_parameters(), &contents, &context);
+        prop_assert_eq!(result.is_ok(), should_succeed);
+>>>>>>> origin/mockchain-proptest-3
     }
 
     fn empty_transaction() -> TestTx {
@@ -2023,24 +2034,18 @@ mod tests {
         TestTx::new(tx_builder.set_witnesses(&witnesses).set_payload_auth(&()))
     }
 
-    #[quickcheck]
-    fn match_identifier_witness_prop_test(
-        id: UnspecifiedAccountIdentifier,
-        witness: Witness,
-    ) -> TestResult {
+    #[proptest]
+    fn match_identifier_witness_prop_test(id: UnspecifiedAccountIdentifier, witness: Witness) {
         let result = super::match_identifier_witness(&id, &witness);
         match (witness.clone(), result) {
-            (Witness::OldUtxo(..), Ok(_)) => TestResult::error("expecting error, but got success"),
-            (Witness::OldUtxo(..), Err(_)) => TestResult::passed(),
-            (Witness::Utxo(_), Ok(_)) => TestResult::error("expecting error, but got success"),
-            (Witness::Utxo(_), Err(_)) => TestResult::passed(),
-            (Witness::Account(_, _), Ok(_)) => TestResult::passed(),
-            (Witness::Account(_, _), Err(_)) => TestResult::error("unexpected error"),
-            (Witness::Multisig(_, _), _) => TestResult::discard(),
+            (Witness::OldUtxo(..), Ok(_)) => panic!("expecting error, but got success"),
+            (Witness::Utxo(_), Ok(_)) => panic!("expecting error, but got success"),
+            (Witness::Account(_, _), Err(_)) => panic!("unexpected error"),
+            _ => {}
         }
     }
 
-    #[quickcheck]
+    #[proptest]
     fn input_single_account_verify_negative_prop_test(
         id: Identifier,
         account_state: AccountState<()>,
@@ -2048,7 +2053,7 @@ mod tests {
         block0_hash: HeaderId,
         sign_data_hash: TransactionSignDataHash,
         witness: account::Witness,
-    ) -> TestResult {
+    ) {
         let mut account_ledger = account::Ledger::new();
         account_ledger = account_ledger
             .add_account(id.clone(), account_state.value(), ())
@@ -2063,7 +2068,7 @@ mod tests {
             value_to_sub,
         );
 
-        TestResult::from_bool(result.is_err())
+        prop_assert!(result.is_err())
     }
 
     #[test]
@@ -2199,12 +2204,12 @@ mod tests {
         assert!(result.is_err())
     }
 
-    #[quickcheck]
+    #[proptest]
     fn input_utxo_verify_negative_prop_test(
         sign_data_hash: TransactionSignDataHash,
         utxo_pointer: UtxoPointer,
         witness: Witness,
-    ) -> TestResult {
+    ) {
         let faucet = AddressDataValue::utxo(Discrimination::Test, Value(1000));
         let test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
             .faucet(&faucet)
@@ -2214,15 +2219,10 @@ mod tests {
         let inner_ledger: Ledger = test_ledger.into();
         let result = inner_ledger.apply_input_to_utxo(&sign_data_hash, &utxo_pointer, &witness);
         match (witness, result) {
-            (Witness::OldUtxo(..), Ok(_)) => TestResult::error("expecting error, but got success"),
-            (Witness::OldUtxo(..), Err(_)) => TestResult::passed(),
-            (Witness::Utxo(_), Ok(_)) => TestResult::error("expecting error, but got success"),
-            (Witness::Utxo(_), Err(_)) => TestResult::passed(),
-            (Witness::Account(_, _), Ok(_)) => {
-                TestResult::error("expecting error, but got success")
-            }
-            (Witness::Account(_, _), Err(_)) => TestResult::passed(),
-            (Witness::Multisig(_, _), _) => TestResult::discard(),
+            (Witness::OldUtxo(..), Ok(_)) => panic!("expecting error, but got success"),
+            (Witness::Utxo(_), Ok(_)) => panic!("expecting error, but got success"),
+            (Witness::Account(_, _), Ok(_)) => panic!("expecting error, but got success"),
+            _ => {}
         }
     }
 
@@ -2275,14 +2275,14 @@ mod tests {
         assert!(result.is_err())
     }
 
-    #[quickcheck]
+    #[proptest]
     fn test_internal_apply_transaction_output_property(
         utxos: utxo::Ledger<Address>,
         accounts: account::Ledger,
         static_params: LedgerStaticParameters,
         transaction_id: FragmentId,
         arbitrary_outputs: ArbitraryAddressDataValueVec,
-    ) -> TestResult {
+    ) {
         let multisig_ledger = multisig::Ledger::new();
         let outputs: Vec<Output<Address>> = arbitrary_outputs
             .0
@@ -2298,10 +2298,10 @@ mod tests {
             should_expect_success(arbitrary_outputs, &static_params),
             result,
         ) {
-            (true, Ok(_)) => TestResult::passed(),
-            (true, Err(err)) => TestResult::error(format!("Unexpected failure: {:?}", err)),
-            (false, Ok(_)) => TestResult::error("Expected failure, but got sucess"),
-            (false, Err(_)) => TestResult::passed(),
+            (true, Ok(_)) => {}
+            (true, Err(err)) => panic!("Unexpected failure: {:?}", err),
+            (false, Ok(_)) => panic!("Expected failure, but got sucess"),
+            (false, Err(_)) => {}
         }
     }
 
@@ -2697,21 +2697,23 @@ mod tests {
             .has_fee_equals_to(&Value(12));
     }
 
-    #[quickcheck]
+    #[proptest]
     fn test_internal_apply_transaction_is_balanced(
         input_addresses: ArbitraryAddressDataValueVec,
         output_addresses: ArbitraryAddressDataValueVec,
         fee: Value,
-    ) -> TestResult {
-        if input_addresses.is_empty() || output_addresses.is_empty() {
-            return TestResult::discard();
-        }
+    ) {
+        prop_assume!(!input_addresses.is_empty() && !output_addresses.is_empty());
 
-        let mut test_ledger =
+        let test_ledger =
             LedgerBuilder::from_config(ConfigBuilder::new().with_fee(LinearFee::new(fee.0, 0, 0)))
                 .faucets(&input_addresses.values())
-                .build()
-                .unwrap();
+                .build();
+        prop_assume!(!matches!(
+            test_ledger,
+            Err(Error::FeeCalculationError(ValueError::Overflow))
+        ));
+        let mut test_ledger = test_ledger.unwrap();
 
         let block0_hash = test_ledger.block0_hash;
         let tx_builder = TxBuilder::new()
@@ -2742,13 +2744,13 @@ mod tests {
             balance_res,
             test_ledger.apply_transaction(test_tx.get_fragment(), BlockDate::first()),
         ) {
-            (Ok(balance), Ok(_)) => TestResult::from_bool(balance == Value::zero()),
-            (Err(err), Ok(_)) => TestResult::error(format!(
+            (Ok(balance), Ok(_)) => prop_assert_eq!(balance, Value::zero()),
+            (Err(err), Ok(_)) => panic!(
                 "Expected balance is non zero {:?}, yet transaction is accepted",
                 err
-            )),
-            (Ok(balance), Err(_)) => TestResult::from_bool(balance != Value::zero()),
-            (Err(_), Err(_)) => TestResult::passed(),
+            ),
+            (Ok(balance), Err(_)) => prop_assert_ne!(balance, Value::zero()),
+            (Err(_), Err(_)) => {}
         }
     }
 
@@ -2802,7 +2804,7 @@ mod tests {
             .is_err());
     }
 
-    #[quickcheck]
+    #[proptest]
     fn test_internal_apply_transaction_funds_were_transfered(
         sender_address: AddressData,
         reciever_address: AddressData,
@@ -2975,5 +2977,37 @@ mod tests {
         assert!(test_ledger
             .apply_transaction(test_tx.get_fragment(), BlockDate::first())
             .is_err());
+    }
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod prop_impls {
+    use chain_time::TimeEra;
+    use proptest::prelude::*;
+
+    use crate::{
+        block::{BlockDate, ChainLength},
+        ledger::Ledger,
+        ledger::Pots,
+        setting::Settings,
+    };
+
+    use super::LedgerStaticParameters;
+
+    prop_compose! {
+        pub(super) fn empty_ledger_strategy()(
+            static_params in any::<LedgerStaticParameters>(),
+            era in any::<TimeEra>(),
+            pots in any::<Pots>(),
+            date in any::<BlockDate>(),
+            len in any::<ChainLength>(),
+        ) -> Ledger {
+            let settings = Settings::new();
+            let mut ledger = Ledger::empty(settings, static_params, era, pots);
+
+            ledger.date = date;
+            ledger.chain_length = len;
+            ledger
+        }
     }
 }

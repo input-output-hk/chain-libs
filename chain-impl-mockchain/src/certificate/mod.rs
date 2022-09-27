@@ -216,8 +216,11 @@ impl<'a> From<&'a Certificate> for CertificatePayload {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum Certificate {
     StakeDelegation(StakeDelegation),
     OwnerStakeDelegation(OwnerStakeDelegation),
@@ -230,6 +233,7 @@ pub enum Certificate {
     UpdateProposal(UpdateProposal),
     UpdateVote(UpdateVote),
     MintToken(MintToken),
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmMapping(EvmMapping),
 }
 
@@ -345,25 +349,31 @@ pub enum SignedCertificate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+    use proptest::prelude::*;
 
-    #[quickcheck]
-    pub fn need_auth(certificate: Certificate) -> TestResult {
-        let expected_result = match certificate {
-            Certificate::PoolRegistration(_) => true,
-            Certificate::PoolUpdate(_) => true,
-            Certificate::PoolRetirement(_) => true,
-            Certificate::StakeDelegation(_) => true,
-            Certificate::OwnerStakeDelegation(_) => false,
-            Certificate::VotePlan(_) => true,
-            Certificate::VoteCast(_) => false,
-            Certificate::VoteTally(_) => true,
-            Certificate::UpdateProposal(_) => true,
-            Certificate::UpdateVote(_) => true,
-            Certificate::MintToken(_) => false,
-            Certificate::EvmMapping(_) => true,
-        };
-        TestResult::from_bool(certificate.need_auth() == expected_result)
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 100,
+            max_flat_map_regens: 100,
+            ..Default::default()
+        })]
+        #[test]
+        fn needs_auth(certificate in any::<Certificate>()) {
+            let expected_result = match certificate {
+                Certificate::PoolRegistration(_) => true,
+                Certificate::PoolUpdate(_) => true,
+                Certificate::PoolRetirement(_) => true,
+                Certificate::StakeDelegation(_) => true,
+                Certificate::OwnerStakeDelegation(_) => false,
+                Certificate::VotePlan(_) => true,
+                Certificate::VoteCast(_) => false,
+                Certificate::VoteTally(_) => true,
+                Certificate::UpdateProposal(_) => true,
+                Certificate::UpdateVote(_) => true,
+                Certificate::MintToken(_) => false,
+                Certificate::EvmMapping(_) => true,
+            };
+            prop_assert_eq!(certificate.need_auth(), expected_result);
+        }
     }
 }

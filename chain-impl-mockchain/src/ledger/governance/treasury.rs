@@ -4,6 +4,8 @@ use chain_core::{
     property::{Deserialize, ReadError},
 };
 use imhamt::Hamt;
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
 use std::collections::hash_map::DefaultHasher;
 use typed_bytes::ByteBuilder;
 
@@ -13,7 +15,21 @@ pub enum TreasuryGovernanceAction {
     TransferToRewards { value: Value },
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
+impl Arbitrary for TreasuryGovernanceAction {
+    type Parameters = ();
+    type Strategy = Map<StrategyFor<Value>, fn(Value) -> Self>;
+
+    fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+        any::<Value>().prop_map(|value| Self::TransferToRewards { value })
+    }
+}
+
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum TreasuryGovernanceActionType {
     NoOp,
     TransferToRewards,
@@ -109,7 +125,7 @@ mod tests {
     use super::{TreasuryGovernance, TreasuryGovernanceAction, TreasuryGovernanceActionType};
     use crate::{ledger::governance::GovernanceAcceptanceCriteria, value::Value, vote::Choice};
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for TreasuryGovernanceActionType {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -145,8 +161,8 @@ mod tests {
         );
     }
 
-    #[quickcheck]
-    pub fn treasury_governance_set_acceptance_criteria(action_type: TreasuryGovernanceActionType) {
+    #[proptest]
+    fn treasury_governance_set_acceptance_criteria(action_type: TreasuryGovernanceActionType) {
         let mut governance = TreasuryGovernance::new();
         let new_governance_criteria = some_new_governance_criteria();
         governance.set_acceptance_criteria(action_type, new_governance_criteria.clone());

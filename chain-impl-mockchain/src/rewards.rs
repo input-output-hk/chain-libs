@@ -19,6 +19,10 @@ pub enum CompoundingType {
 )]
 pub struct Ratio {
     pub numerator: u64,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(test_impls::non_zero_u64_strategy())
+    )]
     pub denominator: NonZeroU64,
 }
 
@@ -48,6 +52,23 @@ impl Ratio {
     }
 }
 
+#[cfg(any(test, feature = "property-test-api"))]
+mod test_impls {
+    use super::*;
+    use proptest::arbitrary::any;
+    use proptest::strategy::Strategy;
+
+    pub(super) fn non_zero_u64_strategy() -> impl Strategy<Value = NonZeroU64> {
+        any::<u64>()
+            .prop_map(|i| i.try_into().ok())
+            .prop_filter_map("must be non zero", |i| i)
+    }
+
+    pub(super) fn option_non_zero_u64_strategy() -> impl Strategy<Value = Option<NonZeroU64>> {
+        any::<u64>().prop_map(|i| i.try_into().ok())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     any(test, feature = "property-test-api"),
@@ -59,6 +80,10 @@ pub struct TaxType {
     // Ratio of tax after fixed amout subtracted
     pub ratio: Ratio,
     // Max limit of tax
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(test_impls::option_non_zero_u64_strategy())
+    )]
     pub max_limit: Option<NonZeroU64>,
 }
 
@@ -278,27 +303,23 @@ pub fn tax_cut(v: Value, tax_type: &TaxType) -> Result<TaxDistribution, ValueErr
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
-    use super::*;
-    #[cfg(test)]
-    use quickcheck::TestResult;
-    use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    #![allow(dead_code, unused_imports)] // proptest macro bug
 
-    #[quickcheck]
-    fn tax_cut_fully_accounted(v: Value, treasury_tax: TaxType) -> TestResult {
-        match tax_cut(v, &treasury_tax) {
-            Ok(td) => {
-                let sum = (td.taxed + td.after_tax).unwrap();
-                if sum == v {
-                    TestResult::passed()
-                } else {
-                    TestResult::error(format!(
-                        "mismatch taxed={} remaining={} expected={} got={} for {:?}",
-                        td.taxed, td.after_tax, v, sum, treasury_tax
-                    ))
-                }
+    use super::*;
+    use crate::testing::average_value;
+    use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
+
+    #[proptest]
+    fn tax_cut_fully_accounted(#[strategy(average_value())] v: Value, treasury_tax: TaxType) {
+        if let Ok(td) = tax_cut(v, &treasury_tax) {
+            let sum = (td.taxed + td.after_tax).unwrap();
+            if sum != v {
+                panic!(
+                    "mismatch taxed={} remaining={} expected={} got={} for {:?}",
+                    td.taxed, td.after_tax, v, sum, treasury_tax
+                )
             }
-            Err(_) => TestResult::discard(),
         }
     }
 

@@ -363,13 +363,40 @@ impl From<PublicKey<BftVerificationAlg>> for BftLeaderId {
 
 /// Praos Leader consisting of the KES public key and VRF public key
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub struct GenesisPraosLeader {
     pub kes_public_key: PublicKey<SumEd25519_12>,
     pub vrf_public_key: PublicKey<RistrettoGroup2HashDh>,
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod prop_impl {
+    use super::*;
+    use crypto::testing::{self, TestCryptoGen};
+    use lazy_static::lazy_static;
+    use proptest::prelude::*;
+
+    impl Arbitrary for GenesisPraosLeader {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            lazy_static! {
+                static ref PK_KES: PublicKey<SumEd25519_12> =
+                    testing::static_secret_key::<SumEd25519_12>().to_public();
+            }
+
+            TestCryptoGen::prop_arb()
+                .prop_map(|tcg| {
+                    let mut rng = tcg.get_rng(0);
+                    let vrf_sk: SecretKey<RistrettoGroup2HashDh> = SecretKey::generate(&mut rng);
+                    GenesisPraosLeader {
+                        vrf_public_key: vrf_sk.to_public(),
+                        kes_public_key: PK_KES.clone(),
+                    }
+                })
+                .boxed()
+        }
+    }
 }
 
 impl GenesisPraosLeader {
@@ -397,14 +424,14 @@ impl DeserializeFromSlice for GenesisPraosLeader {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
+    #![allow(dead_code)] // proptest macro bug
     use super::*;
     #[cfg(test)]
-    use crate::testing::serialization::serialization_bijection;
+    use crate::testing::serialization::serialization_bijection_prop;
     use chain_crypto::{testing, PublicKey, RistrettoGroup2HashDh, SecretKey, SumEd25519_12};
     use lazy_static::lazy_static;
-    #[cfg(test)]
-    use quickcheck::TestResult;
-    use quickcheck::{quickcheck, Arbitrary, Gen};
+    use quickcheck::{Arbitrary, Gen};
+    use test_strategy::proptest;
 
     impl Arbitrary for Hash {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -437,9 +464,8 @@ mod tests {
         }
     }
 
-    quickcheck! {
-        fn leader_id_serialize_deserialize_biyection(leader_id: BftLeaderId) -> TestResult {
-            serialization_bijection(leader_id)
-        }
+    #[proptest]
+    fn leader_id_serialize_deserialize_biyection(leader_id: BftLeaderId) {
+        serialization_bijection_prop(leader_id);
     }
 }

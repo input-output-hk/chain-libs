@@ -16,7 +16,9 @@ use chain_core::{
 };
 use chain_crypto::PublicKey;
 #[cfg(feature = "evm")]
-use chain_evm::Config;
+use chain_evm::{BlockGasLimit, Config, GasPrice};
+#[cfg(any(test, feature = "property-test-api"))]
+use proptest::prelude::Just;
 use std::{
     fmt::{self, Display, Formatter},
     io::{self, Write},
@@ -62,12 +64,16 @@ impl From<Error> for ReadError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ConfigParam {
     Block0Date(Block0Date),
     Discrimination(Discrimination),
     ConsensusVersion(ConsensusType),
     SlotsPerEpoch(u32),
-    SlotDuration(u8),
+    SlotDuration(#[cfg_attr(any(test, feature = "property-test-api"), strategy(1..=u8::MAX))] u8),
     EpochStabilityDepth(u32),
     ConsensusGenesisPraosActiveSlotsCoeff(Milli),
     BlockContentMaxSize(u32),
@@ -77,6 +83,7 @@ pub enum ConfigParam {
     ProposalExpiration(u32),
     KesUpdateSpeed(u32),
     TreasuryAdd(Value),
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     TreasuryParams(TaxType),
     RewardPot(Value),
     RewardParams(RewardParams),
@@ -90,23 +97,37 @@ pub enum ConfigParam {
     PerVoteCertificateFees(PerVoteCertificateFee),
     TransactionMaxExpiryEpochs(u8),
     #[cfg(feature = "evm")]
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmConfiguration(Config),
     #[cfg(feature = "evm")]
+    #[cfg_attr(any(test, feature = "property-test-api"), weight(0))]
     EvmEnvironment(EvmEnvSettings),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum RewardParams {
     Linear {
         constant: u64,
         ratio: Ratio,
         epoch_start: Epoch,
+        #[cfg_attr(
+            any(test, feature = "property-test-api"),
+            strategy(Just(NonZeroU32::try_from(20).unwrap()))
+        )]
         epoch_rate: NonZeroU32,
     },
     Halving {
         constant: u64,
         ratio: Ratio,
         epoch_start: Epoch,
+        #[cfg_attr(
+            any(test, feature = "property-test-api"),
+            strategy(Just(NonZeroU32::try_from(20).unwrap()))
+        )]
         epoch_rate: NonZeroU32,
     },
 }
@@ -121,6 +142,10 @@ pub struct EvmEnvSettings {
 
 // Discriminants can NEVER be 1024 or higher
 #[derive(AsRefStr, Clone, Copy, Debug, EnumIter, EnumString, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum Tag {
     #[strum(to_string = "discrimination")]
     Discrimination = 1,
@@ -440,6 +465,10 @@ trait ConfigParamVariant: Clone + Eq + PartialEq {
 
 /// Seconds elapsed since 1-Jan-1970 (unix time)
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct Block0Date(pub u64);
 
 impl ConfigParamVariant for Block0Date {
@@ -861,11 +890,12 @@ impl TagLen {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
+    #![allow(dead_code, unused_imports)] // proptest macro bug
     use super::*;
-    #[cfg(test)]
-    use quickcheck::TestResult;
+    use proptest::prop_assert_eq;
     use quickcheck::{Arbitrary, Gen};
     use strum::IntoEnumIterator;
+    use test_strategy::proptest;
 
     #[cfg(feature = "evm")]
     #[test]
@@ -876,37 +906,39 @@ mod test {
         assert_eq!(evm_params, other_evm);
     }
 
-    quickcheck! {
-        fn tag_len_computation_correct(tag: Tag, len: usize) -> TestResult {
-            let len = len % MAXIMUM_LEN;
-            let tag_len = TagLen::new(tag, len).unwrap();
+    #[proptest]
+    fn tag_len_computation_correct(tag: Tag, len: usize) {
+        let len = len % MAXIMUM_LEN;
+        let tag_len = TagLen::new(tag, len).unwrap();
 
-            assert_eq!(Ok(tag), tag_len.get_tag(), "Invalid tag");
-            assert_eq!(len, tag_len.get_len(), "Invalid len");
-            TestResult::passed()
-        }
+        prop_assert_eq!(Ok(tag), tag_len.get_tag(), "Invalid tag");
+        prop_assert_eq!(len, tag_len.get_len(), "Invalid len");
+    }
 
-        fn linear_fee_to_payload_from_payload(fee: LinearFee) -> TestResult {
-            let payload = fee.to_payload();
-            let decoded = LinearFee::from_payload(&payload).unwrap();
+    #[proptest]
+    fn linear_fee_to_payload_from_payload(fee: LinearFee) {
+        let payload = fee.to_payload();
+        let decoded = LinearFee::from_payload(&payload).unwrap();
 
-            TestResult::from_bool(fee == decoded)
-        }
+        prop_assert_eq!(fee, decoded)
+    }
 
-        fn per_certificate_fee_to_payload_from_payload(fee: PerCertificateFee) -> TestResult {
-            let payload = fee.to_payload();
-            let decoded = PerCertificateFee::from_payload(&payload).unwrap();
+    #[proptest]
+    fn per_certificate_fee_to_payload_from_payload(fee: PerCertificateFee) {
+        let payload = fee.to_payload();
+        let decoded = PerCertificateFee::from_payload(&payload).unwrap();
 
-            TestResult::from_bool(fee == decoded)
-        }
+        prop_assert_eq!(fee, decoded);
+    }
 
-        fn config_param_serialize_readable(param: ConfigParam) -> bool {
-            use chain_core::property::Serialize as _;
-            let bytes = param.serialize_as_vec().unwrap();
-            let decoded = ConfigParam::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
+    #[proptest]
+    fn config_param_serialize_readable(param: ConfigParam) {
+        use chain_core::property::Serialize as _;
+        let bytes = param.serialize_as_vec().unwrap();
+        let decoded =
+            ConfigParam::deserialize_from_slice(&mut Codec::new(bytes.as_slice())).unwrap();
 
-            param == decoded
-        }
+        prop_assert_eq!(param, decoded);
     }
 
     impl Arbitrary for Tag {

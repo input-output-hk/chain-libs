@@ -9,6 +9,10 @@ use crate::key::Hash;
 
 /// PraosNonce gathered per block
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PraosNonce([u8; 32]);
 
 impl PraosNonce {
@@ -40,6 +44,10 @@ impl AsRef<[u8]> for PraosNonce {
 
 /// Consensus related data extract from the header
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ConsensusEvalContext {
     Genesis,
     Bft,
@@ -51,6 +59,10 @@ pub enum ConsensusEvalContext {
 
 /// This is the data extracted from a header related to content evaluation
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct HeaderContentEvalContext {
     pub(crate) block_date: BlockDate,
     pub(crate) chain_length: ChainLength,

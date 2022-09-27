@@ -10,13 +10,11 @@ use crate::{
 };
 use chain_addr::Discrimination;
 use chain_core::property::Fragment;
-use quickcheck::TestResult;
-use quickcheck_macros::quickcheck;
+use proptest::prop_assert;
+use test_strategy::proptest;
 
-#[quickcheck]
-pub fn ledger_adopt_settings_from_update_proposal(
-    update_proposal_data: UpdateProposalData,
-) -> TestResult {
+#[proptest]
+fn ledger_adopt_settings_from_update_proposal(update_proposal_data: UpdateProposalData) {
     let leader_pair = &update_proposal_data.leaders_pairs()[0];
     let mut leader = Wallet::from_address_data_value(AddressDataValue::new(
         AddressData::from_leader_pair(leader_pair.clone(), Discrimination::Test),
@@ -70,17 +68,6 @@ pub fn ledger_adopt_settings_from_update_proposal(
         }
     }
 
-    if !testledger.ledger.updates.proposals.is_empty() {
-        return TestResult::error(format!(
-            "Error: proposal collection should be empty but contains:{:?}",
-            testledger.ledger.updates.proposals
-        ));
-    }
-
-    if all_settings_equal {
-        TestResult::passed()
-    } else {
-        TestResult::error(format!("Error: proposed update reached required votes, but proposal was NOT updated, Expected: {:?} vs Actual: {:?}",
-                                expected_params,actual_params))
-    }
+    prop_assert!(testledger.ledger.updates.proposals.is_empty());
+    prop_assert!(all_settings_equal);
 }

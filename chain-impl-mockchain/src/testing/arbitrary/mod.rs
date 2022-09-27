@@ -57,6 +57,18 @@ impl Arbitrary for AverageValue {
     }
 }
 
+pub fn average_value() -> impl proptest::strategy::Strategy<Value = Value> {
+    use proptest::prelude::*;
+
+    (253u64..10253).prop_map(Value)
+}
+
+pub fn maybe_average_value() -> impl proptest::strategy::Strategy<Value = Option<Value>> {
+    use proptest::prelude::*;
+
+    prop_oneof![Just(None), (253u64..10253).prop_map(|i| Some(Value(i))),]
+}
+
 impl From<AverageValue> for Value {
     fn from(value: AverageValue) -> Self {
         value.0
@@ -80,5 +92,21 @@ impl Arbitrary for BftLeaderId {
         }
         let sk: SecretKey<Ed25519> = Arbitrary::arbitrary(g);
         BftLeaderId(sk.to_public())
+    }
+}
+
+mod pt {
+    use crate::value::Value;
+
+    use super::{Address, Output};
+    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+    impl Arbitrary for Output<Address> {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<(Address, Value)>, fn((Address, Value)) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<(Address, Value)>().prop_map(|(address, value)| Output { address, value })
+        }
     }
 }

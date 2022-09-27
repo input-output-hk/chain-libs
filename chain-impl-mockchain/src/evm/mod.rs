@@ -224,11 +224,11 @@ impl Deserialize for EvmTransaction {
 #[cfg(all(any(test, feature = "property-test-api"), feature = "evm"))]
 mod test {
     use super::*;
-    use chain_evm::{
-        ethereum_types::{H160, H256},
-        machine::AccessListItem,
-    };
+    use chain_evm::ethereum_types::H160;
+    #[allow(unused_imports)]
+    use proptest::prop_assert_eq;
     use quickcheck::Arbitrary;
+    use test_strategy::proptest;
 
     impl Arbitrary for EvmActionType {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
@@ -249,6 +249,7 @@ mod test {
         }
     }
 
+<<<<<<< HEAD
     impl Arbitrary for EvmTransaction {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             let caller = [u8::arbitrary(g); H160::len_bytes()].into();
@@ -299,6 +300,70 @@ mod test {
             let encoded = b.serialize_as_vec().unwrap();
             let decoded = EvmTransaction::deserialize(&mut Codec::new(encoded.as_slice())).unwrap();
             decoded == b
+=======
+    #[proptest]
+    fn evm_transaction_serialization_bijection(#[allow(dead_code)] b: EvmTransaction) {
+        let bytes = b.serialize_in(ByteBuilder::new()).finalize_as_vec();
+        let decoded = EvmTransaction::deserialize_from_slice(&mut Codec::new(&bytes)).unwrap();
+        prop_assert_eq!(decoded, b);
+    }
+
+    mod prop_impls {
+        use chain_evm::ethereum_types::H160;
+        use proptest::prelude::*;
+
+        use crate::evm::EvmTransaction;
+
+        impl Arbitrary for EvmTransaction {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                const H160_BYTES: usize = 20;
+                const H256_BYTES: usize = 32;
+
+                any::<([u8; H160_BYTES], u128, u64)>()
+                    .prop_flat_map(|(caller, value, gas_limit)| {
+                        let caller = H160::from_slice(&caller);
+                        prop_oneof![
+                            any::<Vec<u8>>().prop_map(move |init_code| {
+                                Self::Create {
+                                    caller,
+                                    value: value.into(),
+                                    init_code,
+                                    gas_limit,
+                                    access_list: vec![],
+                                }
+                            }),
+                            any::<(Vec<u8>, [u8; H256_BYTES])>().prop_map(
+                                move |(init_code, salt)| {
+                                    Self::Create2 {
+                                        caller,
+                                        value: value.into(),
+                                        init_code,
+                                        gas_limit,
+                                        access_list: vec![],
+                                        salt: salt.into(),
+                                    }
+                                }
+                            ),
+                            any::<(Vec<u8>, [u8; H160_BYTES])>().prop_map(
+                                move |(data, address)| {
+                                    Self::Call {
+                                        caller,
+                                        value: value.into(),
+                                        gas_limit,
+                                        access_list: vec![],
+                                        address: address.into(),
+                                        data,
+                                    }
+                                }
+                            ),
+                        ]
+                    })
+                    .boxed()
+            }
+>>>>>>> origin/mockchain-proptest-3
         }
     }
 }

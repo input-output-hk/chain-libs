@@ -7,7 +7,7 @@ use crate::{
     },
     tokens::name::TokenName,
     transaction::{Input, Output},
-    value::Value,
+    value::{Value, ValueError},
 };
 use chain_addr::{Address, Discrimination, Kind};
 use quickcheck::{Arbitrary, Gen};
@@ -28,12 +28,93 @@ impl Arbitrary for ArbitraryAddressDataVec {
 #[derive(Clone, Debug)]
 pub struct ArbitraryAddressDataValueVec(pub Vec<AddressDataValue>);
 
+mod pt {
+    use proptest::{arbitrary::StrategyFor, collection::VecStrategy, prelude::*, strategy::Map};
+
+    use crate::testing::data::{AddressData, AddressDataValue};
+
+    use super::{ArbitraryAddressDataValueVec, ArbitraryAddressDataVec};
+
+    impl Arbitrary for ArbitraryAddressDataVec {
+        type Parameters = ();
+        type Strategy = Map<VecStrategy<StrategyFor<AddressData>>, fn(Vec<AddressData>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proptest::collection::vec(any::<AddressData>(), 1..=253).prop_map(Self)
+        }
+    }
+
+    impl Arbitrary for ArbitraryAddressDataValueVec {
+        type Parameters = ();
+        type Strategy =
+            Map<VecStrategy<StrategyFor<AddressDataValue>>, fn(Vec<AddressDataValue>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            proptest::collection::vec(any::<AddressDataValue>(), 1..=10).prop_map(Self)
+        }
+    }
+}
+
 impl Arbitrary for ArbitraryAddressDataValueVec {
     fn arbitrary<G: Gen>(gen: &mut G) -> Self {
         let size_limit = 10;
         let n = usize::arbitrary(gen) % size_limit + 1;
         let addresses = iter::from_fn(|| Some(AddressDataValue::arbitrary(gen))).take(n);
         ArbitraryAddressDataValueVec(addresses.collect())
+    }
+}
+
+pub mod proptest_impls {
+    use chain_addr::Kind;
+    use proptest::collection::{hash_map, vec};
+    use proptest::prelude::*;
+
+    use crate::testing::average_value;
+    use crate::testing::data::{AddressData, AddressDataValue};
+    use crate::testing::kind_type::pt::kind_type_without_multisig;
+    use crate::tokens::name::TokenName;
+    use crate::value::Value;
+
+    pub fn arb_address_data_value_vec() -> impl Strategy<Value = Vec<AddressDataValue>> {
+        vec(any::<AddressDataValue>(), 1..=10)
+    }
+
+    fn arb_adv() -> impl Strategy<Value = AddressDataValue> {
+        (any::<AddressData>(), average_value()).prop_flat_map(|(ad, v)| {
+            match ad.address.kind() {
+                // quickcheck impl picked an arbitrary usize, but proptest will actually try to allocate a full 2^64
+                // elements, which obviously fails
+                Kind::Account(_) => hash_map(any::<TokenName>(), any::<Value>(), 0..100)
+                    .prop_map(move |map| AddressDataValue::new_with_tokens(ad.clone(), v, map))
+                    .boxed(),
+                _ => Just(AddressDataValue::new(ad, v)).boxed(),
+            }
+        })
+    }
+
+    impl Arbitrary for AddressDataValue {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            arb_adv().boxed()
+        }
+    }
+
+    impl Arbitrary for AddressData {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            kind_type_without_multisig()
+                .prop_map(|kind| {
+                    AddressData::from_discrimination_and_kind_type(
+                        chain_addr::Discrimination::Test,
+                        kind,
+                    )
+                })
+                .boxed()
+        }
     }
 }
 
@@ -59,7 +140,11 @@ impl ArbitraryAddressDataValueVec {
     }
 
     pub fn total_value(&self) -> Value {
-        Value::sum(self.iter().map(|input| input.value)).unwrap()
+        self.try_total_value().unwrap()
+    }
+
+    pub fn try_total_value(&self) -> Result<Value, ValueError> {
+        Value::sum(self.iter().map(|input| input.value))
     }
 
     pub fn make_inputs(&self, ledger: &TestLedger) -> Vec<Input> {

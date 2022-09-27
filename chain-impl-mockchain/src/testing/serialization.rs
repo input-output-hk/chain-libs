@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use chain_core::{
     packer::Codec,
     property::{DeserializeFromSlice, Serialize},
@@ -21,4 +23,20 @@ where
     };
     assert_eq!(vec.len(), t.serialized_size());
     TestResult::from_bool(decoded_t == t)
+}
+
+pub fn serialization_bijection_prop<T>(t: T)
+where
+    T: Serialize + DeserializeFromSlice + Eq + Debug,
+{
+    let vec = match t.serialize_as_vec() {
+        Err(error) => panic!("serialization: {}", error),
+        Ok(v) => v,
+    };
+    let decoded_t = match T::deserialize_from_slice(&mut Codec::new(vec.as_slice())) {
+        Err(error) => panic!("deserialization: {:?}", error),
+        Ok(v) => v,
+    };
+
+    assert_eq!(t, decoded_t);
 }

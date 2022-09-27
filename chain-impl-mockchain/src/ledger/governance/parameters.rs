@@ -8,12 +8,20 @@ use std::collections::hash_map::DefaultHasher;
 use typed_bytes::ByteBuilder;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ParametersGovernanceAction {
     NoOp,
     RewardAdd { value: Value },
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum ParametersGovernanceActionType {
     NoOp,
     RewardAdd,
@@ -124,7 +132,7 @@ mod tests {
     use super::{ParametersGovernance, ParametersGovernanceAction, ParametersGovernanceActionType};
     use crate::{ledger::governance::GovernanceAcceptanceCriteria, value::Value, vote::Choice};
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for ParametersGovernanceActionType {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -171,10 +179,8 @@ mod tests {
         );
     }
 
-    #[quickcheck]
-    pub fn parameters_governance_set_acceptance_criteria(
-        action_type: ParametersGovernanceActionType,
-    ) {
+    #[proptest]
+    fn parameters_governance_set_acceptance_criteria(action_type: ParametersGovernanceActionType) {
         let mut governance = ParametersGovernance::new();
         let new_governance_criteria = some_new_governance_criteria();
         governance.set_acceptance_criteria(action_type, new_governance_criteria.clone());
@@ -191,8 +197,8 @@ mod tests {
         new_governance_criteria
     }
 
-    #[quickcheck]
-    pub fn parameters_governance_logs(action_type: ParametersGovernanceAction) {
+    #[proptest]
+    fn parameters_governance_logs(action_type: ParametersGovernanceAction) {
         let mut governance = ParametersGovernance::new();
         governance.logs_register(action_type.clone());
         assert!(governance.logs().any(|x| *x == action_type));

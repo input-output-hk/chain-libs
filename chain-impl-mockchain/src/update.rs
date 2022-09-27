@@ -136,9 +136,17 @@ impl Default for UpdateState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct UpdateProposalState {
     pub proposal: UpdateProposal,
     pub proposal_date: BlockDate,
+    #[cfg_attr(
+        any(test, feature = "property-test-api"),
+        strategy(prop_impl::hamt_strat())
+    )]
     pub votes: Hamt<DefaultHasher, UpdateVoterId, ()>,
 }
 
@@ -230,12 +238,13 @@ impl From<ActiveSlotsCoeffError> for Error {
 
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
+    #![allow(dead_code)] // proptest macro bug
     use super::*;
     use crate::certificate::UpdateProposal;
     #[cfg(test)]
     use crate::milli::Milli;
     #[cfg(test)]
-    use crate::testing::serialization::serialization_bijection;
+    use crate::testing::serialization::serialization_bijection_prop;
     #[cfg(test)]
     use crate::{
         config::ConfigParam,
@@ -244,11 +253,9 @@ mod tests {
     };
     #[cfg(test)]
     use chain_addr::Discrimination;
-    #[cfg(test)]
-    use quickcheck::TestResult;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
     use std::iter;
+    use test_strategy::proptest;
 
     impl Arbitrary for UpdateProposalState {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -287,10 +294,9 @@ mod tests {
         update_state.apply_vote(&signed_update_vote, settings)
     }
 
-    quickcheck! {
-        fn update_proposal_serialize_deserialize_bijection(update_proposal: UpdateProposal) -> TestResult {
-            serialization_bijection(update_proposal)
-        }
+    #[proptest]
+    fn update_proposal_serialize_deserialize_bijection(update_proposal: UpdateProposal) {
+        serialization_bijection_prop(update_proposal);
     }
 
     #[test]
@@ -646,88 +652,118 @@ mod tests {
         assert_eq!(update_state.proposals.size(), 0);
     }
 
+    #[allow(dead_code)] // proptest macro bug
     #[cfg(test)]
-    #[derive(Debug, Copy, Clone)]
-    struct ExpiryBlockDate {
-        block_date: BlockDate,
-        proposal_expiration: u32,
-    }
+    mod expiry_block_date {
+        use super::*;
 
-    #[cfg(test)]
-    impl ExpiryBlockDate {
-        pub fn block_date(&self) -> BlockDate {
-            self.block_date
+        #[derive(Debug, Copy, Clone)]
+        struct ExpiryBlockDate {
+            block_date: BlockDate,
+            proposal_expiration: u32,
         }
 
-        pub fn proposal_expiration(&self) -> u32 {
-            self.proposal_expiration
+        impl ExpiryBlockDate {
+            pub fn block_date(&self) -> BlockDate {
+                self.block_date
+            }
+
+            pub fn proposal_expiration(&self) -> u32 {
+                self.proposal_expiration
+            }
+
+            pub fn get_last_epoch(&self) -> u32 {
+                self.block_date().epoch + self.proposal_expiration() + 1
+            }
         }
 
-        pub fn get_last_epoch(&self) -> u32 {
-            self.block_date().epoch + self.proposal_expiration() + 1
+        impl Arbitrary for ExpiryBlockDate {
+            fn arbitrary<G: Gen>(gen: &mut G) -> Self {
+                let mut block_date = BlockDate::arbitrary(gen);
+                block_date.epoch %= 10;
+                let proposal_expiration = u32::arbitrary(gen) % 10;
+                ExpiryBlockDate {
+                    block_date,
+                    proposal_expiration,
+                }
+            }
         }
-    }
 
-    #[cfg(test)]
-    impl Arbitrary for ExpiryBlockDate {
-        fn arbitrary<G: Gen>(gen: &mut G) -> Self {
-            let mut block_date = BlockDate::arbitrary(gen);
-            block_date.epoch %= 10;
-            let proposal_expiration = u32::arbitrary(gen) % 10;
-            ExpiryBlockDate {
-                block_date,
-                proposal_expiration,
+        fn expiry_block_date() -> impl proptest::strategy::Strategy<Value = ExpiryBlockDate> {
+            use proptest::prelude::*;
+
+            (any::<BlockDate>(), 0u32..10).prop_map(|(mut block_date, proposal_expiration)| {
+                block_date.epoch %= 10;
+                ExpiryBlockDate {
+                    block_date,
+                    proposal_expiration,
+                }
+            })
+        }
+
+        proptest::proptest! {
+            fn rejected_proposals_are_removed_after_expiration_period(
+                expiry_block_data in expiry_block_date(),
+            ) {
+                let proposal_date = expiry_block_data.block_date();
+                let proposal_expiration = expiry_block_data.proposal_expiration();
+
+                let mut update_state = UpdateState::new();
+                let proposal_id = TestGen::hash();
+                let proposer = TestGen::leader_pair();
+                let update = ConfigParam::SlotsPerEpoch(100);
+
+                let mut settings = TestGen::settings(vec![proposer.clone()]);
+                settings.proposal_expiration = proposal_expiration;
+
+                // Apply proposal
+                update_state = apply_update_proposal(
+                    update_state,
+                    proposal_id,
+                    update,
+                    &proposer,
+                    &settings,
+                    proposal_date,
+                )
+                .expect("failed while applying proposal");
+
+                let mut current_block_date = BlockDate::first();
+
+                // Traverse through epoch and check if proposal is still in queue
+                // if proposal expiration period is not exceeded after that
+                // proposal should be removed from proposal collection
+
+                for _i in 0..expiry_block_data.get_last_epoch() {
+                    let (update_state, _settings) = update_state.clone().process_proposals(
+                        settings.clone(),
+                        current_block_date,
+                        current_block_date.next_epoch(),
+                    );
+
+                    if proposal_date.epoch + proposal_expiration <= current_block_date.epoch {
+                        assert_eq!(update_state.proposals.size(), 0);
+                    } else {
+                        assert_eq!(update_state.proposals.size(), 1);
+                    }
+                    current_block_date = current_block_date.next_epoch()
+                }
+
             }
         }
     }
+}
 
-    #[cfg(test)]
-    #[quickcheck]
-    fn rejected_proposals_are_removed_after_expiration_period(
-        expiry_block_data: ExpiryBlockDate,
-    ) -> TestResult {
-        let proposal_date = expiry_block_data.block_date();
-        let proposal_expiration = expiry_block_data.proposal_expiration();
+#[cfg(any(test, feature = "property-test-api"))]
+mod prop_impl {
+    use std::collections::hash_map::DefaultHasher;
 
-        let mut update_state = UpdateState::new();
-        let proposal_id = TestGen::hash();
-        let proposer = TestGen::leader_pair();
-        let update = ConfigParam::SlotsPerEpoch(100);
+    use imhamt::Hamt;
+    use proptest::{collection::hash_map, prelude::*};
 
-        let mut settings = TestGen::settings(vec![proposer.clone()]);
-        settings.proposal_expiration = proposal_expiration;
+    use crate::certificate::UpdateVoterId;
 
-        // Apply proposal
-        update_state = apply_update_proposal(
-            update_state,
-            proposal_id,
-            update,
-            &proposer,
-            &settings,
-            proposal_date,
-        )
-        .expect("failed while applying proposal");
-
-        let mut current_block_date = BlockDate::first();
-
-        // Traverse through epoch and check if proposal is still in queue
-        // if proposal expiration period is not exceeded after that
-        // proposal should be removed from proposal collection
-        for _i in 0..expiry_block_data.get_last_epoch() {
-            let (update_state, _settings) = update_state.clone().process_proposals(
-                settings.clone(),
-                current_block_date,
-                current_block_date.next_epoch(),
-            );
-
-            if proposal_date.epoch + proposal_expiration <= current_block_date.epoch {
-                assert_eq!(update_state.proposals.size(), 0);
-            } else {
-                assert_eq!(update_state.proposals.size(), 1);
-            }
-            current_block_date = current_block_date.next_epoch()
-        }
-
-        TestResult::passed()
+    pub(super) fn hamt_strat() -> impl Strategy<Value = Hamt<DefaultHasher, UpdateVoterId, ()>> {
+        hash_map(any::<UpdateVoterId>(), any::<()>(), 0..100000)
+            .prop_map(|map| Hamt::from_iter(map.into_iter()))
     }
 }

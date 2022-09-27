@@ -6,6 +6,8 @@ use std::{
     hash::Hash,
 };
 
+pub mod proptest;
+
 pub fn factorize<G: Gen>(number: u32, gen: &mut G) -> Vec<u32> {
     let mut current_remainder = number;
     let mut output = Vec::new();

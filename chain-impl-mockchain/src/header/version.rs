@@ -51,6 +51,10 @@ impl From<BlockVersion> for AnyBlockVersion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum BlockVersion {
     Genesis,
     Ed25519Signed,
@@ -107,8 +111,8 @@ mod tests {
 
     use crate::chaintypes::ConsensusType;
     use crate::header::{AnyBlockVersion, BlockVersion};
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
+    use proptest::prop_assert_eq;
+    use test_strategy::proptest;
 
     #[test]
     pub fn try_into_block_version() {
@@ -149,18 +153,19 @@ mod tests {
         assert!(AnyBlockVersion::Unsupported(0) != BlockVersion::KesVrfproof);
     }
 
-    #[quickcheck]
-    pub fn conversion_u8(block_version: AnyBlockVersion) -> TestResult {
+    #[proptest]
+    fn conversion_u8(block_version: AnyBlockVersion) {
         let bytes: u8 = block_version.into();
-        let new_block_version: AnyBlockVersion = AnyBlockVersion::from(bytes);
-        TestResult::from_bool(block_version == new_block_version)
+        let new_block_version = AnyBlockVersion::from(bytes);
+        println!("{:?}, {:?}", bytes, new_block_version);
+        prop_assert_eq!(block_version, new_block_version);
     }
 
-    #[quickcheck]
-    pub fn from_block_version(block_version: BlockVersion) -> TestResult {
+    #[proptest]
+    fn from_block_version(block_version: BlockVersion) {
         let right_version = AnyBlockVersion::Supported(block_version);
         let left_version: AnyBlockVersion = block_version.into();
-        TestResult::from_bool(left_version == right_version)
+        prop_assert_eq!(left_version, right_version);
     }
 
     #[test]
@@ -174,5 +179,21 @@ mod tests {
             BlockVersion::KesVrfproof.to_consensus_type(),
             Some(ConsensusType::GenesisPraos)
         );
+    }
+}
+
+#[cfg(any(test, feature = "property-test-api"))]
+mod prop_impls {
+    use proptest::{arbitrary::StrategyFor, prelude::*, strategy::Map};
+
+    use super::AnyBlockVersion;
+
+    impl Arbitrary for AnyBlockVersion {
+        type Parameters = ();
+        type Strategy = Map<StrategyFor<u8>, fn(u8) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            any::<u8>().prop_map(From::from)
+        }
     }
 }

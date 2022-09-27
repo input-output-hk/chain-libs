@@ -10,6 +10,7 @@ use rand_core::{CryptoRng, RngCore};
     any(test, feature = "property-test-api"),
     derive(test_strategy::Arbitrary, Debug)
 )]
+#[derive(Clone, Copy)]
 pub struct Ed25519;
 
 #[derive(Clone)]

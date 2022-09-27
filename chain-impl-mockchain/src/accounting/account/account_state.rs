@@ -12,10 +12,6 @@ use std::collections::hash_map::DefaultHasher;
 /// * Full delegation of this account to a specific pool
 /// * Ratio of stake to multiple pools
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(
-    any(test, feature = "property-test-api"),
-    derive(test_strategy::Arbitrary)
-)]
 pub enum DelegationType {
     NonDelegated,
     Full(PoolId),

@@ -15,6 +15,10 @@ use thiserror::Error;
 /// as well as to use as input for the vote casting payload.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct CommitteeId([u8; CommitteeId::COMMITTEE_ID_SIZE]);
 
 impl CommitteeId {
@@ -145,8 +149,10 @@ impl DeserializeFromSlice for CommitteeId {
 #[cfg(any(test, feature = "property-test-api"))]
 mod tests {
     use super::*;
+    #[allow(unused_imports)] // proptest macro bug
+    use proptest::prop_assert_eq;
     use quickcheck::{Arbitrary, Gen};
-    use quickcheck_macros::quickcheck;
+    use test_strategy::proptest;
 
     impl Arbitrary for CommitteeId {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -156,27 +162,27 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    fn to_from_hex(committee_id: CommitteeId) -> bool {
+    #[proptest]
+    fn to_from_hex(#[allow(dead_code)] committee_id: CommitteeId) {
         let s = committee_id.to_hex();
         let d = CommitteeId::from_hex(&s).expect("decode hexadecimal committee id");
 
-        committee_id == d
+        prop_assert_eq!(committee_id, d);
     }
 
-    #[quickcheck]
-    fn display_parse(committee_id: CommitteeId) -> bool {
+    #[proptest]
+    fn display_parse(#[allow(dead_code)] committee_id: CommitteeId) {
         let s = committee_id.to_string();
         let d = s.parse().expect("decode hexadecimal committee id");
 
-        committee_id == d
+        prop_assert_eq!(committee_id, d);
     }
 
-    #[quickcheck]
-    fn serialize_readable(committee_id: CommitteeId) -> bool {
+    #[proptest]
+    fn serialize_readable(#[allow(dead_code)] committee_id: CommitteeId) {
         let b_got = committee_id.serialize_as_vec().unwrap();
         let result = CommitteeId::deserialize_from_slice(&mut Codec::new(b_got.as_slice()))
             .expect("decode the committee ID");
-        committee_id == result
+        prop_assert_eq!(committee_id, result);
     }
 }

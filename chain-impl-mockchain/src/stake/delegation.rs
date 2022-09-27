@@ -19,6 +19,10 @@ pub enum PoolError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolLastRewards {
     pub epoch: Epoch,
     pub value_taxed: Value,
@@ -36,6 +40,10 @@ impl PoolLastRewards {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub struct PoolState {
     pub last_rewards: PoolLastRewards,
     pub registration: Arc<PoolRegistration>,
@@ -186,9 +194,10 @@ mod tests {
 
     use super::*;
     use crate::certificate::PoolRegistration;
-    use quickcheck::{Arbitrary, Gen, TestResult};
-    use quickcheck_macros::quickcheck;
+    use proptest::{prop_assert, prop_assume};
+    use quickcheck::{Arbitrary, Gen};
     use std::iter;
+    use test_strategy::proptest;
 
     impl Arbitrary for PoolsState {
         fn arbitrary<G: Gen>(gen: &mut G) -> Self {
@@ -225,87 +234,77 @@ mod tests {
         }
     }
 
-    #[quickcheck]
-    pub fn delegation_state_tests(
-        delegation_state: PoolsState,
-        stake_pool: PoolRegistration,
-    ) -> TestResult {
+    #[proptest]
+    fn delegation_state_tests(delegation_state: PoolsState, stake_pool: PoolRegistration) {
+        // it's possible (but unlikely) that the randomly generated pool will already contain the
+        // id
+        prop_assume!(delegation_state
+            .stake_pool_ids()
+            .all(|x| x != stake_pool.to_id()));
         // register stake pool first time should be ok
-        let delegation_state = match delegation_state.register_stake_pool(stake_pool.clone()) {
-            Ok(delegation_state) => delegation_state,
-            Err(err) => {
-                return TestResult::error(format!("Cannot register stake pool, due to {:?}", err))
-            }
-        };
+        let delegation_state = delegation_state
+            .register_stake_pool(stake_pool.clone())
+            .unwrap();
 
         // register stake pool again should throw error
-        if delegation_state
+        delegation_state
             .register_stake_pool(stake_pool.clone())
-            .is_ok()
-        {
-            return TestResult::error(
-                "Register the same stake pool twice should return error while it didn't",
-            );
-        }
+            .unwrap_err();
 
         let stake_pool_id = stake_pool.to_id();
 
         // stake pool should be in collection
-        if !delegation_state
+        prop_assert!(delegation_state
             .stake_pool_ids()
-            .any(|x| x == stake_pool_id)
-        {
-            return TestResult::error(format!(
-                "stake pool with id: {:?} should exist in iterator",
-                stake_pool_id
-            ));
-        };
+            .any(|x| x == stake_pool_id));
 
         // stake pool should exist in collection
-        if !delegation_state.stake_pool_exists(&stake_pool_id) {
-            TestResult::error(format!(
-                "stake pool with id {:?} should exist in collection",
-                stake_pool_id
-            ));
-        }
+        prop_assert!(delegation_state.stake_pool_exists(&stake_pool_id));
 
         // deregister stake pool should be ok
-        let delegation_state = match delegation_state.deregister_stake_pool(&stake_pool_id) {
-            Ok(delegation_state) => delegation_state,
-            Err(err) => {
-                return TestResult::error(format!("Cannot deregister stake pool due to: {:?}", err))
-            }
-        };
+        let delegation_state = delegation_state
+            .deregister_stake_pool(&stake_pool_id)
+            .unwrap();
 
         // deregister stake pool again should throw error
-        if delegation_state
+        delegation_state
             .deregister_stake_pool(&stake_pool_id)
-            .is_ok()
-        {
-            return TestResult::error(
-                "Deregister the same stake pool twice should return error while it didn't",
-            );
-        }
+            .unwrap_err();
 
         // stake pool should not exist in collection
-        if delegation_state.stake_pool_exists(&stake_pool_id) {
-            return TestResult::error(format!(
-                "stake pool with id should be removed from collection {:?}",
-                stake_pool_id
-            ));
-        }
+        prop_assert!(!delegation_state.stake_pool_exists(&stake_pool_id));
 
         // stake pool should not be in collection
-        if delegation_state
+        prop_assert!(!delegation_state
             .stake_pool_ids()
-            .any(|x| x == stake_pool_id)
-        {
-            return TestResult::error(format!(
-                "stake pool with id should be removed from iterator {:?}",
-                stake_pool_id
-            ));
-        }
+            .any(|x| x == stake_pool_id));
+    }
+}
 
-        TestResult::passed()
+#[cfg(any(test, feature = "property-test-api"))]
+mod prop_impls {
+    use proptest::arbitrary::StrategyFor;
+    use proptest::collection::{vec, VecStrategy};
+    use proptest::prelude::*;
+    use proptest::strategy::Map;
+
+    use crate::certificate::PoolRegistration;
+
+    use super::PoolsState;
+
+    impl Arbitrary for PoolsState {
+        type Parameters = ();
+        type Strategy =
+            Map<VecStrategy<StrategyFor<PoolRegistration>>, fn(Vec<PoolRegistration>) -> Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            vec(any::<PoolRegistration>(), 0..10000).prop_map(|pools| {
+                let mut delegation_state = PoolsState::new();
+                for stake_pool in pools {
+                    delegation_state = delegation_state.register_stake_pool(stake_pool).unwrap();
+                }
+                delegation_state
+            })
+        }
     }
 }

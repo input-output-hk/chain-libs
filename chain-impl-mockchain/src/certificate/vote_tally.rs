@@ -28,6 +28,10 @@ pub enum VoteTallyPayload {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    any(test, feature = "property-test-api"),
+    derive(test_strategy::Arbitrary)
+)]
 pub enum TallyProof {
     Public {
         id: CommitteeId,
