@@ -234,7 +234,7 @@ impl Serialize for Fragment {
             Fragment::UpdateProposal(proposal) => proposal.serialize(&mut tmp)?,
             Fragment::UpdateVote(vote) => vote.serialize(&mut tmp)?,
             Fragment::VotePlan(vote_plan) => vote_plan.serialize(&mut tmp)?,
-            Fragment::VoteCast(vote_plan) => vote_plan.serialize(&mut tmp)?,
+            Fragment::VoteCast(vote_cast) => vote_cast.serialize(&mut tmp)?,
             Fragment::VoteTally(vote_tally) => vote_tally.serialize(&mut tmp)?,
             Fragment::MintToken(mint_token) => mint_token.serialize(&mut tmp)?,
             Fragment::Evm(deployment) => deployment.serialize(&mut tmp)?,
