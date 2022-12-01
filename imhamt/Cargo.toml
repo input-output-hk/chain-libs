@@ -11,7 +11,7 @@ proptest = { git = "https://github.com/input-output-hk/proptest.git", optional =
 test-strategy = { version = "0.1", optional = true }
 
 [dev-dependencies]
-criterion = "0.3.0"
+criterion = "0.4.0"
 proptest = { git = "https://github.com/input-output-hk/proptest.git" }
 test-strategy = "0.1"
 trybuild = "1"

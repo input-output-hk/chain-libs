@@ -17,7 +17,7 @@ const_format = "0.2"
 [dev-dependencies]
 rand_chacha = "0.3"
 smoke = "^0.2.1"
-criterion = "0.3"
+criterion = "0.4"
 
 [build-dependencies]
 cfg-if = "*"
