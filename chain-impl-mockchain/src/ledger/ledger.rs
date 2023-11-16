@@ -1905,7 +1905,7 @@ fn input_multi_account_verify<'a>(
     let (new_ledger, _declaration) = ledger.remove_value(account, spending_counter, value)?;
 
     // TODO verify sig(pub_key,data)
-   
+
     ledger = new_ledger;
     Ok(ledger)
 }
