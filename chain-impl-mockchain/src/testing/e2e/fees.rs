@@ -66,8 +66,8 @@ pub fn per_certificate_fees() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
-    let mut bob = controller.wallet(BOB).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
+    let bob = controller.wallet(BOB).unwrap();
     let stake_pool = StakePoolBuilder::new()
         .with_owners(vec![alice.public_key()])
         .build();
@@ -76,7 +76,6 @@ pub fn per_certificate_fees() {
     controller
         .register(&alice, &stake_pool, &mut ledger)
         .unwrap();
-    alice.confirm_transaction();
 
     fee_amount += expected_pool_registration_fee;
     alice_funds -= expected_pool_registration_fee;
@@ -95,7 +94,6 @@ pub fn per_certificate_fees() {
     controller
         .owner_delegates(&alice, &stake_pool, &mut ledger)
         .unwrap();
-    alice.confirm_transaction();
 
     fee_amount += expected_owner_delegation_fee;
     alice_funds -= expected_owner_delegation_fee;
@@ -116,7 +114,6 @@ pub fn per_certificate_fees() {
     controller
         .delegates(&bob, &stake_pool, &mut ledger)
         .unwrap();
-    bob.confirm_transaction();
 
     fee_amount += expected_delegation_fee;
     bob_funds -= expected_delegation_fee;
@@ -135,7 +132,6 @@ pub fn per_certificate_fees() {
     controller
         .retire(Some(&alice), &stake_pool, &mut ledger)
         .unwrap();
-    alice.confirm_transaction();
 
     fee_amount += expected_retirement_fee;
     alice_funds -= expected_retirement_fee;
@@ -175,7 +171,7 @@ pub fn owner_delegates_fee() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
     let stake_pool = controller.stake_pool(STAKE_POOL).unwrap();
 
     LedgerStateVerifier::new(ledger.clone().into())
@@ -184,7 +180,6 @@ pub fn owner_delegates_fee() {
     controller
         .owner_delegates(&alice, &stake_pool, &mut ledger)
         .unwrap();
-    alice.confirm_transaction();
 
     let mut ledger_verifier = LedgerStateVerifier::new(ledger.into());
 
@@ -226,13 +221,12 @@ fn verify_total_funds_after_transaction_with_fee(fee: u64) {
 
     let total_funds = ledger.total_funds();
 
-    let mut alice_wallet = controller.wallet(ALICE).unwrap();
+    let alice_wallet = controller.wallet(ALICE).unwrap();
     let bob_wallet = controller.wallet(BOB).unwrap();
 
     controller
         .transfer_funds(&alice_wallet, &bob_wallet, &mut ledger, transfer)
         .unwrap();
-    alice_wallet.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.clone().into())
         .address_has_expected_balance(
@@ -276,7 +270,7 @@ pub fn vote_cast_fees(linear_fee: LinearFee) {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
 
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
 
@@ -285,8 +279,6 @@ pub fn vote_cast_fees(linear_fee: LinearFee) {
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
         .unwrap();
-
-    alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.clone().into())
         .info("fee pot is filled with expected fees amount")
@@ -321,7 +313,7 @@ pub fn vote_tally_fees(linear_fee: LinearFee) {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
 
     ledger.fast_forward_to(BlockDate {
@@ -332,7 +324,6 @@ pub fn vote_tally_fees(linear_fee: LinearFee) {
     controller
         .tally_vote_public(&alice, &vote_plan, &mut ledger)
         .unwrap();
-    alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.clone().into())
         .info("fee pot is filled with expected fees amount")

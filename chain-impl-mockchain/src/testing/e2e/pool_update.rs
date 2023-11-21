@@ -215,7 +215,7 @@ pub fn pool_update_revert_changes() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet("Alice").unwrap();
+    let alice = controller.wallet("Alice").unwrap();
     let bob = controller.wallet("Bob").unwrap();
     let stake_pool = controller.stake_pool("stake_pool").unwrap();
 
@@ -230,7 +230,7 @@ pub fn pool_update_revert_changes() {
             &mut ledger
         )
         .is_ok());
-    alice.confirm_transaction();
+
     LedgerStateVerifier::new(ledger.clone().into())
         .info("stake pool owner is updated")
         .stake_pool(&new_stake_pool.id())

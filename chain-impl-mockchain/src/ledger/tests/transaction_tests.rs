@@ -159,30 +159,8 @@ pub fn transaction_nonexisting_account_input() {
 }
 
 #[test]
-pub fn transaction_with_incorrect_account_spending_counter() {
-    let faucet =
-        AddressDataValue::account_with_spending_counter(Discrimination::Test, 1, Value(1000));
-    let receiver = AddressData::account(Discrimination::Test);
-
-    let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
-        .faucet(&faucet)
-        .build()
-        .expect("cannot build test ledger");
-
-    let fragment = TestTxBuilder::new(test_ledger.block0_hash)
-        .move_from_faucet(&mut test_ledger, &receiver.into(), Value(1000))
-        .get_fragment();
-    assert!(
-        test_ledger
-            .apply_transaction(fragment, BlockDate::first())
-            .is_err(),
-        "first transaction should be successful"
-    );
-}
-
-#[test]
 pub fn repeated_account_transaction() {
-    let mut faucet = AddressDataValue::account(Discrimination::Test, Value(200));
+    let faucet = AddressDataValue::account(Discrimination::Test, Value(200));
     let receiver = AddressDataValue::account(Discrimination::Test, Value(0));
 
     let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
@@ -196,7 +174,7 @@ pub fn repeated_account_transaction() {
     assert!(test_ledger
         .apply_transaction(fragment, BlockDate::first())
         .is_ok());
-    faucet.confirm_transaction().unwrap();
+
     let fragment = TestTxBuilder::new(test_ledger.block0_hash)
         .move_all_funds(&mut test_ledger, &faucet, &receiver)
         .get_fragment();

@@ -8,7 +8,7 @@ use chain_core::{
 };
 use chain_crypto::{Ed25519, PublicKey, Signature};
 
-pub use account::{DelegationRatio, DelegationType, LedgerError, SpendingCounter};
+pub use account::{DelegationRatio, DelegationType, LedgerError};
 
 pub type AccountAlg = Ed25519;
 

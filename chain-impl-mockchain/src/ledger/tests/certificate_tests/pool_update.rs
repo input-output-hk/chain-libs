@@ -189,7 +189,7 @@ pub fn pool_update_wrong_pool_id() {
 
 #[test]
 pub fn pool_update_use_old_hash() {
-    let mut alice = Wallet::from_value(Value(100));
+    let alice = Wallet::from_value(Value(100));
 
     let stake_pool = StakePoolBuilder::new()
         .with_owners(vec![alice.public_key()])
@@ -228,7 +228,7 @@ pub fn pool_update_use_old_hash() {
     assert!(test_ledger
         .apply_fragment(&fragment, BlockDate::first())
         .is_ok());
-    alice.confirm_transaction();
+
     // revert
 
     let mut reverted_stake_pool_state = first_stake_pool_state.clone();
@@ -252,7 +252,6 @@ pub fn pool_update_use_old_hash() {
     assert!(test_ledger
         .apply_fragment(&fragment, BlockDate::first())
         .is_ok());
-    alice.confirm_transaction();
 
     // try to set serial again using orginal info hash
 

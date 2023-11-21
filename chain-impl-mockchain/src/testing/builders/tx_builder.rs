@@ -5,7 +5,7 @@ use crate::{
     fragment::{Fragment, FragmentId},
     testing::{
         builders::witness_builder::make_witness, data::AddressDataValue, ledger::TestLedger,
-        make_witness_with_lane, KeysDb, WitnessMode,
+        KeysDb, WitnessMode,
     },
     transaction::{
         Input, NoExtra, Output, OutputsSlice, Transaction, TransactionSignDataHash,
@@ -14,6 +14,8 @@ use crate::{
     value::Value,
 };
 use chain_addr::Address;
+
+use super::make_witness_with_lane;
 
 pub struct TestTxBuilder {
     block0_hash: HeaderId,

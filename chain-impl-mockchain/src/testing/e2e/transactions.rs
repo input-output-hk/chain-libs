@@ -29,7 +29,7 @@ pub fn validate_ledger_state_after_transaction(amount: Random1to10, linear_fee: 
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet("Alice").unwrap();
+    let alice = controller.wallet("Alice").unwrap();
     let bob = controller.wallet("Bob").unwrap();
 
     controller
@@ -40,7 +40,6 @@ pub fn validate_ledger_state_after_transaction(amount: Random1to10, linear_fee: 
             valid_transaction_amount + total_fees.0,
         )
         .unwrap();
-    alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.into()).address_has_expected_balance(
         bob.as_account_data(),
@@ -64,7 +63,7 @@ pub fn validate_ledger_state_after_invalid_transaction(amount: Random1to10, line
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet("Alice").unwrap();
+    let alice = controller.wallet("Alice").unwrap();
     let bob = controller.wallet("Bob").unwrap();
 
     controller
@@ -76,8 +75,6 @@ pub fn validate_ledger_state_after_invalid_transaction(amount: Random1to10, line
         )
         .unwrap();
 
-    alice.confirm_transaction();
-
     // this second transaction should fail as alice does not have the balance to cover for it
     let _ = controller.transfer_funds(
         &alice,
@@ -85,8 +82,6 @@ pub fn validate_ledger_state_after_invalid_transaction(amount: Random1to10, line
         &mut ledger,
         valid_transaction_amount + total_fees.0,
     );
-
-    alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.into()).address_has_expected_balance(
         alice.as_account_data(),

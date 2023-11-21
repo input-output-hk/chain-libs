@@ -3,7 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use thiserror::Error;
 
 use super::declaration::{Declaration, DeclarationError, Identifier};
-use crate::accounting::account::{self, DelegationType, Iter, SpendingCounter};
+use crate::accounting::account::{self, DelegationType, Iter};
 use crate::value::{Value, ValueError};
 
 #[derive(Clone, PartialEq, Eq, Default)]
@@ -111,16 +111,13 @@ impl Ledger {
     pub fn remove_value(
         &self,
         identifier: &Identifier,
-        spending_counter: SpendingCounter,
         value: Value,
     ) -> Result<(Self, &Declaration), LedgerError> {
         let decl = self
             .declarations
             .lookup(identifier)
             .ok_or(LedgerError::DoesntExist)?;
-        let new_accts = self
-            .accounts
-            .remove_value(identifier, spending_counter, value)?;
+        let new_accts = self.accounts.remove_value(identifier, value)?;
         Ok((
             Self {
                 accounts: new_accts,

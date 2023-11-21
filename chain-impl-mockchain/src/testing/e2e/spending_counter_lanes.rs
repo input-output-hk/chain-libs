@@ -16,7 +16,7 @@ pub fn ledger_accepts_signature_from_all_lanes() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet("Alice").unwrap();
+    let alice = controller.wallet("Alice").unwrap();
     let bob = controller.wallet("Bob").unwrap();
 
     let fragment = controller
@@ -26,7 +26,6 @@ pub fn ledger_accepts_signature_from_all_lanes() {
     assert!(ledger
         .apply_transaction(fragment, BlockDate::first())
         .is_ok());
-    alice.confirm_transaction_at_lane(0);
 
     let fragment = controller
         .fragment_factory()
@@ -35,7 +34,6 @@ pub fn ledger_accepts_signature_from_all_lanes() {
     assert!(ledger
         .apply_transaction(fragment, BlockDate::first())
         .is_ok());
-    alice.confirm_transaction_at_lane(1);
 
     let fragment = controller
         .fragment_factory()
@@ -44,7 +42,6 @@ pub fn ledger_accepts_signature_from_all_lanes() {
     ledger
         .apply_transaction(fragment, BlockDate::first())
         .unwrap();
-    alice.confirm_transaction_at_lane(2);
 
     let fragment = controller
         .fragment_factory()
@@ -53,7 +50,6 @@ pub fn ledger_accepts_signature_from_all_lanes() {
     assert!(ledger
         .apply_transaction(fragment, BlockDate::first())
         .is_ok());
-    alice.confirm_transaction_at_lane(0);
 
     let fragment = controller
         .fragment_factory()
@@ -62,7 +58,6 @@ pub fn ledger_accepts_signature_from_all_lanes() {
     assert!(ledger
         .apply_transaction(fragment, BlockDate::first())
         .is_ok());
-    alice.confirm_transaction_at_lane(1);
 
     let fragment = controller
         .fragment_factory()
@@ -71,7 +66,6 @@ pub fn ledger_accepts_signature_from_all_lanes() {
     assert!(ledger
         .apply_transaction(fragment, BlockDate::first())
         .is_ok());
-    alice.confirm_transaction_at_lane(2);
 
     let fragment = controller
         .fragment_factory()

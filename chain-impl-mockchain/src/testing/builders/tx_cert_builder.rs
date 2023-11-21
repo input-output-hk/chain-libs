@@ -10,7 +10,7 @@ use crate::{
     fragment::Fragment,
     key::EitherEd25519SecretKey,
     ledger::ledger::OutputAddress,
-    testing::{data::Wallet, make_witness, make_witness_with_lane},
+    testing::{data::Wallet, make_witness},
     transaction::{
         AccountBindingSignature, Input, Payload, SetAuthData, SetTtl,
         SingleAccountBindingSignature, TxBuilder, TxBuilderState, Witness,
@@ -20,6 +20,8 @@ use crate::{
 };
 
 use std::iter;
+
+use super::make_witness_with_lane;
 
 #[derive(Debug, Copy, Clone)]
 pub enum WitnessMode {

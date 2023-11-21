@@ -32,7 +32,7 @@ pub fn update_slot_duration() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
     let mut config_params = ConfigParams::new();
     config_params.push(ConfigParam::SlotDuration(final_slot_duration));
 
@@ -41,7 +41,6 @@ pub fn update_slot_duration() {
     let proposal_id = controller
         .update_proposal(&alice, update_proposal, &mut ledger)
         .unwrap();
-    alice.confirm_transaction();
 
     controller
         .update_vote(
@@ -50,7 +49,6 @@ pub fn update_slot_duration() {
             &mut ledger,
         )
         .unwrap();
-    alice.confirm_transaction();
 
     ledger.fast_forward_to(BlockDate {
         epoch: 0,

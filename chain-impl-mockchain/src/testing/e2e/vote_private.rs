@@ -58,7 +58,7 @@ pub fn private_vote_cast_action_transfer_to_rewards_all_shares() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
 
@@ -72,7 +72,6 @@ pub fn private_vote_cast_action_transfer_to_rewards_all_shares() {
             &mut rng,
         )
         .unwrap();
-    alice.confirm_transaction();
 
     ledger.fast_forward_to(BlockDate {
         epoch: 1,
@@ -215,7 +214,7 @@ pub fn vote_on_same_proposal() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
 
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
@@ -230,8 +229,6 @@ pub fn vote_on_same_proposal() {
             &mut rng,
         )
         .unwrap();
-
-    alice.confirm_transaction();
 
     let inner_vote_plan: VotePlan = vote_plan.clone().into();
 
@@ -292,7 +289,7 @@ pub fn vote_on_different_proposal() {
         .build()
         .unwrap();
 
-    let mut alice = controller.wallet(ALICE).unwrap();
+    let alice = controller.wallet(ALICE).unwrap();
 
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let first_proposal = vote_plan.proposal(0);
@@ -308,8 +305,6 @@ pub fn vote_on_different_proposal() {
             &mut rng,
         )
         .unwrap();
-
-    alice.confirm_transaction();
 
     assert!(controller
         .cast_vote_private(

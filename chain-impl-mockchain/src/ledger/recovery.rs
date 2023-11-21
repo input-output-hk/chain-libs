@@ -37,10 +37,7 @@
 
 use super::pots;
 use super::{Entry, EntryOwned};
-use crate::accounting::account::{
-    AccountState, DelegationRatio, DelegationType, LastRewards, SpendingCounter,
-    SpendingCounterIncreasing,
-};
+use crate::accounting::account::{AccountState, DelegationRatio, DelegationType, LastRewards};
 use crate::certificate::{
     PoolId, PoolRegistration, Proposal, Proposals, UpdateProposal, UpdateProposalId, UpdateVoterId,
     VoteAction, VotePlan,
@@ -147,35 +144,6 @@ fn unpack_account_identifier(
     crate::account::Identifier::deserialize_from_slice(codec)
 }
 
-fn pack_spending_strategy<W: std::io::Write>(
-    spending_strategy: &SpendingCounterIncreasing,
-    codec: &mut Codec<W>,
-) -> Result<(), WriteError> {
-    let counters = spending_strategy.get_valid_counters();
-    for counter in counters {
-        codec.put_be_u32(counter.into())?;
-    }
-    Ok(())
-}
-
-fn unpack_spending_strategy(
-    codec: &mut Codec<&[u8]>,
-) -> Result<SpendingCounterIncreasing, ReadError> {
-    let mut counters = Vec::new();
-    for _ in 0..SpendingCounterIncreasing::LANES {
-        let counter = SpendingCounter(codec.get_be_u32()?);
-        counters.push(counter);
-    }
-    let got_length = counters.len();
-    SpendingCounterIncreasing::new_from_counters(counters).ok_or_else(|| {
-        ReadError::InvalidData(format!(
-            "wrong numbers of lanes, expecting {} but got {}",
-            SpendingCounterIncreasing::LANES,
-            got_length,
-        ))
-    })
-}
-
 #[cfg(feature = "evm")]
 fn pack_evm_state<W: std::io::Write>(
     evm_state: &chain_evm::state::AccountState,
@@ -228,7 +196,6 @@ fn pack_account_state<W: std::io::Write>(
     account_state: &AccountState<()>,
     codec: &mut Codec<W>,
 ) -> Result<(), WriteError> {
-    pack_spending_strategy(&account_state.spending, codec)?;
     pack_delegation_type(&account_state.delegation, codec)?;
     codec.put_be_u64(account_state.value.0)?;
     pack_last_rewards(&account_state.last_rewards, codec)?;
@@ -238,14 +205,12 @@ fn pack_account_state<W: std::io::Write>(
 }
 
 fn unpack_account_state(codec: &mut Codec<&[u8]>) -> Result<AccountState<()>, ReadError> {
-    let spending = unpack_spending_strategy(codec)?;
     let delegation = unpack_delegation_type(codec)?;
     let value = codec.get_be_u64()?;
     let last_rewards = unpack_last_rewards(codec)?;
     #[cfg(feature = "evm")]
     let evm_state = unpack_evm_state(codec)?;
     Ok(AccountState {
-        spending,
         delegation,
         value: Value(value),
         tokens: Hamt::new(),
