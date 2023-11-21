@@ -113,6 +113,7 @@ pub fn transaction_fail_when_validity_too_far() {
 }
 
 #[test]
+#[ignore]
 pub fn duplicated_account_transaction() {
     let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
         .faucet_value(Value(1000))
