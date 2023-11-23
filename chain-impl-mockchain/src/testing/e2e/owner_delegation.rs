@@ -25,12 +25,13 @@ pub fn owner_delegation() {
         ])
         .build()
         .unwrap();
-    let alice = controller.wallet("Alice").unwrap();
+    let mut alice = controller.wallet("Alice").unwrap();
     let stake_pool = controller.stake_pool("stake_pool").unwrap();
 
     controller
         .owner_delegates(&alice, &stake_pool, &mut ledger)
         .unwrap();
+    alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.clone().into())
         .info("after owner delegation")
@@ -42,6 +43,7 @@ pub fn owner_delegation() {
         .pools_total_stake_is(Stake::from_value(Value(997)));
 
     controller.removes_delegation(&alice, &mut ledger).unwrap();
+    alice.confirm_transaction();
 
     LedgerStateVerifier::new(ledger.into())
         .info("after owner delegation removal")

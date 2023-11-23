@@ -21,21 +21,23 @@ use chain_crypto::{Ed25519, PublicKey, Signature};
 #[derive(Debug, Clone)]
 pub enum Witness {
     Utxo(SpendingSignature<WitnessUtxoData>),
-    Account(account::Witness),
+    Account(account::SpendingCounter, account::Witness),
     OldUtxo(
         PublicKey<Ed25519>,
         [u8; 32],
         Signature<WitnessUtxoData, Ed25519>,
     ),
-    Multisig(multisig::Witness),
+    Multisig(account::SpendingCounter, multisig::Witness),
 }
 
 impl PartialEq for Witness {
     fn eq(&self, rhs: &Self) -> bool {
         match (self, rhs) {
-            (Witness::Utxo(n1), Witness::Utxo(n2)) => n1.as_ref() == n2.as_ref(),
-            (Witness::Account(n1), Witness::Account(n2)) => n1.as_ref() == n2.as_ref(),
-            (Witness::Multisig(n1), Witness::Multisig(n2)) => n1 == n2,
+            (Witness::Utxo(s1), Witness::Utxo(s2)) => s1.as_ref() == s2.as_ref(),
+            (Witness::Account(n1, s1), Witness::Account(n2, s2)) => {
+                n1 == n2 && s1.as_ref() == s2.as_ref()
+            }
+            (Witness::Multisig(n1, s1), Witness::Multisig(n2, s2)) => n1 == n2 && s1 == s2,
             (Witness::OldUtxo(p1, c1, s1), Witness::OldUtxo(p2, c2, s2)) => {
                 s1.as_ref() == s2.as_ref() && c1 == c2 && p1 == p2
             }
@@ -49,9 +51,9 @@ impl std::fmt::Display for Witness {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Witness::Utxo(_) => write!(f, "UTxO Witness"),
-            Witness::Account(_) => write!(f, "Account Witness"),
+            Witness::Account(_, _) => write!(f, "Account Witness"),
             Witness::OldUtxo(..) => write!(f, "Old UTxO Witness"),
-            Witness::Multisig(_) => write!(f, "Multisig Witness"),
+            Witness::Multisig(_, _) => write!(f, "Multisig Witness"),
         }
     }
 }
@@ -100,9 +102,14 @@ impl AsRef<[u8]> for WitnessUtxoData {
 pub struct WitnessAccountData(Vec<u8>);
 
 impl WitnessAccountData {
-    pub fn new(block0: &HeaderId, transaction_id: &TransactionSignDataHash) -> Self {
+    pub fn new(
+        block0: &HeaderId,
+        transaction_id: &TransactionSignDataHash,
+        spending_counter: account::SpendingCounter,
+    ) -> Self {
         let mut v = Vec::with_capacity(69);
         witness_data_common(&mut v, WITNESS_TAG_ACCOUNT, block0, transaction_id);
+        v.extend_from_slice(&spending_counter.to_bytes());
         WitnessAccountData(v)
     }
 }
@@ -116,9 +123,14 @@ impl AsRef<[u8]> for WitnessAccountData {
 pub struct WitnessMultisigData(Vec<u8>);
 
 impl WitnessMultisigData {
-    pub fn new(block0: &HeaderId, transaction_id: &TransactionSignDataHash) -> Self {
+    pub fn new(
+        block0: &HeaderId,
+        transaction_id: &TransactionSignDataHash,
+        spending_counter: account::SpendingCounter,
+    ) -> Self {
         let mut v = Vec::with_capacity(69);
         witness_data_common(&mut v, WITNESS_TAG_MULTISIG, block0, transaction_id);
+        v.extend_from_slice(&spending_counter.to_bytes());
         Self(v)
     }
 }
@@ -156,15 +168,15 @@ impl Witness {
     pub fn new_account<F>(
         block0: &HeaderId,
         sign_data_hash: &TransactionSignDataHash,
-
+        spending_counter: account::SpendingCounter,
         sign: F,
     ) -> Self
     where
         F: FnOnce(&WitnessAccountData) -> account::Witness,
     {
-        let wud = WitnessAccountData::new(block0, sign_data_hash);
+        let wud = WitnessAccountData::new(block0, sign_data_hash, spending_counter);
         let sig = sign(&wud);
-        Witness::Account(sig)
+        Witness::Account(spending_counter, sig)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -185,8 +197,8 @@ impl Serialize for Witness {
                 Codec::u8_size() + pk.as_ref().len() + cc.serialized_size() + sig.as_ref().len()
             }
             Witness::Utxo(sig) => Codec::u8_size() + sig.as_ref().len(),
-            Witness::Account(sig) => Codec::u8_size() + Codec::u32_size() + sig.as_ref().len(),
-            Witness::Multisig(msig) => {
+            Witness::Account(_, sig) => Codec::u8_size() + Codec::u32_size() + sig.as_ref().len(),
+            Witness::Multisig(_, msig) => {
                 Codec::u8_size() + Codec::u32_size() + msig.serialized_size()
             }
         }
@@ -204,14 +216,14 @@ impl Serialize for Witness {
                 codec.put_u8(WITNESS_TAG_UTXO)?;
                 serialize_signature(sig, codec)
             }
-            Witness::Account(sig) => {
+            Witness::Account(nonce, sig) => {
                 codec.put_u8(WITNESS_TAG_ACCOUNT)?;
-
+                codec.put_be_u32((*nonce).into())?;
                 serialize_signature(sig, codec)
             }
-            Witness::Multisig(msig) => {
+            Witness::Multisig(nonce, msig) => {
                 codec.put_u8(WITNESS_TAG_MULTISIG)?;
-
+                codec.put_be_u32((*nonce).into())?;
                 msig.serialize(codec)
             }
         }
@@ -229,12 +241,14 @@ impl DeserializeFromSlice for Witness {
             }
             WITNESS_TAG_UTXO => deserialize_signature(codec).map(Witness::Utxo),
             WITNESS_TAG_ACCOUNT => {
+                let nonce = codec.get_be_u32()?.into();
                 let sig = deserialize_signature(codec)?;
-                Ok(Witness::Account(sig))
+                Ok(Witness::Account(nonce, sig))
             }
             WITNESS_TAG_MULTISIG => {
+                let nonce = codec.get_be_u32()?.into();
                 let msig = multisig::Witness::deserialize_from_slice(codec)?;
-                Ok(Witness::Multisig(msig))
+                Ok(Witness::Multisig(nonce, msig))
             }
             i => Err(ReadError::UnknownTag(i as u32)),
         }

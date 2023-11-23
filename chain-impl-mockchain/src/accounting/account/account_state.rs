@@ -1,3 +1,4 @@
+use super::spending::{SpendingCounter, SpendingCounterIncreasing};
 use super::{LastRewards, LedgerError};
 use crate::date::Epoch;
 use crate::value::*;
@@ -85,6 +86,7 @@ impl DelegationRatio {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AccountState<Extra> {
+    pub spending: SpendingCounterIncreasing,
     pub delegation: DelegationType,
     pub value: Value,
     pub tokens: Hamt<DefaultHasher, TokenIdentifier, Value>,
@@ -98,6 +100,7 @@ impl<Extra> AccountState<Extra> {
     /// Create a new account state with a specific start value
     pub fn new(v: Value, e: Extra) -> Self {
         Self {
+            spending: SpendingCounterIncreasing::default(),
             delegation: DelegationType::NonDelegated,
             value: v,
             tokens: Hamt::new(),
@@ -163,9 +166,10 @@ impl<Extra: Clone> AccountState<Extra> {
     ///
     /// Note that this *also* increment the counter, as this function would be usually call
     /// for spending.
-    pub fn sub(&self, v: Value) -> Result<Option<Self>, LedgerError> {
+    pub fn sub(&self, spending: SpendingCounter, v: Value) -> Result<Option<Self>, LedgerError> {
         let new_value = (self.value - v)?;
         let mut r = self.clone();
+        r.spending.next_verify(spending)?;
         r.value = new_value;
         Ok(Some(r))
     }
@@ -204,7 +208,8 @@ impl<'a, ID, Extra> Iterator for Iter<'a, ID, Extra> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AccountState, DelegationRatio, DelegationType, LastRewards, DELEGATION_RATIO_MAX_DECLS,
+        AccountState, DelegationRatio, DelegationType, LastRewards, SpendingCounter,
+        SpendingCounterIncreasing, DELEGATION_RATIO_MAX_DECLS,
     };
     use crate::{
         certificate::PoolId, testing::builders::StakePoolBuilder, testing::TestGen, value::Value,
@@ -213,6 +218,17 @@ mod tests {
     use quickcheck::{Arbitrary, Gen};
     use std::iter;
     use test_strategy::proptest;
+
+    #[proptest]
+    fn account_sub_is_consistent(init_value: Value, sub_value: Value, counter: u32) {
+        let mut account_state = AccountState::new(init_value, ());
+        let counter = SpendingCounter::from(counter);
+        account_state.spending = SpendingCounterIncreasing::new_from_counter(counter);
+        assert_eq!(
+            should_sub_fail(account_state.clone(), sub_value),
+            account_state.sub(counter, sub_value).is_err(),
+        )
+    }
 
     #[proptest]
     fn add_value(init_value: Value, value_to_add: Value) {
@@ -295,6 +311,7 @@ mod tests {
             initial_account_state: AccountState<()>,
             operations: std::slice::Iter<ArbitraryAccountStateOp>,
         ) -> AccountState<()> {
+            let mut spending_strat = initial_account_state.spending.clone();
             let mut delegation = initial_account_state.delegation().clone();
             let mut result_value = initial_account_state.value();
 
@@ -308,7 +325,12 @@ mod tests {
                     }
                     ArbitraryAccountStateOp::Sub(value) => {
                         result_value = match result_value - *value {
-                            Ok(new_value) => new_value,
+                            Ok(new_value) => {
+                                spending_strat
+                                    .next_verify(spending_strat.get_valid_counter())
+                                    .expect("success");
+                                new_value
+                            }
                             Err(_) => result_value,
                         }
                     }
@@ -321,6 +343,7 @@ mod tests {
                 }
             }
             AccountState {
+                spending: spending_strat,
                 delegation,
                 value: result_value,
                 tokens: Hamt::new(),
@@ -347,8 +370,8 @@ mod tests {
         operations: ArbitraryOperationChain,
     ) {
         let initial_account_state = account_state.clone();
-
-        
+        let mut strategy = initial_account_state.spending.clone();
+        let mut counter = strategy.get_valid_counter();
         for (op_counter, operation) in operations.clone().into_iter().enumerate() {
             account_state = match operation {
                 ArbitraryAccountStateOp::Add(value) => {
@@ -362,10 +385,10 @@ mod tests {
                 }
                 ArbitraryAccountStateOp::Sub(value) => {
                     let should_fail = should_sub_fail(account_state.clone(), value);
-                    match (should_fail, account_state.sub(value)) {
+                    match (should_fail, account_state.sub(counter, value)) {
                         (false, Ok(account_state)) => {
-                           
-                            
+                            strategy.next_verify(counter).expect("success");
+                            counter = counter.increment();
                             // check if account has any funds left
                             match account_state {
                                 Some(account_state) => account_state,
@@ -595,19 +618,19 @@ mod tests {
 
         use crate::{
             account::DelegationType,
-            accounting::account::{AccountState, LastRewards},
+            accounting::account::{AccountState, LastRewards, SpendingCounterIncreasing},
             certificate::PoolId,
             value::Value,
         };
 
         prop_compose! {
             fn arbitrary_account_state()(
-               
+                spending in any::<SpendingCounterIncreasing>(),
                 pool_id in any::<PoolId>(),
                 value in any::<Value>(),
             ) -> AccountState<()> {
                 AccountState {
-                    
+                    spending,
                     delegation: DelegationType::Full(pool_id),
                     value,
                     tokens: Hamt::new(),

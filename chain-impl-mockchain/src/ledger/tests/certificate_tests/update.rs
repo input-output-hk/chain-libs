@@ -18,7 +18,7 @@ pub fn ledger_adopt_settings_from_update_proposal(
     update_proposal_data: UpdateProposalData,
 ) -> TestResult {
     let leader_pair = &update_proposal_data.leaders_pairs()[0];
-    let leader = Wallet::from_address_data_value(AddressDataValue::new(
+    let mut leader = Wallet::from_address_data_value(AddressDataValue::new(
         AddressData::from_leader_pair(leader_pair.clone(), Discrimination::Test),
         Value(100),
     ));
@@ -37,6 +37,7 @@ pub fn ledger_adopt_settings_from_update_proposal(
         update_proposal_data.proposal.clone(),
     );
 
+    leader.confirm_transaction();
     // apply proposal
     testledger
         .apply_fragment(&fragment, BlockDate::first().next_epoch())
@@ -49,6 +50,7 @@ pub fn ledger_adopt_settings_from_update_proposal(
         testledger
             .apply_fragment(&fragment, BlockDate::first().next_epoch())
             .unwrap();
+        leader.confirm_transaction();
     }
 
     // trigger proposal process (build block)

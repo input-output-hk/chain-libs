@@ -45,13 +45,14 @@ pub fn vote_cast_action_transfer_to_rewards() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
 
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
         .unwrap();
+    alice.confirm_transaction();
 
     ledger.fast_forward_to(BlockDate {
         epoch: 1,
@@ -103,13 +104,14 @@ pub fn vote_cast_action_action_parameters_no_op() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
 
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
         .unwrap();
+    alice.confirm_transaction();
 
     ledger.fast_forward_to(BlockDate {
         epoch: 1,
@@ -170,8 +172,8 @@ pub fn vote_cast_tally_more_than_50_percent_successful() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
-    let bob = controller.wallet(BOB).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
+    let mut bob = controller.wallet(BOB).unwrap();
 
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
@@ -179,10 +181,11 @@ pub fn vote_cast_tally_more_than_50_percent_successful() {
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
         .unwrap();
-
+    alice.confirm_transaction();
     controller
         .cast_vote_public(&bob, &vote_plan, &proposal.id(), rejection, &mut ledger)
         .unwrap();
+    bob.confirm_transaction();
 
     ledger.fast_forward_to(BlockDate {
         epoch: 1,
@@ -243,8 +246,8 @@ pub fn vote_cast_tally_50_percent_unsuccesful() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
-    let bob = controller.wallet(BOB).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
+    let mut bob = controller.wallet(BOB).unwrap();
 
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
@@ -252,10 +255,11 @@ pub fn vote_cast_tally_50_percent_unsuccesful() {
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), rejection, &mut ledger)
         .unwrap();
-
+    alice.confirm_transaction();
     controller
         .cast_vote_public(&bob, &vote_plan, &proposal.id(), rejection, &mut ledger)
         .unwrap();
+    bob.confirm_transaction();
 
     ledger.fast_forward_to(BlockDate {
         epoch: 1,
@@ -378,7 +382,7 @@ pub fn vote_on_same_proposal() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
 
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
@@ -386,6 +390,8 @@ pub fn vote_on_same_proposal() {
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
         .unwrap();
+
+    alice.confirm_transaction();
 
     assert!(controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), rejection, &mut ledger)
@@ -427,7 +433,7 @@ pub fn vote_on_different_proposal() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
 
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let first_proposal = vote_plan.proposal(0);
@@ -442,6 +448,8 @@ pub fn vote_on_different_proposal() {
             &mut ledger,
         )
         .unwrap();
+
+    alice.confirm_transaction();
 
     assert!(controller
         .cast_vote_public(
@@ -498,7 +506,7 @@ pub fn votes_with_fees() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
     let proposal = vote_plan.proposal(0);
     let total_ada_before = ledger.total_funds();
@@ -506,6 +514,8 @@ pub fn votes_with_fees() {
     controller
         .cast_vote_public(&alice, &vote_plan, &proposal.id(), favorable, &mut ledger)
         .unwrap();
+
+    alice.confirm_transaction();
 
     ledger.fast_forward_to(BlockDate {
         epoch: 1,
@@ -568,7 +578,7 @@ pub fn voting_consistency() {
         .build()
         .unwrap();
 
-    let alice = controller.wallet(ALICE).unwrap();
+    let mut alice = controller.wallet(ALICE).unwrap();
     let vote_plan = controller.vote_plan(VOTE_PLAN).unwrap();
 
     controller
@@ -580,7 +590,7 @@ pub fn voting_consistency() {
             &mut ledger,
         )
         .unwrap();
-
+    alice.confirm_transaction();
     controller
         .cast_vote_public(
             &alice,
@@ -590,7 +600,7 @@ pub fn voting_consistency() {
             &mut ledger,
         )
         .unwrap();
-
+    alice.confirm_transaction();
     controller
         .cast_vote_public(
             &alice,
@@ -600,7 +610,7 @@ pub fn voting_consistency() {
             &mut ledger,
         )
         .unwrap();
-
+    alice.confirm_transaction();
     ledger.fast_forward_to(BlockDate {
         epoch: 1,
         slot_id: 1,

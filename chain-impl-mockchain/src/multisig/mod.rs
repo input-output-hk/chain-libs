@@ -14,7 +14,8 @@ pub use index::{Index, TreeIndex};
 #[cfg(any(test, feature = "property-test-api"))]
 mod test {
     use super::*;
-
+    #[cfg(test)]
+    use crate::accounting::account::SpendingCounter;
     #[cfg(test)]
     use crate::transaction::{TransactionSignData, TransactionSignDataHash};
     #[cfg(test)]
@@ -69,10 +70,15 @@ mod test {
             ],
         };
 
+        let fake_spending_counter = SpendingCounter::zero();
         let fake_sign_data: TransactionSignData = vec![1, 2, 3].into();
         let fake_sign_data_hash = TransactionSignDataHash::digest(&fake_sign_data);
         let fake_block0_hash = key::Hash::hash_bytes(&[1, 2, 3, 4, 5, 6, 7]);
-        let msg = WitnessMultisigData::new(&fake_block0_hash, &fake_sign_data_hash);
+        let msg = WitnessMultisigData::new(
+            &fake_block0_hash,
+            &fake_sign_data_hash,
+            fake_spending_counter,
+        );
 
         // test participant 1 and 3
         {

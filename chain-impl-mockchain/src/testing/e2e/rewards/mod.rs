@@ -556,16 +556,19 @@ pub fn rewards_are_propotional_to_stake_pool_effectivness_in_building_blocks() {
     let bob_stake_pool = controller.stake_pool("bob_stake_pool").unwrap();
     let clarice_stake_pool = controller.stake_pool("clarice_stake_pool").unwrap();
 
-    let carol = controller.wallet("Carol").unwrap();
+    let mut carol = controller.wallet("Carol").unwrap();
     let david = controller.wallet("David").unwrap();
 
     let fragment_factory = controller.fragment_factory();
 
     while ledger.date().slot_id < 99 {
         let fragment = fragment_factory.transaction(&carol, &david, &mut ledger, 100);
-        let _block_was_created = ledger
+        let block_was_created = ledger
             .fire_leadership_event(controller.initial_stake_pools(), vec![fragment])
             .unwrap();
+        if block_was_created {
+            carol.confirm_transaction();
+        }
     }
 
     let expected_alice_reward =

@@ -22,9 +22,12 @@ pub fn make_witness(
     transaction_hash: &TransactionSignDataHash,
 ) -> Witness {
     match addres_data.address.kind() {
-        Kind::Account(_) => Witness::new_account(block0, transaction_hash, |d| {
-            addres_data.private_key().sign(d)
-        }),
+        Kind::Account(_) => Witness::new_account(
+            block0,
+            transaction_hash,
+            addres_data.spending_counter.get_valid_counter(),
+            |d| addres_data.private_key().sign(d),
+        ),
         _ => Witness::new_utxo(block0, transaction_hash, |d| {
             addres_data.private_key().sign(d)
         }),
@@ -34,13 +37,16 @@ pub fn make_witness(
 pub fn make_witness_with_lane(
     block0: &HeaderId,
     addres_data: &AddressData,
-    _lane: usize,
+    lane: usize,
     transaction_hash: &TransactionSignDataHash,
 ) -> Witness {
     match addres_data.address.kind() {
-        Kind::Account(_) => Witness::new_account(block0, transaction_hash, |d| {
-            addres_data.private_key().sign(d)
-        }),
+        Kind::Account(_) => Witness::new_account(
+            block0,
+            transaction_hash,
+            addres_data.spending_counter_at_lane(lane).unwrap(),
+            |d| addres_data.private_key().sign(d),
+        ),
         _ => Witness::new_utxo(block0, transaction_hash, |d| {
             addres_data.private_key().sign(d)
         }),

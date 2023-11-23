@@ -409,23 +409,23 @@ mod tests {
             ])
             .build()
             .unwrap();
-        let alice = controller.wallet("Alice").unwrap();
-        let bob = controller.wallet("Bob").unwrap();
-        let clarice = controller.wallet("Clarice").unwrap();
+        let mut alice = controller.wallet("Alice").unwrap();
+        let mut bob = controller.wallet("Bob").unwrap();
+        let mut clarice = controller.wallet("Clarice").unwrap();
         let stake_pool = controller.stake_pool("stake_pool").unwrap();
 
         controller
             .transfer_funds(&alice, &bob, &mut ledger, 100)
             .unwrap();
-
+        alice.confirm_transaction();
         controller
             .delegates(&bob, &stake_pool, &mut ledger)
             .unwrap();
-
+        bob.confirm_transaction();
         controller
             .retire(Some(&clarice), &stake_pool, &mut ledger)
             .unwrap();
-
+        clarice.confirm_transaction();
         // unassigned = clarice - fee (becaue thus clarise is an onwer of the stake she did not delegates any stakes)
         // dangling = bob and alice funds (minus fees for transactions and certs)
         // total pool = 0, because stake pool was retired

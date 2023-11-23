@@ -88,7 +88,7 @@ impl From<WalletTemplate> for Wallet {
         if let Some(secret_key) = template.secret_key() {
             let user_address = Address(Discrimination::Test, Kind::Account(secret_key.to_public()));
             let account = AddressDataValue::new_with_tokens(
-                AddressData::new(secret_key, user_address),
+                AddressData::new(secret_key, Default::default(), user_address),
                 template.initial_value,
                 template.initial_tokens.clone(),
             );

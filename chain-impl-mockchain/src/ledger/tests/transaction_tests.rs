@@ -113,7 +113,6 @@ pub fn transaction_fail_when_validity_too_far() {
 }
 
 #[test]
-#[ignore]
 pub fn duplicated_account_transaction() {
     let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
         .faucet_value(Value(1000))
@@ -160,8 +159,30 @@ pub fn transaction_nonexisting_account_input() {
 }
 
 #[test]
+pub fn transaction_with_incorrect_account_spending_counter() {
+    let faucet =
+        AddressDataValue::account_with_spending_counter(Discrimination::Test, 1, Value(1000));
+    let receiver = AddressData::account(Discrimination::Test);
+
+    let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
+        .faucet(&faucet)
+        .build()
+        .expect("cannot build test ledger");
+
+    let fragment = TestTxBuilder::new(test_ledger.block0_hash)
+        .move_from_faucet(&mut test_ledger, &receiver.into(), Value(1000))
+        .get_fragment();
+    assert!(
+        test_ledger
+            .apply_transaction(fragment, BlockDate::first())
+            .is_err(),
+        "first transaction should be successful"
+    );
+}
+
+#[test]
 pub fn repeated_account_transaction() {
-    let faucet = AddressDataValue::account(Discrimination::Test, Value(200));
+    let mut faucet = AddressDataValue::account(Discrimination::Test, Value(200));
     let receiver = AddressDataValue::account(Discrimination::Test, Value(0));
 
     let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
@@ -175,7 +196,7 @@ pub fn repeated_account_transaction() {
     assert!(test_ledger
         .apply_transaction(fragment, BlockDate::first())
         .is_ok());
-
+    faucet.confirm_transaction().unwrap();
     let fragment = TestTxBuilder::new(test_ledger.block0_hash)
         .move_all_funds(&mut test_ledger, &faucet, &receiver)
         .get_fragment();
