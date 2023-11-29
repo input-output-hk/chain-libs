@@ -24,3 +24,26 @@ macro_rules! assert_err {
         }
     };
 }
+
+// assert_err_match( ExpectedErrorPattern , Expression )
+//
+// succeed if Expression's value a Err(E) where E match the ExpectedErrorPattern,
+// otherwise panic!() with some diagnostic
+macro_rules! assert_err_match {
+    ($left: pat, $right: expr) => {
+        match &($right) {
+            Err(e) => match e {
+                $left => {}
+                _ => panic!(
+                    "assertion failed: error mismatch got: `{:?}` but expecting {}",
+                    *e,
+                    stringify!($left)
+                ),
+            },
+            Ok(_) => panic!(
+                "assertion failed: expected error {:?} but got success",
+                stringify!($left)
+            ),
+        }
+    };
+}

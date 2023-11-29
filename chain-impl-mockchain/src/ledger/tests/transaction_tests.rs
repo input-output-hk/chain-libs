@@ -4,6 +4,7 @@ use crate::{
     accounting::account::LedgerError::NonExistent,
     date::BlockDate,
     ledger::{
+        self,
         check::{TxValidityError, TxVerifyError},
         Error::{Account, InvalidTransactionValidity, TransactionMalformed},
     },
@@ -112,7 +113,6 @@ pub fn transaction_fail_when_validity_too_far() {
 }
 
 #[test]
-#[ignore]
 pub fn duplicated_account_transaction() {
     let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
         .faucet_value(Value(1000))
@@ -124,10 +124,18 @@ pub fn duplicated_account_transaction() {
     let fragment = TestTxBuilder::new(test_ledger.block0_hash)
         .move_from_faucet(&mut test_ledger, &receiver.address, Value(100))
         .get_fragment();
-    let _fragment2 = fragment.clone();
-    let _result = test_ledger
-        .apply_transaction(fragment, BlockDate::first())
-        .unwrap();
+    let fragment2 = fragment.clone();
+    let result = test_ledger.apply_transaction(fragment, BlockDate::first());
+
+    match result {
+        Err(err) => panic!("first transaction should be succesful but {}", err),
+        Ok(_) => {
+            assert_err_match!(
+                ledger::Error::Account(crate::account::LedgerError::SpendingCredentialInvalid),
+                test_ledger.apply_transaction(fragment2, BlockDate::first())
+            );
+        }
+    }
 }
 
 #[test]

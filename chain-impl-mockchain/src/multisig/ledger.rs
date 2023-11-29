@@ -107,52 +107,27 @@ impl Ledger {
         self.declarations.iter()
     }
 
-    /// Spend value from an existing account.
-    ///
-    /// If the account doesn't exist, or if the value is too much to spend,
-    /// or if the spending counter doesn't match, it throws a `LedgerError`.
-    pub fn spend(
+    /// If the account doesn't exist, or that the value would become negative, errors out.
+    pub fn remove_value(
         &self,
         identifier: &Identifier,
-        counter: SpendingCounter,
+        spending_counter: SpendingCounter,
         value: Value,
-    ) -> Result<Self, LedgerError> {
-        let new_accts = self.accounts.spend(identifier, counter, value)?;
-        Ok(Self {
-            accounts: new_accts,
-            declarations: self.declarations.clone(),
-        })
-    }
-
-    /// Spend value from an existing account without spending counter check.
-    ///
-    /// If the account doesn't exist, or if the value is too much to spend,
-    /// it throws a `LedgerError`.
-    pub(crate) fn spend_with_no_counter_check(
-        &self,
-        identifier: &Identifier,
-        counter: SpendingCounter,
-        value: Value,
-    ) -> Result<Self, LedgerError> {
-        let new_accts = self
-            .accounts
-            .spend_with_no_counter_check(identifier, counter, value)?;
-        Ok(Self {
-            accounts: new_accts,
-            declarations: self.declarations.clone(),
-        })
-    }
-
-    /// Gets the `&Declaration` for the given `&Identifier`.
-    pub(crate) fn get_declaration_by_id(
-        &self,
-        identifier: &Identifier,
-    ) -> Result<&Declaration, LedgerError> {
+    ) -> Result<(Self, &Declaration), LedgerError> {
         let decl = self
             .declarations
             .lookup(identifier)
             .ok_or(LedgerError::DoesntExist)?;
-        Ok(decl)
+        let new_accts = self
+            .accounts
+            .remove_value(identifier, spending_counter, value)?;
+        Ok((
+            Self {
+                accounts: new_accts,
+                declarations: self.declarations.clone(),
+            },
+            decl,
+        ))
     }
 
     /// Set the delegation of an account in this ledger

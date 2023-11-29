@@ -31,11 +31,8 @@ pub enum LedgerError {
     AlreadyExists,
     #[error("Removed account is not empty")]
     NonZero,
-    #[error("Spending credential invalid, expected {} got {} in lane {}", .expected.unlaned_counter(), .actual.unlaned_counter(), .actual.lane())]
-    SpendingCredentialInvalid {
-        expected: SpendingCounter,
-        actual: SpendingCounter,
-    },
+    #[error("Spending credential invalid")]
+    SpendingCredentialInvalid,
     #[error("Value calculation failed")]
     ValueError(#[from] ValueError),
 }
@@ -176,34 +173,17 @@ impl<ID: Clone + Eq + Hash, Extra: Clone> Ledger<ID, Extra> {
             .map(Ledger)
     }
 
-    /// Spend value from an existing account.
+    /// Subtract value to an existing account.
     ///
-    /// If the account doesn't exist, or if the value is too much to spend,
-    /// or if the spending counter doesn't match, it throws a `LedgerError`.
-    pub fn spend(
+    /// If the account doesn't exist, or that the value would become negative, errors out.
+    pub fn remove_value(
         &self,
         identifier: &ID,
-        counter: SpendingCounter,
+        spending: SpendingCounter,
         value: Value,
     ) -> Result<Self, LedgerError> {
         self.0
-            .update(identifier, |st| st.spend(counter, value))
-            .map(Ledger)
-            .map_err(|e| e.into())
-    }
-
-    /// Spend value from an existing account without spending counter check.
-    ///
-    /// If the account doesn't exist, or if the value is too much to spend,
-    /// it throws a `LedgerError`.
-    pub(crate) fn spend_with_no_counter_check(
-        &self,
-        identifier: &ID,
-        counter: SpendingCounter,
-        value: Value,
-    ) -> Result<Self, LedgerError> {
-        self.0
-            .update(identifier, |st| st.spend_unchecked(counter, value))
+            .update(identifier, |st| st.sub(spending, value))
             .map(Ledger)
             .map_err(|e| e.into())
     }
@@ -613,7 +593,7 @@ mod tests {
         }
 
         // remove value from account
-        ledger = match ledger.spend(&account_id, spending_counter, value) {
+        ledger = match ledger.remove_value(&account_id, spending_counter, value) {
             Ok(ledger) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
@@ -642,7 +622,7 @@ mod tests {
         }
 
         // removes all funds from account
-        ledger = match ledger.spend(&account_id, spending_counter, value_before_reward) {
+        ledger = match ledger.remove_value(&account_id, spending_counter, value_before_reward) {
             Ok(ledger) => ledger,
             Err(err) => {
                 return TestResult::error(format!(
@@ -694,7 +674,7 @@ mod tests {
     }
 
     #[quickcheck]
-    pub fn ledger_total_value_is_correct_after_spend(
+    pub fn ledger_total_value_is_correct_after_remove_value(
         id: Identifier,
         account_state: AccountState<()>,
         value_to_remove: Value,
@@ -703,7 +683,7 @@ mod tests {
         ledger = ledger
             .add_account(id.clone(), account_state.value(), ())
             .unwrap();
-        let result = ledger.spend(&id, SpendingCounter::zero(), value_to_remove);
+        let result = ledger.remove_value(&id, SpendingCounter::zero(), value_to_remove);
         let expected_result = account_state.value() - value_to_remove;
         match (result, expected_result) {
             (Err(_), Err(_)) => verify_total_value(ledger, account_state.value()),
