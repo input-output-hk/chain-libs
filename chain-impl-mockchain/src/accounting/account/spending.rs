@@ -49,8 +49,15 @@ impl SpendingCounterIncreasing {
     /// a ledger error reported.
     ///
     /// If the counter match succesfully, then the counter at this lane is incremented by one.
-    pub fn next_verify(&mut self, _counter: SpendingCounter) -> Result<(), LedgerError> {
-        Ok(())
+    pub fn next_verify(&mut self, counter: SpendingCounter) -> Result<(), LedgerError> {
+        let actual_counter = self.nexts[counter.lane()];
+
+        if actual_counter != counter {
+            Err(LedgerError::SpendingCredentialInvalid)
+        } else {
+            self.nexts[counter.lane()] = actual_counter.increment();
+            Ok(())
+        }
     }
 }
 
@@ -251,7 +258,6 @@ mod tests {
     }
 
     #[quickcheck_macros::quickcheck]
-    #[ignore]
     pub fn spending_counter_increasing_increment(mut index: usize) -> TestResult {
         let mut sc_increasing = SpendingCounterIncreasing::default();
         index %= SpendingCounterIncreasing::LANES;
@@ -263,7 +269,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     pub fn spending_counter_increasing_wrong_counter() {
         let mut sc_increasing = SpendingCounterIncreasing::default();
         let incorrect_sc = SpendingCounter::new(0, 100);

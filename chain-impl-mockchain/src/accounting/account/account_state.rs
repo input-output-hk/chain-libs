@@ -166,10 +166,10 @@ impl<Extra: Clone> AccountState<Extra> {
     ///
     /// Note that this *also* increment the counter, as this function would be usually call
     /// for spending.
-    pub fn sub(&self, _spending: SpendingCounter, v: Value) -> Result<Option<Self>, LedgerError> {
+    pub fn sub(&self, spending: SpendingCounter, v: Value) -> Result<Option<Self>, LedgerError> {
         let new_value = (self.value - v)?;
         let mut r = self.clone();
-
+        r.spending.next_verify(spending)?;
         r.value = new_value;
         Ok(Some(r))
     }

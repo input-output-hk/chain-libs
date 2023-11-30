@@ -2981,7 +2981,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_internal_apply_transaction_wrong_spending_counter() {
         let faucet =
             AddressDataValue::account_with_spending_counter(Discrimination::Test, 1, Value(1));

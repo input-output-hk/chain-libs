@@ -9,7 +9,6 @@ use crate::{
 };
 
 #[test]
-#[ignore]
 pub fn ledger_accepts_signature_from_all_lanes() {
     let (mut ledger, controller) = prepare_scenario()
         .with_config(ConfigBuilder::new().with_fee(LinearFee::new(1, 1, 1)))

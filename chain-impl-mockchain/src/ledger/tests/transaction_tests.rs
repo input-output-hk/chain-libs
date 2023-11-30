@@ -113,7 +113,6 @@ pub fn transaction_fail_when_validity_too_far() {
 }
 
 #[test]
-#[ignore]
 pub fn duplicated_account_transaction() {
     let mut test_ledger = LedgerBuilder::from_config(ConfigBuilder::new())
         .faucet_value(Value(1000))
@@ -160,7 +159,6 @@ pub fn transaction_nonexisting_account_input() {
 }
 
 #[test]
-#[ignore]
 pub fn transaction_with_incorrect_account_spending_counter() {
     let faucet =
         AddressDataValue::account_with_spending_counter(Discrimination::Test, 1, Value(1000));
