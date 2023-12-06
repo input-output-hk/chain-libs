@@ -99,7 +99,7 @@ impl AsRef<[u8]> for WitnessUtxoData {
     }
 }
 
-pub struct WitnessAccountData(Vec<u8>);
+pub struct WitnessAccountData(pub Vec<u8>);
 
 impl WitnessAccountData {
     pub fn new(

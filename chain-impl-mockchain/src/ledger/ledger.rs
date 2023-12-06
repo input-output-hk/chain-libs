@@ -1878,15 +1878,27 @@ fn match_identifier_witness<'a>(
 fn input_single_account_verify<'a>(
     mut ledger: account::Ledger,
     _block0_hash: &HeaderId,
-    _sign_data_hash: &TransactionSignDataHash,
+    sign_data_hash: &TransactionSignDataHash,
     account: &account::Identifier,
-    _witness: &'a account::Witness,
+    witness: &'a account::Witness,
     spending_counter: account::SpendingCounter,
     value: Value,
 ) -> Result<account::Ledger, Error> {
     // .remove_value() check if there's enough value and if not, returns a Err.
     let new_ledger = ledger.remove_value(account, spending_counter, value)?;
     ledger = new_ledger;
+
+    let verified = witness.verify(
+        account.as_ref(),
+        &WitnessAccountData(sign_data_hash.as_ref().to_vec()),
+    );
+
+    if verified == chain_crypto::Verification::Failed {
+        return Err(Error::AccountInvalidSignature {
+            account: account.clone(),
+            witness: Witness::Account(spending_counter, witness.clone()),
+        });
+    };
 
     // TODO verify sig(pub_key,data)
     Ok(ledger)
