@@ -37,6 +37,7 @@ use crate::{
 use chain_addr::{Address, Discrimination, Kind};
 use chain_crypto::Verification;
 use chain_time::{Epoch as TimeEpoch, SlotDuration, TimeEra, TimeFrame, Timeline};
+use ed25519_dalek::{PublicKey, Signature};
 use std::collections::HashSet;
 use std::mem::swap;
 use std::sync::Arc;
@@ -1888,19 +1889,15 @@ fn input_single_account_verify<'a>(
     let new_ledger = ledger.remove_value(account, spending_counter, value)?;
     ledger = new_ledger;
 
-    let verified = witness.verify(
-        account.as_ref(),
-        &WitnessAccountData(sign_data_hash.as_ref().to_vec()),
-    );
+    let mut sig = witness.as_ref().to_vec();
+    sig.drain(0..5);
+    let witness_sig = Signature::from_bytes(&sig).unwrap();
 
-    if verified == chain_crypto::Verification::Failed {
-        return Err(Error::AccountInvalidSignature {
-            account: account.clone(),
-            witness: Witness::Account(spending_counter, witness.clone()),
-        });
-    };
+    let pk = PublicKey::from_bytes(account.as_ref().as_ref()).unwrap();
 
-    // TODO verify sig(pub_key,data)
+    pk.verify_strict(sign_data_hash.as_ref(), &witness_sig)
+        .unwrap();
+
     Ok(ledger)
 }
 
