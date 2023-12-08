@@ -37,7 +37,7 @@ use crate::{
 use chain_addr::{Address, Discrimination, Kind};
 use chain_crypto::Verification;
 use chain_time::{Epoch as TimeEpoch, SlotDuration, TimeEra, TimeFrame, Timeline};
-use ed25519_dalek::{PublicKey, Signature};
+
 use std::collections::HashSet;
 use std::mem::swap;
 use std::sync::Arc;
@@ -1879,24 +1879,15 @@ fn match_identifier_witness<'a>(
 fn input_single_account_verify<'a>(
     mut ledger: account::Ledger,
     _block0_hash: &HeaderId,
-    sign_data_hash: &TransactionSignDataHash,
+    _sign_data_hash: &TransactionSignDataHash,
     account: &account::Identifier,
-    witness: &'a account::Witness,
+    _witness: &'a account::Witness,
     spending_counter: account::SpendingCounter,
     value: Value,
 ) -> Result<account::Ledger, Error> {
     // .remove_value() check if there's enough value and if not, returns a Err.
     let new_ledger = ledger.remove_value(account, spending_counter, value)?;
     ledger = new_ledger;
-
-    let mut sig = witness.as_ref().to_vec();
-    sig.drain(0..5);
-    let witness_sig = Signature::from_bytes(&sig).unwrap();
-
-    let pk = PublicKey::from_bytes(account.as_ref().as_ref()).unwrap();
-
-    pk.verify_strict(sign_data_hash.as_ref(), &witness_sig)
-        .unwrap();
 
     Ok(ledger)
 }

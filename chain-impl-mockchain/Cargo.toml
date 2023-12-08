@@ -32,7 +32,7 @@ rand_chacha = { version = "0.3", optional = true }
 criterion = { version = "0.3.0", optional = true }
 rand = "0.8"
 cryptoxide = "0.4"
-ed25519-dalek = "1.0.1"
+
 
 [features]
 property-test-api = [
