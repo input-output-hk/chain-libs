@@ -1,6 +1,5 @@
 use chain_vote::*;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use rand::Rng;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 
@@ -24,36 +23,12 @@ fn encrypt_and_prove(c: &mut Criterion) {
     let crs = Crs::from_hash(&[0u8; 32]);
     let ek = common(&mut rng);
 
-    for &number_candidates in [2usize, 4, 8, 16, 32, 64, 128, 256, 512].iter() {
+    for &number_candidates in [2usize, 4, 8].iter() {
         let parameter_string = format!("{} candidates", number_candidates);
         group.bench_with_input(
             BenchmarkId::new("Encrypt and Prove", parameter_string),
             &number_candidates,
-            |b, &nr| {
-                b.iter(|| ek.encrypt_and_prove_vote(&mut rng, &crs, Vote::new(nr, 0)))
-            },
-        );
-    }
-
-    group.finish();
-}
-
-fn prove(c: &mut Criterion) {
-    let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
-    let mut group = c.benchmark_group("Prove encrypted vote");
-    let crs = Crs::from_hash(&[0u8; 32]);
-    let ek = common(&mut rng);
-
-    for &number_candidates in [2usize, 4, 8, 16, 32, 64, 128, 256, 512].iter() {
-        group.bench_with_input(
-            BenchmarkId::new("Prove with", format!("{} candidates", number_candidates)),
-            &{
-                let vote = Vote::new(number_candidates, rng.gen_range(0.. number_candidates));
-                (vote, ek.encrypt_vote(&mut rng, vote))
-            },
-            |b, (vote, (vote_enc, randomness))| {
-                b.iter(|| ek.prove_encrypted_vote(&mut rng, &crs, *vote, vote_enc, randomness))
-            },
+            |b, &nr| b.iter(|| ek.encrypt_and_prove_vote(&mut rng, &crs, Vote::new(nr, 0))),
         );
     }
 
@@ -66,7 +41,7 @@ fn verify(c: &mut Criterion) {
     let crs = Crs::from_hash(&[0u8; 32]);
     let ek = common(&mut rng);
 
-    for &number_candidates in [2usize, 4, 8, 16, 32, 64, 128, 256, 512].iter() {
+    for &number_candidates in [2usize, 4, 8].iter() {
         let (vote, proof) =
             ek.encrypt_and_prove_vote(&mut rng, &crs, Vote::new(number_candidates, 0));
         let parameter_string = format!("{} candidates", number_candidates);
@@ -85,7 +60,6 @@ criterion_group!(
     config = Criterion::default().sample_size(500);
     targets =
     encrypt_and_prove,
-    prove,
     verify,
 );
 
