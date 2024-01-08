@@ -1878,10 +1878,10 @@ fn match_identifier_witness<'a>(
 
 fn input_single_account_verify<'a>(
     mut ledger: account::Ledger,
-    _block0_hash: &HeaderId,
-    _sign_data_hash: &TransactionSignDataHash,
+    block0_hash: &HeaderId,
+    sign_data_hash: &TransactionSignDataHash,
     account: &account::Identifier,
-    _witness: &'a account::Witness,
+    witness: &'a account::Witness,
     spending_counter: account::SpendingCounter,
     value: Value,
 ) -> Result<account::Ledger, Error> {
@@ -1889,22 +1889,37 @@ fn input_single_account_verify<'a>(
     let new_ledger = ledger.remove_value(account, spending_counter, value)?;
     ledger = new_ledger;
 
+    let tidsc = WitnessAccountData::new(block0_hash, sign_data_hash, spending_counter);
+    let verified = witness.verify(account.as_ref(), &tidsc);
+    if verified == chain_crypto::Verification::Failed {
+        return Err(Error::AccountInvalidSignature {
+            account: account.clone(),
+            witness: Witness::Account(spending_counter, witness.clone()),
+        });
+    };
+
     Ok(ledger)
 }
 
 fn input_multi_account_verify<'a>(
     mut ledger: multisig::Ledger,
-    _block0_hash: &HeaderId,
-    _sign_data_hash: &TransactionSignDataHash,
+    block0_hash: &HeaderId,
+    sign_data_hash: &TransactionSignDataHash,
     account: &multisig::Identifier,
-    _witness: &'a multisig::Witness,
+    witness: &'a multisig::Witness,
     spending_counter: account::SpendingCounter,
     value: Value,
 ) -> Result<multisig::Ledger, Error> {
     // .remove_value() check if there's enough value and if not, returns a Err.
-    let (new_ledger, _declaration) = ledger.remove_value(account, spending_counter, value)?;
+    let (new_ledger, declaration) = ledger.remove_value(account, spending_counter, value)?;
 
-    // TODO verify sig(pub_key,data)
+    let data_to_verify = WitnessMultisigData::new(block0_hash, sign_data_hash, spending_counter);
+    if !witness.verify(declaration, &data_to_verify) {
+        return Err(Error::MultisigInvalidSignature {
+            multisig: account.clone(),
+            witness: Witness::Multisig(spending_counter, witness.clone()),
+        });
+    }
 
     ledger = new_ledger;
     Ok(ledger)
