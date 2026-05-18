@@ -1082,7 +1082,8 @@ impl Ledger {
                 let (new_ledger_, _fee) =
                     new_ledger.apply_transaction(&fragment_id, &tx, block_date, ledger_params)?;
 
-                new_ledger = new_ledger_.mint_token(tx.payload().into_payload())?;
+                new_ledger = new_ledger_
+                    .mint_token(tx.payload().into_payload(), tx.inputs().iter())?;
             }
             Fragment::Evm(_tx) => {
                 #[cfg(feature = "evm")]
@@ -1398,8 +1399,11 @@ impl Ledger {
         Ok(self)
     }
 
-    pub fn mint_token(self, mt: MintToken) -> Result<Self, Error> {
-        mt.policy.check_minting_tx()?;
+    pub fn mint_token<I>(self, mt: MintToken, inputs: I) -> Result<Self, Error>
+    where
+        I: IntoIterator<Item = Input>,
+    {
+        mt.policy.check_minting_tx(inputs)?;
         self.mint_token_unchecked(mt)
     }
 
